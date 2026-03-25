@@ -1,0 +1,5 @@
+aiogram>=3.13,<4
+motor>=3.6,<4
+pymongo>=4.8,<5
+python-dotenv>=1.0,<2
+psutil>=5.9,<6
