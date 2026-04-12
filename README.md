@@ -1,4 +1,4 @@
-# BIKA Game Bot — Python Final
+# BIKA Game Bot — Node Final
 
 ## Files
 - `main.py`
@@ -6,7 +6,7 @@
 - `.env.example`
 
 ## Features
-- Polling only
+- webhook only
 - MongoDB
 - Start bonus = 30000
 - Fast slot
