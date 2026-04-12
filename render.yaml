@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: bika-gamebot-node
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: MONGO_URI
+        sync: false
+      - key: DB_NAME
+        value: bika_slot
+      - key: OWNER_ID
+        sync: false
+      - key: PUBLIC_URL
+        sync: false
+      - key: WEBHOOK_SECRET
+        sync: false
+      - key: TZ
+        value: Asia/Yangon
+      - key: START_BONUS
+        value: 30000
+      - key: COIN
+        value: MMK
+      - key: PORT
+        value: 3000
