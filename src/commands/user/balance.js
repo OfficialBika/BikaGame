@@ -1,0 +1,2 @@
+const { COIN } = require('../../config/constants'); const { getUser } = require('../../services/economyService'); const { replyHTML } = require('../../utils/telegram'); const { fmt } = require('../../utils/format');
+module.exports = (bot)=>{ async function send(ctx){ const u=await getUser(ctx.from.id); return replyHTML(ctx,`💼 Balance: <b>${fmt(u?.balance)}</b> ${COIN}`); } bot.command('balance',send); bot.command('bal',send); };

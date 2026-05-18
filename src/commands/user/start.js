@@ -1,1 +1,8 @@
-
+const { env } = require('../../config/env');
+const { COIN } = require('../../config/constants');
+const { ensureTreasury, getTreasury } = require('../../services/treasuryService');
+const { ensureUser, markStarted, treasuryPayToUser, getUser } = require('../../services/economyService');
+const { replyHTML } = require('../../utils/telegram');
+const { fmt } = require('../../utils/format');
+const { mentionHtml } = require('../../utils/helpers');
+module.exports = (bot)=> bot.start(async(ctx)=>{ await ensureTreasury(); const u=await ensureUser(ctx.from); await markStarted(ctx.from.id); if(!u.startBonusClaimed){ const t=await getTreasury(); if(Number(t?.ownerBalance||0)>=env.START_BONUS){ try{ await treasuryPayToUser(ctx.from.id, env.START_BONUS, {type:'start_bonus'}); const user=await getUser(ctx.from.id); await require('../../models/userModel').collection().updateOne({userId:ctx.from.id},{$set:{startBonusClaimed:true}}); return replyHTML(ctx,`🎉 <b>Welcome Bonus</b>\n━━━━━━━━━━━━━━━\n👤 ${mentionHtml(ctx.from)}\n➕ Bonus: <b>${fmt(env.START_BONUS)}</b> ${COIN}\n💼 Balance: <b>${fmt(user?.balance)}</b> ${COIN}\n━━━━━━━━━━━━━━\nCommands: <code>/dailyclaim</code>, <code>.slot 100</code>, <code>.dice 200</code>, <code>.shan 500</code>, <code>.mybalance</code>, <code>.top10</code>, <code>/shop</code>`); }catch(e){} } } return replyHTML(ctx,'👋 <b>Welcome to BIKA Bot</b>\n━━━━━━━━━━━━━━━\nCommands: <code>/dailyclaim</code>, <code>.slot 100</code>, <code>.dice 200</code>, <code>.shan 500</code>, <code>.blackjack 500</code>, <code>.mybalance</code>, <code>.top10</code>, <code>/shop</code>'); });
