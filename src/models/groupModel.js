@@ -1,3 +1,3 @@
 const { col } = require('../config/database');
-function collection() { return col('users'); }
+function collection() { return col('groups'); }
 module.exports = { collection };
