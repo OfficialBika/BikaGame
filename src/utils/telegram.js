@@ -1,0 +1,8 @@
+const logger = require('./logger');
+function getRetryAfterSec(err){ const retry=err?.response?.parameters?.retry_after; const m=String(err?.message||err); const match=m.match(/retry after (\d+)/i); return typeof retry==='number'?retry:(match?Number(match[1])||0:0); }
+const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
+async function safeTelegram(fn,{maxRetries=3}={}){ let last; for(let i=0;i<maxRetries;i++){ try{return await fn();}catch(e){ last=e; const retry=getRetryAfterSec(e); if(String(e?.message||e).includes('429')||retry>0){ await sleep(Math.max(1000,(retry||2)*1000)+Math.floor(Math.random()*300)); continue;} break; }} throw last; }
+async function replyHTML(ctx, html, extra={}){ try{return await safeTelegram(()=>ctx.reply(html,{parse_mode:'HTML',disable_web_page_preview:true,...extra}));}catch(e){ logger.warn('replyHTML fallback', e.message); try{return await ctx.reply(String(html).replace(/<[^>]+>/g,''), extra);}catch(_){return null;} } }
+async function editHTML(ctx, html, extra={}){ try{return await safeTelegram(()=>ctx.editMessageText(html,{parse_mode:'HTML',disable_web_page_preview:true,...extra}));}catch(e){ const m=String(e?.message||e); if(!m.includes('message is not modified')) logger.warn('editHTML', m); return null; } }
+async function editByIds(bot, chatId, messageId, html, extra={}){ try{return await safeTelegram(()=>bot.telegram.editMessageText(chatId,messageId,undefined,html,{parse_mode:'HTML',disable_web_page_preview:true,...extra}));}catch(e){ const m=String(e?.message||e); if(!m.includes('message is not modified')) logger.warn('editByIds', m); return null;} }
+module.exports = { safeTelegram, replyHTML, editHTML, editByIds, getRetryAfterSec };
