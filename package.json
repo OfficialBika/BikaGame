@@ -1,19 +1,18 @@
 {
-  "name": "bika-gamebot-node",
-  "version": "1.0.0",
-  "description": "Refactored Node.js version of the Bika Game Bot for Render webhook deployment.",
-  "main": "src/app.js",
+  "name": "bika-bot-production",
+  "version": "3.0.0",
+  "description": "BIKA Pro Telegram game bot - modular production build",
+  "main": "index.js",
   "scripts": {
-    "start": "node src/app.js",
-    "dev": "nodemon src/app.js"
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "check": "node --check index.js && find src -name '*.js' -print0 | xargs -0 -n1 node --check"
   },
   "dependencies": {
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "mongodb": "^5.6.0",
-    "telegraf": "^4.12.3"
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "mongodb": "^6.8.0",
+    "telegraf": "^4.16.3"
   },
-  "devDependencies": {
-    "nodemon": "^2.0.22"
-  }
+  "engines": { "node": ">=18" }
 }
