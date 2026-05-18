@@ -1,0 +1,5 @@
+const { ensureTreasury, isOwner } = require('../services/treasuryService');
+const { getGroup } = require('../services/groupService');
+const { isGroupChat, isCommandLikeText } = require('../utils/helpers');
+const { replyHTML } = require('../utils/telegram');
+module.exports = async (ctx,next)=>{ if(!isGroupChat(ctx)) return next(); const text=String(ctx.message?.text||ctx.callbackQuery?.data||'').trim(); if(!(ctx.updateType==='callback_query'||isCommandLikeText(text))) return next(); const t=await ensureTreasury(); if(isOwner(ctx,t)) return next(); const g=await getGroup(ctx.chat.id); if(!g||g.approvalStatus==='approved') return next(); if(ctx.updateType==='callback_query'){ try{ await ctx.answerCbQuery('Owner approval required',{show_alert:true}); }catch(_){} return; } return replyHTML(ctx, g.botIsAdmin ? '⛔ <b>Owner approval မရသေးပါ</b>\n━━━━━━━━━━━━\nOwner က ဒီ group ထဲဝင်ပြီး <code>/approve</code> ပေးမှ အသုံးပြုနိုင်ပါမယ်။' : '⚠️ <b>Bot ကို Admin ပေးပါ</b>\n━━━━━━━━━━━━\nAdmin ပေးပြီး Owner က <code>/approve</code> ပေးမှ အသုံးပြုနိုင်ပါမယ်။'); };
