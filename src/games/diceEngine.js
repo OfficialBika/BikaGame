@@ -1,54 +1,125 @@
-const { chance } = require('../services/vipService');
+'use strict';
 
 /**
+ * Telegram real dice engine.
+ *
+ * IMPORTANT:
+ * The caller must use:
+ *   const result = await dice.roll(ctx, userA, userB, vipWinRate);
+ *
+ * The visible Telegram dice values are used exactly as returned.
+ * VIP values are accepted for API compatibility but do not alter real dice results.
+ */
 
-Roll Dice using real Telegram dice with retry and error handling.
+function isTelegramContext(value) {
+  return Boolean(value?.telegram?.sendDice && value?.chat?.id);
+}
 
-@param {Object} ctx - Telegraf context
+function getReplyMessageId(ctx) {
+  return (
+    ctx?.callbackQuery?.message?.message_id ||
+    ctx?.message?.message_id ||
+    undefined
+  );
+}
 
-@param {Object} userA - challenger user object {isVip: boolean}
+function getRetryAfterSeconds(err) {
+  const direct = Number(err?.response?.parameters?.retry_after);
+  if (Number.isFinite(direct) && direct > 0) return direct;
 
-@param {Object} userB - target user object {isVip: boolean}
+  const message = String(err?.message || err || '');
+  const match = message.match(/retry after\s+(\d+)/i);
+  return match ? Number(match[1]) : 0;
+}
 
-@param {number} rate - VIP win rate (default 90)
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-@returns {Promise<{d1:number,d2:number,winner:string}>} */ async function roll(ctx, userA, userB, rate = 90) { const retryMax = 3;
+async function sendTelegramDice(ctx, options = {}) {
+  const {
+    maxRetries = 3,
+    delayBetweenRollsMs = 900,
+    replyToMessageId = getReplyMessageId(ctx),
+  } = options;
 
-
-async function safeRoll() { for (let attempt = 1; attempt <= retryMax; attempt++) { try { // Challenger dice const sent1 = await ctx.telegram.sendDice(ctx.chat.id, { reply_to_message_id: ctx.message?.message_id }); const d1_raw = sent1.dice?.value || 1;
-
-// Target dice
-    const sent2 = await ctx.telegram.sendDice(ctx.chat.id, { reply_to_message_id: ctx.message?.message_id });
-    const d2_raw = sent2.dice?.value || 1;
-
-    let d1 = d1_raw;
-    let d2 = d2_raw;
-
-    const vipA = !!userA?.isVip;
-    const vipB = !!userB?.isVip;
-    const vipChance = chance(rate);
-
-    // VIP advantage
-    if (vipA && !vipB && Math.random() < vipChance) {
-      if (d1 <= d2) d1 = Math.min(6, d2 + 1);
-    } else if (vipB && !vipA && Math.random() < vipChance) {
-      if (d2 <= d1) d2 = Math.min(6, d1 + 1);
-    }
-
-    let winner = 'TIE';
-    if (d1 > d2) winner = 'A';
-    else if (d2 > d1) winner = 'B';
-
-    return { d1, d2, winner };
-  } catch (err) {
-    console.error(`Dice roll attempt ${attempt} failed:`, err?.message || err);
-    if (attempt === retryMax) throw err;
-    await new Promise(r => setTimeout(r, 500 + Math.random() * 500));
+  if (!isTelegramContext(ctx)) {
+    throw new TypeError(
+      'diceEngine.roll requires a Telegraf ctx as the first argument'
+    );
   }
+
+  const sendOptions = replyToMessageId
+    ? { reply_to_message_id: replyToMessageId }
+    : {};
+
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+    try {
+      const message = await ctx.telegram.sendDice(ctx.chat.id, sendOptions);
+      const value = message?.dice?.value;
+
+      if (!Number.isInteger(value) || value < 1 || value > 6) {
+        throw new Error('TELEGRAM_DICE_VALUE_MISSING');
+      }
+
+      if (delayBetweenRollsMs > 0) {
+        await sleep(delayBetweenRollsMs);
+      }
+
+      return value;
+    } catch (err) {
+      lastError = err;
+
+      if (attempt >= maxRetries) break;
+
+      const retryAfter = getRetryAfterSeconds(err);
+      const waitMs =
+        retryAfter > 0
+          ? retryAfter * 1000 + 250
+          : 500 * attempt + Math.floor(Math.random() * 250);
+
+      await sleep(waitMs);
+    }
+  }
+
+  throw lastError || new Error('TELEGRAM_DICE_SEND_FAILED');
 }
 
+/**
+ * Roll two real Telegram dice.
+ *
+ * @param {Object} ctx Telegraf context
+ * @param {Object} userA Challenger user document
+ * @param {Object} userB Target user document
+ * @param {number} rate Reserved for compatibility; does not alter real results
+ * @param {Object} options Retry and timing options
+ * @returns {Promise<{d1:number,d2:number,winner:'A'|'B'|'TIE'}>}
+ */
+async function roll(ctx, userA, userB, rate = 90, options = {}) {
+  void userA;
+  void userB;
+  void rate;
+
+  if (!isTelegramContext(ctx)) {
+    throw new TypeError(
+      'Use await dice.roll(ctx, userA, userB, rate). Telegram ctx is required.'
+    );
+  }
+
+  const d1 = await sendTelegramDice(ctx, options);
+  const d2 = await sendTelegramDice(ctx, {
+    ...options,
+    delayBetweenRollsMs: 0,
+  });
+
+  const winner = d1 > d2 ? 'A' : d2 > d1 ? 'B' : 'TIE';
+
+  return { d1, d2, winner };
 }
 
-return await safeRoll(); }
-
-module.exports = { roll };
+module.exports = {
+  roll,
+  sendTelegramDice,
+};
