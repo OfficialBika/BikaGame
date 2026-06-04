@@ -1,71 +1,263 @@
 require('dotenv').config();
+
 const express = require('express');
 const { bot, initBotInfo, getBotInfo } = require('./src/config/bot');
 const { connectMongo, closeMongo } = require('./src/config/database');
 const { env, USE_WEBHOOK } = require('./src/config/env');
-const loadMiddlewares = require('./src/middlewares');
-const loadCommands = require('./src/commands');
-const loadHandlers = require('./src/handlers');
 const logger = require('./src/utils/logger');
 
 let server = null;
+let isReady = false;
+
+/**
+ * Commands fallback list.
+ *
+ * This is used only when ./src/commands/index.js exists but does not export
+ * a loader function, which previously caused:
+ *   TypeError: loadCommands is not a function
+ */
+const COMMAND_MODULES = [
+  './src/commands/admin/treasury',
+  './src/commands/admin/broadcast',
+  './src/commands/admin/vip',
+  './src/commands/admin/maintenance',
+  './src/commands/admin/status',
+  './src/commands/admin/groupApproval',
+
+  './src/commands/user/start',
+  './src/commands/user/balance',
+  './src/commands/user/daily',
+  './src/commands/user/gift',
+  './src/commands/user/top10',
+  './src/commands/user/wallet',
+
+  './src/commands/games/slot',
+  './src/commands/games/dice',
+  './src/commands/games/shan',
+  './src/commands/games/blackjack',
+
+  './src/commands/shop/shop',
+];
+
+function moduleExists(modulePath) {
+  try {
+    require.resolve(modulePath);
+    return true;
+  } catch (err) {
+    if (err?.code === 'MODULE_NOT_FOUND') return false;
+    throw err;
+  }
+}
+
+function requireLoader(modulePath, label) {
+  if (!moduleExists(modulePath)) {
+    throw new Error(`${label} loader not found: ${modulePath}`);
+  }
+
+  const loader = require(modulePath);
+
+  if (typeof loader !== 'function') {
+    throw new TypeError(`${label} loader must export a function: ${modulePath}`);
+  }
+
+  return loader;
+}
+
+function loadFallbackCommands(targetBot) {
+  let loaded = 0;
+  let skipped = 0;
+
+  for (const modulePath of COMMAND_MODULES) {
+    if (!moduleExists(modulePath)) {
+      skipped += 1;
+      logger.warn(`Command module not found; skipped: ${modulePath}`);
+      continue;
+    }
+
+    const registerCommand = require(modulePath);
+
+    if (typeof registerCommand !== 'function') {
+      throw new TypeError(`Command module must export a function: ${modulePath}`);
+    }
+
+    registerCommand(targetBot);
+    loaded += 1;
+  }
+
+  logger.info(`Fallback command loader completed: loaded=${loaded}, skipped=${skipped}`);
+}
+
+function loadAllModules(targetBot) {
+  const loadMiddlewares = requireLoader('./src/middlewares', 'Middleware');
+  const loadHandlers = requireLoader('./src/handlers', 'Handler');
+
+  loadMiddlewares(targetBot);
+
+  if (moduleExists('./src/commands')) {
+    const loadCommands = require('./src/commands');
+
+    if (typeof loadCommands === 'function') {
+      loadCommands(targetBot);
+    } else {
+      logger.warn(
+        './src/commands/index.js does not export a function; using index.js fallback command loader'
+      );
+      loadFallbackCommands(targetBot);
+    }
+  } else {
+    logger.warn('./src/commands loader not found; using index.js fallback command loader');
+    loadFallbackCommands(targetBot);
+  }
+
+  loadHandlers(targetBot);
+}
+
+function createApp() {
+  const app = express();
+
+  app.disable('x-powered-by');
+  app.use(express.json({ limit: '2mb' }));
+
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+
+    if (
+      origin &&
+      (
+        origin === env.WEB_ORIGIN ||
+        origin.startsWith('http://localhost:') ||
+        origin.startsWith('http://127.0.0.1:')
+      )
+    ) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+    }
+
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-KEY');
+
+    if (req.method === 'OPTIONS') return res.sendStatus(204);
+
+    return next();
+  });
+
+  app.get('/', (req, res) => {
+    return res.status(200).send('BIKA Bot OK');
+  });
+
+  app.get('/health', (req, res) => {
+    const statusCode = isReady ? 200 : 503;
+
+    return res.status(statusCode).json({
+      ok: isReady,
+      bot: getBotInfo()?.username || null,
+      mode: USE_WEBHOOK ? 'webhook' : 'polling',
+      uptime: process.uptime(),
+      time: new Date().toISOString(),
+    });
+  });
+
+  return app;
+}
+
+async function startTelegramBot(app) {
+  const webhookPath = env.WEBHOOK_SECRET
+    ? `/telegraf/${env.WEBHOOK_SECRET}`
+    : null;
+
+  const webhookUrl =
+    USE_WEBHOOK && webhookPath
+      ? `${String(env.PUBLIC_URL).replace(/\/+$/, '')}${webhookPath}`
+      : null;
+
+  if (USE_WEBHOOK && webhookPath) {
+    app.post(webhookPath, (req, res) => {
+      return bot.handleUpdate(req.body, res);
+    });
+  }
+
+  try {
+    await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+  } catch (err) {
+    logger.warn(`deleteWebhook warning: ${err?.message || err}`);
+  }
+
+  if (USE_WEBHOOK && webhookUrl) {
+    await bot.telegram.setWebhook(webhookUrl);
+    logger.info(`Webhook mode enabled: ${webhookUrl}`);
+  } else {
+    await bot.launch({ dropPendingUpdates: true });
+    logger.info('Polling mode enabled');
+  }
+}
+
+function listen(app) {
+  return new Promise((resolve, reject) => {
+    server = app.listen(env.PORT, () => {
+      logger.info(`Web server listening on ${env.PORT}`);
+      resolve();
+    });
+
+    server.once('error', reject);
+  });
+}
 
 async function main() {
   await connectMongo();
   await initBotInfo();
 
-  loadMiddlewares(bot);
-  loadCommands(bot);
-  loadHandlers(bot);
+  loadAllModules(bot);
 
-  const app = express();
-  app.use(express.json({ limit: '2mb' }));
+  const app = createApp();
 
-  app.use((req, res, next) => {
-    const origin = req.headers.origin;
-    if (origin && (origin === env.WEB_ORIGIN || origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:'))) {
-      res.setHeader('Access-Control-Allow-Origin', origin);
-      res.setHeader('Vary', 'Origin');
-    }
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-API-KEY');
-    if (req.method === 'OPTIONS') return res.sendStatus(204);
-    return next();
-  });
+  await listen(app);
+  await startTelegramBot(app);
 
-  app.get('/', (req, res) => res.status(200).send('BIKA Bot OK'));
-  app.get('/health', (req, res) => res.json({ ok: true, bot: getBotInfo()?.username || null, uptime: process.uptime(), time: new Date().toISOString() }));
+  isReady = true;
 
-  const webhookPath = env.WEBHOOK_SECRET ? `/telegraf/${env.WEBHOOK_SECRET}` : null;
-  const webhookUrl = USE_WEBHOOK && webhookPath ? `${env.PUBLIC_URL}${webhookPath}` : null;
-  if (USE_WEBHOOK && webhookPath) app.post(webhookPath, (req, res) => bot.handleUpdate(req.body, res));
-
-  server = app.listen(env.PORT, async () => {
-    logger.info(`Web server listening on ${env.PORT}`);
-    try { await bot.telegram.deleteWebhook({ drop_pending_updates: true }); } catch (e) { logger.warn(e.message); }
-    if (USE_WEBHOOK && webhookUrl) {
-      await bot.telegram.setWebhook(webhookUrl);
-      logger.info(`Webhook mode enabled: ${webhookUrl}`);
-    } else {
-      await bot.launch({ dropPendingUpdates: true });
-      logger.info('Polling mode enabled');
-    }
-    logger.info(`Bot username: @${getBotInfo()?.username || 'unknown'}`);
-    logger.info(`Owner ID: ${env.OWNER_ID}`);
-  });
+  logger.info(`Bot username: @${getBotInfo()?.username || 'unknown'}`);
+  logger.info(`Owner ID: ${env.OWNER_ID}`);
 }
 
 async function shutdown(signal) {
   logger.info(`Shutdown: ${signal}`);
-  try { if (server) server.close(); } catch (_) {}
-  try { await bot.stop(signal); } catch (_) {}
-  try { await closeMongo(); } catch (_) {}
+  isReady = false;
+
+  try {
+    if (server) {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  } catch (err) {
+    logger.warn(`HTTP server close warning: ${err?.message || err}`);
+  }
+
+  try {
+    await bot.stop(signal);
+  } catch (err) {
+    logger.warn(`Bot stop warning: ${err?.message || err}`);
+  }
+
+  try {
+    await closeMongo();
+  } catch (err) {
+    logger.warn(`Mongo close warning: ${err?.message || err}`);
+  }
+
   process.exit(0);
 }
 
 process.once('SIGINT', () => shutdown('SIGINT'));
 process.once('SIGTERM', () => shutdown('SIGTERM'));
-process.on('unhandledRejection', (reason) => logger.error('UnhandledRejection', reason));
-process.on('uncaughtException', (err) => logger.error('UncaughtException', err));
 
-main().catch((err) => { logger.error('BOOT ERROR', err); process.exit(1); });
+process.on('unhandledRejection', (reason) => {
+  logger.error('UnhandledRejection', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  logger.error('UncaughtException', err);
+});
+
+main().catch((err) => {
+  logger.error('BOOT ERROR', err);
+  process.exit(1);
+});
