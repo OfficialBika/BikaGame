@@ -19,7 +19,6 @@ function balanceText(ctx, user) {
     `💰 Balance: <b>${fmt(balance)}</b> ${COIN}\n` +
     `🏆 Total Won: <b>${fmt(totalWon)}</b> ${COIN}\n` +
     `💸 Total Lost: <b>${fmt(totalLost)}</b> ${COIN}\n` +
-    `⭐ VIP: <b>${isVip ? 'YES' : 'NO'}</b>\n` +
     `━━━━━━━━━━━━━━`
   );
 }
