@@ -29,7 +29,7 @@ function dailySuccessText(ctx, amount, newBalance, now) {
     `👤 ${mentionHtml(ctx.from)}\n` +
     `➕ Reward: <b>${fmt(amount)}</b> ${COIN}\n` +
     `💼 Balance: <b>${fmt(newBalance)}</b> ${COIN}\n` +
-    `🕒 ${formatYangon(now)} (Yangon Time)`
+    `🕒 ${formatYangon(now)}`
   );
 }
 
@@ -60,7 +60,7 @@ module.exports = (bot) => {
     if (lastClaim && lastClaim >= today) {
       return replyHTML(
         ctx,
-        '⏳ ဒီနေ့ claim လုပ်ပြီးပါပြီ။ နောက်နေ့မှ ပြန် claim လုပ်ပါ။',
+        '⏳ ဒီနေ့ claim လုပ်ပြီးပြီလေ! တစ်ရက် ဘယ်နှကြိမ်ယူချင်နေတာလဲ လစ်လစ် နောက်နေ့မှ ပြန်လုပ်',
         options
       );
     }
@@ -107,7 +107,7 @@ module.exports = (bot) => {
     if (!previousUser) {
       return replyHTML(
         ctx,
-        '⏳ ဒီနေ့ claim လုပ်ပြီးပါပြီ။ နောက်နေ့မှ ပြန် claim လုပ်ပါ။',
+        '⏳ ဒီနေ့ claim လုပ်ပြီးပြီလေ! တစ်ရက် ဘယ်နှကြိမ်ယူချင်နေတာလဲ လစ်လစ် နောက်နေ့မှ ပြန်လုပ်',
         options
       );
     }
