@@ -9,15 +9,15 @@ const { mentionHtml } = require('../../utils/helpers');
 function getBalanceRankLabel(balance) {
   const amount = Number(balance || 0);
 
-  if (amount >= 10000000) return 'ဘုရင်တန်းစား 👑';
-  if (amount >= 5000000) return 'အထက်တန်းစား 💎';
-  if (amount >= 1000000) return 'သူဌေးတန်းစား 🏆';
-  if (amount >= 500000) return 'အလယ်အထက်တန်းစား ⭐';
-  if (amount >= 100000) return 'လူလတ်တန်းစား 🏷️';
-  if (amount >= 50000) return 'အခြေခံတန်းစား 💼';
-  if (amount >= 10000) return 'စတင်တက်လာသူ 🌱';
+  if (amount >= 10000000) return 'ကုဋေ ၈၀ သူဌေးကြီး 👑';
+  if (amount >= 5000000) return 'သိန်းကြွယ် သူဌေးကြီး 💎';
+  if (amount >= 1000000) return 'သူဌေးကြီးအဆင့် 🏆';
+  if (amount >= 500000) return 'အထက်တန်းစား သူဌေး ⭐';
+  if (amount >= 100000) return 'လူလတ်တန်းစား အဆင့် 🏷️';
+  if (amount >= 50000) return 'အခြေခံလူတန်းစား 💼';
+  if (amount >= 10000) return 'အိုးမဲ့အိမ်မဲ့ ငမွဲ 🌱';
 
-  return 'စတင်သူ 🐣';
+  return 'ဖင်ပြောင်ငမွဲ 🐣';
 }
 
 function balanceText(ctx, user) {
@@ -35,7 +35,6 @@ function balanceText(ctx, user) {
     `🏆 Total Won: <b>${fmt(totalWon)}</b> ${COIN}\n` +
     `💸 Total Lost: <b>${fmt(totalLost)}</b> ${COIN}\n` +
     `🏷️ Rank: <b>${rankLabel}</b>\n` +
-    `⭐ VIP: <b>${isVip ? 'YES' : 'NO'}</b>\n` +
     `━━━━━━━━━━━━━━`
   );
 }
