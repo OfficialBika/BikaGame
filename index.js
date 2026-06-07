@@ -9,13 +9,6 @@ const logger = require('./src/utils/logger');
 let server = null;
 let isReady = false;
 
-/**
- * Commands fallback list.
- *
- * This is used only when ./src/commands/index.js exists but does not export
- * a loader function, which previously caused:
- *   TypeError: loadCommands is not a function
- */
 const COMMAND_MODULES = [
   './src/commands/admin/treasury',
   './src/commands/admin/broadcast',
@@ -23,19 +16,16 @@ const COMMAND_MODULES = [
   './src/commands/admin/maintenance',
   './src/commands/admin/status',
   './src/commands/admin/groupApproval',
-
   './src/commands/user/start',
   './src/commands/user/balance',
   './src/commands/user/daily',
   './src/commands/user/gift',
   './src/commands/user/top10',
   './src/commands/user/wallet',
-
   './src/commands/games/slot',
   './src/commands/games/dice',
   './src/commands/games/shan',
   './src/commands/games/blackjack',
-
   './src/commands/shop/shop',
 ];
 
@@ -99,13 +89,11 @@ function loadAllModules(targetBot) {
     if (typeof loadCommands === 'function') {
       loadCommands(targetBot);
     } else {
-      logger.warn(
-        './src/commands/index.js does not export a function; using index.js fallback command loader'
-      );
+      logger.warn('./src/commands/index.js does not export a function; using fallback command loader');
       loadFallbackCommands(targetBot);
     }
   } else {
-    logger.warn('./src/commands loader not found; using index.js fallback command loader');
+    logger.warn('./src/commands loader not found; using fallback command loader');
     loadFallbackCommands(targetBot);
   }
 
@@ -160,6 +148,14 @@ function createApp() {
   return app;
 }
 
+function handleWebhookUpdate(update) {
+  setImmediate(() => {
+    bot.handleUpdate(update).catch((err) => {
+      logger.error('Webhook update error', err);
+    });
+  });
+}
+
 async function startTelegramBot(app) {
   const webhookPath = env.WEBHOOK_SECRET
     ? `/telegraf/${env.WEBHOOK_SECRET}`
@@ -172,7 +168,8 @@ async function startTelegramBot(app) {
 
   if (USE_WEBHOOK && webhookPath) {
     app.post(webhookPath, (req, res) => {
-      return bot.handleUpdate(req.body, res);
+      res.sendStatus(200);
+      handleWebhookUpdate(req.body);
     });
   }
 
@@ -183,7 +180,11 @@ async function startTelegramBot(app) {
   }
 
   if (USE_WEBHOOK && webhookUrl) {
-    await bot.telegram.setWebhook(webhookUrl);
+    await bot.telegram.setWebhook(webhookUrl, {
+      max_connections: Number(process.env.WEBHOOK_MAX_CONNECTIONS || 40),
+      drop_pending_updates: true,
+    });
+
     logger.info(`Webhook mode enabled: ${webhookUrl}`);
   } else {
     await bot.launch({ dropPendingUpdates: true });
