@@ -8,6 +8,7 @@ const shopSettingModel = require('../../models/shopSettingModel');
 const {
   getUser,
   userPayToTreasury,
+  treasuryPayToUser,
 } = require('../../services/economyService');
 const {
   ensureTreasury,
@@ -25,19 +26,15 @@ const MAX_PENDING_ORDERS = Number(process.env.SHOP_MAX_PENDING || 10_000);
 const RARITIES = Object.freeze([
   Object.freeze({ key: 'rare', label: 'Rare', icon: '🔵', defaultPrice: 100_000 }),
   Object.freeze({ key: 'legendary', label: 'Legendary', icon: '🟡', defaultPrice: 1_000_000 }),
-  Object.freeze({ key: 'mystical', label: 'Mystical', icon: '💮', defaultPrice: 2_500_000 }),
-  Object.freeze({ key: 'divine', label: 'Divine', icon: '⚜️', defaultPrice: 5_000_000 }),
-  Object.freeze({ key: 'crossverse', label: 'CrossVerse', icon: '⚡', defaultPrice: 10_000_000 }),
-  Object.freeze({ key: 'cataphract', label: 'Cataphract', icon: '✨', defaultPrice: 25_000_000 }),
-  Object.freeze({ key: 'supreme', label: 'Supreme', icon: '🪞', defaultPrice: 50_000_000 }),
+  Object.freeze({ key: 'mystical', label: 'Mystical', icon: '🟣', defaultPrice: 2_500_000 }),
+  Object.freeze({ key: 'divine', label: 'Divine', icon: '🔴', defaultPrice: 5_000_000 }),
+  Object.freeze({ key: 'crossverse', label: 'CrossVerse', icon: '🌌', defaultPrice: 10_000_000 }),
+  Object.freeze({ key: 'cataphract', label: 'Cataphract', icon: '🛡️', defaultPrice: 25_000_000 }),
+  Object.freeze({ key: 'supreme', label: 'Supreme', icon: '👑', defaultPrice: 50_000_000 }),
 ]);
 
 function normalizeRarity(input) {
-  const raw = String(input || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[\s_-]+/g, '');
-
+  const raw = String(input || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
   if (!raw) return null;
 
   const aliases = {
@@ -77,7 +74,7 @@ function makePendingId() {
   return `o${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function receiptCode() {
+function makeReceiptCode() {
   return `BIKA-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
 }
 
@@ -100,15 +97,10 @@ async function requireOwner(ctx) {
 
 async function requireOwnerDm(ctx) {
   const treasury = await requireOwner(ctx);
-
   if (!treasury) return null;
 
   if (!privateOnly(ctx)) {
-    await replyHTML(
-      ctx,
-      'ℹ️ ဒီ shop admin command ကို bot DM ထဲမှာပဲ သုံးပါ။',
-      replyOptions(ctx)
-    );
+    await replyHTML(ctx, 'ℹ️ ဒီ shop admin command ကို bot DM ထဲမှာပဲ သုံးပါ။', replyOptions(ctx));
     return null;
   }
 
@@ -137,14 +129,8 @@ async function setRarityPrice(key, amount) {
   await shopSettingModel.collection().updateOne(
     { key: 'rarity_prices' },
     {
-      $set: {
-        key: 'rarity_prices',
-        prices,
-        updatedAt: new Date(),
-      },
-      $setOnInsert: {
-        createdAt: new Date(),
-      },
+      $set: { key: 'rarity_prices', prices, updatedAt: new Date() },
+      $setOnInsert: { createdAt: new Date() },
     },
     { upsert: true }
   );
@@ -171,13 +157,11 @@ async function countAvailableByRarity() {
 }
 
 function shopHomeText(balance, prices, counts) {
-  const lines = RARITIES.map((rarity) => {
-    return (
-      `${rarity.icon} <b>${rarity.label}</b>\n` +
-      `   Price: <b>${fmt(prices[rarity.key])}</b> ${COIN}\n` +
-      `   Stock: <b>${fmt(counts[rarity.key] || 0)}</b> cards`
-    );
-  }).join('\n\n');
+  const lines = RARITIES.map((rarity) => (
+    `${rarity.icon} <b>${rarity.label}</b>\n` +
+    `   Price: <b>${fmt(prices[rarity.key])}</b> ${COIN}\n` +
+    `   Stock: <b>${fmt(counts[rarity.key] || 0)}</b> cards`
+  )).join('\n\n');
 
   return (
     `🛒 <b>BIKA Characters Card Shop</b>\n` +
@@ -223,9 +207,9 @@ async function rarityCardsText(rarityKey, price) {
     };
   }
 
-  const cardLines = cards.map((card, index) => {
-    return `${index + 1}. <code>${escHtml(card.cardId)}</code>${card.name ? ` — ${escHtml(card.name)}` : ''}`;
-  }).join('\n');
+  const cardLines = cards.map((card, index) => (
+    `${index + 1}. <code>${escHtml(card.cardId)}</code>${card.name ? ` — ${escHtml(card.name)}` : ''}`
+  )).join('\n');
 
   return {
     text:
@@ -258,7 +242,6 @@ function cardsKeyboard(cards) {
   }
 
   if (row.length) rows.push(row);
-
   rows.push([{ text: '⬅️ Back to Rarity', callback_data: 'BUY:HOME' }]);
 
   return { inline_keyboard: rows };
@@ -269,6 +252,7 @@ function previewText(ctx, card, price) {
     `🧾 <b>Order Preview</b>\n` +
     `━━━━━━━━━━━━━━━━\n` +
     `Buyer: ${mentionHtml(ctx.from)}\n` +
+    `Buyer ID: <code>${ctx.from.id}</code>\n` +
     `Rarity: <b>${rarityLabel(card.rarity)}</b>\n` +
     `Card ID: <code>${escHtml(card.cardId)}</code>\n` +
     `${card.name ? `Name: <b>${escHtml(card.name)}</b>\n` : ''}` +
@@ -289,19 +273,92 @@ function previewKeyboard(pendingId) {
   };
 }
 
-function successText(order, insertedId, balance) {
+function buyerPendingText(order, insertedId, balance, ownerNotified) {
   return (
     `✅ <b>Order Created</b>\n` +
     `━━━━━━━━━━━━━━━━\n` +
     `Order ID: <code>${String(insertedId)}</code>\n` +
     `Receipt: <code>${order.receiptCode}</code>\n` +
-    `Buyer: ${mentionHtml(order.buyer)}\n` +
+    `Buyer ID: <code>${order.userId}</code>\n` +
     `Rarity: <b>${rarityLabel(order.card.rarity)}</b>\n` +
     `Card ID: <code>${escHtml(order.card.cardId)}</code>\n` +
     `${order.card.name ? `Name: <b>${escHtml(order.card.name)}</b>\n` : ''}` +
     `Paid: <b>${fmt(order.price)}</b> ${COIN}\n` +
     `Balance: <b>${fmt(balance)}</b> ${COIN}\n` +
-    `Status: <b>PENDING</b>`
+    `Status: <b>PENDING OWNER APPROVAL</b>\n` +
+    `Owner Alert: <b>${ownerNotified ? 'SENT ✅' : 'FAILED ⚠️'}</b>`
+  );
+}
+
+function ownerOrderText(order, insertedId) {
+  return (
+    `🛒 <b>New Card Order</b>\n` +
+    `━━━━━━━━━━━━━━━━\n` +
+    `Order ID: <code>${String(insertedId)}</code>\n` +
+    `Receipt: <code>${order.receiptCode}</code>\n` +
+    `Buyer: ${mentionHtml(order.buyer)}\n` +
+    `Buyer ID: <code>${order.userId}</code>\n` +
+    `Username: <code>${escHtml(order.buyer.username ? '@' + order.buyer.username : 'N/A')}</code>\n` +
+    `Rarity: <b>${rarityLabel(order.card.rarity)}</b>\n` +
+    `Card ID: <code>${escHtml(order.card.cardId)}</code>\n` +
+    `${order.card.name ? `Name: <b>${escHtml(order.card.name)}</b>\n` : ''}` +
+    `Paid: <b>${fmt(order.price)}</b> ${COIN}\n` +
+    `Status: <b>PENDING</b>\n` +
+    `━━━━━━━━━━━━━━━━\n` +
+    `Approve လုပ်ရင် buyer DM ကို completed message ပို့ပါမယ်။\n` +
+    `Cancel လုပ်ရင် refund + buyer DM ပို့ပါမယ်။`
+  );
+}
+
+function ownerOrderKeyboard(orderId) {
+  return {
+    inline_keyboard: [
+      [
+        { text: '✅ Approve', callback_data: `SHOPADMIN:APPROVE:${orderId}` },
+        { text: '❌ Cancel', callback_data: `SHOPADMIN:CANCEL:${orderId}` },
+      ],
+    ],
+  };
+}
+
+function buyerCompletedText(order) {
+  return (
+    `✅ <b>Order ပြီးမြောက်ပါပြီ</b>\n` +
+    `━━━━━━━━━━━━━━━━\n` +
+    `Receipt: <code>${escHtml(order.receiptCode || 'N/A')}</code>\n` +
+    `Rarity: <b>${rarityLabel(order.rarity)}</b>\n` +
+    `Card ID: <code>${escHtml(order.cardId || 'N/A')}</code>\n` +
+    `${order.itemName ? `Name: <b>${escHtml(order.itemName)}</b>\n` : ''}` +
+    `Paid: <b>${fmt(order.price || 0)}</b> ${COIN}\n` +
+    `Status: <b>COMPLETED ✅</b>`
+  );
+}
+
+function buyerCancelledText(order, refunded) {
+  return (
+    `❌ <b>Order Cancelled</b>\n` +
+    `━━━━━━━━━━━━━━━━\n` +
+    `Receipt: <code>${escHtml(order.receiptCode || 'N/A')}</code>\n` +
+    `Rarity: <b>${rarityLabel(order.rarity)}</b>\n` +
+    `Card ID: <code>${escHtml(order.cardId || 'N/A')}</code>\n` +
+    `${order.itemName ? `Name: <b>${escHtml(order.itemName)}</b>\n` : ''}` +
+    `Amount: <b>${fmt(order.price || 0)}</b> ${COIN}\n` +
+    `Refund: <b>${refunded ? 'DONE ✅' : 'FAILED ⚠️'}</b>\n` +
+    `Status: <b>CANCELLED</b>`
+  );
+}
+
+function ownerCompletedText(order, action) {
+  return (
+    `${action === 'APPROVE' ? '✅ <b>Order Approved</b>' : '❌ <b>Order Cancelled</b>'}\n` +
+    `━━━━━━━━━━━━━━━━\n` +
+    `Order ID: <code>${String(order._id)}</code>\n` +
+    `Receipt: <code>${escHtml(order.receiptCode || 'N/A')}</code>\n` +
+    `Buyer ID: <code>${order.userId}</code>\n` +
+    `Rarity: <b>${rarityLabel(order.rarity)}</b>\n` +
+    `Card ID: <code>${escHtml(order.cardId || 'N/A')}</code>\n` +
+    `Paid: <b>${fmt(order.price || 0)}</b> ${COIN}\n` +
+    `Status: <b>${action === 'APPROVE' ? 'COMPLETED' : 'CANCELLED'}</b>`
   );
 }
 
@@ -343,7 +400,9 @@ function helpText() {
     `• <code>/shopremove D001</code>\n` +
     `• <code>/setrarityprice Divine 5000000</code>\n` +
     `• <code>/shopcards Divine</code>\n` +
-    `• <code>/shopprices</code>`
+    `• <code>/shopprices</code>\n\n` +
+    `Owner approve/cancel:\n` +
+    `• Order ဝင်လာရင် owner DM ထဲကို Approve / Cancel button ပို့ပါမယ်။`
   );
 }
 
@@ -372,11 +431,8 @@ function cleanupPendingOrders() {
 
 function clearPending(id) {
   const order = pendingOrders.get(id);
-
   if (order?.timeoutHandle) clearTimeout(order.timeoutHandle);
-
   pendingOrders.delete(id);
-
   return order;
 }
 
@@ -388,28 +444,19 @@ async function myOrdersText(userId) {
     .toArray();
 
   if (!orders.length) {
-    return (
-      `📦 <b>My Orders</b>\n` +
-      `━━━━━━━━━━━━━━━━\n` +
-      `Order မရှိသေးပါ။`
-    );
+    return `📦 <b>My Orders</b>\n━━━━━━━━━━━━━━━━\nOrder မရှိသေးပါ။`;
   }
 
-  const lines = orders.map((order, index) => {
-    return (
-      `${index + 1}. <code>${String(order._id)}</code>\n` +
-      `   Rarity: <b>${escHtml(order.rarity || 'N/A')}</b>\n` +
-      `   Card ID: <code>${escHtml(order.cardId || order.itemId || 'N/A')}</code>\n` +
-      `   Paid: <b>${fmt(order.price || 0)}</b> ${COIN}\n` +
-      `   Status: <b>${escHtml(order.status || 'PENDING')}</b>`
-    );
-  }).join('\n\n');
+  const lines = orders.map((order, index) => (
+    `${index + 1}. <code>${String(order._id)}</code>\n` +
+    `   Buyer ID: <code>${order.userId}</code>\n` +
+    `   Rarity: <b>${escHtml(order.rarity || 'N/A')}</b>\n` +
+    `   Card ID: <code>${escHtml(order.cardId || order.itemId || 'N/A')}</code>\n` +
+    `   Paid: <b>${fmt(order.price || 0)}</b> ${COIN}\n` +
+    `   Status: <b>${escHtml(order.status || 'PENDING')}</b>`
+  )).join('\n\n');
 
-  return (
-    `📦 <b>My Recent Orders</b>\n` +
-    `━━━━━━━━━━━━━━━━\n` +
-    `${lines}`
-  );
+  return `📦 <b>My Recent Orders</b>\n━━━━━━━━━━━━━━━━\n${lines}`;
 }
 
 async function openShop(ctx) {
@@ -431,9 +478,7 @@ async function showRarity(ctx, rarityKey) {
     await ctx.answerCbQuery(`${rarityInfo(rarityKey)?.label || rarityKey} cards`);
   } catch (_) {}
 
-  return replyHTML(ctx, text, {
-    reply_markup: cardsKeyboard(cards),
-  });
+  return replyHTML(ctx, text, { reply_markup: cardsKeyboard(cards) });
 }
 
 async function handleBuy(ctx, payload) {
@@ -460,34 +505,142 @@ module.exports = (bot) => {
   bot.command('shop', openShop);
   bot.hears(/^\.(shop)\s*$/i, openShop);
 
-  /*
-   * callbackHandler.js passes BUY:* here.
-   */
   bot._bikaHandleBuy = handleBuy;
 
   bot.on('callback_query', async (ctx, next) => {
     const data = String(ctx.callbackQuery?.data || '');
 
-    if (!data.startsWith('SHOP:')) {
+    if (!data.startsWith('SHOP:') && !data.startsWith('SHOPADMIN:')) {
       return next();
     }
 
     cleanupPendingOrders();
 
     if (data === 'SHOP:HELP') {
-      try {
-        await ctx.answerCbQuery('Help opened.');
-      } catch (_) {}
-
+      try { await ctx.answerCbQuery('Help opened.'); } catch (_) {}
       return replyHTML(ctx, helpText());
     }
 
     if (data === 'SHOP:MYORDERS') {
-      try {
-        await ctx.answerCbQuery('My orders opened.');
-      } catch (_) {}
-
+      try { await ctx.answerCbQuery('My orders opened.'); } catch (_) {}
       return replyHTML(ctx, await myOrdersText(ctx.from.id));
+    }
+
+    if (data.startsWith('SHOPADMIN:')) {
+      const [, action, orderId] = data.split(':');
+      const treasury = await ensureTreasury();
+
+      if (!isOwner(ctx, treasury)) {
+        try {
+          await ctx.answerCbQuery('Owner only.', { show_alert: true });
+        } catch (_) {}
+        return;
+      }
+
+      if (!ObjectId.isValid(orderId)) {
+        try {
+          await ctx.answerCbQuery('Invalid order id.', { show_alert: true });
+        } catch (_) {}
+        return;
+      }
+
+      const order = await orderModel.collection().findOne({ _id: new ObjectId(orderId) });
+
+      if (!order) {
+        try {
+          await ctx.answerCbQuery('Order not found.', { show_alert: true });
+        } catch (_) {}
+        return;
+      }
+
+      if (order.status !== 'PENDING') {
+        try {
+          await ctx.answerCbQuery(`Already ${order.status}.`, { show_alert: true });
+        } catch (_) {}
+        return;
+      }
+
+      if (action === 'APPROVE') {
+        await orderModel.collection().updateOne(
+          { _id: order._id, status: 'PENDING' },
+          {
+            $set: {
+              status: 'COMPLETED',
+              approvedByUserId: ctx.from.id,
+              approvedAt: new Date(),
+              completedAt: new Date(),
+              updatedAt: new Date(),
+            },
+          }
+        );
+
+        const updated = await orderModel.collection().findOne({ _id: order._id });
+
+        try {
+          await bot.telegram.sendMessage(order.userId, buyerCompletedText(updated), {
+            parse_mode: 'HTML',
+          });
+        } catch (_) {}
+
+        try { await ctx.answerCbQuery('Order approved.'); } catch (_) {}
+        return editHTML(ctx, ownerCompletedText(updated, 'APPROVE'));
+      }
+
+      if (action === 'CANCEL') {
+        let refunded = false;
+
+        try {
+          await treasuryPayToUser(order.userId, order.price, {
+            type: 'shop_order_refund',
+            orderId: String(order._id),
+            cardId: order.cardId,
+            rarity: order.rarity,
+            reason: 'owner_cancel',
+          });
+          refunded = true;
+        } catch (_) {}
+
+        await orderModel.collection().updateOne(
+          { _id: order._id, status: 'PENDING' },
+          {
+            $set: {
+              status: 'CANCELLED',
+              cancelledByUserId: ctx.from.id,
+              cancelledAt: new Date(),
+              refunded,
+              updatedAt: new Date(),
+            },
+          }
+        );
+
+        await shopCardModel.collection().updateOne(
+          { cardId: order.cardId, status: 'SOLD' },
+          {
+            $set: {
+              status: 'AVAILABLE',
+              soldToUserId: null,
+              soldAt: null,
+              updatedAt: new Date(),
+            },
+          }
+        );
+
+        const updated = await orderModel.collection().findOne({ _id: order._id });
+
+        try {
+          await bot.telegram.sendMessage(order.userId, buyerCancelledText(updated, refunded), {
+            parse_mode: 'HTML',
+          });
+        } catch (_) {}
+
+        try { await ctx.answerCbQuery('Order cancelled.'); } catch (_) {}
+        return editHTML(ctx, ownerCompletedText(updated, 'CANCEL'));
+      }
+
+      try {
+        await ctx.answerCbQuery('Unknown owner action.', { show_alert: true });
+      } catch (_) {}
+      return;
     }
 
     if (data.startsWith('SHOP:CARD:')) {
@@ -511,17 +664,13 @@ module.exports = (bot) => {
 
       const user = await getUser(ctx.from.id);
       if (Number(user?.balance || 0) < price) {
-        return ctx.answerCbQuery('❌ Balance မလုံလောက်ပါ။', {
-          show_alert: true,
-        });
+        return ctx.answerCbQuery('❌ Balance မလုံလောက်ပါ။', { show_alert: true });
       }
 
       const pendingId = makePendingId();
       const expiresAt = Date.now() + ORDER_TIMEOUT_MS;
 
-      try {
-        await ctx.answerCbQuery('Order preview opened.');
-      } catch (_) {}
+      try { await ctx.answerCbQuery('Order preview opened.'); } catch (_) {}
 
       const sent = await replyHTML(ctx, previewText(ctx, card, price), {
         reply_markup: previewKeyboard(pendingId),
@@ -545,9 +694,7 @@ module.exports = (bot) => {
       pending.timeoutHandle = setTimeout(async () => {
         const expired = pendingOrders.get(pendingId);
         if (!expired) return;
-
         pendingOrders.delete(pendingId);
-
         try {
           await editByIds(bot, expired.chatId, expired.msgId, expiredText(expired));
         } catch (_) {}
@@ -561,11 +708,8 @@ module.exports = (bot) => {
 
     if (!['OK', 'NO'].includes(action)) {
       try {
-        await ctx.answerCbQuery('Unknown shop action.', {
-          show_alert: true,
-        });
+        await ctx.answerCbQuery('Unknown shop action.', { show_alert: true });
       } catch (_) {}
-
       return;
     }
 
@@ -575,33 +719,23 @@ module.exports = (bot) => {
       try {
         await ctx.answerCbQuery('Order expired.', { show_alert: true });
       } catch (_) {}
-
       return;
     }
 
     if (ctx.from.id !== pending.userId) {
       try {
-        await ctx.answerCbQuery('Buyer ပဲ Confirm/Cancel လုပ်နိုင်ပါတယ်။', {
-          show_alert: true,
-        });
+        await ctx.answerCbQuery('Buyer ပဲ Confirm/Cancel လုပ်နိုင်ပါတယ်။', { show_alert: true });
       } catch (_) {}
-
       return;
     }
 
     if (action === 'NO') {
       clearPending(id);
-
-      try {
-        await ctx.answerCbQuery('Order cancelled.');
-      } catch (_) {}
-
+      try { await ctx.answerCbQuery('Order cancelled.'); } catch (_) {}
       return editByIds(bot, pending.chatId, pending.msgId, cancelledText(pending));
     }
 
-    try {
-      await ctx.answerCbQuery('Creating order...');
-    } catch (_) {}
+    try { await ctx.answerCbQuery('Creating order...'); } catch (_) {}
 
     try {
       const latestCard = await shopCardModel.collection().findOne({
@@ -626,10 +760,7 @@ module.exports = (bot) => {
       });
 
       await shopCardModel.collection().updateOne(
-        {
-          _id: latestCard._id,
-          status: 'AVAILABLE',
-        },
+        { _id: latestCard._id, status: 'AVAILABLE' },
         {
           $set: {
             status: 'SOLD',
@@ -640,13 +771,12 @@ module.exports = (bot) => {
         }
       );
 
-      const receipt = `BIKA-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+      const receipt = makeReceiptCode();
 
       const inserted = await orderModel.collection().insertOne({
+        buyerId: pending.userId,
         userId: pending.userId,
-        username: pending.buyer.username
-          ? pending.buyer.username.toLowerCase()
-          : null,
+        username: pending.buyer.username ? pending.buyer.username.toLowerCase() : null,
         itemId: latestCard.cardId,
         itemName: latestCard.name || latestCard.cardId,
         cardId: latestCard.cardId,
@@ -654,26 +784,64 @@ module.exports = (bot) => {
         price: pending.price,
         receiptCode: receipt,
         status: 'PENDING',
+        ownerNotified: false,
         createdAt: new Date(),
         updatedAt: new Date(),
       });
 
-      const updatedUser = await getUser(pending.userId);
+      let ownerNotified = false;
+      const ownerId = (await ensureTreasury())?.ownerUserId;
 
+      if (ownerId) {
+        try {
+          const ownerMsg = await bot.telegram.sendMessage(
+            ownerId,
+            ownerOrderText(
+              {
+                ...pending,
+                card: latestCard,
+                receiptCode: receipt,
+              },
+              inserted.insertedId
+            ),
+            {
+              parse_mode: 'HTML',
+              reply_markup: ownerOrderKeyboard(String(inserted.insertedId)),
+            }
+          );
+
+          ownerNotified = true;
+
+          await orderModel.collection().updateOne(
+            { _id: inserted.insertedId },
+            {
+              $set: {
+                ownerNotified: true,
+                ownerNotifyMessageId: ownerMsg?.message_id || null,
+                updatedAt: new Date(),
+              },
+            }
+          );
+        } catch (_) {}
+      }
+
+      const updatedUser = await getUser(pending.userId);
       clearPending(id);
 
       return editByIds(
         bot,
         pending.chatId,
         pending.msgId,
-        successText(
+        buyerPendingText(
           {
             ...pending,
             card: latestCard,
             receiptCode: receipt,
+            userId: pending.userId,
           },
           inserted.insertedId,
-          updatedUser?.balance || 0
+          updatedUser?.balance || 0,
+          ownerNotified
         )
       );
     } catch (err) {
@@ -682,7 +850,6 @@ module.exports = (bot) => {
           show_alert: true,
         });
       } catch (_) {}
-
       return;
     }
   });
@@ -699,17 +866,11 @@ module.exports = (bot) => {
     if (!(await requireOwnerDm(ctx))) return;
 
     const prices = await getPriceMap();
-    const lines = RARITIES.map((rarity) => {
-      return `${rarity.icon} <b>${rarity.label}</b>: <b>${fmt(prices[rarity.key])}</b> ${COIN}`;
-    }).join('\n');
+    const lines = RARITIES.map((rarity) => (
+      `${rarity.icon} <b>${rarity.label}</b>: <b>${fmt(prices[rarity.key])}</b> ${COIN}`
+    )).join('\n');
 
-    return replyHTML(
-      ctx,
-      `💰 <b>Shop Rarity Prices</b>\n` +
-        `━━━━━━━━━━━━━━━━\n` +
-        `${lines}`,
-      replyOptions(ctx)
-    );
+    return replyHTML(ctx, `💰 <b>Shop Rarity Prices</b>\n━━━━━━━━━━━━━━━━\n${lines}`, replyOptions(ctx));
   });
 
   bot.command('setrarityprice', async (ctx) => {
@@ -762,10 +923,7 @@ module.exports = (bot) => {
     await shopCardModel.collection().updateOne(
       { cardId: String(cardId) },
       {
-        $setOnInsert: {
-          cardId: String(cardId),
-          createdAt: now,
-        },
+        $setOnInsert: { cardId: String(cardId), createdAt: now },
         $set: {
           rarity: rarityKey,
           name: name || null,
@@ -796,11 +954,7 @@ module.exports = (bot) => {
     const cardIds = parts.slice(2).filter(Boolean);
 
     if (!rarityKey || !rarityInfo(rarityKey) || !cardIds.length) {
-      return replyHTML(
-        ctx,
-        `Usage: <code>/shopbulk Divine D001 D002 D003</code>`,
-        replyOptions(ctx)
-      );
+      return replyHTML(ctx, `Usage: <code>/shopbulk Divine D001 D002 D003</code>`, replyOptions(ctx));
     }
 
     const now = new Date();
@@ -809,10 +963,7 @@ module.exports = (bot) => {
       updateOne: {
         filter: { cardId: String(cardId) },
         update: {
-          $setOnInsert: {
-            cardId: String(cardId),
-            createdAt: now,
-          },
+          $setOnInsert: { cardId: String(cardId), createdAt: now },
           $set: {
             rarity: rarityKey,
             name: null,
@@ -863,9 +1014,7 @@ module.exports = (bot) => {
 
     return replyHTML(
       ctx,
-      `✅ <b>Card Removed</b>\n` +
-        `━━━━━━━━━━━━━━━━\n` +
-        `Card ID: <code>${escHtml(cardId)}</code>`,
+      `✅ <b>Card Removed</b>\n━━━━━━━━━━━━━━━━\nCard ID: <code>${escHtml(cardId)}</code>`,
       replyOptions(ctx)
     );
   });
@@ -876,9 +1025,7 @@ module.exports = (bot) => {
     const parts = String(ctx.message?.text || '').trim().split(/\s+/);
     const rarityKey = normalizeRarity(parts[1]);
 
-    const query = rarityKey
-      ? { rarity: rarityKey, status: 'AVAILABLE' }
-      : { status: 'AVAILABLE' };
+    const query = rarityKey ? { rarity: rarityKey, status: 'AVAILABLE' } : { status: 'AVAILABLE' };
 
     const cards = await shopCardModel.collection()
       .find(query)
@@ -890,17 +1037,11 @@ module.exports = (bot) => {
       return replyHTML(ctx, '📦 Available card မရှိသေးပါ။', replyOptions(ctx));
     }
 
-    const lines = cards.map((card, index) => {
-      return `${index + 1}. ${rarityLabel(card.rarity)} — <code>${escHtml(card.cardId)}</code>${card.name ? ` — ${escHtml(card.name)}` : ''}`;
-    }).join('\n');
+    const lines = cards.map((card, index) => (
+      `${index + 1}. ${rarityLabel(card.rarity)} — <code>${escHtml(card.cardId)}</code>${card.name ? ` — ${escHtml(card.name)}` : ''}`
+    )).join('\n');
 
-    return replyHTML(
-      ctx,
-      `🎴 <b>Available Shop Cards</b>\n` +
-        `━━━━━━━━━━━━━━━━\n` +
-        `${lines}`,
-      replyOptions(ctx)
-    );
+    return replyHTML(ctx, `🎴 <b>Available Shop Cards</b>\n━━━━━━━━━━━━━━━━\n${lines}`, replyOptions(ctx));
   });
 };
 
