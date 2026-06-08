@@ -393,16 +393,11 @@ function helpText() {
     `• Rarity ရွေးပါ\n` +
     `• Card ID ရွေးပါ\n` +
     `• Confirm နှိပ်ပါ\n\n` +
-    `Owner DM:\n` +
-    `• <code>/shopadd Divine D001</code>\n` +
-    `• <code>/shopadd Divine D001 Card Name</code>\n` +
-    `• <code>/shopbulk Divine D001 D002 D003</code>\n` +
-    `• <code>/shopremove D001</code>\n` +
-    `• <code>/setrarityprice Divine 5000000</code>\n` +
-    `• <code>/shopcards Divine</code>\n` +
-    `• <code>/shopprices</code>\n\n` +
-    `Owner approve/cancel:\n` +
-    `• Order ဝင်လာရင် owner DM ထဲကို Approve / Cancel button ပို့ပါမယ်။`
+    `Rule:\n` +
+    `• <b>Bot Dm မှာ /start နှိပ်ထားဖို့လိုအပ်ပါတယ်</b>\n` +
+    `• <b>Confirm နှိပ်ပြီးရင် Cancel နှိပ်မရတော့ပါ</b>\n` +
+    `• <b>မိမိရဲ့ လက်ကျန်ငွေ မလုံလောက်ရင် ဝယ်ယူလို့မရနိူင်ပါ</b>\n` +
+    `• Order တင်​ပြီးရင် My Order ထဲမှာ မိမိရဲ့ order တွေစစ်ဆေးလို့ရပါတယ်။`
   );
 }
 
