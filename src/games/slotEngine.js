@@ -33,8 +33,6 @@ const SLOT_DATA = Object.freeze({
 /**
  * Higher weight = easier.
  * Lower weight = harder.
- *
- * 777 is intentionally very hard.
  * 777 weight is set to 6 as requested.
  */
 const WIN_COMBO_WEIGHTS = Object.freeze([
@@ -159,11 +157,6 @@ function vipSpin(rate = 90, random = Math.random) {
   return normalSpin(random);
 }
 
-/**
- * Owner-controlled RTP win-rate spin.
- * RTP controls win/lose frequency only.
- * Jackpot rarity is controlled by WIN_COMBO_WEIGHTS.
- */
 function controlledSpin(user, options = {}, random = Math.random) {
   const vipWinRate = percent(options.vipWinRate, 90);
   const rtpWinRate = percent(options.rtpWinRate, 35);
@@ -174,11 +167,6 @@ function controlledSpin(user, options = {}, random = Math.random) {
     : losingSpin(random);
 }
 
-/**
- * Backward compatible:
- * old: spin(user, vipWinRate)
- * new: spin(user, vipWinRate, Math.random, rtpWinRate)
- */
 function spin(user, vipWinRate = 90, random = Math.random, rtpWinRate = null) {
   if (rtpWinRate != null) {
     return controlledSpin(user, { vipWinRate, rtpWinRate }, random);
