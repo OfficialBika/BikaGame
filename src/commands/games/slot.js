@@ -43,15 +43,18 @@ function animationText(reels, note) {
   );
 }
 
-function resultText(reels, bet, payout, rtpWinRate) {
+function resultText(reels, bet, payout) {
   const net = payout - bet;
   const isJackpot = reels[0] === '7' && reels[1] === '7' && reels[2] === '7';
+  const isTwoMatch = payout > 0 && engine.isAnyTwo(reels[0], reels[1], reels[2]);
 
   const headline =
     payout > 0
       ? isJackpot
         ? '🏆 JACKPOT 777!'
-        : '✅ WIN'
+        : isTwoMatch
+          ? '✅ TWO MATCH WIN'
+          : '✅ WIN'
       : '❌ LOSE';
 
   return (
@@ -105,19 +108,11 @@ module.exports = (bot) => {
     }
 
     if (activeSlots.has(userId)) {
-      return replyHTML(
-        ctx,
-        '⏳ သင့် slot spin တစ်ခု လက်ရှိ run နေပါတယ်။',
-        options
-      );
+      return replyHTML(ctx, '⏳ သင့် slot spin တစ်ခု လက်ရှိ run နေပါတယ်။', options);
     }
 
     if (activeSlots.size >= Number(SLOT.maxActive || 5)) {
-      return replyHTML(
-        ctx,
-        '⛔ Slot Busy ဖြစ်နေပါတယ်။ ခဏနားပြီးပြန်စမ်းပါ။',
-        options
-      );
+      return replyHTML(ctx, '⛔ Slot Busy ဖြစ်နေပါတယ်။ ခဏနားပြီးပြန်စမ်းပါ။', options);
     }
 
     const cooldownSeconds = Math.max(
@@ -243,7 +238,7 @@ module.exports = (bot) => {
         bot,
         chatId,
         sent.message_id,
-        resultText(finalReels, bet, payout, rtpWinRate)
+        resultText(finalReels, bet, payout)
       );
     } catch (err) {
       if (betTaken) {
