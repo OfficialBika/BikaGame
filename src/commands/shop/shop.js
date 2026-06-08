@@ -70,6 +70,38 @@ function replyOptions(ctx) {
   return messageId ? { reply_to_message_id: messageId } : {};
 }
 
+async function editCurrentHTML(ctx, html, extra = {}) {
+  try {
+    return await ctx.editMessageText(html, {
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+      ...extra,
+    });
+  } catch (err) {
+    const message = String(err?.message || err);
+
+    if (
+      message.includes('message is not modified') ||
+      message.includes('message to edit not found') ||
+      message.includes('there is no text in the message to edit')
+    ) {
+      return null;
+    }
+
+    throw err;
+  }
+}
+
+async function deleteCallbackMessage(ctx) {
+  try {
+    const messageId = ctx.callbackQuery?.message?.message_id;
+    if (messageId) {
+      await ctx.deleteMessage(messageId);
+    }
+  } catch (_) {}
+}
+
+
 function makePendingId() {
   return `o${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -473,14 +505,22 @@ async function showRarity(ctx, rarityKey) {
     await ctx.answerCbQuery(`${rarityInfo(rarityKey)?.label || rarityKey} cards`);
   } catch (_) {}
 
-  return replyHTML(ctx, text, { reply_markup: cardsKeyboard(cards) });
+  return editCurrentHTML(ctx, text, { reply_markup: cardsKeyboard(cards) });
 }
 
 async function handleBuy(ctx, payload) {
   cleanupPendingOrders();
 
   if (payload === 'HOME') {
-    return openShop(ctx);
+    const user = await getUser(ctx.from.id);
+    const prices = await getPriceMap();
+    const counts = await countAvailableByRarity();
+
+    try { await ctx.answerCbQuery('Back to shop.'); } catch (_) {}
+
+    return editCurrentHTML(ctx, shopHomeText(user?.balance || 0, prices, counts), {
+      reply_markup: shopHomeKeyboard(counts),
+    });
   }
 
   if (!String(payload || '').startsWith('R:')) {
@@ -513,12 +553,20 @@ module.exports = (bot) => {
 
     if (data === 'SHOP:HELP') {
       try { await ctx.answerCbQuery('Help opened.'); } catch (_) {}
-      return replyHTML(ctx, helpText());
+      return editCurrentHTML(ctx, helpText(), {
+        reply_markup: {
+          inline_keyboard: [[{ text: '⬅️ Back to Shop', callback_data: 'BUY:HOME' }]],
+        },
+      });
     }
 
     if (data === 'SHOP:MYORDERS') {
       try { await ctx.answerCbQuery('My orders opened.'); } catch (_) {}
-      return replyHTML(ctx, await myOrdersText(ctx.from.id));
+      return editCurrentHTML(ctx, await myOrdersText(ctx.from.id), {
+        reply_markup: {
+          inline_keyboard: [[{ text: '⬅️ Back to Shop', callback_data: 'BUY:HOME' }]],
+        },
+      });
     }
 
     if (data.startsWith('SHOPADMIN:')) {
@@ -666,6 +714,8 @@ module.exports = (bot) => {
       const expiresAt = Date.now() + ORDER_TIMEOUT_MS;
 
       try { await ctx.answerCbQuery('Order preview opened.'); } catch (_) {}
+
+      await deleteCallbackMessage(ctx);
 
       const sent = await replyHTML(ctx, previewText(ctx, card, price), {
         reply_markup: previewKeyboard(pendingId),
