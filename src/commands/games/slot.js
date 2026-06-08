@@ -63,6 +63,7 @@ function resultText(reels, bet, payout, rtpWinRate) {
     `Bet: <b>${fmt(bet)}</b> ${COIN}\n` +
     `Payout: <b>${fmt(payout)}</b> ${COIN}\n` +
     `Net: <b>${fmt(net)}</b> ${COIN}\n` +
+    `RTP WR: <b>${rtpWinRate}%</b>`
   );
 }
 
@@ -105,11 +106,19 @@ module.exports = (bot) => {
     }
 
     if (activeSlots.has(userId)) {
-      return replyHTML(ctx, '⏳ သင့် slot spin တစ်ခု လက်ရှိ run နေပါတယ်။', options);
+      return replyHTML(
+        ctx,
+        '⏳ သင့် slot spin တစ်ခု လက်ရှိ run နေပါတယ်။',
+        options
+      );
     }
 
     if (activeSlots.size >= Number(SLOT.maxActive || 5)) {
-      return replyHTML(ctx, '⛔ Slot Busy ဖြစ်နေပါတယ်။ ခဏနားပြီးပြန်စမ်းပါ။', options);
+      return replyHTML(
+        ctx,
+        '⛔ Slot Busy ဖြစ်နေပါတယ်။ ခဏနားပြီးပြန်စမ်းပါ။',
+        options
+      );
     }
 
     const cooldownSeconds = Math.max(
@@ -172,7 +181,6 @@ module.exports = (bot) => {
         payout = Math.min(payout, maxPayout, ownerBalance);
       }
 
-      // Initial reply: command message ကို reply ထောက်ပြီး animation စမယ်
       sent = await replyHTML(
         ctx,
         animationText(randomFrame(), '🔄 Reels starting...'),
@@ -183,7 +191,7 @@ module.exports = (bot) => {
         throw new Error('SLOT_ANIMATION_MESSAGE_FAILED');
       }
 
-      // Edit 1: rolling frame
+      // Edit 1
       await sleep(180);
       await editByIds(
         bot,
