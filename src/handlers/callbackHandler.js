@@ -108,7 +108,9 @@ module.exports = (bot) => {
     const data = ctx.callbackQuery?.data || '';
 
     if (data.startsWith('BUY:') && bot._bikaHandleBuy) {
-      return bot._bikaHandleBuy(ctx, data.split(':')[1]);
+      // BUY:R:divine -> R:divine
+      // BUY:HOME -> HOME
+      return bot._bikaHandleBuy(ctx, data.slice(4));
     }
 
     if (data.startsWith('DICE:')) {
