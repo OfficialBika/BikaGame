@@ -1,4 +1,4 @@
-'use strict';
+"use strict";
 
 const { env } = require('../../config/env');
 const { COIN } = require('../../config/constants');
@@ -33,6 +33,55 @@ function dailySuccessText(ctx, amount, newBalance, now) {
   );
 }
 
+function unwrapFindOneAndUpdate(result) {
+  // mongodb driver v4/v5: { value: doc }, newer driver/model wrappers: doc directly
+  if (result && Object.prototype.hasOwnProperty.call(result, 'value')) {
+    return result.value;
+  }
+  return result || null;
+}
+
+async function ensureDailyUserDocument(userId, now) {
+  /*
+   * New users sometimes did not have a document yet. The old atomic guard used
+   * findOneAndUpdate without upsert, so no document matched and the bot replied
+   * as if the user had already claimed. Create only the base user row first,
+   * without setting lastDailyClaimAt.
+   */
+  const existing = await getUser(userId);
+
+  await userModel.collection().updateOne(
+    { userId },
+    {
+      $setOnInsert: {
+        userId,
+        balance: Number(existing?.balance || 0),
+        createdAt: now,
+      },
+      $set: {
+        updatedAt: now,
+      },
+    },
+    { upsert: true }
+  );
+}
+
+async function rollbackDailyFlag(userId, previousUser) {
+  const update = {
+    $set: {
+      updatedAt: new Date(),
+    },
+  };
+
+  if (previousUser?.lastDailyClaimAt) {
+    update.$set.lastDailyClaimAt = previousUser.lastDailyClaimAt;
+  } else {
+    update.$unset = { lastDailyClaimAt: '' };
+  }
+
+  await userModel.collection().updateOne({ userId }, update);
+}
+
 module.exports = (bot) => {
   async function dailyClaim(ctx) {
     const options = replyOptions(ctx);
@@ -52,19 +101,6 @@ module.exports = (bot) => {
     const now = new Date();
     const today = startOfDayYangon(now);
 
-    const user = await getUser(userId);
-    const lastClaim = user?.lastDailyClaimAt
-      ? new Date(user.lastDailyClaimAt)
-      : null;
-
-    if (lastClaim && lastClaim >= today) {
-      return replyHTML(
-        ctx,
-        '⏳ ဒီနေ့ claim လုပ်ပြီးပြီလေ! တစ်ရက် ဘယ်နှကြိမ်ယူချင်နေတာလဲ လစ်လစ် နောက်နေ့မှ ပြန်လုပ်',
-        options
-      );
-    }
-
     const amount = randInt(env.DAILY_MIN, env.DAILY_MAX);
     const treasury = await getTreasury();
 
@@ -76,9 +112,13 @@ module.exports = (bot) => {
       );
     }
 
+    await ensureDailyUserDocument(userId, now);
+
     /*
      * Atomic claim guard:
-     * This prevents double-claim when user taps/sends command repeatedly.
+     * - New users now have a document before this query runs.
+     * - Only the user whose lastDailyClaimAt is missing/null/before Yangon today can claim.
+     * - Repeated commands at the same time still allow only one claim.
      */
     const claimUpdate = await userModel.collection().findOneAndUpdate(
       {
@@ -100,9 +140,7 @@ module.exports = (bot) => {
       }
     );
 
-    const previousUser = claimUpdate?.value !== undefined
-      ? claimUpdate.value
-      : claimUpdate;
+    const previousUser = unwrapFindOneAndUpdate(claimUpdate);
 
     if (!previousUser) {
       return replyHTML(
@@ -129,15 +167,7 @@ module.exports = (bot) => {
        * If treasury payment fails after daily flag was set,
        * rollback the flag so user can claim again later.
        */
-      await userModel.collection().updateOne(
-        { userId },
-        {
-          $set: {
-            lastDailyClaimAt: previousUser?.lastDailyClaimAt || null,
-            updatedAt: new Date(),
-          },
-        }
-      );
+      await rollbackDailyFlag(userId, previousUser);
 
       return replyHTML(
         ctx,
