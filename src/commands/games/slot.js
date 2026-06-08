@@ -62,8 +62,7 @@ function resultText(reels, bet, payout, rtpWinRate) {
     `<b>${headline}</b>\n` +
     `Bet: <b>${fmt(bet)}</b> ${COIN}\n` +
     `Payout: <b>${fmt(payout)}</b> ${COIN}\n` +
-    `Net: <b>${fmt(net)}</b> ${COIN}\n` +
-    `RTP WR: <b>${rtpWinRate}%</b>`
+    `Net: <b>${fmt(net)}</b> ${COIN}`
   );
 }
 
