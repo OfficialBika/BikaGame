@@ -25,11 +25,11 @@ const MAX_PENDING_ORDERS = Number(process.env.SHOP_MAX_PENDING || 10_000);
 const RARITIES = Object.freeze([
   Object.freeze({ key: 'rare', label: 'Rare', icon: '🔵', defaultPrice: 100_000 }),
   Object.freeze({ key: 'legendary', label: 'Legendary', icon: '🟡', defaultPrice: 1_000_000 }),
-  Object.freeze({ key: 'mystical', label: 'Mystical', icon: '🟣', defaultPrice: 2_500_000 }),
-  Object.freeze({ key: 'divine', label: 'Divine', icon: '🔴', defaultPrice: 5_000_000 }),
-  Object.freeze({ key: 'crossverse', label: 'CrossVerse', icon: '🌌', defaultPrice: 10_000_000 }),
-  Object.freeze({ key: 'cataphract', label: 'Cataphract', icon: '🛡️', defaultPrice: 25_000_000 }),
-  Object.freeze({ key: 'supreme', label: 'Supreme', icon: '👑', defaultPrice: 50_000_000 }),
+  Object.freeze({ key: 'mystical', label: 'Mystical', icon: '💮', defaultPrice: 2_500_000 }),
+  Object.freeze({ key: 'divine', label: 'Divine', icon: '⚜️', defaultPrice: 5_000_000 }),
+  Object.freeze({ key: 'crossverse', label: 'CrossVerse', icon: '⚡', defaultPrice: 10_000_000 }),
+  Object.freeze({ key: 'cataphract', label: 'Cataphract', icon: '✨', defaultPrice: 25_000_000 }),
+  Object.freeze({ key: 'supreme', label: 'Supreme', icon: '🪞', defaultPrice: 50_000_000 }),
 ]);
 
 function normalizeRarity(input) {
