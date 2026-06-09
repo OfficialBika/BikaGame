@@ -184,8 +184,8 @@ module.exports = (bot) => {
       reply_markup: {
         inline_keyboard: [
           [
-            { text: '✅ Confirm', callback_data: `GIFT:C:${id}` },
-            { text: '❌ Cancel', callback_data: `GIFT:X:${id}` },
+            { text: '✅ Confirm', callback_data: `GIFT:C:${id}`, style: 'success' },
+            { text: '❌ Cancel', callback_data: `GIFT:X:${id}`, style: 'danger' },
           ],
         ],
       },
