@@ -131,13 +131,36 @@ module.exports = (bot) => {
     let sent = null;
 
     try {
+      // Fast visible response first.
+      // Expensive DB operations run after this message already appears.
+      sent = await replyHTML(
+        ctx,
+        animationText(randomFrame(), '🔄 Reels starting...'),
+        options
+      );
+
+      if (!sent?.message_id) {
+        throw new Error('SLOT_ANIMATION_MESSAGE_FAILED');
+      }
+
+      // Small animation delay only, reduced from 180ms.
+      await sleep(80);
+      await editByIds(
+        bot,
+        chatId,
+        sent.message_id,
+        animationText(randomFrame(), '🎲 Checking balance...')
+      );
+
+      // DB work starts here after user already sees slot response.
       const user = await getUser(userId);
 
       if (!user) {
-        return replyHTML(
-          ctx,
-          '⚠️ User data မတွေ့ပါ။ Bot ကို <code>/start</code> အရင်လုပ်ပါ။',
-          options
+        return editByIds(
+          bot,
+          chatId,
+          sent.message_id,
+          '⚠️ User data မတွေ့ပါ။ Bot ကို <code>/start</code> အရင်လုပ်ပါ။'
         );
       }
 
@@ -148,7 +171,7 @@ module.exports = (bot) => {
         });
         betTaken = true;
       } catch (_) {
-        return replyHTML(ctx, '❌ Balance မလုံလောက်ပါ။', options);
+        return editByIds(bot, chatId, sent.message_id, '❌ Balance မလုံလောက်ပါ။');
       }
 
       const treasury = await getTreasury();
@@ -175,18 +198,6 @@ module.exports = (bot) => {
         payout = Math.min(payout, maxPayout, ownerBalance);
       }
 
-      sent = await replyHTML(
-        ctx,
-        animationText(randomFrame(), '🔄 Reels starting...'),
-        options
-      );
-
-      if (!sent?.message_id) {
-        throw new Error('SLOT_ANIMATION_MESSAGE_FAILED');
-      }
-
-      // Edit 1
-      await sleep(180);
       await editByIds(
         bot,
         chatId,
@@ -215,8 +226,8 @@ module.exports = (bot) => {
 
           betTaken = false;
 
-          // Edit 2: payout error final
-          await sleep(260);
+          // Final error edit, reduced from 260ms.
+          await sleep(120);
           return editByIds(
             bot,
             chatId,
@@ -232,8 +243,8 @@ module.exports = (bot) => {
 
       betTaken = false;
 
-      // Edit 2: final result
-      await sleep(260);
+      // Final result edit, reduced from 260ms.
+      await sleep(120);
       return editByIds(
         bot,
         chatId,
