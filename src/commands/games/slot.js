@@ -15,6 +15,8 @@ const { isGroupChat } = require('../../utils/helpers');
 
 const activeSlots = new Set();
 
+const SLOT_EMOJI = '<tg-emoji emoji-id="5384509325429463744">🎰</tg-emoji>';
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -35,7 +37,7 @@ function randomFrame() {
 
 function animationText(reels, note) {
   return (
-    `🎰 <b>BIKA Pro Slot</b>\n` +
+    `${SLOT_EMOJI} <b>BIKA Pro Slot</b>\n` +
     `━━━━━━━━━━━\n` +
     `<pre>${engine.art(reels)}</pre>\n` +
     `━━━━━━━━━━━\n` +
@@ -58,7 +60,7 @@ function resultText(reels, bet, payout) {
       : '❌ LOSE';
 
   return (
-    `🎰 <b>BIKA Pro Slot</b>\n` +
+    `${SLOT_EMOJI} <b>BIKA Pro Slot</b>\n` +
     `━━━━━━━━━━━\n` +
     `<pre>${engine.art(reels)}</pre>\n` +
     `━━━━━━━━━━━\n` +
@@ -98,7 +100,7 @@ module.exports = (bot) => {
     if (bet < SLOT.minBet || bet > SLOT.maxBet) {
       return replyHTML(
         ctx,
-        `🎰 <b>BIKA Pro Slot</b>\n` +
+        `${SLOT_EMOJI} <b>BIKA Pro Slot</b>\n` +
           `━━━━━━━━━━━\n` +
           `Usage: <code>.slot 1000</code>\n` +
           `Min: <b>${fmt(SLOT.minBet)}</b> ${COIN}\n` +
@@ -232,7 +234,7 @@ module.exports = (bot) => {
             bot,
             chatId,
             sent.message_id,
-            `🎰 <b>BIKA Pro Slot</b>\n` +
+            `${SLOT_EMOJI} <b>BIKA Pro Slot</b>\n` +
               `━━━━━━━━━━━\n` +
               `<pre>${engine.art(finalReels)}</pre>\n` +
               `━━━━━━━━━━━\n` +
