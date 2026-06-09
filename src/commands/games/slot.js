@@ -108,11 +108,11 @@ module.exports = (bot) => {
     }
 
     if (activeSlots.has(userId)) {
-      return replyHTML(ctx, '⏳ သင့် slot spin တစ်ခု လက်ရှိ run နေပါတယ်။', options);
+      return replyHTML(ctx, '⏳ Please wait, your slot spin is currently running.', options);
     }
 
     if (activeSlots.size >= Number(SLOT.maxActive || 5)) {
-      return replyHTML(ctx, '⛔ Slot Busy ဖြစ်နေပါတယ်။ ခဏနားပြီးပြန်စမ်းပါ။', options);
+      return replyHTML(ctx, '⛔ Slot Busy Now! Please wait & try again.', options);
     }
 
     const cooldownSeconds = Math.max(
