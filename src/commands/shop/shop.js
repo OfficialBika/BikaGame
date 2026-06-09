@@ -102,6 +102,36 @@ async function deleteCallbackMessage(ctx) {
 }
 
 
+function buttonOwnerId(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+}
+
+async function requireButtonOwner(ctx, ownerId) {
+  const expected = buttonOwnerId(ownerId);
+
+  if (!expected) {
+    try {
+      await ctx.answerCbQuery('Invalid shop button.', { show_alert: true });
+    } catch (_) {}
+
+    return false;
+  }
+
+  if (ctx.from?.id !== expected) {
+    try {
+      await ctx.answerCbQuery('ဒီ shop button ကို သက်ဆိုင်တဲ့သူပဲနှိပ်နိုင်ပါတယ်။', {
+        show_alert: true,
+      });
+    } catch (_) {}
+
+    return false;
+  }
+
+  return true;
+}
+
+
 function makePendingId() {
   return `o${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -205,17 +235,17 @@ function shopHomeText(balance, prices, counts) {
   );
 }
 
-function shopHomeKeyboard(counts) {
+function shopHomeKeyboard(counts, ownerId) {
   const rows = RARITIES.map((rarity) => [
     {
       text: `${rarity.icon} ${rarity.label} (${counts[rarity.key] || 0})`,
-      callback_data: `BUY:R:${rarity.key}`,
+      callback_data: `BUY:R:${rarity.key}:${ownerId}`,
     },
   ]);
 
   rows.push([
-    { text: '📦 My Orders', callback_data: 'SHOP:MYORDERS' },
-    { text: 'ℹ️ Help', callback_data: 'SHOP:HELP' },
+    { text: '📦 My Orders', callback_data: `SHOP:MYORDERS:${ownerId}` },
+    { text: 'ℹ️ Help', callback_data: `SHOP:HELP:${ownerId}` },
   ]);
 
   return { inline_keyboard: rows };
@@ -257,14 +287,14 @@ async function rarityCardsText(rarityKey, price) {
   };
 }
 
-function cardsKeyboard(cards) {
+function cardsKeyboard(cards, ownerId) {
   const rows = [];
   let row = [];
 
   for (const card of cards) {
     row.push({
       text: String(card.cardId).slice(0, 24),
-      callback_data: `SHOP:CARD:${String(card._id)}`,
+      callback_data: `SHOP:CARD:${String(card._id)}:${ownerId}`,
     });
 
     if (row.length === 2) {
@@ -274,7 +304,7 @@ function cardsKeyboard(cards) {
   }
 
   if (row.length) rows.push(row);
-  rows.push([{ text: '⬅️ Back to Rarity', callback_data: 'BUY:HOME' }]);
+  rows.push([{ text: '⬅️ Back to Shop', callback_data: `BUY:HOME:${ownerId}` }]);
 
   return { inline_keyboard: rows };
 }
@@ -493,11 +523,11 @@ async function openShop(ctx) {
 
   return replyHTML(ctx, shopHomeText(user?.balance || 0, prices, counts), {
     ...replyOptions(ctx),
-    reply_markup: shopHomeKeyboard(counts),
+    reply_markup: shopHomeKeyboard(counts, ctx.from.id),
   });
 }
 
-async function showRarity(ctx, rarityKey) {
+async function showRarity(ctx, rarityKey, ownerId) {
   const prices = await getPriceMap();
   const { text, cards } = await rarityCardsText(rarityKey, prices[rarityKey]);
 
@@ -505,13 +535,19 @@ async function showRarity(ctx, rarityKey) {
     await ctx.answerCbQuery(`${rarityInfo(rarityKey)?.label || rarityKey} cards`);
   } catch (_) {}
 
-  return editCurrentHTML(ctx, text, { reply_markup: cardsKeyboard(cards) });
+  return editCurrentHTML(ctx, text, { reply_markup: cardsKeyboard(cards, ownerId) });
 }
 
 async function handleBuy(ctx, payload) {
   cleanupPendingOrders();
 
-  if (payload === 'HOME') {
+  const parts = String(payload || '').split(':');
+
+  if (parts[0] === 'HOME') {
+    const ownerId = parts[1];
+
+    if (!(await requireButtonOwner(ctx, ownerId))) return;
+
     const user = await getUser(ctx.from.id);
     const prices = await getPriceMap();
     const counts = await countAvailableByRarity();
@@ -519,21 +555,24 @@ async function handleBuy(ctx, payload) {
     try { await ctx.answerCbQuery('Back to shop.'); } catch (_) {}
 
     return editCurrentHTML(ctx, shopHomeText(user?.balance || 0, prices, counts), {
-      reply_markup: shopHomeKeyboard(counts),
+      reply_markup: shopHomeKeyboard(counts, ctx.from.id),
     });
   }
 
-  if (!String(payload || '').startsWith('R:')) {
+  if (parts[0] !== 'R') {
     return ctx.answerCbQuery('Unknown shop action.', { show_alert: true });
   }
 
-  const rarityKey = normalizeRarity(String(payload).split(':')[1]);
+  const rarityKey = normalizeRarity(parts[1]);
+  const ownerId = parts[2];
+
+  if (!(await requireButtonOwner(ctx, ownerId))) return;
 
   if (!rarityKey || !rarityInfo(rarityKey)) {
     return ctx.answerCbQuery('Rarity not found.', { show_alert: true });
   }
 
-  return showRarity(ctx, rarityKey);
+  return showRarity(ctx, rarityKey, ctx.from.id);
 }
 
 module.exports = (bot) => {
@@ -551,20 +590,28 @@ module.exports = (bot) => {
 
     cleanupPendingOrders();
 
-    if (data === 'SHOP:HELP') {
+    if (data.startsWith('SHOP:HELP:')) {
+      const [, , ownerId] = data.split(':');
+
+      if (!(await requireButtonOwner(ctx, ownerId))) return;
+
       try { await ctx.answerCbQuery('Help opened.'); } catch (_) {}
       return editCurrentHTML(ctx, helpText(), {
         reply_markup: {
-          inline_keyboard: [[{ text: '⬅️ Back to Shop', callback_data: 'BUY:HOME' }]],
+          inline_keyboard: [[{ text: '⬅️ Back to Shop', callback_data: `BUY:HOME:${ctx.from.id}` }]],
         },
       });
     }
 
-    if (data === 'SHOP:MYORDERS') {
+    if (data.startsWith('SHOP:MYORDERS:')) {
+      const [, , ownerId] = data.split(':');
+
+      if (!(await requireButtonOwner(ctx, ownerId))) return;
+
       try { await ctx.answerCbQuery('My orders opened.'); } catch (_) {}
       return editCurrentHTML(ctx, await myOrdersText(ctx.from.id), {
         reply_markup: {
-          inline_keyboard: [[{ text: '⬅️ Back to Shop', callback_data: 'BUY:HOME' }]],
+          inline_keyboard: [[{ text: '⬅️ Back to Shop', callback_data: `BUY:HOME:${ctx.from.id}` }]],
         },
       });
     }
@@ -687,7 +734,9 @@ module.exports = (bot) => {
     }
 
     if (data.startsWith('SHOP:CARD:')) {
-      const cardObjectId = data.slice('SHOP:CARD:'.length);
+      const [, , cardObjectId, ownerId] = data.split(':');
+
+      if (!(await requireButtonOwner(ctx, ownerId))) return;
 
       if (!ObjectId.isValid(cardObjectId)) {
         return ctx.answerCbQuery('Invalid card.', { show_alert: true });
