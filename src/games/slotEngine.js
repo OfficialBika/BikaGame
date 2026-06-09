@@ -64,8 +64,10 @@ const TWO_MATCH_SYMBOL_WEIGHTS = Object.freeze([
   Object.freeze({ s: '7', w: 6 }),
 ]);
 
-// Inside the win part, 60% will be two-match win and 40% will be three-match win.
-const TWO_MATCH_IN_WIN_RATE = 60;
+// Inside the win part, 85% will be two-match win and 15% will be three-match win.
+// /setrtp still controls only win vs lose.
+// Example: /setrtp 35 => 35% win, and inside that win: 85% two-match.
+const TWO_MATCH_IN_WIN_RATE = 85;
 
 let losingCache = null;
 
@@ -225,8 +227,8 @@ function vipSpin(rate = 90, random = Math.random) {
  * - Win chance = 35%
  * - Lose chance = 65%
  * - Inside win 35%:
- *   - 60% two-match win, payout x1.5
- *   - 40% three-match win
+ *   - 85% two-match win, payout x1.5
+ *   - 15% three-match win
  */
 function controlledSpin(user, options = {}, random = Math.random) {
   const vipWinRate = percent(options.vipWinRate, 90);
