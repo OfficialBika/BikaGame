@@ -234,7 +234,7 @@ module.exports = (bot) => {
           betTaken = false;
 
           // Final error edit, reduced from 260ms.
-          await sleep(50);
+          await sleep(3000);
           return editByIds(
             bot,
             chatId,
@@ -251,7 +251,7 @@ module.exports = (bot) => {
       betTaken = false;
 
       // Final result edit, reduced from 260ms.
-      await sleep(50);
+      await sleep(3000);
       return editByIds(
         bot,
         chatId,
