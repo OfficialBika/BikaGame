@@ -24,6 +24,7 @@ const ORDER_TIMEOUT_MS = Number(process.env.SHOP_CONFIRM_TIMEOUT_MS || 60_000);
 const MAX_PENDING_ORDERS = Number(process.env.SHOP_MAX_PENDING || 10_000);
 
 const RARITIES = Object.freeze([
+  Object.freeze({ key: 'uncommon', label: 'Uncommon', icon: '🟣', defaultPrice: 50_000 }),
   Object.freeze({ key: 'rare', label: 'Rare', icon: '🔵', defaultPrice: 100_000 }),
   Object.freeze({ key: 'legendary', label: 'Legendary', icon: '🟡', defaultPrice: 1_000_000 }),
   Object.freeze({ key: 'mystical', label: 'Mystical', icon: '💮', defaultPrice: 2_500_000 }),
@@ -40,22 +41,44 @@ const SHOP_BOTS = Object.freeze([
 ]);
 
 function normalizeShopBot(input) {
-  const raw = String(input || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+  const raw = String(input || '').trim().toLowerCase().replace(/^@/, '').replace(/[\s_-]+/g, '');
 
   if (!raw) return null;
 
   const aliases = {
+    charactercatcherbot: 'catchbot',
+    charactercatcherbot: 'catchbot',
     catchbot: 'catchbot',
     catch: 'catchbot',
     catcher: 'catchbot',
+
+    bikacharacterbot: 'bikabot',
     bikabot: 'bikabot',
     bika: 'bikabot',
+
+    charactershallowbot: 'hallowbot',
+    characterhallowbot: 'hallowbot',
     hallowbot: 'hallowbot',
     hallow: 'hallowbot',
     halloween: 'hallowbot',
   };
 
   return aliases[raw] || null;
+}
+
+function sourceBotFromMessage(message) {
+  const username =
+    message?.via_bot?.username ||
+    message?.forward_from?.username ||
+    message?.from?.username ||
+    '';
+
+  const botKey = normalizeShopBot(username);
+
+  return {
+    botKey,
+    username: username || null,
+  };
 }
 
 function shopBotInfo(key) {
@@ -134,6 +157,8 @@ function normalizeRarity(input) {
 
   const aliases = {
     rare: 'rare',
+    uncommon: 'uncommon',
+    common: 'uncommon',
     legendary: 'legendary',
     mystical: 'mystical',
     divine: 'divine',
@@ -185,6 +210,33 @@ async function editCurrentHTML(ctx, html, extra = {}) {
 
     throw err;
   }
+}
+
+
+async function editOrderMessage(bot, chatId, messageId, html, hasMedia = false, extra = {}) {
+  if (hasMedia) {
+    try {
+      return await bot.telegram.editMessageCaption(chatId, messageId, undefined, html, {
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        ...extra,
+      });
+    } catch (err) {
+      const message = String(err?.message || err);
+
+      if (
+        message.includes('message is not modified') ||
+        message.includes('message to edit not found') ||
+        message.includes('there is no caption in the message to edit')
+      ) {
+        return null;
+      }
+
+      return null;
+    }
+  }
+
+  return editByIds(bot, chatId, messageId, html, extra);
 }
 
 async function deleteCallbackMessage(ctx) {
@@ -313,39 +365,7 @@ async function countAvailableByRarity(botKey = 'bikabot') {
   return counts;
 }
 
-function shopHomeText(balance) {
-  return (
-    `🛒 <b>BIKA Characters Card Shop</b>\n` +
-    `━━━━━━━━━━━━━━━━\n` +
-    `Choose a shop bot first.\n\n` +
-    `🎯 <b>CatchBot</b>\n` +
-    `🤖 <b>BikaBot</b>\n` +
-    `🎃 <b>HallowBot</b>\n` +
-    `━━━━━━━━━━━━━━━━\n` +
-    `💼 Your Balance: <b>${fmt(balance)}</b> ${COIN}\n` +
-    `📌 Bot ရွေးပါ → Rarity ရွေးပါ → Card ID ရွေးပါ → Confirm နှိပ်ပါ။`
-  );
-}
-
-function shopHomeKeyboard(ownerId) {
-  return {
-    inline_keyboard: [
-      [
-        primaryButton('🎯 CatchBot', `SHOP:BOT:catchbot:${ownerId}`),
-        primaryButton('🤖 BikaBot', `SHOP:BOT:bikabot:${ownerId}`),
-      ],
-      [
-        primaryButton('🎃 HallowBot', `SHOP:BOT:hallowbot:${ownerId}`),
-      ],
-      [
-        primaryButton('📦 MyOrder', `SHOP:MYORDERS:${ownerId}`),
-        successButton('ℹ️ Help', `SHOP:HELP:${ownerId}`),
-      ],
-    ],
-  };
-}
-
-function botRarityText(botKey, balance, prices, counts) {
+function shopHomeText(balance, prices, counts) {
   const lines = RARITIES.map((rarity) => (
     `${rarity.icon} <b>${rarity.label}</b>\n` +
     `   Price: <b>${fmt(prices[rarity.key])}</b> ${COIN}\n` +
@@ -353,7 +373,7 @@ function botRarityText(botKey, balance, prices, counts) {
   )).join('\n\n');
 
   return (
-    `🛒 <b>${shopBotLabel(botKey)} Card Shop</b>\n` +
+    `🛒 <b>BIKA Characters Card Shop</b>\n` +
     `━━━━━━━━━━━━━━━━\n` +
     `${lines}\n` +
     `━━━━━━━━━━━━━━━━\n` +
@@ -362,23 +382,26 @@ function botRarityText(botKey, balance, prices, counts) {
   );
 }
 
-function botRarityKeyboard(botKey, counts, ownerId) {
+function shopHomeKeyboard(counts, ownerId) {
   const rows = RARITIES.map((rarity) => [
-    primaryButton(
-      `${rarity.icon} ${rarity.label} (${counts[rarity.key] || 0})`,
-      `BUY:R:${botKey}:${rarity.key}:${ownerId}`
-    ),
+    {
+      text: `${rarity.icon} ${rarity.label} (${counts[rarity.key] || 0})`,
+      callback_data: `BUY:R:${rarity.key}:${ownerId}`,
+    },
   ]);
 
-  rows.push([dangerButton('⬅️ Back to Bot Menu', `BUY:HOME:${ownerId}`)]);
+  rows.push([
+    { text: '📦 My Orders', callback_data: `SHOP:MYORDERS:${ownerId}` },
+    { text: 'ℹ️ Help', callback_data: `SHOP:HELP:${ownerId}` },
+  ]);
 
   return { inline_keyboard: rows };
 }
 
-async function rarityCardsText(botKey, rarityKey, price) {
+async function rarityCardsText(rarityKey, price) {
   const rarity = rarityInfo(rarityKey);
   const cards = await shopCardModel.collection()
-    .find({ rarity: rarityKey, status: 'AVAILABLE', ...shopBotFilter(botKey) })
+    .find({ rarity: rarityKey, status: 'AVAILABLE' })
     .sort({ cardId: 1 })
     .limit(30)
     .toArray();
@@ -386,7 +409,7 @@ async function rarityCardsText(botKey, rarityKey, price) {
   if (!cards.length) {
     return {
       text:
-        `🎴 <b>${shopBotLabel(botKey)} — ${rarityLabel(rarityKey)} Cards</b>\n` +
+        `🎴 <b>${rarityLabel(rarityKey)} Cards</b>\n` +
         `━━━━━━━━━━━━━━━━\n` +
         `ဒီ rarity မှာ available card မရှိသေးပါ။`,
       cards,
@@ -399,7 +422,7 @@ async function rarityCardsText(botKey, rarityKey, price) {
 
   return {
     text:
-      `🎴 <b>${shopBotLabel(botKey)} — ${rarity?.icon || ''} ${rarity?.label || rarityKey} Cards</b>\n` +
+      `🎴 <b>${rarity?.icon || ''} ${rarity?.label || rarityKey} Cards</b>\n` +
       `━━━━━━━━━━━━━━━━\n` +
       `Price: <b>${fmt(price)}</b> ${COIN}\n` +
       `Available: <b>${cards.length}</b>\n` +
@@ -411,15 +434,15 @@ async function rarityCardsText(botKey, rarityKey, price) {
   };
 }
 
-function cardsKeyboard(cards, ownerId, botKey) {
+function cardsKeyboard(cards, ownerId) {
   const rows = [];
   let row = [];
 
   for (const card of cards) {
-    row.push(primaryButton(
-      String(card.cardId).slice(0, 24),
-      `SHOP:CARD:${String(card._id)}:${ownerId}`
-    ));
+    row.push({
+      text: String(card.cardId).slice(0, 24),
+      callback_data: `SHOP:CARD:${String(card._id)}:${ownerId}`,
+    });
 
     if (row.length === 2) {
       rows.push(row);
@@ -428,7 +451,7 @@ function cardsKeyboard(cards, ownerId, botKey) {
   }
 
   if (row.length) rows.push(row);
-  rows.push([dangerButton('⬅️ Back to Rarities', `SHOP:BOT:${botKey}:${ownerId}`)]);
+  rows.push([{ text: '⬅️ Back to Shop', callback_data: `BUY:HOME:${ownerId}` }]);
 
   return { inline_keyboard: rows };
 }
@@ -439,7 +462,6 @@ function previewText(ctx, card, price) {
     `━━━━━━━━━━━━━━━━\n` +
     `Buyer: ${mentionHtml(ctx.from)}\n` +
     `Buyer ID: <code>${ctx.from.id}</code>\n` +
-    `Bot: <b>${shopBotLabel(cardBotKey(card))}</b>\n` +
     `Rarity: <b>${rarityLabel(card.rarity)}</b>\n` +
     `Card ID: <code>${escHtml(card.cardId)}</code>\n` +
     `${card.name ? `Name: <b>${escHtml(card.name)}</b>\n` : ''}` +
@@ -453,11 +475,42 @@ function previewKeyboard(pendingId) {
   return {
     inline_keyboard: [
       [
-        successButton('✅ Confirm Order', `SHOP:OK:${pendingId}`),
-        dangerButton('❌ Cancel', `SHOP:NO:${pendingId}`),
+        { text: '✅ Confirm Order', callback_data: `SHOP:OK:${pendingId}` },
+        { text: '❌ Cancel', callback_data: `SHOP:NO:${pendingId}` },
       ],
     ],
   };
+}
+
+
+async function sendOrderPreview(ctx, card, price, pendingId) {
+  const caption = previewText(ctx, card, price);
+  const reply_markup = previewKeyboard(pendingId);
+
+  if (card?.mediaFileId) {
+    const extra = {
+      caption,
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+      reply_markup,
+    };
+
+    try {
+      if (card.mediaType === 'video') {
+        return await ctx.replyWithVideo(card.mediaFileId, extra);
+      }
+
+      if (card.mediaType === 'animation') {
+        return await ctx.replyWithAnimation(card.mediaFileId, extra);
+      }
+
+      return await ctx.replyWithPhoto(card.mediaFileId, extra);
+    } catch (_) {
+      return replyHTML(ctx, caption, { reply_markup });
+    }
+  }
+
+  return replyHTML(ctx, caption, { reply_markup });
 }
 
 function buyerPendingText(order, insertedId, balance, ownerNotified) {
@@ -467,8 +520,6 @@ function buyerPendingText(order, insertedId, balance, ownerNotified) {
     `Order ID: <code>${String(insertedId)}</code>\n` +
     `Receipt: <code>${order.receiptCode}</code>\n` +
     `Buyer ID: <code>${order.userId}</code>\n` +
-    `Bot: <b>${shopBotLabel(order.botKey || cardBotKey(order.card))}</b>\n` +
-    `Bot: <b>${shopBotLabel(order.botKey || cardBotKey(order.card))}</b>\n` +
     `Rarity: <b>${rarityLabel(order.card.rarity)}</b>\n` +
     `Card ID: <code>${escHtml(order.card.cardId)}</code>\n` +
     `${order.card.name ? `Name: <b>${escHtml(order.card.name)}</b>\n` : ''}` +
@@ -488,8 +539,6 @@ function ownerOrderText(order, insertedId) {
     `Buyer: ${mentionHtml(order.buyer)}\n` +
     `Buyer ID: <code>${order.userId}</code>\n` +
     `Username: <code>${escHtml(order.buyer.username ? '@' + order.buyer.username : 'N/A')}</code>\n` +
-    `Bot: <b>${shopBotLabel(order.botKey || cardBotKey(order.card))}</b>\n` +
-    `Bot: <b>${shopBotLabel(order.botKey || cardBotKey(order.card))}</b>\n` +
     `Rarity: <b>${rarityLabel(order.card.rarity)}</b>\n` +
     `Card ID: <code>${escHtml(order.card.cardId)}</code>\n` +
     `${order.card.name ? `Name: <b>${escHtml(order.card.name)}</b>\n` : ''}` +
@@ -505,8 +554,8 @@ function ownerOrderKeyboard(orderId) {
   return {
     inline_keyboard: [
       [
-        successButton('✅ Approve', `SHOPADMIN:APPROVE:${orderId}`),
-        dangerButton('❌ Cancel', `SHOPADMIN:CANCEL:${orderId}`),
+        { text: '✅ Approve', callback_data: `SHOPADMIN:APPROVE:${orderId}` },
+        { text: '❌ Cancel', callback_data: `SHOPADMIN:CANCEL:${orderId}` },
       ],
     ],
   };
@@ -517,7 +566,6 @@ function buyerCompletedText(order) {
     `✅ <b>Order ပြီးမြောက်ပါပြီ</b>\n` +
     `━━━━━━━━━━━━━━━━\n` +
     `Receipt: <code>${escHtml(order.receiptCode || 'N/A')}</code>\n` +
-    `Bot: <b>${shopBotLabel(order.botKey || 'bikabot')}</b>\n` +
     `Rarity: <b>${rarityLabel(order.rarity)}</b>\n` +
     `Card ID: <code>${escHtml(order.cardId || 'N/A')}</code>\n` +
     `${order.itemName ? `Name: <b>${escHtml(order.itemName)}</b>\n` : ''}` +
@@ -531,7 +579,6 @@ function buyerCancelledText(order, refunded) {
     `❌ <b>Order Cancelled</b>\n` +
     `━━━━━━━━━━━━━━━━\n` +
     `Receipt: <code>${escHtml(order.receiptCode || 'N/A')}</code>\n` +
-    `Bot: <b>${shopBotLabel(order.botKey || 'bikabot')}</b>\n` +
     `Rarity: <b>${rarityLabel(order.rarity)}</b>\n` +
     `Card ID: <code>${escHtml(order.cardId || 'N/A')}</code>\n` +
     `${order.itemName ? `Name: <b>${escHtml(order.itemName)}</b>\n` : ''}` +
@@ -548,7 +595,6 @@ function ownerCompletedText(order, action) {
     `Order ID: <code>${String(order._id)}</code>\n` +
     `Receipt: <code>${escHtml(order.receiptCode || 'N/A')}</code>\n` +
     `Buyer ID: <code>${order.userId}</code>\n` +
-    `Bot: <b>${shopBotLabel(order.botKey || 'bikabot')}</b>\n` +
     `Rarity: <b>${rarityLabel(order.rarity)}</b>\n` +
     `Card ID: <code>${escHtml(order.cardId || 'N/A')}</code>\n` +
     `Paid: <b>${fmt(order.price || 0)}</b> ${COIN}\n` +
@@ -584,7 +630,6 @@ function helpText() {
     `━━━━━━━━━━━━━━━━\n` +
     `Buyer:\n` +
     `• <code>/shop</code> or <code>.shop</code>\n` +
-    `• Bot ရွေးပါ\n` +
     `• Rarity ရွေးပါ\n` +
     `• Card ID ရွေးပါ\n` +
     `• Confirm နှိပ်ပါ\n\n` +
@@ -593,6 +638,136 @@ function helpText() {
     `• <b>Confirm နှိပ်ပြီးရင် Cancel နှိပ်မရတော့ပါ</b>\n` +
     `• <b>မိမိရဲ့ လက်ကျန်ငွေ မလုံလောက်ရင် ဝယ်ယူလို့မရနိူင်ပါ</b>\n` +
     `• Order တင်​ပြီးရင် My Order ထဲမှာ မိမိရဲ့ order တွေစစ်ဆေးလို့ရပါတယ်။`
+  );
+}
+
+function textFromInlineMessage(message) {
+  return String(message?.caption || message?.text || '').trim();
+}
+
+function extractMedia(message) {
+  if (Array.isArray(message?.photo) && message.photo.length) {
+    const best = message.photo[message.photo.length - 1];
+    return {
+      mediaType: 'photo',
+      mediaFileId: best?.file_id || null,
+    };
+  }
+
+  if (message?.video?.file_id) {
+    return {
+      mediaType: 'video',
+      mediaFileId: message.video.file_id,
+    };
+  }
+
+  if (message?.animation?.file_id) {
+    return {
+      mediaType: 'animation',
+      mediaFileId: message.animation.file_id,
+    };
+  }
+
+  return {
+    mediaType: null,
+    mediaFileId: null,
+  };
+}
+
+function parseInlineCard(text) {
+  const raw = String(text || '').replace(/\r/g, '\n');
+  const lines = raw.split('\n').map((line) => line.trim()).filter(Boolean);
+  const joined = lines.join('\n');
+
+  let id = null;
+  let name = null;
+  let rarity = null;
+
+  const idPatterns = [
+    /(?:^|\n)\s*(?:id|card\s*id)\s*[:#]?\s*([A-Za-z0-9_-]+)/i,
+    /(?:^|\n)\s*(\d{1,10})\s*[:.)-]\s*([^\n]+)/,
+    /(?:^|\n)\s*(\d{1,10})\s*:\s*([^\n]+)/,
+  ];
+
+  for (const pattern of idPatterns) {
+    const match = joined.match(pattern);
+    if (match) {
+      id = match[1];
+      if (!name && match[2]) name = match[2].trim();
+      break;
+    }
+  }
+
+  if (!id) {
+    const loose = joined.match(/\b(\d{1,10})\s*:\s*([^\n]+)/);
+    if (loose) {
+      id = loose[1];
+      name = loose[2].trim();
+    }
+  }
+
+  const rarityMatch = joined.match(/rarity\s*[:：]?\s*([A-Za-z]+(?:\s*[A-Za-z]+)?)/i);
+  if (rarityMatch) {
+    rarity = normalizeRarity(rarityMatch[1]);
+  }
+
+  if (!rarity) {
+    for (const rarityInfoItem of RARITIES) {
+      const pattern = new RegExp(`\\b${rarityInfoItem.label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      if (pattern.test(joined)) {
+        rarity = rarityInfoItem.key;
+        break;
+      }
+    }
+  }
+
+  if (!name && id) {
+    const idLine = lines.find((line) => line.includes(id));
+    if (idLine) {
+      name = idLine
+        .replace(new RegExp(`^\\s*${id}\\s*[:.)-]?\\s*`, 'i'), '')
+        .replace(/\(\s*.*?rarity.*?\)/i, '')
+        .trim();
+    }
+  }
+
+  if (name) {
+    name = name
+      .replace(/\(\s*[🟣🔵🟡💮⚜️⚡✨🪞]?\s*rarity\s*[:：]?\s*[A-Za-z]+\s*\)/i, '')
+      .replace(/[|]+$/g, '')
+      .trim();
+  }
+
+  return {
+    cardId: id ? String(id).trim() : null,
+    name: name || null,
+    rarity,
+    rawText: raw,
+  };
+}
+
+function inlineAddUsage() {
+  return (
+    `Usage:\n` +
+    `1) Inline bot message ကို reply လုပ်ပါ\n` +
+    `2) <code>/shopaddinline</code> ပို့ပါ\n\n` +
+    `Supported source bots:\n` +
+    `• @Character_Catcher_Bot → CatchBot\n` +
+    `• @BikaCharacterBot → BikaBot\n` +
+    `• @Characters_Hallow_bot → HallowBot`
+  );
+}
+
+function inlineAddResultText(data) {
+  return (
+    `✅ <b>Inline Card Added</b>\n` +
+    `━━━━━━━━━━━━━━━━\n` +
+    `Bot: <b>${shopBotLabel(data.botKey)}</b>\n` +
+    `Source: <code>${escHtml(data.sourceBotUsername ? '@' + data.sourceBotUsername : 'N/A')}</code>\n` +
+    `Rarity: <b>${rarityLabel(data.rarity)}</b>\n` +
+    `Card ID: <code>${escHtml(data.cardId)}</code>\n` +
+    `${data.name ? `Name: <b>${escHtml(data.name)}</b>\n` : ''}` +
+    `Media: <b>${data.mediaType && data.mediaFileId ? data.mediaType.toUpperCase() + ' ✅' : 'NO MEDIA ⚠️'}</b>`
   );
 }
 
@@ -640,7 +815,6 @@ async function myOrdersText(userId) {
   const lines = orders.map((order, index) => (
     `${index + 1}. <code>${String(order._id)}</code>\n` +
     `   Buyer ID: <code>${order.userId}</code>\n` +
-    `   Bot: <b>${shopBotLabel(order.botKey || 'bikabot')}</b>\n` +
     `   Rarity: <b>${escHtml(order.rarity || 'N/A')}</b>\n` +
     `   Card ID: <code>${escHtml(order.cardId || order.itemId || 'N/A')}</code>\n` +
     `   Paid: <b>${fmt(order.price || 0)}</b> ${COIN}\n` +
@@ -652,36 +826,24 @@ async function myOrdersText(userId) {
 
 async function openShop(ctx) {
   const user = await getUser(ctx.from.id);
+  const prices = await getPriceMap();
+  const counts = await countAvailableByRarity();
 
-  return replyHTML(ctx, shopHomeText(user?.balance || 0), {
+  return replyHTML(ctx, shopHomeText(user?.balance || 0, prices, counts), {
     ...replyOptions(ctx),
-    reply_markup: shopHomeKeyboard(ctx.from.id),
+    reply_markup: shopHomeKeyboard(counts, ctx.from.id),
   });
 }
 
-async function showBotHome(ctx, botKey, ownerId) {
-  const user = await getUser(ctx.from.id);
+async function showRarity(ctx, rarityKey, ownerId) {
   const prices = await getPriceMap();
-  const counts = await countAvailableByRarity(botKey);
+  const { text, cards } = await rarityCardsText(rarityKey, prices[rarityKey]);
 
   try {
-    await ctx.answerCbQuery(`${shopBotInfo(botKey)?.label || 'Shop'} opened.`);
+    await ctx.answerCbQuery(`${rarityInfo(rarityKey)?.label || rarityKey} cards`);
   } catch (_) {}
 
-  return editCurrentHTML(ctx, botRarityText(botKey, user?.balance || 0, prices, counts), {
-    reply_markup: botRarityKeyboard(botKey, counts, ownerId),
-  });
-}
-
-async function showRarity(ctx, botKey, rarityKey, ownerId) {
-  const prices = await getPriceMap();
-  const { text, cards } = await rarityCardsText(botKey, rarityKey, prices[rarityKey]);
-
-  try {
-    await ctx.answerCbQuery(`${shopBotInfo(botKey)?.label || 'Shop'} ${rarityInfo(rarityKey)?.label || rarityKey} cards`);
-  } catch (_) {}
-
-  return editCurrentHTML(ctx, text, { reply_markup: cardsKeyboard(cards, ownerId, botKey) });
+  return editCurrentHTML(ctx, text, { reply_markup: cardsKeyboard(cards, ownerId) });
 }
 
 async function handleBuy(ctx, payload) {
@@ -695,11 +857,13 @@ async function handleBuy(ctx, payload) {
     if (!(await requireButtonOwner(ctx, ownerId))) return;
 
     const user = await getUser(ctx.from.id);
+    const prices = await getPriceMap();
+    const counts = await countAvailableByRarity();
 
     try { await ctx.answerCbQuery('Back to shop.'); } catch (_) {}
 
-    return editCurrentHTML(ctx, shopHomeText(user?.balance || 0), {
-      reply_markup: shopHomeKeyboard(ctx.from.id),
+    return editCurrentHTML(ctx, shopHomeText(user?.balance || 0, prices, counts), {
+      reply_markup: shopHomeKeyboard(counts, ctx.from.id),
     });
   }
 
@@ -707,21 +871,16 @@ async function handleBuy(ctx, payload) {
     return ctx.answerCbQuery('Unknown shop action.', { show_alert: true });
   }
 
-  const botKey = normalizeShopBot(parts[1]);
-  const rarityKey = normalizeRarity(parts[2]);
-  const ownerId = parts[3];
+  const rarityKey = normalizeRarity(parts[1]);
+  const ownerId = parts[2];
 
   if (!(await requireButtonOwner(ctx, ownerId))) return;
-
-  if (!botKey || !shopBotInfo(botKey)) {
-    return ctx.answerCbQuery('Shop bot not found.', { show_alert: true });
-  }
 
   if (!rarityKey || !rarityInfo(rarityKey)) {
     return ctx.answerCbQuery('Rarity not found.', { show_alert: true });
   }
 
-  return showRarity(ctx, botKey, rarityKey, ctx.from.id);
+  return showRarity(ctx, rarityKey, ctx.from.id);
 }
 
 module.exports = (bot) => {
@@ -739,19 +898,6 @@ module.exports = (bot) => {
 
     cleanupPendingOrders();
 
-    if (data.startsWith('SHOP:BOT:')) {
-      const [, , botKeyRaw, ownerId] = data.split(':');
-      const botKey = normalizeShopBot(botKeyRaw);
-
-      if (!(await requireButtonOwner(ctx, ownerId))) return;
-
-      if (!botKey || !shopBotInfo(botKey)) {
-        return ctx.answerCbQuery('Shop bot not found.', { show_alert: true });
-      }
-
-      return showBotHome(ctx, botKey, ctx.from.id);
-    }
-
     if (data.startsWith('SHOP:HELP:')) {
       const [, , ownerId] = data.split(':');
 
@@ -760,7 +906,7 @@ module.exports = (bot) => {
       try { await ctx.answerCbQuery('Help opened.'); } catch (_) {}
       return editCurrentHTML(ctx, helpText(), {
         reply_markup: {
-          inline_keyboard: [[dangerButton('⬅️ Back to Shop', `BUY:HOME:${ctx.from.id}`)]],
+          inline_keyboard: [[{ text: '⬅️ Back to Shop', callback_data: `BUY:HOME:${ctx.from.id}` }]],
         },
       });
     }
@@ -773,7 +919,7 @@ module.exports = (bot) => {
       try { await ctx.answerCbQuery('My orders opened.'); } catch (_) {}
       return editCurrentHTML(ctx, await myOrdersText(ctx.from.id), {
         reply_markup: {
-          inline_keyboard: [[dangerButton('⬅️ Back to Shop', `BUY:HOME:${ctx.from.id}`)]],
+          inline_keyboard: [[{ text: '⬅️ Back to Shop', callback_data: `BUY:HOME:${ctx.from.id}` }]],
         },
       });
     }
@@ -928,9 +1074,7 @@ module.exports = (bot) => {
 
       await deleteCallbackMessage(ctx);
 
-      const sent = await replyHTML(ctx, previewText(ctx, card, price), {
-        reply_markup: previewKeyboard(pendingId),
-      });
+      const sent = await sendOrderPreview(ctx, card, price, pendingId);
 
       if (!sent?.message_id) return;
 
@@ -943,6 +1087,7 @@ module.exports = (bot) => {
         cardObjectId,
         card,
         botKey: cardBotKey(card),
+        hasMedia: !!card.mediaFileId,
         price,
         expiresAt,
         timeoutHandle: null,
@@ -953,7 +1098,7 @@ module.exports = (bot) => {
         if (!expired) return;
         pendingOrders.delete(pendingId);
         try {
-          await editByIds(bot, expired.chatId, expired.msgId, expiredText(expired));
+          await editOrderMessage(bot, expired.chatId, expired.msgId, expiredText(expired), expired.hasMedia);
         } catch (_) {}
       }, ORDER_TIMEOUT_MS);
 
@@ -989,7 +1134,7 @@ module.exports = (bot) => {
     if (action === 'NO') {
       clearPending(id);
       try { await ctx.answerCbQuery('Order cancelled.'); } catch (_) {}
-      return editByIds(bot, pending.chatId, pending.msgId, cancelledText(pending));
+      return editOrderMessage(bot, pending.chatId, pending.msgId, cancelledText(pending), pending.hasMedia);
     }
 
     try { await ctx.answerCbQuery('Creating order...'); } catch (_) {}
@@ -1002,11 +1147,12 @@ module.exports = (bot) => {
 
       if (!latestCard) {
         clearPending(id);
-        return editByIds(
+        return editOrderMessage(
           bot,
           pending.chatId,
           pending.msgId,
-          '⚠️ <b>Card unavailable</b>\n━━━━━━━━━━━━━━━━\nဒီ card ကို တစ်ခြားသူဝယ်သွားပြီးဖြစ်နိုင်ပါတယ်။'
+          '⚠️ <b>Card unavailable</b>\n━━━━━━━━━━━━━━━━\nဒီ card ကို တစ်ခြားသူဝယ်သွားပြီးဖြစ်နိုင်ပါတယ်။',
+          pending.hasMedia
         );
       }
 
@@ -1037,8 +1183,10 @@ module.exports = (bot) => {
         itemId: latestCard.cardId,
         itemName: latestCard.name || latestCard.cardId,
         cardId: latestCard.cardId,
-        botKey: pending.botKey || cardBotKey(latestCard),
+        botKey: cardBotKey(latestCard),
         rarity: latestCard.rarity,
+        mediaType: latestCard.mediaType || null,
+        mediaFileId: latestCard.mediaFileId || null,
         price: pending.price,
         receiptCode: receipt,
         status: 'PENDING',
@@ -1086,7 +1234,7 @@ module.exports = (bot) => {
       const updatedUser = await getUser(pending.userId);
       clearPending(id);
 
-      return editByIds(
+      return editOrderMessage(
         bot,
         pending.chatId,
         pending.msgId,
@@ -1100,7 +1248,8 @@ module.exports = (bot) => {
           inserted.insertedId,
           updatedUser?.balance || 0,
           ownerNotified
-        )
+        ),
+        pending.hasMedia
       );
     } catch (err) {
       try {
@@ -1118,6 +1267,86 @@ module.exports = (bot) => {
 
   bot.command('shophelp', async (ctx) => {
     return replyHTML(ctx, helpText(), replyOptions(ctx));
+  });
+
+  bot.command(['shopaddinline', 'shopaddmedia'], async (ctx) => {
+    if (!(await requireOwnerDm(ctx))) return;
+
+    const replied = ctx.message?.reply_to_message;
+
+    if (!replied) {
+      return replyHTML(ctx, inlineAddUsage(), replyOptions(ctx));
+    }
+
+    const source = sourceBotFromMessage(replied);
+
+    if (!source.botKey) {
+      return replyHTML(
+        ctx,
+        `⚠️ <b>Unsupported source bot.</b>\n` +
+          `━━━━━━━━━━━━━━━━\n` +
+          `Detected: <code>${escHtml(source.username ? '@' + source.username : 'unknown')}</code>\n\n` +
+          `${inlineAddUsage()}`,
+        replyOptions(ctx)
+      );
+    }
+
+    const parsed = parseInlineCard(textFromInlineMessage(replied));
+
+    if (!parsed.cardId || !parsed.rarity || !rarityInfo(parsed.rarity)) {
+      return replyHTML(
+        ctx,
+        `⚠️ <b>Card data parse မရပါ။</b>\n` +
+          `━━━━━━━━━━━━━━━━\n` +
+          `Card ID / Name / Rarity ပါတဲ့ inline bot message ကို reply လုပ်ပြီး <code>/shopaddinline</code> ပို့ပါ။\n\n` +
+          `${inlineAddUsage()}`,
+        replyOptions(ctx)
+      );
+    }
+
+    const media = extractMedia(replied);
+    const now = new Date();
+
+    await shopCardModel.collection().updateOne(
+      {
+        botKey: source.botKey,
+        cardId: parsed.cardId,
+      },
+      {
+        $setOnInsert: {
+          botKey: source.botKey,
+          cardId: parsed.cardId,
+          createdAt: now,
+        },
+        $set: {
+          sourceBotUsername: source.username ? source.username.toLowerCase() : null,
+          sourceBotKey: source.botKey,
+          rarity: parsed.rarity,
+          name: parsed.name || null,
+          mediaType: media.mediaType,
+          mediaFileId: media.mediaFileId,
+          caption: parsed.rawText,
+          status: 'AVAILABLE',
+          addedByUserId: ctx.from.id,
+          updatedAt: now,
+        },
+      },
+      { upsert: true }
+    );
+
+    return replyHTML(
+      ctx,
+      inlineAddResultText({
+        botKey: source.botKey,
+        sourceBotUsername: source.username,
+        cardId: parsed.cardId,
+        name: parsed.name,
+        rarity: parsed.rarity,
+        mediaType: media.mediaType,
+        mediaFileId: media.mediaFileId,
+      }),
+      replyOptions(ctx)
+    );
   });
 
   bot.command('shopprices', async (ctx) => {
@@ -1172,9 +1401,9 @@ module.exports = (bot) => {
     if (!rarityKey || !rarityInfo(rarityKey) || !cardId) {
       return replyHTML(
         ctx,
-        `Usage: <code>/shopadd CatchBot Divine C001</code>\n` +
+        `Usage: <code>/shopadd CatchBot Legendary 484 Clorinde</code>\n` +
           `Default: <code>/shopadd Divine D001</code> = BikaBot\n` +
-          `Optional: <code>/shopadd HallowBot Rare H001 Character Name</code>`,
+          `Optional: <code>/shopadd HallowBot Uncommon 641 Yelan</code>`,
         replyOptions(ctx)
       );
     }
@@ -1221,7 +1450,7 @@ module.exports = (bot) => {
     if (!rarityKey || !rarityInfo(rarityKey) || !cardIds.length) {
       return replyHTML(
         ctx,
-        `Usage: <code>/shopbulk CatchBot Divine C001 C002 C003</code>\n` +
+        `Usage: <code>/shopbulk CatchBot Legendary 484 485 486</code>\n` +
           `Default: <code>/shopbulk Divine D001 D002</code> = BikaBot`,
         replyOptions(ctx)
       );
@@ -1314,7 +1543,7 @@ module.exports = (bot) => {
     }
 
     const lines = cards.map((card, index) => (
-      `${index + 1}. ${shopBotLabel(cardBotKey(card))} — ${rarityLabel(card.rarity)} — <code>${escHtml(card.cardId)}</code>${card.name ? ` — ${escHtml(card.name)}` : ''}`
+      `${index + 1}. ${shopBotLabel(cardBotKey(card))} — ${rarityLabel(card.rarity)} — <code>${escHtml(card.cardId)}</code>${card.name ? ` — ${escHtml(card.name)}` : ''}${card.mediaFileId ? ' — 📎' : ''}`
     )).join('\n');
 
     return replyHTML(ctx, `🎴 <b>Available Shop Cards</b>\n━━━━━━━━━━━━━━━━\n${lines}`, replyOptions(ctx));
