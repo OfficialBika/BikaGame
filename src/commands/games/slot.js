@@ -251,7 +251,7 @@ module.exports = (bot) => {
       betTaken = false;
 
       // Final result edit, reduced from 260ms.
-      await sleep(3000);
+      await sleep(2000);
       return editByIds(
         bot,
         chatId,
