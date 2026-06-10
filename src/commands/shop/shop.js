@@ -212,33 +212,6 @@ async function editCurrentHTML(ctx, html, extra = {}) {
   }
 }
 
-
-async function editOrderMessage(bot, chatId, messageId, html, hasMedia = false, extra = {}) {
-  if (hasMedia) {
-    try {
-      return await bot.telegram.editMessageCaption(chatId, messageId, undefined, html, {
-        parse_mode: 'HTML',
-        disable_web_page_preview: true,
-        ...extra,
-      });
-    } catch (err) {
-      const message = String(err?.message || err);
-
-      if (
-        message.includes('message is not modified') ||
-        message.includes('message to edit not found') ||
-        message.includes('there is no caption in the message to edit')
-      ) {
-        return null;
-      }
-
-      return null;
-    }
-  }
-
-  return editByIds(bot, chatId, messageId, html, extra);
-}
-
 async function deleteCallbackMessage(ctx) {
   try {
     const messageId = ctx.callbackQuery?.message?.message_id;
@@ -480,37 +453,6 @@ function previewKeyboard(pendingId) {
       ],
     ],
   };
-}
-
-
-async function sendOrderPreview(ctx, card, price, pendingId) {
-  const caption = previewText(ctx, card, price);
-  const reply_markup = previewKeyboard(pendingId);
-
-  if (card?.mediaFileId) {
-    const extra = {
-      caption,
-      parse_mode: 'HTML',
-      disable_web_page_preview: true,
-      reply_markup,
-    };
-
-    try {
-      if (card.mediaType === 'video') {
-        return await ctx.replyWithVideo(card.mediaFileId, extra);
-      }
-
-      if (card.mediaType === 'animation') {
-        return await ctx.replyWithAnimation(card.mediaFileId, extra);
-      }
-
-      return await ctx.replyWithPhoto(card.mediaFileId, extra);
-    } catch (_) {
-      return replyHTML(ctx, caption, { reply_markup });
-    }
-  }
-
-  return replyHTML(ctx, caption, { reply_markup });
 }
 
 function buyerPendingText(order, insertedId, balance, ownerNotified) {
@@ -1074,7 +1016,9 @@ module.exports = (bot) => {
 
       await deleteCallbackMessage(ctx);
 
-      const sent = await sendOrderPreview(ctx, card, price, pendingId);
+      const sent = await replyHTML(ctx, previewText(ctx, card, price), {
+        reply_markup: previewKeyboard(pendingId),
+      });
 
       if (!sent?.message_id) return;
 
@@ -1086,8 +1030,6 @@ module.exports = (bot) => {
         msgId: sent.message_id,
         cardObjectId,
         card,
-        botKey: cardBotKey(card),
-        hasMedia: !!card.mediaFileId,
         price,
         expiresAt,
         timeoutHandle: null,
@@ -1098,7 +1040,7 @@ module.exports = (bot) => {
         if (!expired) return;
         pendingOrders.delete(pendingId);
         try {
-          await editOrderMessage(bot, expired.chatId, expired.msgId, expiredText(expired), expired.hasMedia);
+          await editByIds(bot, expired.chatId, expired.msgId, expiredText(expired));
         } catch (_) {}
       }, ORDER_TIMEOUT_MS);
 
@@ -1134,7 +1076,7 @@ module.exports = (bot) => {
     if (action === 'NO') {
       clearPending(id);
       try { await ctx.answerCbQuery('Order cancelled.'); } catch (_) {}
-      return editOrderMessage(bot, pending.chatId, pending.msgId, cancelledText(pending), pending.hasMedia);
+      return editByIds(bot, pending.chatId, pending.msgId, cancelledText(pending));
     }
 
     try { await ctx.answerCbQuery('Creating order...'); } catch (_) {}
@@ -1147,12 +1089,11 @@ module.exports = (bot) => {
 
       if (!latestCard) {
         clearPending(id);
-        return editOrderMessage(
+        return editByIds(
           bot,
           pending.chatId,
           pending.msgId,
-          '⚠️ <b>Card unavailable</b>\n━━━━━━━━━━━━━━━━\nဒီ card ကို တစ်ခြားသူဝယ်သွားပြီးဖြစ်နိုင်ပါတယ်။',
-          pending.hasMedia
+          '⚠️ <b>Card unavailable</b>\n━━━━━━━━━━━━━━━━\nဒီ card ကို တစ်ခြားသူဝယ်သွားပြီးဖြစ်နိုင်ပါတယ်။'
         );
       }
 
@@ -1234,7 +1175,7 @@ module.exports = (bot) => {
       const updatedUser = await getUser(pending.userId);
       clearPending(id);
 
-      return editOrderMessage(
+      return editByIds(
         bot,
         pending.chatId,
         pending.msgId,
@@ -1248,8 +1189,7 @@ module.exports = (bot) => {
           inserted.insertedId,
           updatedUser?.balance || 0,
           ownerNotified
-        ),
-        pending.hasMedia
+        )
       );
     } catch (err) {
       try {
