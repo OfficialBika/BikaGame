@@ -14,8 +14,28 @@ const { fmt } = require('../../utils/format');
 const { isGroupChat } = require('../../utils/helpers');
 
 const activeSlots = new Set();
+const activeSlotGroups = new Map();
 
 const SLOT_EMOJI = '<tg-emoji emoji-id="5384509325429463744">🎰</tg-emoji>';
+const START_ROLLING_EMOJI = '<tg-emoji emoji-id="5926964914684957537">🔄</tg-emoji>';
+const SLOT_MAX_ACTIVE_PER_GROUP = Number(process.env.SLOT_MAX_ACTIVE_PER_GROUP || 5);
+
+function getGroupActiveCount(chatId) {
+  return activeSlotGroups.get(String(chatId)) || 0;
+}
+
+function incGroupActive(chatId) {
+  const key = String(chatId);
+  activeSlotGroups.set(key, getGroupActiveCount(chatId) + 1);
+}
+
+function decGroupActive(chatId) {
+  const key = String(chatId);
+  const next = Math.max(0, getGroupActiveCount(chatId) - 1);
+
+  if (next <= 0) activeSlotGroups.delete(key);
+  else activeSlotGroups.set(key, next);
+}
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -113,7 +133,7 @@ module.exports = (bot) => {
       return replyHTML(ctx, '⏳ Please wait, your slot spin is currently running.', options);
     }
 
-    if (activeSlots.size >= Number(SLOT.maxActive || 5)) {
+    if (getGroupActiveCount(chatId) >= SLOT_MAX_ACTIVE_PER_GROUP) {
       return replyHTML(ctx, '⛔ Slot Busy Now! Please wait & try again.', options);
     }
 
@@ -128,6 +148,7 @@ module.exports = (bot) => {
     }
 
     activeSlots.add(userId);
+    incGroupActive(chatId);
 
     let betTaken = false;
     let sent = null;
@@ -137,22 +158,13 @@ module.exports = (bot) => {
       // Expensive DB operations run after this message already appears.
       sent = await replyHTML(
         ctx,
-        animationText(randomFrame(), '🔄 Reels starting...'),
+        animationText(randomFrame(), `${START_ROLLING_EMOJI} Start Rolling...`),
         options
       );
 
       if (!sent?.message_id) {
         throw new Error('SLOT_ANIMATION_MESSAGE_FAILED');
       }
-
-      // Small animation delay only, reduced from 180ms.
-      await sleep(80);
-      await editByIds(
-        bot,
-        chatId,
-        sent.message_id,
-        animationText(randomFrame(), '🎲 Checking balance...')
-      );
 
       // DB work starts here after user already sees slot response.
       const user = await getUser(userId);
@@ -200,13 +212,6 @@ module.exports = (bot) => {
         payout = Math.min(payout, maxPayout, ownerBalance);
       }
 
-      await editByIds(
-        bot,
-        chatId,
-        sent.message_id,
-        animationText(randomFrame(), '🎲 Rolling...')
-      );
-
       if (payout > 0) {
         try {
           await treasuryPayToUser(userId, payout, {
@@ -229,7 +234,7 @@ module.exports = (bot) => {
           betTaken = false;
 
           // Final error edit, reduced from 260ms.
-          await sleep(120);
+          await sleep(50);
           return editByIds(
             bot,
             chatId,
@@ -246,7 +251,7 @@ module.exports = (bot) => {
       betTaken = false;
 
       // Final result edit, reduced from 260ms.
-      await sleep(120);
+      await sleep(50);
       return editByIds(
         bot,
         chatId,
@@ -280,6 +285,7 @@ module.exports = (bot) => {
       );
     } finally {
       activeSlots.delete(userId);
+      decGroupActive(chatId);
     }
   });
 };
