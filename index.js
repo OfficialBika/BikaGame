@@ -24,6 +24,7 @@ const COMMAND_MODULES = [
   './src/commands/user/gift',
   './src/commands/user/top10',
   './src/commands/user/wallet',
+  './src/commands/user/sell',
   './src/commands/games/slot',
   './src/commands/games/dice',
   './src/commands/games/shan',
