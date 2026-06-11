@@ -8,6 +8,7 @@ const logger = require('./src/utils/logger');
 
 let server = null;
 let isReady = false;
+let fallbackCommandsLoaded = false;
 
 const COMMAND_MODULES = [
   './src/commands/admin/treasury',
@@ -75,6 +76,7 @@ function loadFallbackCommands(targetBot) {
     loaded += 1;
   }
 
+  fallbackCommandsLoaded = true;
   logger.info(`Fallback command loader completed: loaded=${loaded}, skipped=${skipped}`);
 }
 
@@ -104,6 +106,11 @@ function loadAllModules(targetBot) {
 
 function registerRuntimeCommands(targetBot) {
   const modulePath = './src/commands/admin/promoRtp';
+
+  if (fallbackCommandsLoaded) {
+    logger.info('Promo RTP command already handled by fallback command loader; runtime register skipped');
+    return;
+  }
 
   if (!moduleExists(modulePath)) {
     logger.warn('Promo RTP command not found; /promortp skipped');
