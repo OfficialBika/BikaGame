@@ -11,6 +11,7 @@ let isReady = false;
 
 const COMMAND_MODULES = [
   './src/commands/admin/treasury',
+  './src/commands/admin/promoRtp',
   './src/commands/admin/broadcast',
   './src/commands/admin/vip',
   './src/commands/admin/maintenance',
@@ -98,6 +99,48 @@ function loadAllModules(targetBot) {
   }
 
   loadHandlers(targetBot);
+}
+
+
+function registerRuntimeCommands(targetBot) {
+  const modulePath = './src/commands/admin/promoRtp';
+
+  if (!moduleExists(modulePath)) {
+    logger.warn('Promo RTP command not found; /promortp skipped');
+    return;
+  }
+
+  const registerPromoRtp = require(modulePath);
+
+  if (typeof registerPromoRtp !== 'function') {
+    throw new TypeError(`Promo RTP command module must export a function: ${modulePath}`);
+  }
+
+  registerPromoRtp(targetBot);
+  logger.info('Promo RTP command registered');
+}
+
+async function restoreRuntimeServices(targetBot) {
+  const modulePath = './src/services/promoRtpService';
+
+  if (!moduleExists(modulePath)) {
+    logger.warn('Promo RTP service not found; promo timer restore skipped');
+    return;
+  }
+
+  const promoRtpService = require(modulePath);
+
+  if (typeof promoRtpService.restorePromoTimers !== 'function') {
+    logger.warn('Promo RTP service does not export restorePromoTimers; promo timer restore skipped');
+    return;
+  }
+
+  try {
+    await promoRtpService.restorePromoTimers(targetBot);
+    logger.info('Promo RTP timers restored');
+  } catch (err) {
+    logger.error('Promo RTP timer restore failed', err);
+  }
 }
 
 function createApp() {
@@ -208,11 +251,13 @@ async function main() {
   await initBotInfo();
 
   loadAllModules(bot);
+  registerRuntimeCommands(bot);
 
   const app = createApp();
 
   await listen(app);
   await startTelegramBot(app);
+  await restoreRuntimeServices(bot);
 
   isReady = true;
 
