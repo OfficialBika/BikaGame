@@ -22,6 +22,8 @@ const pendingOrders = new Map();
 
 const ORDER_TIMEOUT_MS = Number(process.env.SHOP_CONFIRM_TIMEOUT_MS || 60_000);
 const MAX_PENDING_ORDERS = Number(process.env.SHOP_MAX_PENDING || 10_000);
+const SHOP_ENABLED_SETTING_KEY = 'shop_enabled';
+const SHOP_OFF_TEXT = '⛔ <b>Shop System ပိတ်ထားပါတယ်။</b>';
 
 const RARITIES = Object.freeze([
   Object.freeze({ key: 'uncommon', label: 'Uncommon', icon: '🟣', defaultPrice: 50_000 }),
@@ -314,6 +316,51 @@ async function requireOwnerDm(ctx) {
   }
 
   return treasury;
+}
+
+async function getShopEnabled() {
+  const doc = await shopSettingModel.collection().findOne({ key: SHOP_ENABLED_SETTING_KEY });
+  return doc?.enabled !== false;
+}
+
+async function setShopEnabled(enabled, updatedByUserId) {
+  const now = new Date();
+
+  await shopSettingModel.collection().updateOne(
+    { key: SHOP_ENABLED_SETTING_KEY },
+    {
+      $set: {
+        key: SHOP_ENABLED_SETTING_KEY,
+        enabled: !!enabled,
+        updatedByUserId: updatedByUserId || null,
+        updatedAt: now,
+      },
+      $setOnInsert: { createdAt: now },
+    },
+    { upsert: true }
+  );
+
+  return !!enabled;
+}
+
+async function requireShopOpen(ctx, mode = 'message') {
+  const treasury = await ensureTreasury();
+  const owner = isOwner(ctx, treasury);
+
+  if (owner || await getShopEnabled()) {
+    return true;
+  }
+
+  if (mode === 'callback') {
+    try {
+      await ctx.answerCbQuery('Shop System ပိတ်ထားပါတယ်။', { show_alert: true });
+    } catch (_) {}
+
+    return false;
+  }
+
+  await replyHTML(ctx, SHOP_OFF_TEXT, replyOptions(ctx));
+  return false;
 }
 
 async function getPriceMap() {
@@ -871,6 +918,8 @@ async function myOrdersText(userId) {
 }
 
 async function openShop(ctx) {
+  if (!(await requireShopOpen(ctx))) return;
+
   const user = await getUser(ctx.from.id);
 
   return replyHTML(ctx, shopHomeText(user?.balance || 0), {
@@ -906,6 +955,8 @@ async function showRarity(ctx, botKey, rarityKey, ownerId) {
 
 async function handleBuy(ctx, payload) {
   cleanupPendingOrders();
+
+  if (!(await requireShopOpen(ctx, 'callback'))) return;
 
   const parts = String(payload || '').split(':');
 
@@ -945,6 +996,35 @@ async function handleBuy(ctx, payload) {
 }
 
 module.exports = (bot) => {
+  bot.command('shopon', async (ctx) => {
+    if (!(await requireOwner(ctx))) return;
+
+    await setShopEnabled(true, ctx.from?.id);
+
+    return replyHTML(
+      ctx,
+      '✅ <b>Shop System ON</b>\n' +
+        '━━━━━━━━━━━━━━━━\n' +
+        'User တွေ <code>/shop</code> သုံးနိုင်ပါပြီ။',
+      replyOptions(ctx)
+    );
+  });
+
+  bot.command('shopoff', async (ctx) => {
+    if (!(await requireOwner(ctx))) return;
+
+    await setShopEnabled(false, ctx.from?.id);
+
+    return replyHTML(
+      ctx,
+      '⛔ <b>Shop System OFF</b>\n' +
+        '━━━━━━━━━━━━━━━━\n' +
+        'Shop ကိုပိတ်ထားပါတယ်။\n' +
+        'Owner ပဲ <code>/shop</code> ဆက်သုံးနိုင်ပါမယ်။',
+      replyOptions(ctx)
+    );
+  });
+
   bot.command('shop', openShop);
   bot.hears(/^\.(shop)\s*$/i, openShop);
 
@@ -958,6 +1038,8 @@ module.exports = (bot) => {
     }
 
     cleanupPendingOrders();
+
+    if (data.startsWith('SHOP:') && !(await requireShopOpen(ctx, 'callback'))) return;
 
     if (data.startsWith('SHOP:BOT:')) {
       const [, , botKeyRaw, ownerId] = data.split(':');
@@ -1336,10 +1418,14 @@ module.exports = (bot) => {
   });
 
   bot.command('myorders', async (ctx) => {
+    if (!(await requireShopOpen(ctx))) return;
+
     return replyHTML(ctx, await myOrdersText(ctx.from.id), replyOptions(ctx));
   });
 
   bot.command('shophelp', async (ctx) => {
+    if (!(await requireShopOpen(ctx))) return;
+
     return replyHTML(ctx, helpText(), replyOptions(ctx));
   });
 
