@@ -4,6 +4,7 @@ const { COIN } = require('../../config/constants');
 const { SELL_BOTS, getBotConfig } = require('../../config/sellCatalog');
 const sellService = require('../../services/sellService');
 const { fmt } = require('../../utils/format');
+const { getBotInfo } = require('../../config/bot');
 
 const pendingLinks = new Map();
 const GIFT_INSTRUCTION_LINK = 'https://t.me/WaifuCheatBotChat/431645';
@@ -53,15 +54,57 @@ function keyboard(rows) {
   return { inline_keyboard: rows };
 }
 
-function cb(text, data) {
-  return { text, callback_data: data };
+function styledButton(button, style = 'primary') {
+  return {
+    ...button,
+    style,
+  };
+}
+
+function cb(text, data, style = 'primary') {
+  return styledButton({ text, callback_data: data }, style);
+}
+
+function urlButton(text, url, style = 'primary') {
+  return styledButton({ text, url }, style);
+}
+
+function isPrivateChat(ctx) {
+  return ctx.chat?.type === 'private';
+}
+
+function getBotUsername(ctx, targetBot) {
+  return (
+    getBotInfo()?.username ||
+    ctx.botInfo?.username ||
+    targetBot?.botInfo?.username ||
+    process.env.BOT_USERNAME ||
+    ''
+  );
+}
+
+function dmOnlyKeyboard(ctx, targetBot) {
+  const username = getBotUsername(ctx, targetBot);
+
+  if (!username) {
+    return undefined;
+  }
+
+  return keyboard([[urlButton('Go to DM', `https://t.me/${username}?start=sell`, 'primary')]]);
+}
+
+function dmOnlyText() {
+  return (
+    'ℹ️ <b>This command is only use in DM.</b>\n\n' +
+    'Please open bot DM and use <code>/sell</code> there.'
+  );
 }
 
 function mainMenuKeyboard() {
   return keyboard([
     [cb('CatchBot', 'sell:bot:catchbot'), cb('HallowBot', 'sell:bot:hallowbot')],
     [cb('Yelan Card', 'sell:bot:yelan'), cb('BikaBot', 'sell:bot:bikabot')],
-    [cb('My Sell List', 'sell:my'), cb('Help', 'sell:help')],
+    [cb('My Sell List', 'sell:my'), cb('Help', 'sell:help', 'success')],
   ]);
 }
 
@@ -73,19 +116,19 @@ function rarityKeyboard(botKey) {
     rows.push([cb(rarity.label, `sell:rarity:${bot.key}:${rarity.key}`)]);
   }
 
-  rows.push([cb('⬅️ Back', 'sell:menu')]);
+  rows.push([cb('⬅️ Back', 'sell:menu', 'danger')]);
   return keyboard(rows);
 }
 
 function confirmKeyboard(botKey, rarityKey) {
   return keyboard([
-    [cb('⬅️ Back to Rarity', `sell:bot:${botKey}`), cb('✅ Yes I Sell', `sell:yes:${botKey}:${rarityKey}`)],
+    [cb('⬅️ Back to Rarity', `sell:bot:${botKey}`, 'danger'), cb('✅ Yes I Sell', `sell:yes:${botKey}:${rarityKey}`)],
   ]);
 }
 
 function ownerKeyboard(orderId) {
   return keyboard([
-    [cb('✅ Approve', `sell:owner:approve:${orderId}`), cb('❌ Cancel', `sell:owner:cancel:${orderId}`)],
+    [cb('✅ Approve', `sell:owner:approve:${orderId}`), cb('❌ Cancel', `sell:owner:cancel:${orderId}`, 'danger')],
   ]);
 }
 
@@ -275,7 +318,7 @@ async function showMyOrders(ctx) {
   return editHtml(
     ctx,
     '📋 <b>My Sell List</b>\n━━━━━━━━━━━━━━\n' + lines.join('\n\n'),
-    keyboard([[cb('⬅️ Back', 'sell:menu')]])
+    keyboard([[cb('⬅️ Back', 'sell:menu', 'danger')]])
   );
 }
 
@@ -286,6 +329,11 @@ module.exports = (bot) => {
 
   bot.command('sell', async (ctx) => {
     clearPending(ctx);
+
+    if (!isPrivateChat(ctx)) {
+      return replyHtml(ctx, dmOnlyText(), dmOnlyKeyboard(ctx, bot));
+    }
+
     return replyHtml(ctx, sellMenuText(), mainMenuKeyboard());
   });
 
@@ -342,7 +390,7 @@ module.exports = (bot) => {
 
   bot.action('sell:help', async (ctx) => {
     await ctx.answerCbQuery().catch(() => {});
-    return editHtml(ctx, helpText(), keyboard([[cb('⬅️ Back', 'sell:menu')]]));
+    return editHtml(ctx, helpText(), keyboard([[cb('⬅️ Back', 'sell:menu', 'danger')]]));
   });
 
   bot.action('sell:my', async (ctx) => {
@@ -394,7 +442,7 @@ module.exports = (bot) => {
         'ဒီ Link ကစာကိုထောက်ပြီး <b>Gift</b> ပါ။\n\n' +
         'Gift ပြီးသွားတဲ့စာရဲ့ link ကို copy ယူပြီး ဒီ chat ထဲမှာ ပို့ပေးပါ။\n\n' +
         '⏳ Link ပို့ရန် 10 minutes အတွင်းပို့ပါ။',
-      keyboard([[cb('⬅️ Back to Rarity', `sell:bot:${botKey}`)]])
+      keyboard([[cb('⬅️ Back to Rarity', `sell:bot:${botKey}`, 'danger')]])
     );
   });
 
