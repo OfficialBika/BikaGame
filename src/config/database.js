@@ -13,6 +13,52 @@ async function safeCreateIndex(col, keys, options = {}) {
     throw err;
   }
 }
+
+async function dropLegacyShopCardIdUniqueIndex() {
+  try {
+    const indexes = await collections.shop_cards.indexes();
+    const legacyIndex = indexes.find((idx) => (
+      idx?.name === 'cardId_1' &&
+      idx?.unique === true &&
+      idx?.key?.cardId === 1 &&
+      Object.keys(idx?.key || {}).length === 1
+    ));
+
+    if (!legacyIndex) return;
+
+    await collections.shop_cards.dropIndex('cardId_1');
+    logger.warn('Dropped legacy shop_cards unique index: cardId_1');
+  } catch (err) {
+    if (err?.codeName === 'IndexNotFound' || err?.code === 27) return;
+    logger.warn(`Unable to drop legacy shop_cards cardId_1 index: ${err?.message || err}`);
+  }
+}
+
+async function safeCreateShopCardsUniqueIndex() {
+  try {
+    return await safeCreateIndex(
+      collections.shop_cards,
+      { botKey: 1, cardId: 1 },
+      {
+        unique: true,
+        name: 'botKey_1_cardId_1',
+        partialFilterExpression: {
+          botKey: { $exists: true },
+          cardId: { $exists: true },
+        },
+      }
+    );
+  } catch (err) {
+    if (err?.code === 11000 || err?.codeName === 'DuplicateKey') {
+      logger.warn(
+        'shop_cards botKey/cardId duplicate data found; bot will continue. Run /fixshopindex to clean duplicates and rebuild the unique index.'
+      );
+      return null;
+    }
+
+    throw err;
+  }
+}
 async function connectMongo() {
   client = new MongoClient(env.MONGO_URI, { maxPoolSize: 20, minPoolSize: 1, retryWrites: true });
   await client.connect();
@@ -42,7 +88,9 @@ async function connectMongo() {
   await safeCreateIndex(collections.groups, { groupId: 1 }, { unique: true });
   await safeCreateIndex(collections.groups, { approvalStatus: 1, updatedAt: -1 });
 
-  await safeCreateIndex(collections.shop_cards, { cardId: 1 }, { unique: true });
+  await dropLegacyShopCardIdUniqueIndex();
+  await safeCreateShopCardsUniqueIndex();
+  await safeCreateIndex(collections.shop_cards, { cardId: 1 }, { sparse: true, name: 'shop_cards_cardId_lookup' });
   await safeCreateIndex(collections.shop_cards, { rarity: 1, status: 1, cardId: 1 });
   await safeCreateIndex(collections.shop_cards, { status: 1, updatedAt: -1 });
   await safeCreateIndex(collections.shop_cards, { soldToUserId: 1, soldAt: -1 });
