@@ -5,10 +5,12 @@ const { SELL_BOTS, getBotConfig } = require('../../config/sellCatalog');
 const sellService = require('../../services/sellService');
 const { fmt } = require('../../utils/format');
 const { getBotInfo } = require('../../config/bot');
+const { getDb } = require('../../config/database');
 
 const pendingLinks = new Map();
 const GIFT_INSTRUCTION_LINK = 'https://t.me/WaifuCheatBotChat/431645';
 const PENDING_TTL_MS = Number(process.env.SELL_PENDING_TTL_MS || 10 * 60 * 1000);
+const SELL_ENABLED_CONFIG_KEY = 'sell_system_enabled';
 
 function h(value) {
   return String(value ?? '')
@@ -20,6 +22,65 @@ function h(value) {
 
 function money(value) {
   return `${fmt(Number(value) || 0)} ${COIN}`;
+}
+
+function configCollection() {
+  return getDb().collection('config');
+}
+
+async function isSellEnabled() {
+  const doc = await configCollection().findOne({ key: SELL_ENABLED_CONFIG_KEY });
+  return doc?.value !== false;
+}
+
+async function setSellEnabled(enabled, ownerId) {
+  await configCollection().updateOne(
+    { key: SELL_ENABLED_CONFIG_KEY },
+    {
+      $set: {
+        key: SELL_ENABLED_CONFIG_KEY,
+        value: !!enabled,
+        updatedAt: new Date(),
+        updatedBy: ownerId || null,
+      },
+      $setOnInsert: {
+        createdAt: new Date(),
+      },
+    },
+    { upsert: true }
+  );
+
+  return !!enabled;
+}
+
+function sellDisabledText() {
+  return (
+    '⛔ <b>Sell System ပိတ်ထားပါတယ်။</b>\n\n' +
+    'Owner က <code>/sellon</code> ပြန်ဖွင့်မှ အသုံးပြုနိုင်ပါမယ်။'
+  );
+}
+
+function isSellOwner(ctx) {
+  return sellService.isOwner(ctx.from?.id);
+}
+
+async function canUseSellSystem(ctx) {
+  if (isSellOwner(ctx)) return true;
+  return isSellEnabled();
+}
+
+async function requireSellSystemAvailable(ctx) {
+  if (await canUseSellSystem(ctx)) return true;
+
+  clearPending(ctx);
+
+  try {
+    await editHtml(ctx, sellDisabledText());
+  } catch (_) {
+    await replyHtml(ctx, sellDisabledText());
+  }
+
+  return false;
 }
 
 function pendingKey(ctx) {
@@ -327,8 +388,38 @@ module.exports = (bot) => {
     console.error('Sell index ensure failed:', err?.message || err);
   });
 
+  bot.command('sellon', async (ctx) => {
+    if (!isSellOwner(ctx)) {
+      return replyHtml(ctx, '❌ Owner only command ပါ။');
+    }
+
+    await setSellEnabled(true, ctx.from?.id);
+
+    return replyHtml(
+      ctx,
+      '✅ <b>Sell System ON</b>\n\nUser တွေ <code>/sell</code> ကို ပြန်အသုံးပြုနိုင်ပါပြီ။'
+    );
+  });
+
+  bot.command('selloff', async (ctx) => {
+    if (!isSellOwner(ctx)) {
+      return replyHtml(ctx, '❌ Owner only command ပါ။');
+    }
+
+    await setSellEnabled(false, ctx.from?.id);
+
+    return replyHtml(
+      ctx,
+      '⛔ <b>Sell System OFF</b>\n\nUser တွေ <code>/sell</code> အသုံးပြုလို့မရတော့ပါ။ Owner ကတော့ ဆက်သုံးနိုင်ပါတယ်။'
+    );
+  });
+
   bot.command('sell', async (ctx) => {
     clearPending(ctx);
+
+    if (!(await canUseSellSystem(ctx))) {
+      return replyHtml(ctx, sellDisabledText());
+    }
 
     if (!isPrivateChat(ctx)) {
       return replyHtml(ctx, dmOnlyText(), dmOnlyKeyboard(ctx, bot));
@@ -384,22 +475,26 @@ module.exports = (bot) => {
 
   bot.action('sell:menu', async (ctx) => {
     await ctx.answerCbQuery().catch(() => {});
+    if (!(await requireSellSystemAvailable(ctx))) return;
     clearPending(ctx);
     return editHtml(ctx, sellMenuText(), mainMenuKeyboard());
   });
 
   bot.action('sell:help', async (ctx) => {
     await ctx.answerCbQuery().catch(() => {});
+    if (!(await requireSellSystemAvailable(ctx))) return;
     return editHtml(ctx, helpText(), keyboard([[cb('⬅️ Back', 'sell:menu', 'danger')]]));
   });
 
   bot.action('sell:my', async (ctx) => {
     await ctx.answerCbQuery().catch(() => {});
+    if (!(await requireSellSystemAvailable(ctx))) return;
     return showMyOrders(ctx);
   });
 
   bot.action(/^sell:bot:([a-z0-9_]+)$/i, async (ctx) => {
     await ctx.answerCbQuery().catch(() => {});
+    if (!(await requireSellSystemAvailable(ctx))) return;
     clearPending(ctx);
 
     const botKey = ctx.match[1];
@@ -410,6 +505,7 @@ module.exports = (bot) => {
 
   bot.action(/^sell:rarity:([a-z0-9_]+):([a-z0-9_]+)$/i, async (ctx) => {
     await ctx.answerCbQuery().catch(() => {});
+    if (!(await requireSellSystemAvailable(ctx))) return;
     clearPending(ctx);
 
     const botKey = ctx.match[1];
@@ -420,6 +516,7 @@ module.exports = (bot) => {
 
   bot.action(/^sell:yes:([a-z0-9_]+):([a-z0-9_]+)$/i, async (ctx) => {
     await ctx.answerCbQuery('Gift link ပို့ပါ').catch(() => {});
+    if (!(await requireSellSystemAvailable(ctx))) return;
 
     const botKey = ctx.match[1];
     const rarityKey = ctx.match[2];
@@ -449,6 +546,11 @@ module.exports = (bot) => {
   bot.on('text', async (ctx, next) => {
     const pending = getPending(ctx);
     if (!pending) return next();
+
+    if (!(await canUseSellSystem(ctx))) {
+      clearPending(ctx);
+      return replyHtml(ctx, sellDisabledText());
+    }
 
     const text = String(ctx.message?.text || '').trim();
 
