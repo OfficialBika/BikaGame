@@ -1,5 +1,5 @@
 module.exports = {
-  COIN: 'MMK',
+  COIN: '$',
   HOUSE_CUT_PERCENT: 0.02,
   START_BONUS: Number(process.env.START_BONUS || 10000),
   DAILY_MIN: Number(process.env.DAILY_MIN || 1500),
