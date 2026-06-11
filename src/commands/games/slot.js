@@ -13,6 +13,14 @@ const { replyHTML, editByIds } = require('../../utils/telegram');
 const { fmt } = require('../../utils/format');
 const { isGroupChat } = require('../../utils/helpers');
 
+let getActivePromoRtp = null;
+try {
+  ({ getActivePromoRtp } = require('../../services/promoRtpService'));
+} catch (_) {
+  // Promo RTP service မတင်ထားသေးရင် slot က Global RTP နဲ့ပဲ ဆက်အလုပ်လုပ်ပါမယ်။
+  getActivePromoRtp = null;
+}
+
 const activeSlots = new Set();
 const activeSlotGroups = new Map();
 
@@ -63,6 +71,54 @@ function animationText(reels, note) {
     `━━━━━━━━━━━\n` +
     `${note}`
   );
+}
+
+function clampRtp(value, fallback = 35) {
+  const numeric = Number(value);
+
+  if (!Number.isFinite(numeric)) {
+    return Math.max(0, Math.min(100, Number(fallback) || 35));
+  }
+
+  return Math.max(0, Math.min(100, numeric));
+}
+
+async function resolveSlotRtp(chatId, treasury) {
+  const globalRtpWinRate = clampRtp(treasury?.rtpWinRate, 35);
+
+  if (typeof getActivePromoRtp !== 'function') {
+    return {
+      rtpWinRate: globalRtpWinRate,
+      globalRtpWinRate,
+      rtpMode: 'global',
+      promoRtpId: null,
+      promoExpiresAt: null,
+    };
+  }
+
+  try {
+    const promo = await getActivePromoRtp(chatId);
+
+    if (promo) {
+      return {
+        rtpWinRate: clampRtp(promo.rtp, globalRtpWinRate),
+        globalRtpWinRate,
+        rtpMode: 'promo',
+        promoRtpId: promo._id?.toString?.() || String(promo._id || ''),
+        promoExpiresAt: promo.expiresAt || null,
+      };
+    }
+  } catch (_) {
+    // Promo DB/service error ကြောင့် slot မရပ်စေဘဲ Global /setrtp RTP ကို fallback သုံးပါမယ်။
+  }
+
+  return {
+    rtpWinRate: globalRtpWinRate,
+    globalRtpWinRate,
+    rtpMode: 'global',
+    promoRtpId: null,
+    promoExpiresAt: null,
+  };
 }
 
 function resultText(reels, bet, payout) {
@@ -189,9 +245,13 @@ module.exports = (bot) => {
       }
 
       const treasury = await getTreasury();
-      const rtpWinRate = Number.isFinite(Number(treasury?.rtpWinRate))
-        ? Math.max(0, Math.min(100, Number(treasury.rtpWinRate)))
-        : 35;
+      const {
+        rtpWinRate,
+        globalRtpWinRate,
+        rtpMode,
+        promoRtpId,
+        promoExpiresAt,
+      } = await resolveSlotRtp(chatId, treasury);
 
       const finalReels = engine.spin(
         user,
@@ -221,6 +281,10 @@ module.exports = (bot) => {
             multiplier,
             combo: finalReels.join(','),
             rtpWinRate,
+            globalRtpWinRate,
+            rtpMode,
+            promoRtpId,
+            promoExpiresAt,
           });
         } catch (_) {
           try {
