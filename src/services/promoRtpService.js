@@ -1,15 +1,24 @@
 // services/promoRtpService.js
 
+const database = require('../config/database');
+
 const timers = new Map();
 
-function getDb() {
-  // သင့် project ရဲ့ database export ပေါ်မူတည်ပြီး ဒီ import ကိုညှိပါ
-  const { db } = require('../config/database');
-  return db;
+function getDatabase() {
+  const activeDb =
+    typeof database.getDb === 'function'
+      ? database.getDb()
+      : database.db;
+
+  if (!activeDb || typeof activeDb.collection !== 'function') {
+    throw new Error('PROMO_RTP_DB_NOT_READY');
+  }
+
+  return activeDb;
 }
 
 function promoCollection() {
-  return getDb().collection('promo_rtps');
+  return getDatabase().collection('promo_rtps');
 }
 
 function parseRtp(input) {
@@ -203,14 +212,21 @@ function schedulePromoEnd(bot, groupId, expiresAt) {
 
   const delay = new Date(expiresAt).getTime() - Date.now();
 
-  if (delay <= 0) {
-    finishPromoRtp(bot, key, 'expired');
+  if (!Number.isFinite(delay) || delay <= 0) {
+    finishPromoRtp(bot, key, 'expired').catch((err) => {
+      console.log('Promo immediate finish failed:', err.message);
+    });
     return;
   }
 
   const timer = setTimeout(async () => {
     timers.delete(key);
-    await finishPromoRtp(bot, key, 'expired');
+
+    try {
+      await finishPromoRtp(bot, key, 'expired');
+    } catch (err) {
+      console.log('Promo scheduled finish failed:', err.message);
+    }
   }, delay);
 
   timers.set(key, timer);
