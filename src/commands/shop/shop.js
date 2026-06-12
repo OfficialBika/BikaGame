@@ -25,7 +25,7 @@ const MAX_PENDING_ORDERS = Number(process.env.SHOP_MAX_PENDING || 10_000);
 const SHOP_ENABLED_SETTING_KEY = 'shop_enabled';
 const SHOP_OFF_TEXT = '⛔ <b>Shop System ပိတ်ထားပါတယ်။</b>';
 
-const RARITIES = Object.freeze([
+const DEFAULT_RARITIES = Object.freeze([
   Object.freeze({ key: 'uncommon', label: 'Uncommon', icon: '🟣', defaultPrice: 50_000 }),
   Object.freeze({ key: 'rare', label: 'Rare', icon: '🔵', defaultPrice: 100_000 }),
   Object.freeze({ key: 'legendary', label: 'Legendary', icon: '🟡', defaultPrice: 1_000_000 }),
@@ -34,6 +34,23 @@ const RARITIES = Object.freeze([
   Object.freeze({ key: 'crossverse', label: 'CrossVerse', icon: '⚡', defaultPrice: 10_000_000 }),
   Object.freeze({ key: 'cataphract', label: 'Cataphract', icon: '✨', defaultPrice: 25_000_000 }),
   Object.freeze({ key: 'supreme', label: 'Supreme', icon: '🪞', defaultPrice: 50_000_000 }),
+]);
+
+const HALLOW_RARITIES = Object.freeze([
+  Object.freeze({ key: 'common', label: 'Common', icon: '🔵', defaultPrice: 25_000 }),
+  Object.freeze({ key: 'uncommon', label: 'Uncommon', icon: '🟣', defaultPrice: 50_000 }),
+  Object.freeze({ key: 'rare', label: 'Rare', icon: '🟠', defaultPrice: 100_000 }),
+  Object.freeze({ key: 'legendary', label: 'Legendary', icon: '🟡', defaultPrice: 1_000_000 }),
+  Object.freeze({ key: 'eldritch', label: 'Eldritch', icon: '💮', defaultPrice: 2_500_000 }),
+  Object.freeze({ key: 'oblivion', label: 'Oblivion', icon: '⚜️', defaultPrice: 5_000_000 }),
+  Object.freeze({ key: 'crossverse', label: 'Crossverse', icon: '⚡', defaultPrice: 10_000_000 }),
+  Object.freeze({ key: 'cataclysmic', label: 'Cataclysmic', icon: '🎐', defaultPrice: 25_000_000 }),
+  Object.freeze({ key: 'abyssion', label: 'Abyssion', icon: '🎴', defaultPrice: 50_000_000 }),
+]);
+
+const RARITIES = Object.freeze([
+  ...DEFAULT_RARITIES,
+  ...HALLOW_RARITIES.filter((rarity) => !DEFAULT_RARITIES.some((item) => item.key === rarity.key)),
 ]);
 
 const SHOP_BOTS = Object.freeze([
@@ -91,6 +108,10 @@ function shopBotInfo(key) {
 function shopBotLabel(key) {
   const info = shopBotInfo(key);
   return info ? `${info.icon} ${info.label}` : '🤖 BikaBot';
+}
+
+function getBotRarities(botKey) {
+  return normalizeShopBot(botKey) === 'hallowbot' ? HALLOW_RARITIES : DEFAULT_RARITIES;
 }
 
 function cardBotKey(card) {
@@ -159,28 +180,34 @@ function normalizeRarity(input) {
   if (!raw) return null;
 
   const aliases = {
-    rare: 'rare',
+    common: 'common',
     uncommon: 'uncommon',
-    common: 'uncommon',
+    rare: 'rare',
     legendary: 'legendary',
     mystical: 'mystical',
     divine: 'divine',
+    eldritch: 'eldritch',
+    oblivion: 'oblivion',
     crossverse: 'crossverse',
     cross: 'crossverse',
     cataphract: 'cataphract',
     cata: 'cataphract',
+    cataclysmic: 'cataclysmic',
+    abyssion: 'abyssion',
+    abyss: 'abyssion',
     supreme: 'supreme',
   };
 
   return aliases[raw] || null;
 }
 
-function rarityInfo(key) {
-  return RARITIES.find((rarity) => rarity.key === key) || null;
+function rarityInfo(key, botKey = null) {
+  const list = botKey ? getBotRarities(botKey) : RARITIES;
+  return list.find((rarity) => rarity.key === key) || null;
 }
 
-function rarityLabel(key) {
-  const info = rarityInfo(key);
+function rarityLabel(key, botKey = null) {
+  const info = rarityInfo(key, botKey);
   return info ? `${info.icon} ${info.label}` : escHtml(String(key || 'Unknown'));
 }
 
@@ -396,7 +423,7 @@ async function setRarityPrice(key, amount) {
 
 async function countAvailableByRarity(botKey = 'bikabot') {
   const counts = {};
-  for (const rarity of RARITIES) counts[rarity.key] = 0;
+  for (const rarity of getBotRarities(botKey)) counts[rarity.key] = 0;
 
   const docs = await shopCardModel.collection()
     .aggregate([
@@ -414,15 +441,24 @@ async function countAvailableByRarity(botKey = 'bikabot') {
 
 function shopHomeText(balance) {
   return (
-    `🛒 <b>Bika Game Coin To Card</b>\n` +
-    `━━━━━━━━━━━━━━━━\n` +
-    `Choose you want to exchange bot first.\n\n` +
-    `🎯 <b>CatchBot</b>\n` +
-    `🤖 <b>BikaBot</b>\n` +
-    `🎃 <b>HallowBot</b>\n` +
-    `━━━━━━━━━━━━━━━━\n` +
-    `💼 Your Balance: <b>${fmt(balance)}</b> ${COIN}\n` +
-    `📌 Bot ရွေးပါ → Rarity ရွေးပါ → Card ID ရွေးပါ → Confirm နှိပ်ပါ။`
+    `🎁 <b>Bika Game Coin To Card Exchange</b>
+` +
+    `━━━━━━━━━━━━━━━━
+` +
+    `Game ဆော့တဲ့ player တွေအတွက် card လက်ဆောင်တွေကို ${COIN} နဲ့ လဲလှယ်နိုင်ပါတယ်။
+
+` +
+    `🎯 <b>CatchBot</b>
+` +
+    `🤖 <b>BikaBot</b>
+` +
+    `🎃 <b>HallowBot</b>
+` +
+    `━━━━━━━━━━━━━━━━
+` +
+    `💼 Your Balance: <b>${fmt(balance)}</b> ${COIN}
+` +
+    `📌 Bot ရွေးပါ → Rarity ရွေးပါ → Card ID ရွေးပါ → Confirm Exchange နှိပ်ပါ။`
   );
 }
 
@@ -445,24 +481,31 @@ function shopHomeKeyboard(ownerId) {
 }
 
 function botRarityText(botKey, balance, prices, counts) {
-  const lines = RARITIES.map((rarity) => (
-    `${rarity.icon} <b>${rarity.label}</b>\n` +
-    `   Price: <b>${fmt(prices[rarity.key])}</b> ${COIN}\n` +
+  const lines = getBotRarities(botKey).map((rarity) => (
+    `${rarity.icon} <b>${rarity.label}</b>
+` +
+    `   Exchange: <b>${fmt(prices[rarity.key])}</b> ${COIN}
+` +
     `   Stock: <b>${fmt(counts[rarity.key] || 0)}</b> cards`
   )).join('\n\n');
 
   return (
-    `🛒 <b>${shopBotLabel(botKey)} Card</b>\n` +
-    `━━━━━━━━━━━━━━━━\n` +
-    `${lines}\n` +
-    `━━━━━━━━━━━━━━━━\n` +
-    `💼 Your Balance: <b>${fmt(balance)}</b> ${COIN}\n` +
-    `📌 Rarity ရွေးပါ → Card ID ရွေးပါ → Confirm နှိပ်ပါ။`
+    `🎁 <b>${shopBotLabel(botKey)} Gift Card Exchange</b>
+` +
+    `━━━━━━━━━━━━━━━━
+` +
+    `${lines}
+` +
+    `━━━━━━━━━━━━━━━━
+` +
+    `💼 Your Balance: <b>${fmt(balance)}</b> ${COIN}
+` +
+    `📌 Rarity ရွေးပါ → Card ID ရွေးပါ → Confirm Exchange နှိပ်ပါ။`
   );
 }
 
 function botRarityKeyboard(botKey, counts, ownerId) {
-  const rows = RARITIES.map((rarity) => [
+  const rows = getBotRarities(botKey).map((rarity) => [
     primaryButton(
       `${rarity.icon} ${rarity.label} (${counts[rarity.key] || 0})`,
       `BUY:R:${botKey}:${rarity.key}:${ownerId}`
@@ -475,7 +518,7 @@ function botRarityKeyboard(botKey, counts, ownerId) {
 }
 
 async function rarityCardsText(botKey, rarityKey, price) {
-  const rarity = rarityInfo(rarityKey);
+  const rarity = rarityInfo(rarityKey, botKey);
   const cards = await shopCardModel.collection()
     .find({ rarity: rarityKey, status: 'AVAILABLE', ...shopBotFilter(botKey) })
     .sort({ cardId: 1 })
@@ -485,9 +528,9 @@ async function rarityCardsText(botKey, rarityKey, price) {
   if (!cards.length) {
     return {
       text:
-        `🎴 <b>${shopBotLabel(botKey)} — ${rarityLabel(rarityKey)} Cards</b>\n` +
+        `🎴 <b>${shopBotLabel(botKey)} — ${rarityLabel(rarityKey, botKey)} Exchange Cards</b>\n` +
         `━━━━━━━━━━━━━━━━\n` +
-        `ဒီ rarity မှာ available card မရှိသေးပါ။`,
+        `ဒီ rarity မှာ လဲလှယ်နိုင်တဲ့ card မရှိသေးပါ။`,
       cards,
     };
   }
@@ -498,14 +541,14 @@ async function rarityCardsText(botKey, rarityKey, price) {
 
   return {
     text:
-      `🎴 <b>${shopBotLabel(botKey)} — ${rarity?.icon || ''} ${rarity?.label || rarityKey} Cards</b>\n` +
+      `🎴 <b>${shopBotLabel(botKey)} — ${rarity?.icon || ''} ${rarity?.label || rarityKey} Exchange Cards</b>\n` +
       `━━━━━━━━━━━━━━━━\n` +
-      `Price: <b>${fmt(price)}</b> ${COIN}\n` +
+      `Exchange: <b>${fmt(price)}</b> ${COIN}\n` +
       `Available: <b>${cards.length}</b>\n` +
       `━━━━━━━━━━━━━━━━\n` +
       `${cardLines}\n` +
       `━━━━━━━━━━━━━━━━\n` +
-      `ဝယ်ချင်တဲ့ Card ID ကိုရွေးပါ။`,
+      `Game Coin နဲ့ လဲယူချင်တဲ့ Card ID ကိုရွေးပါ။`,
     cards,
   };
 }
@@ -534,17 +577,27 @@ function cardsKeyboard(cards, ownerId, botKey) {
 
 function previewText(ctx, card, price) {
   return (
-    `🧾 <b>Order Preview</b>\n` +
-    `━━━━━━━━━━━━━━━━\n` +
-    `User: ${mentionHtml(ctx.from)}\n` +
-    `User ID: <code>${ctx.from.id}</code>\n` +
-    `Bot: <b>${shopBotLabel(cardBotKey(card))}</b>\n` +
-    `Rarity: <b>${rarityLabel(card.rarity)}</b>\n` +
-    `Card ID: <code>${escHtml(card.cardId)}</code>\n` +
-    `${card.name ? `Name: <b>${escHtml(card.name)}</b>\n` : ''}` +
-    `Price: <b>${fmt(price)}</b> ${COIN}\n` +
-    `━━━━━━━━━━━━━━━━\n` +
-    `✅ Confirm နှိပ်မှ balance ဖြတ်ပြီး order တင်ပါမယ်။`
+    `🧾 <b>Exchange Preview</b>
+` +
+    `━━━━━━━━━━━━━━━━
+` +
+    `User: ${mentionHtml(ctx.from)}
+` +
+    `User ID: <code>${ctx.from.id}</code>
+` +
+    `Bot: <b>${shopBotLabel(cardBotKey(card))}</b>
+` +
+    `Rarity: <b>${rarityLabel(card.rarity, cardBotKey(card))}</b>
+` +
+    `Card ID: <code>${escHtml(card.cardId)}</code>
+` +
+    `${card.name ? `Name: <b>${escHtml(card.name)}</b>
+` : ''}` +
+    `Exchange Cost: <b>${fmt(price)}</b> ${COIN}
+` +
+    `━━━━━━━━━━━━━━━━
+` +
+    `✅ Confirm Exchange နှိပ်မှ ${COIN} ဖြတ်ပြီး card လက်ဆောင် order တင်ပါမယ်။`
   );
 }
 
@@ -552,7 +605,7 @@ function previewKeyboard(pendingId) {
   return {
     inline_keyboard: [
       [
-        successButton('✅ Confirm Order', `SHOP:OK:${pendingId}`),
+        successButton('✅ Confirm Exchange', `SHOP:OK:${pendingId}`),
         dangerButton('❌ Cancel', `SHOP:NO:${pendingId}`),
       ],
     ],
@@ -591,16 +644,16 @@ async function sendOrderPreview(ctx, card, price, pendingId) {
 
 function buyerPendingText(order, insertedId, balance, ownerNotified) {
   return (
-    `✅ <b>Order Created</b>\n` +
+    `✅ <b>Exchange Request Created</b>\n` +
     `━━━━━━━━━━━━━━━━\n` +
     `Order ID: <code>${String(insertedId)}</code>\n` +
     `Receipt: <code>${order.receiptCode}</code>\n` +
     `User ID: <code>${order.userId}</code>\n` +
     `Bot: <b>${shopBotLabel(order.botKey || cardBotKey(order.card))}</b>\n` +
-    `Rarity: <b>${rarityLabel(order.card.rarity)}</b>\n` +
+    `Rarity: <b>${rarityLabel(order.card.rarity, order.botKey || cardBotKey(order.card))}</b>\n` +
     `Card ID: <code>${escHtml(order.card.cardId)}</code>\n` +
     `${order.card.name ? `Name: <b>${escHtml(order.card.name)}</b>\n` : ''}` +
-    `Paid: <b>${fmt(order.price)}</b> ${COIN}\n` +
+    `Used: <b>${fmt(order.price)}</b> ${COIN}\n` +
     `Balance: <b>${fmt(balance)}</b> ${COIN}\n` +
     `Status: <b>PENDING OWNER APPROVAL</b>\n` +
     `Owner Alert: <b>${ownerNotified ? 'SENT ✅' : 'FAILED ⚠️'}</b>`
@@ -609,7 +662,7 @@ function buyerPendingText(order, insertedId, balance, ownerNotified) {
 
 function ownerOrderText(order, insertedId) {
   return (
-    `🛒 <b>New Card Order</b>\n` +
+    `🎁 <b>New Card Exchange Request</b>\n` +
     `━━━━━━━━━━━━━━━━\n` +
     `Order ID: <code>${String(insertedId)}</code>\n` +
     `Receipt: <code>${order.receiptCode}</code>\n` +
@@ -617,14 +670,14 @@ function ownerOrderText(order, insertedId) {
     `User ID: <code>${order.userId}</code>\n` +
     `Username: <code>${escHtml(order.buyer.username ? '@' + order.buyer.username : 'N/A')}</code>\n` +
     `Bot: <b>${shopBotLabel(order.botKey || cardBotKey(order.card))}</b>\n` +
-    `Rarity: <b>${rarityLabel(order.card.rarity)}</b>\n` +
+    `Rarity: <b>${rarityLabel(order.card.rarity, order.botKey || cardBotKey(order.card))}</b>\n` +
     `Card ID: <code>${escHtml(order.card.cardId)}</code>\n` +
     `${order.card.name ? `Name: <b>${escHtml(order.card.name)}</b>\n` : ''}` +
-    `Paid: <b>${fmt(order.price)}</b> ${COIN}\n` +
+    `Used: <b>${fmt(order.price)}</b> ${COIN}\n` +
     `Status: <b>PENDING</b>\n` +
     `━━━━━━━━━━━━━━━━\n` +
-    `Approve လုပ်ရင် buyer DM ကို completed message ပို့ပါမယ်။\n` +
-    `Cancel လုပ်ရင် refund + buyer DM ပို့ပါမယ်။`
+    `Approve လုပ်ရင် user DM ကို exchange completed message ပို့ပါမယ်။\n` +
+    `Cancel လုပ်ရင် refund + user DM ပို့ပါမယ်။`
   );
 }
 
@@ -641,28 +694,28 @@ function ownerOrderKeyboard(orderId) {
 
 function buyerCompletedText(order) {
   return (
-    `✅ <b>Order ပြီးမြောက်ပါပြီ</b>\n` +
+    `✅ <b>Exchange ပြီးမြောက်ပါပြီ</b>\n` +
     `━━━━━━━━━━━━━━━━\n` +
     `Receipt: <code>${escHtml(order.receiptCode || 'N/A')}</code>\n` +
     `Bot: <b>${shopBotLabel(order.botKey || 'bikabot')}</b>\n` +
-    `Rarity: <b>${rarityLabel(order.rarity)}</b>\n` +
+    `Rarity: <b>${rarityLabel(order.rarity, order.botKey || 'bikabot')}</b>\n` +
     `Card ID: <code>${escHtml(order.cardId || 'N/A')}</code>\n` +
     `${order.itemName ? `Name: <b>${escHtml(order.itemName)}</b>\n` : ''}` +
-    `Paid: <b>${fmt(order.price || 0)}</b> ${COIN}\n` +
+    `Used: <b>${fmt(order.price || 0)}</b> ${COIN}\n` +
     `Status: <b>COMPLETED ✅</b>`
   );
 }
 
 function buyerCancelledText(order, refunded) {
   return (
-    `❌ <b>Order Cancelled</b>\n` +
+    `❌ <b>Exchange Cancelled</b>\n` +
     `━━━━━━━━━━━━━━━━\n` +
     `Receipt: <code>${escHtml(order.receiptCode || 'N/A')}</code>\n` +
     `Bot: <b>${shopBotLabel(order.botKey || 'bikabot')}</b>\n` +
-    `Rarity: <b>${rarityLabel(order.rarity)}</b>\n` +
+    `Rarity: <b>${rarityLabel(order.rarity, order.botKey || 'bikabot')}</b>\n` +
     `Card ID: <code>${escHtml(order.cardId || 'N/A')}</code>\n` +
     `${order.itemName ? `Name: <b>${escHtml(order.itemName)}</b>\n` : ''}` +
-    `Amount: <b>${fmt(order.price || 0)}</b> ${COIN}\n` +
+    `Refund Amount: <b>${fmt(order.price || 0)}</b> ${COIN}\n` +
     `Refund: <b>${refunded ? 'DONE ✅' : 'FAILED ⚠️'}</b>\n` +
     `Status: <b>CANCELLED</b>`
   );
@@ -670,56 +723,56 @@ function buyerCancelledText(order, refunded) {
 
 function ownerCompletedText(order, action) {
   return (
-    `${action === 'APPROVE' ? '✅ <b>Order Approved</b>' : '❌ <b>Order Cancelled</b>'}\n` +
+    `${action === 'APPROVE' ? '✅ <b>Exchange Approved</b>' : '❌ <b>Exchange Cancelled</b>'}\n` +
     `━━━━━━━━━━━━━━━━\n` +
     `Order ID: <code>${String(order._id)}</code>\n` +
     `Receipt: <code>${escHtml(order.receiptCode || 'N/A')}</code>\n` +
     `User ID: <code>${order.userId}</code>\n` +
     `Bot: <b>${shopBotLabel(order.botKey || 'bikabot')}</b>\n` +
-    `Rarity: <b>${rarityLabel(order.rarity)}</b>\n` +
+    `Rarity: <b>${rarityLabel(order.rarity, order.botKey || 'bikabot')}</b>\n` +
     `Card ID: <code>${escHtml(order.cardId || 'N/A')}</code>\n` +
-    `Paid: <b>${fmt(order.price || 0)}</b> ${COIN}\n` +
+    `Used: <b>${fmt(order.price || 0)}</b> ${COIN}\n` +
     `Status: <b>${action === 'APPROVE' ? 'COMPLETED' : 'CANCELLED'}</b>`
   );
 }
 
 function cancelledText(order) {
   return (
-    `❌ <b>Order Cancelled</b>\n` +
+    `❌ <b>Exchange Cancelled</b>\n` +
     `━━━━━━━━━━━━━━━━\n` +
-    `Rarity: <b>${rarityLabel(order.card.rarity)}</b>\n` +
+    `Rarity: <b>${rarityLabel(order.card.rarity, order.botKey || cardBotKey(order.card))}</b>\n` +
     `Card ID: <code>${escHtml(order.card.cardId)}</code>\n` +
-    `Price: <b>${fmt(order.price)}</b> ${COIN}`
+    `Exchange Cost: <b>${fmt(order.price)}</b> ${COIN}`
   );
 }
 
 function expiredText(order) {
   return (
-    `⌛ <b>Order Expired</b>\n` +
+    `⌛ <b>Exchange Expired</b>\n` +
     `━━━━━━━━━━━━━━━━\n` +
-    `Rarity: <b>${rarityLabel(order.card.rarity)}</b>\n` +
+    `Rarity: <b>${rarityLabel(order.card.rarity, order.botKey || cardBotKey(order.card))}</b>\n` +
     `Card ID: <code>${escHtml(order.card.cardId)}</code>\n` +
-    `Price: <b>${fmt(order.price)}</b> ${COIN}\n` +
+    `Exchange Cost: <b>${fmt(order.price)}</b> ${COIN}\n` +
     `━━━━━━━━━━━━━━━━\n` +
-    `<code>/shop</code> ပြန်ဖွင့်ပြီး order အသစ်တင်ပါ။`
+    `<code>/shop</code> ပြန်ဖွင့်ပြီး exchange အသစ်တင်ပါ။`
   );
 }
 
 function helpText() {
   return (
-    `ℹ️ <b>BIKA Exchange Shop Help</b>\n` +
+    `ℹ️ <b>BIKA Game Coin To Card Help</b>\n` +
     `━━━━━━━━━━━━━━━━\n` +
-    `Buyer:\n` +
+    `Player:\n` +
     `• <code>/shop</code> or <code>.shop</code>\n` +
     `• Bot ရွေးပါ\n` +
     `• Rarity ရွေးပါ\n` +
     `• Card ID ရွေးပါ\n` +
-    `• Confirm နှိပ်ပါ\n\n` +
+    `• Confirm Exchange နှိပ်ပါ\n\n` +
     `Rule:\n` +
     `• <b>Bot Dm မှာ /start နှိပ်ထားဖို့လိုအပ်ပါတယ်</b>\n` +
     `• <b>Confirm နှိပ်ပြီးရင် Cancel နှိပ်မရတော့ပါ</b>\n` +
-    `• <b>မိမိရဲ့ လက်ကျန်ငွေ မလုံလောက်ရင် ဝယ်ယူလို့မရနိူင်ပါ</b>\n` +
-    `• Order တင်​ပြီးရင် My Order ထဲမှာ မိမိရဲ့ order တွေစစ်ဆေးလို့ရပါတယ်။`
+    `• <b>မိမိရဲ့ လက်ကျန် ${COIN} မလုံလောက်ရင် card လဲယူလို့မရနိုင်ပါ</b>\n` +
+    `• Exchange request တင်ပြီးရင် My Order ထဲမှာ status စစ်ဆေးလို့ရပါတယ်။`
   );
 }
 
@@ -825,7 +878,7 @@ function parseInlineCard(text) {
 
   if (name) {
     name = name
-      .replace(/\(\s*[🟣🔵🟡💮⚜️⚡✨🪞]?\s*rarity\s*[:：]?\s*[A-Za-z]+\s*\)/i, '')
+      .replace(/\(\s*[🔵🟣🟠🟡💮⚜️⚡🎐🎴✨🪞]?\s*rarity\s*[:：]?\s*[A-Za-z]+\s*\)/i, '')
       .replace(/[|]+$/g, '')
       .trim();
   }
@@ -856,7 +909,7 @@ function inlineAddResultText(data) {
     `━━━━━━━━━━━━━━━━\n` +
     `Bot: <b>${shopBotLabel(data.botKey)}</b>\n` +
     `Source: <code>${escHtml(data.sourceBotUsername ? '@' + data.sourceBotUsername : 'N/A')}</code>\n` +
-    `Rarity: <b>${rarityLabel(data.rarity)}</b>\n` +
+    `Rarity: <b>${rarityLabel(data.rarity, data.botKey)}</b>\n` +
     `Card ID: <code>${escHtml(data.cardId)}</code>\n` +
     `${data.name ? `Name: <b>${escHtml(data.name)}</b>\n` : ''}` +
     `Media: <b>${data.mediaType && data.mediaFileId ? data.mediaType.toUpperCase() + ' ✅' : 'NO MEDIA ⚠️'}</b>`
@@ -901,7 +954,7 @@ async function myOrdersText(userId) {
     .toArray();
 
   if (!orders.length) {
-    return `📦 <b>My Orders</b>\n━━━━━━━━━━━━━━━━\nOrder မရှိသေးပါ။`;
+    return `📦 <b>My Exchange Requests</b>\n━━━━━━━━━━━━━━━━\nExchange request မရှိသေးပါ။`;
   }
 
   const lines = orders.map((order, index) => (
@@ -910,11 +963,11 @@ async function myOrdersText(userId) {
     `   Bot: <b>${shopBotLabel(order.botKey || 'bikabot')}</b>\n` +
     `   Rarity: <b>${escHtml(order.rarity || 'N/A')}</b>\n` +
     `   Card ID: <code>${escHtml(order.cardId || order.itemId || 'N/A')}</code>\n` +
-    `   Paid: <b>${fmt(order.price || 0)}</b> ${COIN}\n` +
+    `   Used: <b>${fmt(order.price || 0)}</b> ${COIN}\n` +
     `   Status: <b>${escHtml(order.status || 'PENDING')}</b>`
   )).join('\n\n');
 
-  return `📦 <b>My Recent Orders</b>\n━━━━━━━━━━━━━━━━\n${lines}`;
+  return `📦 <b>My Recent Exchange Requests</b>\n━━━━━━━━━━━━━━━━\n${lines}`;
 }
 
 async function openShop(ctx) {
@@ -947,7 +1000,7 @@ async function showRarity(ctx, botKey, rarityKey, ownerId) {
   const { text, cards } = await rarityCardsText(botKey, rarityKey, prices[rarityKey]);
 
   try {
-    await ctx.answerCbQuery(`${shopBotInfo(botKey)?.label || 'Shop'} ${rarityInfo(rarityKey)?.label || rarityKey} cards`);
+    await ctx.answerCbQuery(`${shopBotInfo(botKey)?.label || 'Shop'} ${rarityInfo(rarityKey, botKey)?.label || rarityKey} cards`);
   } catch (_) {}
 
   return editCurrentHTML(ctx, text, { reply_markup: cardsKeyboard(cards, ownerId, botKey) });
@@ -1226,7 +1279,7 @@ module.exports = (bot) => {
       const pendingId = makePendingId();
       const expiresAt = Date.now() + ORDER_TIMEOUT_MS;
 
-      try { await ctx.answerCbQuery('Order preview opened.'); } catch (_) {}
+      try { await ctx.answerCbQuery('Exchange preview opened.'); } catch (_) {}
 
       await deleteCallbackMessage(ctx);
 
@@ -1282,7 +1335,7 @@ module.exports = (bot) => {
 
     if (ctx.from.id !== pending.userId) {
       try {
-        await ctx.answerCbQuery('Buyer ပဲ Confirm/Cancel လုပ်နိုင်ပါတယ်။', { show_alert: true });
+        await ctx.answerCbQuery('သက်ဆိုင်တဲ့ User ပဲ Confirm/Cancel လုပ်နိုင်ပါတယ်။', { show_alert: true });
       } catch (_) {}
       return;
     }
@@ -1293,7 +1346,7 @@ module.exports = (bot) => {
       return editOrderMessage(bot, pending.chatId, pending.msgId, cancelledText(pending), pending.hasMedia);
     }
 
-    try { await ctx.answerCbQuery('Creating order...'); } catch (_) {}
+    try { await ctx.answerCbQuery('Creating exchange request...'); } catch (_) {}
 
     try {
       const latestCard = await shopCardModel.collection().findOne({
@@ -1307,13 +1360,13 @@ module.exports = (bot) => {
           bot,
           pending.chatId,
           pending.msgId,
-          '⚠️ <b>Card unavailable</b>\n━━━━━━━━━━━━━━━━\nဒီ card ကို တစ်ခြားသူဝယ်သွားပြီးဖြစ်နိုင်ပါတယ်။',
+          '⚠️ <b>Card unavailable</b>\n━━━━━━━━━━━━━━━━\nဒီ card ကို တစ်ခြားသူလဲယူသွားပြီးဖြစ်နိုင်ပါတယ်။',
           pending.hasMedia
         );
       }
 
       await userPayToTreasury(pending.userId, pending.price, {
-        type: 'shop_card_buy',
+        type: 'shop_card_exchange',
         cardId: latestCard.cardId,
         rarity: latestCard.rarity,
       });
@@ -1589,7 +1642,7 @@ module.exports = (bot) => {
     if (!rarityKey || !rarityInfo(rarityKey) || !amount || amount <= 0) {
       return replyHTML(
         ctx,
-        `Usage: <code>/setrarityprice Divine 5000000</code>\n` +
+        `Usage: <code>/setrarityprice Oblivion 5000000</code>\n` +
           `Rarities: ${RARITIES.map((r) => r.label).join(', ')}`,
         replyOptions(ctx)
       );
@@ -1602,7 +1655,7 @@ module.exports = (bot) => {
       `✅ <b>Rarity Price Updated</b>\n` +
         `━━━━━━━━━━━━━━━━\n` +
         `Rarity: <b>${rarityLabel(rarityKey)}</b>\n` +
-        `Price: <b>${fmt(price)}</b> ${COIN}`,
+        `Exchange Cost: <b>${fmt(price)}</b> ${COIN}`,
       replyOptions(ctx)
     );
   });
@@ -1620,9 +1673,9 @@ module.exports = (bot) => {
     if (!rarityKey || !rarityInfo(rarityKey) || !cardId) {
       return replyHTML(
         ctx,
-        `Usage: <code>/shopadd CatchBot Divine C001</code>\n` +
+        `Usage: <code>/shopadd HallowBot Oblivion H001</code>\n` +
           `Default: <code>/shopadd Divine D001</code> = BikaBot\n` +
-          `Optional: <code>/shopadd HallowBot Rare H001 Character Name</code>`,
+          `Optional: <code>/shopadd HallowBot Abyssion H001 Character Name</code>`,
         replyOptions(ctx)
       );
     }
@@ -1669,7 +1722,7 @@ module.exports = (bot) => {
     if (!rarityKey || !rarityInfo(rarityKey) || !cardIds.length) {
       return replyHTML(
         ctx,
-        `Usage: <code>/shopbulk CatchBot Divine C001 C002 C003</code>\n` +
+        `Usage: <code>/shopbulk HallowBot Oblivion H001 H002 H003</code>\n` +
           `Default: <code>/shopbulk Divine D001 D002</code> = BikaBot`,
         replyOptions(ctx)
       );
@@ -1762,7 +1815,7 @@ module.exports = (bot) => {
     }
 
     const lines = cards.map((card, index) => (
-      `${index + 1}. ${shopBotLabel(cardBotKey(card))} — ${rarityLabel(card.rarity)} — <code>${escHtml(card.cardId)}</code>${card.name ? ` — ${escHtml(card.name)}` : ''}${card.mediaFileId ? ' — 📎' : ''}`
+      `${index + 1}. ${shopBotLabel(cardBotKey(card))} — ${rarityLabel(card.rarity, cardBotKey(card))} — <code>${escHtml(card.cardId)}</code>${card.name ? ` — ${escHtml(card.name)}` : ''}${card.mediaFileId ? ' — 📎' : ''}`
     )).join('\n');
 
     return replyHTML(ctx, `🎴 <b>Available Exchange Cards</b>\n━━━━━━━━━━━━━━━━\n${lines}`, replyOptions(ctx));
