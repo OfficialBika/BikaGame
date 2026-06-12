@@ -414,9 +414,9 @@ async function countAvailableByRarity(botKey = 'bikabot') {
 
 function shopHomeText(balance) {
   return (
-    `🛒 <b>BIKA Characters Card Shop</b>\n` +
+    `🛒 <b>Bika Game Coin To Card</b>\n` +
     `━━━━━━━━━━━━━━━━\n` +
-    `Choose a shop bot first.\n\n` +
+    `Choose you want to exchange bot first.\n\n` +
     `🎯 <b>CatchBot</b>\n` +
     `🤖 <b>BikaBot</b>\n` +
     `🎃 <b>HallowBot</b>\n` +
@@ -452,7 +452,7 @@ function botRarityText(botKey, balance, prices, counts) {
   )).join('\n\n');
 
   return (
-    `🛒 <b>${shopBotLabel(botKey)} Card Shop</b>\n` +
+    `🛒 <b>${shopBotLabel(botKey)} Card</b>\n` +
     `━━━━━━━━━━━━━━━━\n` +
     `${lines}\n` +
     `━━━━━━━━━━━━━━━━\n` +
@@ -536,8 +536,8 @@ function previewText(ctx, card, price) {
   return (
     `🧾 <b>Order Preview</b>\n` +
     `━━━━━━━━━━━━━━━━\n` +
-    `Buyer: ${mentionHtml(ctx.from)}\n` +
-    `Buyer ID: <code>${ctx.from.id}</code>\n` +
+    `User: ${mentionHtml(ctx.from)}\n` +
+    `User ID: <code>${ctx.from.id}</code>\n` +
     `Bot: <b>${shopBotLabel(cardBotKey(card))}</b>\n` +
     `Rarity: <b>${rarityLabel(card.rarity)}</b>\n` +
     `Card ID: <code>${escHtml(card.cardId)}</code>\n` +
@@ -595,7 +595,7 @@ function buyerPendingText(order, insertedId, balance, ownerNotified) {
     `━━━━━━━━━━━━━━━━\n` +
     `Order ID: <code>${String(insertedId)}</code>\n` +
     `Receipt: <code>${order.receiptCode}</code>\n` +
-    `Buyer ID: <code>${order.userId}</code>\n` +
+    `User ID: <code>${order.userId}</code>\n` +
     `Bot: <b>${shopBotLabel(order.botKey || cardBotKey(order.card))}</b>\n` +
     `Rarity: <b>${rarityLabel(order.card.rarity)}</b>\n` +
     `Card ID: <code>${escHtml(order.card.cardId)}</code>\n` +
@@ -613,8 +613,8 @@ function ownerOrderText(order, insertedId) {
     `━━━━━━━━━━━━━━━━\n` +
     `Order ID: <code>${String(insertedId)}</code>\n` +
     `Receipt: <code>${order.receiptCode}</code>\n` +
-    `Buyer: ${mentionHtml(order.buyer)}\n` +
-    `Buyer ID: <code>${order.userId}</code>\n` +
+    `User: ${mentionHtml(order.buyer)}\n` +
+    `User ID: <code>${order.userId}</code>\n` +
     `Username: <code>${escHtml(order.buyer.username ? '@' + order.buyer.username : 'N/A')}</code>\n` +
     `Bot: <b>${shopBotLabel(order.botKey || cardBotKey(order.card))}</b>\n` +
     `Rarity: <b>${rarityLabel(order.card.rarity)}</b>\n` +
@@ -674,7 +674,7 @@ function ownerCompletedText(order, action) {
     `━━━━━━━━━━━━━━━━\n` +
     `Order ID: <code>${String(order._id)}</code>\n` +
     `Receipt: <code>${escHtml(order.receiptCode || 'N/A')}</code>\n` +
-    `Buyer ID: <code>${order.userId}</code>\n` +
+    `User ID: <code>${order.userId}</code>\n` +
     `Bot: <b>${shopBotLabel(order.botKey || 'bikabot')}</b>\n` +
     `Rarity: <b>${rarityLabel(order.rarity)}</b>\n` +
     `Card ID: <code>${escHtml(order.cardId || 'N/A')}</code>\n` +
@@ -707,7 +707,7 @@ function expiredText(order) {
 
 function helpText() {
   return (
-    `ℹ️ <b>BIKA Character Shop Help</b>\n` +
+    `ℹ️ <b>BIKA Exchange Shop Help</b>\n` +
     `━━━━━━━━━━━━━━━━\n` +
     `Buyer:\n` +
     `• <code>/shop</code> or <code>.shop</code>\n` +
@@ -906,7 +906,7 @@ async function myOrdersText(userId) {
 
   const lines = orders.map((order, index) => (
     `${index + 1}. <code>${String(order._id)}</code>\n` +
-    `   Buyer ID: <code>${order.userId}</code>\n` +
+    `   User ID: <code>${order.userId}</code>\n` +
     `   Bot: <b>${shopBotLabel(order.botKey || 'bikabot')}</b>\n` +
     `   Rarity: <b>${escHtml(order.rarity || 'N/A')}</b>\n` +
     `   Card ID: <code>${escHtml(order.cardId || order.itemId || 'N/A')}</code>\n` +
@@ -1765,7 +1765,7 @@ module.exports = (bot) => {
       `${index + 1}. ${shopBotLabel(cardBotKey(card))} — ${rarityLabel(card.rarity)} — <code>${escHtml(card.cardId)}</code>${card.name ? ` — ${escHtml(card.name)}` : ''}${card.mediaFileId ? ' — 📎' : ''}`
     )).join('\n');
 
-    return replyHTML(ctx, `🎴 <b>Available Shop Cards</b>\n━━━━━━━━━━━━━━━━\n${lines}`, replyOptions(ctx));
+    return replyHTML(ctx, `🎴 <b>Available Exchange Cards</b>\n━━━━━━━━━━━━━━━━\n${lines}`, replyOptions(ctx));
   });
 };
 
