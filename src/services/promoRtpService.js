@@ -101,8 +101,11 @@ Promo RTP - ${rtp}%
 Promo Time - ${formatDuration(durationText)}
 Promo Group - ${groupName}`;
 
-  const sent = await ctx.reply(startText);
-
+  const sent = await ctx.reply(startText, {
+  reply_to_message_id: ctx.message?.message_id,
+  allow_sending_without_reply: true,
+     });
+  
   try {
     await ctx.telegram.pinChatMessage(chatId, sent.message_id, {
       disable_notification: false,
