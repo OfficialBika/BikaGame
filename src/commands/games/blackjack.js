@@ -307,11 +307,58 @@ function isMessageNotModifiedError(err) {
   return String(err?.message || err).includes('message is not modified');
 }
 
+function retryAfterMs(err) {
+  const raw =
+    err?.response?.parameters?.retry_after ||
+    err?.parameters?.retry_after ||
+    String(err?.message || '').match(/retry after\s+(\d+)/i)?.[1];
+
+  const seconds = Number(raw);
+  if (!Number.isFinite(seconds) || seconds <= 0) return 0;
+
+  return Math.min(30_000, Math.ceil(seconds * 1000) + 500);
+}
+
+function isTooManyRequestsError(err) {
+  return Number(err?.response?.error_code || err?.code) === 429 ||
+    String(err?.message || err).includes('429: Too Many Requests');
+}
+
+async function telegramWithRetry(label, work, maxRetries = 2) {
+  let lastErr = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    try {
+      return await work();
+    } catch (err) {
+      lastErr = err;
+
+      if (isMessageNotModifiedError(err)) {
+        return null;
+      }
+
+      if (!isTooManyRequestsError(err) || attempt >= maxRetries) {
+        throw err;
+      }
+
+      const delay = retryAfterMs(err) || 1500;
+      console.warn(`${label} rate limited; retrying after ${Math.ceil(delay / 1000)}s`);
+      await sleep(delay);
+    }
+  }
+
+  throw lastErr;
+}
+
 async function deleteGameMessage(bot, game) {
   if (!game?.chatId || !game?.messageId) return;
 
   try {
-    await bot.telegram.deleteMessage(game.chatId, game.messageId);
+    await telegramWithRetry(
+      'BLACKJACK_DELETE_OLD_MESSAGE',
+      () => bot.telegram.deleteMessage(game.chatId, game.messageId),
+      1
+    );
   } catch (err) {
     console.warn('BLACKJACK_DELETE_OLD_MESSAGE_FAILED:', err?.message || err);
   }
@@ -331,7 +378,11 @@ async function sendReplacementGameMessage(bot, game, html, replyMarkup) {
     extra.allow_sending_without_reply = true;
   }
 
-  const sent = await bot.telegram.sendMessage(game.chatId, html, extra);
+  const sent = await telegramWithRetry(
+    'BLACKJACK_SEND_REPLACEMENT',
+    () => bot.telegram.sendMessage(game.chatId, html, extra),
+    2
+  );
 
   if (sent?.message_id) {
     game.messageId = sent.message_id;
@@ -342,11 +393,15 @@ async function sendReplacementGameMessage(bot, game, html, replyMarkup) {
 
 async function editGameMessage(bot, game, html, replyMarkup) {
   try {
-    return await bot.telegram.editMessageText(game.chatId, game.messageId, undefined, html, {
-      parse_mode: 'HTML',
-      disable_web_page_preview: true,
-      reply_markup: replyMarkup,
-    });
+    return await telegramWithRetry(
+      'BLACKJACK_EDIT_MESSAGE',
+      () => bot.telegram.editMessageText(game.chatId, game.messageId, undefined, html, {
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        reply_markup: replyMarkup,
+      }),
+      2
+    );
   } catch (err) {
     if (isMessageNotModifiedError(err)) return null;
 
@@ -637,6 +692,12 @@ module.exports = (bot) => {
       return;
     }
 
+    if (game.processing) {
+      await ctx.answerCbQuery('Processing... ခဏစောင့်ပါ။').catch(() => {});
+      return;
+    }
+
+    game.processing = true;
     await ctx.answerCbQuery(action === 'HIT' ? 'Card drawn.' : 'Stand.').catch(() => {});
 
     try {
@@ -646,41 +707,38 @@ module.exports = (bot) => {
         if (handValue(game.player) > 21) {
           await editGameMessage(bot, game, gameTableText(game, true, '💥 User bust!'), undefined);
           await sleep(500);
-          return settleGame(bot, game, 'LOSE');
+          return await settleGame(bot, game, 'LOSE');
         }
 
-        return editGameMessage(
+        await editGameMessage(
           bot,
           game,
           gameTableText(game, false, 'ကဒ်တစ်ကဒ်ထပ်ဆွဲပြီးပါပြီ။ ထပ်ဆွဲမလား၊ ရပ်မလား ရွေးပါ။'),
           actionKeyboard(game.id)
         );
+        return;
       }
 
-      return dealerPlayAndSettle(bot, game);
+      return await dealerPlayAndSettle(bot, game);
     } catch (err) {
       console.error('BLACKJACK_ACTION_ERROR:', err?.stack || err?.message || err);
 
-      clearGame(game.id);
-
-      try {
-        await treasuryPayToUser(game.userId, game.bet, {
-          type: 'blackjack_refund',
-          bet: game.bet,
-          reason: 'blackjack_action_error',
-        });
-      } catch (_) {}
-
+      // Telegram 429/edit errors should not make the round expire immediately.
+      // Keep the game alive so the user can press Hit/Stand again after rate limit clears.
       try {
         await editGameMessage(
           bot,
           game,
-          `⚠️ <b>Blackjack Error</b>\n` +
-            `━━━━━━━━━━━━\n` +
-            `Game error ဖြစ်လို့ bet refund ပြန်ပေးထားပါတယ်။`,
-          undefined
+          gameTableText(game, false, '⚠️ Telegram rate limit ဖြစ်နေပါတယ်။ ခဏစောင့်ပြီး ထပ်နှိပ်ပါ။'),
+          actionKeyboard(game.id)
         );
-      } catch (_) {}
+      } catch (editErr) {
+        console.error('BLACKJACK_ACTION_ERROR_NOTICE_FAILED:', editErr?.stack || editErr?.message || editErr);
+      }
+    } finally {
+      if (activeGames.has(game.id)) {
+        game.processing = false;
+      }
     }
   });
 };
