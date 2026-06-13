@@ -82,16 +82,20 @@ async function requireOwner(ctx) {
   return treasury;
 }
 
-function primaryButton(text, callbackData) {
-  return { text, callback_data: callbackData, style: 'primary' };
+function successButton(text, callbackData) {
+  return {
+    text,
+    callback_data: callbackData,
+    style: 'success',
+  };
 }
 
 function actionKeyboard(gameId) {
   return {
     inline_keyboard: [
       [
-        primaryButton('🃏 ထပ်ဆွဲမယ်', `BJ:HIT:${gameId}`),
-        primaryButton('✋ ရပ်မယ်', `BJ:STAND:${gameId}`),
+        successButton('🃏 Hit / ထပ်ဆွဲမယ်', `BJ:HIT:${gameId}`),
+        primaryButton('✋ Stand / ရပ်မယ်', `BJ:STAND:${gameId}`),
       ],
     ],
   };
