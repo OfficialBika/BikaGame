@@ -286,6 +286,7 @@ function blackjackResultText(game, result, payout) {
     `Dealer: <b>${renderCards(game.dealer)}</b> (${handValue(game.dealer)})\n` +
     `━━━━━━━━━━━━\n` +
     `Result: <b>${resultLabel(result)}</b>\n` +
+    `BJ RTP: <b>${fmt(game.bjRtpWinRate ?? DEFAULT_BJ_RTP)}%</b>\n` +
     `Bet: <b>${fmt(game.bet)}</b> ${COIN}\n` +
     `Payout: <b>${fmt(payout)}</b> ${COIN}\n` +
     `Net: <b>${fmt(payout - game.bet)}</b> ${COIN}`
@@ -303,12 +304,56 @@ function expiredText(game) {
   );
 }
 
-async function editGameMessage(bot, game, html, replyMarkup) {
-  return bot.telegram.editMessageText(game.chatId, game.messageId, undefined, html, {
+function isMessageNotModifiedError(err) {
+  return String(err?.message || err).includes('message is not modified');
+}
+
+async function deleteGameMessage(bot, game) {
+  if (!game?.chatId || !game?.messageId) return;
+
+  try {
+    await bot.telegram.deleteMessage(game.chatId, game.messageId);
+  } catch (err) {
+    console.warn('BLACKJACK_DELETE_OLD_MESSAGE_FAILED:', err?.message || err);
+  }
+}
+
+async function sendReplacementGameMessage(bot, game, html, replyMarkup) {
+  await deleteGameMessage(bot, game);
+
+  const extra = {
     parse_mode: 'HTML',
     disable_web_page_preview: true,
     reply_markup: replyMarkup,
-  });
+  };
+
+  if (game?.commandMessageId) {
+    extra.reply_to_message_id = game.commandMessageId;
+    extra.allow_sending_without_reply = true;
+  }
+
+  const sent = await bot.telegram.sendMessage(game.chatId, html, extra);
+
+  if (sent?.message_id) {
+    game.messageId = sent.message_id;
+  }
+
+  return sent;
+}
+
+async function editGameMessage(bot, game, html, replyMarkup) {
+  try {
+    return await bot.telegram.editMessageText(game.chatId, game.messageId, undefined, html, {
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+      reply_markup: replyMarkup,
+    });
+  } catch (err) {
+    if (isMessageNotModifiedError(err)) return null;
+
+    console.error('BLACKJACK_EDIT_FAILED_REPLACING:', err?.stack || err?.message || err);
+    return sendReplacementGameMessage(bot, game, html, replyMarkup);
+  }
 }
 
 function clearGame(gameId) {
@@ -505,6 +550,7 @@ module.exports = (bot) => {
         id: makeGameId(),
         userId,
         chatId,
+        commandMessageId,
         messageId: null,
         bet,
         bjRtpWinRate,
