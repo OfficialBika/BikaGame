@@ -82,6 +82,15 @@ async function requireOwner(ctx) {
   return treasury;
 }
 
+
+function primaryButton(text, callbackData) {
+  return {
+    text,
+    callback_data: callbackData,
+    style: 'primary',
+  };
+}
+
 function successButton(text, callbackData) {
   return {
     text,
@@ -544,6 +553,8 @@ module.exports = (bot) => {
         return settleGame(bot, game, result);
       }
     } catch (err) {
+      console.error('BLACKJACK_START_ERROR:', err?.stack || err?.message || err);
+
       if (game?.id) clearGame(game.id);
 
       if (betTaken) {
@@ -604,6 +615,8 @@ module.exports = (bot) => {
 
       return dealerPlayAndSettle(bot, game);
     } catch (err) {
+      console.error('BLACKJACK_ACTION_ERROR:', err?.stack || err?.message || err);
+
       clearGame(game.id);
 
       try {
