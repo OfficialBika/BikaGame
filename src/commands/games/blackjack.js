@@ -286,7 +286,6 @@ function blackjackResultText(game, result, payout) {
     `Dealer: <b>${renderCards(game.dealer)}</b> (${handValue(game.dealer)})\n` +
     `━━━━━━━━━━━━\n` +
     `Result: <b>${resultLabel(result)}</b>\n` +
-    `BJ RTP: <b>${fmt(game.bjRtpWinRate ?? DEFAULT_BJ_RTP)}%</b>\n` +
     `Bet: <b>${fmt(game.bet)}</b> ${COIN}\n` +
     `Payout: <b>${fmt(payout)}</b> ${COIN}\n` +
     `Net: <b>${fmt(payout - game.bet)}</b> ${COIN}`
