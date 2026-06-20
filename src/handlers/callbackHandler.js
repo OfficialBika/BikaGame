@@ -61,6 +61,138 @@ async function refundShanBet(challenge, challengeId, reason) {
   } catch (_) {}
 }
 
+
+function clampVipWinRate(value, fallback = 90) {
+  const n = Number(String(value ?? '').replace('%', '').trim());
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.min(100, Math.floor(n)));
+}
+
+function isFutureDateLike(value) {
+  if (!value) return false;
+
+  const time = value instanceof Date
+    ? value.getTime()
+    : new Date(value).getTime();
+
+  return Number.isFinite(time) && time > Date.now();
+}
+
+function isVipUser(user) {
+  if (!user || typeof user !== 'object') return false;
+
+  const directFlags = [
+    user.isVip,
+    user.vip,
+    user.vipActive,
+    user.vipEnabled,
+    user.vipMember,
+  ];
+
+  for (const value of directFlags) {
+    if (value === true) return true;
+    if (typeof value === 'number' && value > 0) return true;
+    if (typeof value === 'string' && ['true', 'yes', 'active', 'vip', 'on'].includes(value.toLowerCase())) {
+      return true;
+    }
+  }
+
+  const dateFields = [
+    user.vipUntil,
+    user.vipExpiresAt,
+    user.vipExpireAt,
+    user.vipExpiredAt,
+    user.vipEndAt,
+    user.vipEnd,
+    user.vipExpiry,
+  ];
+
+  return dateFields.some(isFutureDateLike);
+}
+
+function annotateShanRound(round, meta = {}) {
+  return {
+    ...round,
+    vipMeta: {
+      vipApplied: !!meta.vipApplied,
+      vipSide: meta.vipSide || null,
+      vipWinRate: clampVipWinRate(meta.vipWinRate),
+      fairWinner: meta.fairWinner || round?.result?.winner || null,
+    },
+  };
+}
+
+function swapShanHands(round) {
+  const swapped = {
+    cardsA: round.cardsB,
+    cardsB: round.cardsA,
+  };
+
+  swapped.result = shan.compare(swapped.cardsA, swapped.cardsB);
+  return swapped;
+}
+
+function dealShanWithVip(challenger, target, vipWinRate) {
+  const rate = clampVipWinRate(vipWinRate);
+  const challengerVip = isVipUser(challenger);
+  const targetVip = isVipUser(target);
+  const firstRound = shan.deal();
+
+  // VIP RTP applies only when exactly one side has VIP.
+  if (challengerVip === targetVip || Math.random() * 100 >= rate) {
+    return annotateShanRound(firstRound, {
+      vipApplied: false,
+      vipWinRate: rate,
+      fairWinner: firstRound.result?.winner,
+    });
+  }
+
+  const vipSide = challengerVip ? 'A' : 'B';
+
+  if (firstRound.result?.winner === vipSide) {
+    return annotateShanRound(firstRound, {
+      vipApplied: true,
+      vipSide,
+      vipWinRate: rate,
+      fairWinner: firstRound.result?.winner,
+    });
+  }
+
+  // Try fair re-deals first so the output remains natural.
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const round = shan.deal();
+
+    if (round.result?.winner === vipSide) {
+      return annotateShanRound(round, {
+        vipApplied: true,
+        vipSide,
+        vipWinRate: rate,
+        fairWinner: firstRound.result?.winner,
+      });
+    }
+  }
+
+  // Fallback: if the opposite side won, swap hands so the VIP side wins.
+  if (firstRound.result?.winner && firstRound.result.winner !== 'TIE') {
+    const swapped = swapShanHands(firstRound);
+
+    if (swapped.result?.winner === vipSide) {
+      return annotateShanRound(swapped, {
+        vipApplied: true,
+        vipSide,
+        vipWinRate: rate,
+        fairWinner: firstRound.result?.winner,
+      });
+    }
+  }
+
+  return annotateShanRound(firstRound, {
+    vipApplied: false,
+    vipWinRate: rate,
+    fairWinner: firstRound.result?.winner,
+  });
+}
+
 function shanRevealText(challenge, round, visibleCount, note) {
   return (
     `🃏 <b>Shan Koe Mee</b>\n` +
@@ -311,7 +443,8 @@ module.exports = (bot) => {
 
             betsTaken = true;
 
-            const round = shan.deal();
+            const treasury = await getTreasury();
+            const round = dealShanWithVip(challenger, target, treasury?.vipWinRate);
             const pot = challenge.bet * 2;
             const payout = Math.floor(pot * (1 - HOUSE_CUT_PERCENT));
 
@@ -354,6 +487,10 @@ module.exports = (bot) => {
               challengeId: id,
               pot,
               payout,
+              vipWinRate: round.vipMeta?.vipWinRate,
+              vipApplied: !!round.vipMeta?.vipApplied,
+              vipSide: round.vipMeta?.vipSide || null,
+              fairWinner: round.vipMeta?.fairWinner || null,
             });
 
             betsTaken = false;
