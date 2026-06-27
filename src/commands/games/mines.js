@@ -26,6 +26,7 @@ const ACTION_TIMEOUT_MS = Number(MINES?.actionTimeoutMs || process.env.MINES_ACT
 const MAX_ACTIVE = Number(MINES?.maxActive || process.env.MINES_MAX_ACTIVE || 30);
 const HOUSE_EDGE = Math.max(0, Math.min(0.25, Number(MINES?.houseEdge ?? 0.04)));
 const CAP_PERCENT = Math.max(0.05, Math.min(1, Number(MINES?.capPercent || 0.30)));
+const MIN_CASHOUT_SAFE_PICKS = Math.max(1, Math.min(TOTAL_CELLS - 1, Number(MINES?.minCashoutSafePicks || process.env.MINES_MIN_CASHOUT_SAFE_PICKS || 2)));
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -97,8 +98,12 @@ function currentMultiplier(game) {
   return calculateMultiplier(game.openedSafe.size, game.mineCount);
 }
 
+function canCashOut(game) {
+  return game.openedSafe.size >= MIN_CASHOUT_SAFE_PICKS;
+}
+
 function cashoutAmount(game) {
-  if (game.openedSafe.size <= 0) return 0;
+  if (!canCashOut(game)) return 0;
   return Math.floor(game.bet * currentMultiplier(game));
 }
 
@@ -143,13 +148,13 @@ function minesKeyboard(game, revealAll = false) {
     rows.push(cells);
   }
 
-  if (!revealAll && game.openedSafe.size > 0) {
+  if (!revealAll && canCashOut(game)) {
     rows.push([
       button(`💰 Cash Out • ${fmt(cashoutAmount(game))} ${COIN}`, `MINES:CASH:${game.id}`, 'success'),
     ]);
   }
 
-  if (!revealAll && game.openedSafe.size <= 0) {
+  if (!revealAll && !canCashOut(game)) {
     rows.push([
       button('❌ Cancel / Refund', `MINES:CANCEL:${game.id}`, 'danger'),
     ]);
@@ -162,6 +167,9 @@ function minesText(game, note, revealAll = false, finalPayout = null) {
   const multiplier = currentMultiplier(game).toFixed(2);
   const cashout = finalPayout == null ? cashoutAmount(game) : finalPayout;
   const safeTotal = TOTAL_CELLS - game.mineCount;
+  const cashoutLine = finalPayout == null && !revealAll && !canCashOut(game)
+    ? `Cash Out: <b>Locked</b> (${MIN_CASHOUT_SAFE_PICKS} safe required)\n`
+    : `Cash Out: <b>${fmt(cashout)}</b> ${COIN}\n`;
 
   return (
     `💣 <b>BIKA Mines</b>\n` +
@@ -171,7 +179,7 @@ function minesText(game, note, revealAll = false, finalPayout = null) {
     `Mines: <b>${game.mineCount}</b> / ${TOTAL_CELLS}\n` +
     `Safe Opened: <b>${game.openedSafe.size}</b> / ${safeTotal}\n` +
     `Multiplier: <b>x${multiplier}</b>\n` +
-    `Cash Out: <b>${fmt(cashout)}</b> ${COIN}\n` +
+    cashoutLine +
     `━━━━━━━━━━━━\n` +
     `${note}${revealAll ? '\n\n<i>Board revealed.</i>' : ''}`
   );
@@ -266,7 +274,7 @@ async function expireGame(bot, gameId) {
     return;
   }
 
-  if (game.openedSafe.size > 0) {
+  if (canCashOut(game)) {
     return payoutAndSettle(bot, game, 'timeout_auto_cashout');
   }
 
@@ -277,7 +285,7 @@ async function expireGame(bot, gameId) {
     await treasuryPayToUser(game.userId, game.bet, {
       type: 'mines_refund',
       bet: game.bet,
-      reason: 'mines_timeout_no_pick',
+      reason: game.openedSafe.size > 0 ? 'mines_timeout_before_cashout_unlock' : 'mines_timeout_no_pick',
     });
   } catch (_) {}
 
@@ -285,7 +293,7 @@ async function expireGame(bot, gameId) {
     bot,
     game.chatId,
     game.messageId,
-    minesText(game, '⌛ အချိန်ကုန်သွားလို့ bet refund ပြန်ပေးထားပါတယ်။', true, game.bet),
+    minesText(game, '⌛ Cash Out unlock မဖြစ်သေးခင် အချိန်ကုန်သွားလို့ bet refund ပြန်ပေးထားပါတယ်။', true, game.bet),
     { reply_markup: minesKeyboard(game, true) }
   );
 }
@@ -377,7 +385,7 @@ async function startMines(ctx, bot, parsed) {
 
     const sent = await replyHTML(
       ctx,
-      minesText(game, '❔ Safe tile ကိုရွေးပါ။ Mine မထိခင် Cash Out လုပ်နိုင်ပါတယ်။'),
+      minesText(game, `❔ Safe tile ကိုရွေးပါ။ Cash Out က safe ${MIN_CASHOUT_SAFE_PICKS} ခုဖွင့်ပြီးမှပေါ်မယ်။`),
       {
         ...options,
         reply_markup: minesKeyboard(game),
@@ -463,8 +471,8 @@ module.exports = (bot) => {
 
     try {
       if (action === 'CANCEL') {
-        if (game.openedSafe.size > 0) {
-          await ctx.answerCbQuery('Safe tile ဖွင့်ပြီးသားဆို Cash Out ပဲလုပ်လို့ရပါတယ်။', { show_alert: true }).catch(() => {});
+        if (canCashOut(game)) {
+          await ctx.answerCbQuery('Cash Out unlock ဖြစ်ပြီးသားဆို Cash Out ပဲလုပ်လို့ရပါတယ်။', { show_alert: true }).catch(() => {});
           return;
         }
 
@@ -475,7 +483,7 @@ module.exports = (bot) => {
           await treasuryPayToUser(game.userId, game.bet, {
             type: 'mines_refund',
             bet: game.bet,
-            reason: 'mines_cancel_before_pick',
+            reason: game.openedSafe.size > 0 ? 'mines_cancel_before_cashout_unlock' : 'mines_cancel_before_pick',
           });
         } catch (_) {}
 
@@ -490,8 +498,8 @@ module.exports = (bot) => {
       }
 
       if (action === 'CASH') {
-        if (game.openedSafe.size <= 0) {
-          await ctx.answerCbQuery('Safe tile အနည်းဆုံး ၁ ခုဖွင့်ပြီးမှ Cash Out လုပ်ပါ။', { show_alert: true }).catch(() => {});
+        if (!canCashOut(game)) {
+          await ctx.answerCbQuery(`Safe tile အနည်းဆုံး ${MIN_CASHOUT_SAFE_PICKS} ခုဖွင့်ပြီးမှ Cash Out လုပ်ပါ။`, { show_alert: true }).catch(() => {});
           return;
         }
 
@@ -540,11 +548,15 @@ module.exports = (bot) => {
 
       await ctx.answerCbQuery(`Safe! x${currentMultiplier(game).toFixed(2)}`).catch(() => {});
 
+      const note = canCashOut(game)
+        ? '✅ Safe tile ဖွင့်ပြီးပါပြီ။ ဆက်ရွေးမလား Cash Out လုပ်မလား ရွေးပါ။'
+        : `✅ First safe ဖွင့်ပြီးပါပြီ။ Cash Out ပေါ်ဖို့ safe ${MIN_CASHOUT_SAFE_PICKS} ခုလိုပါတယ်။ ဆက်ရွေးပါ သို့မဟုတ် Cancel / Refund လုပ်နိုင်ပါတယ်။`;
+
       return editByIds(
         bot,
         game.chatId,
         game.messageId,
-        minesText(game, '✅ Safe tile ဖွင့်ပြီးပါပြီ။ ဆက်ရွေးမလား Cash Out လုပ်မလား ရွေးပါ။'),
+        minesText(game, note),
         { reply_markup: minesKeyboard(game) }
       );
     } catch (err) {
