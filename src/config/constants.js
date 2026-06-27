@@ -15,7 +15,7 @@ module.exports = {
     actionTimeoutMs: Number(process.env.MINES_ACTION_TIMEOUT_MS || 120000),
     boardSize: 5,
     defaultMines: Number(process.env.MINES_DEFAULT_COUNT || 5),
-    minCashoutSafePicks: Number(process.env.MINES_MIN_CASHOUT_SAFE_PICKS || 2),
+    minCashoutSafePicks: Number(process.env.MINES_MIN_CASHOUT_SAFE_PICKS || 3),
     allowedMines: [5, 6, 7, 15],
     maxActive: Number(process.env.MINES_MAX_ACTIVE || 30),
     capPercent: Number(process.env.MINES_CAP_PERCENT || 0.30),
