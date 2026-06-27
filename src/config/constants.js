@@ -7,5 +7,17 @@ module.exports = {
   SLOT: { minBet: 50, maxBet: 7000, cooldownMs: 700, capPercent: 0.30, maxActive: 10 },
   DICE: { minBet: 10, maxBet: 40000, timeoutMs: 60000, maxActive: 5 },
   SHAN: { minBet: 10, maxBet: 100000, timeoutMs: 60000, maxActive: 5 },
-  BLACKJACK: { minBet: 50, maxBet: 200000, cooldownMs: 1500 }
+  BLACKJACK: { minBet: 50, maxBet: 200000, cooldownMs: 1500 },
+  MINES: {
+    minBet: Number(process.env.MINES_MIN_BET || 50),
+    maxBet: Number(process.env.MINES_MAX_BET || 200000),
+    cooldownMs: Number(process.env.MINES_COOLDOWN_MS || 1200),
+    actionTimeoutMs: Number(process.env.MINES_ACTION_TIMEOUT_MS || 120000),
+    boardSize: 5,
+    defaultMines: Number(process.env.MINES_DEFAULT_COUNT || 3),
+    allowedMines: [3, 5, 7, 10],
+    maxActive: Number(process.env.MINES_MAX_ACTIVE || 30),
+    capPercent: Number(process.env.MINES_CAP_PERCENT || 0.30),
+    houseEdge: Number(process.env.MINES_HOUSE_EDGE || 0.04),
+  },
 };
