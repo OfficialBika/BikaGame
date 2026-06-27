@@ -19,6 +19,6 @@ module.exports = {
     allowedMines: [3, 5, 7, 10],
     maxActive: Number(process.env.MINES_MAX_ACTIVE || 30),
     capPercent: Number(process.env.MINES_CAP_PERCENT || 0.30),
-    houseEdge: Number(process.env.MINES_HOUSE_EDGE || 0.04),
+    houseEdge: Number(process.env.MINES_HOUSE_EDGE || 0.06),
   },
 };
