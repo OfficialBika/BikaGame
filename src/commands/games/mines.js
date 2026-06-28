@@ -32,6 +32,19 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function createCallbackAnswerer(ctx) {
+  let answered = false;
+
+  return async function answerOnce(text, options = {}) {
+    if (answered) return;
+    answered = true;
+
+    try {
+      await ctx.answerCbQuery(text, options);
+    } catch (_) {}
+  };
+}
+
 function makeGameId() {
   return `mn${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -254,7 +267,7 @@ async function payoutAndSettle(bot, game, reason) {
     );
   }
 
-  await recordMinesTournament(game, payout, reason);
+  recordMinesTournament(game, payout, reason).catch(() => {});
 
   return editByIds(
     bot,
@@ -444,35 +457,44 @@ module.exports = (bot) => {
     const gameId = String(ctx.match?.[2] || '');
     const cellIndex = Number(ctx.match?.[3]);
     const game = activeGames.get(gameId);
+    const answerOnce = createCallbackAnswerer(ctx);
 
     if (!game) {
-      await ctx.answerCbQuery('Mines round expired.', { show_alert: true }).catch(() => {});
+      await answerOnce('Mines round expired.', { show_alert: true });
       return;
     }
 
     if (action === 'NOOP') {
-      await ctx.answerCbQuery('Already revealed.').catch(() => {});
+      await answerOnce('Already revealed.');
       return;
     }
 
     if (ctx.from?.id !== game.userId) {
-      await ctx.answerCbQuery('ဒီ Mines button ကို သက်ဆိုင်တဲ့ user ပဲနှိပ်နိုင်ပါတယ်။', {
+      await answerOnce('ဒီ Mines button ကို သက်ဆိုင်တဲ့ user ပဲနှိပ်နိုင်ပါတယ်။', {
         show_alert: true,
-      }).catch(() => {});
+      });
       return;
     }
 
     if (game.processing) {
-      await ctx.answerCbQuery('Processing... ခဏစောင့်ပါ။').catch(() => {});
+      await answerOnce('Processing... ခဏစောင့်ပါ။');
       return;
     }
 
     game.processing = true;
 
+    if (action === 'OPEN') {
+      await answerOnce('Opening tile...');
+    } else if (action === 'CASH') {
+      await answerOnce('Cash out...');
+    } else if (action === 'CANCEL') {
+      await answerOnce('Cancelling...');
+    }
+
     try {
       if (action === 'CANCEL') {
         if (canCashOut(game)) {
-          await ctx.answerCbQuery('Cash Out unlock ဖြစ်ပြီးသားဆို Cash Out ပဲလုပ်လို့ရပါတယ်။', { show_alert: true }).catch(() => {});
+          await answerOnce('Cash Out unlock ဖြစ်ပြီးသားဆို Cash Out ပဲလုပ်လို့ရပါတယ်။', { show_alert: true });
           return;
         }
 
@@ -487,7 +509,7 @@ module.exports = (bot) => {
           });
         } catch (_) {}
 
-        await ctx.answerCbQuery('Cancelled & refunded.').catch(() => {});
+        await answerOnce('Cancelled & refunded.');
         return editByIds(
           bot,
           game.chatId,
@@ -499,21 +521,21 @@ module.exports = (bot) => {
 
       if (action === 'CASH') {
         if (!canCashOut(game)) {
-          await ctx.answerCbQuery(`Safe tile အနည်းဆုံး ${MIN_CASHOUT_SAFE_PICKS} ခုဖွင့်ပြီးမှ Cash Out လုပ်ပါ။`, { show_alert: true }).catch(() => {});
+          await answerOnce(`Safe tile အနည်းဆုံး ${MIN_CASHOUT_SAFE_PICKS} ခုဖွင့်ပြီးမှ Cash Out လုပ်ပါ။`, { show_alert: true });
           return;
         }
 
-        await ctx.answerCbQuery('Cash out...').catch(() => {});
+        await answerOnce('Cash out...');
         return payoutAndSettle(bot, game, 'cashout');
       }
 
       if (action !== 'OPEN' || !Number.isInteger(cellIndex) || cellIndex < 0 || cellIndex >= TOTAL_CELLS) {
-        await ctx.answerCbQuery('Invalid action.').catch(() => {});
+        await answerOnce('Invalid action.');
         return;
       }
 
       if (game.openedSafe.has(cellIndex)) {
-        await ctx.answerCbQuery('Already opened.').catch(() => {});
+        await answerOnce('Already opened.');
         return;
       }
 
@@ -526,8 +548,8 @@ module.exports = (bot) => {
         clearGame(game.id);
         game.settled = true;
 
-        await recordMinesTournament(game, 0, 'mine_hit');
-        await ctx.answerCbQuery('BOOM! Mine hit.').catch(() => {});
+        recordMinesTournament(game, 0, 'mine_hit').catch(() => {});
+        await answerOnce('BOOM! Mine hit.');
 
         return editByIds(
           bot,
@@ -542,11 +564,11 @@ module.exports = (bot) => {
       const safeTotal = TOTAL_CELLS - game.mineCount;
 
       if (game.openedSafe.size >= safeTotal) {
-        await ctx.answerCbQuery('Perfect clear!').catch(() => {});
+        await answerOnce('Perfect clear!');
         return payoutAndSettle(bot, game, 'perfect_clear');
       }
 
-      await ctx.answerCbQuery(`Safe! x${currentMultiplier(game).toFixed(2)}`).catch(() => {});
+      await answerOnce(`Safe! x${currentMultiplier(game).toFixed(2)}`);
 
       const note = canCashOut(game)
         ? '✅ Safe tile ဖွင့်ပြီးပါပြီ။ ဆက်ရွေးမလား Cash Out လုပ်မလား ရွေးပါ။'
@@ -563,7 +585,7 @@ module.exports = (bot) => {
       console.error('MINES_ACTION_ERROR:', err?.stack || err?.message || err);
 
       try {
-        await ctx.answerCbQuery('Telegram rate limit ဖြစ်နိုင်ပါတယ်။ ခဏစောင့်ပြီး ထပ်နှိပ်ပါ။').catch(() => {});
+        await answerOnce('Telegram rate limit ဖြစ်နိုင်ပါတယ်။ ခဏစောင့်ပြီး ထပ်နှိပ်ပါ။');
         await editByIds(
           bot,
           game.chatId,
