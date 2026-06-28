@@ -13,7 +13,7 @@ module.exports = {
     maxBet: Number(process.env.MINES_MAX_BET || 20000),
     cooldownMs: Number(process.env.MINES_COOLDOWN_MS || 1200),
     actionTimeoutMs: Number(process.env.MINES_ACTION_TIMEOUT_MS || 120000),
-    boardSize: 5,
+    boardSize: 4,
     defaultMines: Number(process.env.MINES_DEFAULT_COUNT || 5),
     minCashoutSafePicks: Number(process.env.MINES_MIN_CASHOUT_SAFE_PICKS || 4),
     allowedMines: [5, 6, 7, 15],
