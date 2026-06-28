@@ -18,7 +18,7 @@ module.exports = {
     minCashoutSafePicks: Number(process.env.MINES_MIN_CASHOUT_SAFE_PICKS || 4),
     allowedMines: [5, 6, 7],
     maxActive: Number(process.env.MINES_MAX_ACTIVE || 30),
-    capPercent: Number(process.env.MINES_CAP_PERCENT || 0.30),
+    capPercent: Number(process.env.MINES_CAP_PERCENT || 0.20),
     houseEdge: Number(process.env.MINES_HOUSE_EDGE || 0.20),
   },
 };
