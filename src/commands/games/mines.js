@@ -24,9 +24,12 @@ const ALLOWED_MINES = Array.isArray(MINES?.allowedMines) && MINES.allowedMines.l
   : [3, 5, 7, 10];
 const ACTION_TIMEOUT_MS = Number(MINES?.actionTimeoutMs || process.env.MINES_ACTION_TIMEOUT_MS || 120_000);
 const MAX_ACTIVE = Number(MINES?.maxActive || process.env.MINES_MAX_ACTIVE || 30);
-const HOUSE_EDGE = Math.max(0, Math.min(0.25, Number(MINES?.houseEdge ?? 0.04)));
-const CAP_PERCENT = Math.max(0.05, Math.min(1, Number(MINES?.capPercent || 0.30)));
-const MIN_CASHOUT_SAFE_PICKS = Math.max(1, Math.min(TOTAL_CELLS - 1, Number(MINES?.minCashoutSafePicks || process.env.MINES_MIN_CASHOUT_SAFE_PICKS || 2)));
+const HOUSE_EDGE = Math.max(0, Math.min(0.60, Number(MINES?.houseEdge ?? 0.35)));
+const CAP_PERCENT = Math.max(0.01, Math.min(1, Number(MINES?.capPercent || 0.10)));
+const MIN_CASHOUT_SAFE_PICKS = Math.max(1, Math.min(TOTAL_CELLS - 1, Number(MINES?.minCashoutSafePicks || process.env.MINES_MIN_CASHOUT_SAFE_PICKS || 4)));
+const FIRST_SAFE_FREE_PICKS = Math.max(0, Math.min(1, Number(MINES?.firstSafeFreePicks ?? process.env.MINES_FIRST_SAFE_FREE_PICKS ?? 1)));
+const MAX_PAYOUT_MULTIPLIER = Math.max(1.05, Math.min(50, Number(MINES?.maxPayoutMultiplier || process.env.MINES_MAX_PAYOUT_MULTIPLIER || 5)));
+const PAYOUT_DAMPING = Math.max(0.10, Math.min(1, Number(MINES?.payoutDamping ?? process.env.MINES_PAYOUT_DAMPING ?? 0.85)));
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -92,19 +95,34 @@ function createMinePositions(mineCount, firstSafeIndex) {
   return positions;
 }
 
+function paidSafeOpenedFromCount(safeOpened) {
+  return Math.max(0, Number(safeOpened || 0) - FIRST_SAFE_FREE_PICKS);
+}
+
+function paidSafeOpened(game) {
+  return paidSafeOpenedFromCount(game?.openedSafe?.size || 0);
+}
+
 function calculateMultiplier(safeOpened, mineCount) {
-  const opened = Math.max(0, Math.min(TOTAL_CELLS - mineCount, Number(safeOpened) || 0));
-  if (opened <= 0) return 1;
+  const safeCells = TOTAL_CELLS - mineCount;
+  const opened = Math.max(0, Math.min(safeCells, Number(safeOpened) || 0));
+  const paidOpened = paidSafeOpenedFromCount(opened);
+
+  // First safe tile is a user-friendly protection only.
+  // It must NOT increase payout, otherwise Mines becomes too easy.
+  if (paidOpened <= 0) return 1;
 
   let multiplier = 1;
-  const safeCells = TOTAL_CELLS - mineCount;
+  const remainingCellsAfterFree = Math.max(1, TOTAL_CELLS - FIRST_SAFE_FREE_PICKS);
+  const remainingSafeAfterFree = Math.max(1, safeCells - FIRST_SAFE_FREE_PICKS);
 
-  for (let i = 0; i < opened; i += 1) {
-    multiplier *= (TOTAL_CELLS - i) / Math.max(1, safeCells - i);
+  for (let i = 0; i < paidOpened; i += 1) {
+    multiplier *= (remainingCellsAfterFree - i) / Math.max(1, remainingSafeAfterFree - i);
   }
 
-  const withHouseEdge = multiplier * (1 - HOUSE_EDGE);
-  return Math.max(1.01, Math.floor(withHouseEdge * 100) / 100);
+  const adjusted = multiplier * (1 - HOUSE_EDGE) * PAYOUT_DAMPING;
+  const capped = Math.min(adjusted, MAX_PAYOUT_MULTIPLIER);
+  return Math.max(1.01, Math.floor(capped * 100) / 100);
 }
 
 function currentMultiplier(game) {
@@ -112,7 +130,7 @@ function currentMultiplier(game) {
 }
 
 function canCashOut(game) {
-  return game.openedSafe.size >= MIN_CASHOUT_SAFE_PICKS;
+  return game.openedSafe.size >= MIN_CASHOUT_SAFE_PICKS && paidSafeOpened(game) > 0;
 }
 
 function cashoutAmount(game) {
@@ -124,7 +142,11 @@ async function capPayout(game, payout) {
   const treasury = await getTreasury();
   const ownerBalance = Math.max(0, Number(treasury?.ownerBalance || 0));
   const maxByCap = Math.floor(ownerBalance * CAP_PERCENT);
-  const maxAllowed = Math.max(game.bet, Math.min(ownerBalance, maxByCap > 0 ? maxByCap : ownerBalance));
+  const maxByMultiplier = Math.floor(game.bet * MAX_PAYOUT_MULTIPLIER);
+  const maxAllowed = Math.max(
+    game.bet,
+    Math.min(ownerBalance, maxByMultiplier, maxByCap > 0 ? maxByCap : ownerBalance)
+  );
   return Math.max(0, Math.min(Number(payout) || 0, maxAllowed));
 }
 
@@ -180,6 +202,7 @@ function minesText(game, note, revealAll = false, finalPayout = null) {
   const multiplier = currentMultiplier(game).toFixed(2);
   const cashout = finalPayout == null ? cashoutAmount(game) : finalPayout;
   const safeTotal = TOTAL_CELLS - game.mineCount;
+  const riskySafe = paidSafeOpened(game);
   const cashoutLine = finalPayout == null && !revealAll && !canCashOut(game)
     ? `Cash Out: <b>Locked</b> (${MIN_CASHOUT_SAFE_PICKS} safe required)\n`
     : `Cash Out: <b>${fmt(cashout)}</b> ${COIN}\n`;
@@ -191,6 +214,7 @@ function minesText(game, note, revealAll = false, finalPayout = null) {
     `Bet: <b>${fmt(game.bet)}</b> ${COIN}\n` +
     `Mines: <b>${game.mineCount}</b> / ${TOTAL_CELLS}\n` +
     `Safe Opened: <b>${game.openedSafe.size}</b> / ${safeTotal}\n` +
+    `Risk Safe Count: <b>${riskySafe}</b>\n` +
     `Multiplier: <b>x${multiplier}</b>\n` +
     cashoutLine +
     `━━━━━━━━━━━━\n` +
@@ -222,6 +246,10 @@ async function recordMinesTournament(game, payout, result) {
         result,
         mines: game.mineCount,
         safeOpened: game.openedSafe.size,
+        paidSafeOpened: paidSafeOpened(game),
+        houseEdge: HOUSE_EDGE,
+        payoutDamping: PAYOUT_DAMPING,
+        maxPayoutMultiplier: MAX_PAYOUT_MULTIPLIER,
       },
     });
   } catch (err) {
@@ -245,6 +273,10 @@ async function payoutAndSettle(bot, game, reason) {
       multiplier: currentMultiplier(game),
       mines: game.mineCount,
       safeOpened: game.openedSafe.size,
+      paidSafeOpened: paidSafeOpened(game),
+      houseEdge: HOUSE_EDGE,
+      payoutDamping: PAYOUT_DAMPING,
+      maxPayoutMultiplier: MAX_PAYOUT_MULTIPLIER,
       reason,
     });
   } catch (err) {
@@ -328,15 +360,15 @@ async function startMines(ctx, bot, parsed) {
   if (
     !Number.isInteger(bet) ||
     bet < Number(MINES?.minBet || 50) ||
-    bet > Number(MINES?.maxBet || 200000)
+    bet > Number(MINES?.maxBet || 10000)
   ) {
     return replyHTML(
       ctx,
       `💣 <b>BIKA Mines</b>\n` +
         `━━━━━━━━━━━━\n` +
-        `Usage: <code>.mines 1000</code> သို့မဟုတ် <code>.mines 1000 5</code>\n` +
+        `Usage: <code>.mines 1000</code> သို့မဟုတ် <code>.mines 1000 ${DEFAULT_MINES}</code>\n` +
         `Min: <b>${fmt(MINES?.minBet || 50)}</b> ${COIN}\n` +
-        `Max: <b>${fmt(MINES?.maxBet || 200000)}</b> ${COIN}\n` +
+        `Max: <b>${fmt(MINES?.maxBet || 10000)}</b> ${COIN}\n` +
         `Mines: <b>${ALLOWED_MINES.join(' / ')}</b>`,
       options
     );
@@ -398,7 +430,10 @@ async function startMines(ctx, bot, parsed) {
 
     const sent = await replyHTML(
       ctx,
-      minesText(game, `❔ Safe tile ကိုရွေးပါ။ Cash Out က safe ${MIN_CASHOUT_SAFE_PICKS} ခုဖွင့်ပြီးမှပေါ်မယ်။`),
+      minesText(
+        game,
+        `❔ Safe tile ကိုရွေးပါ။ ပထမ tile က safe protection ပါ၊ payout multiplier မတက်သေးပါ။ Cash Out က safe ${MIN_CASHOUT_SAFE_PICKS} ခုဖွင့်ပြီးမှပေါ်မယ်။`
+      ),
       {
         ...options,
         reply_markup: minesKeyboard(game),
@@ -572,7 +607,9 @@ module.exports = (bot) => {
 
       const note = canCashOut(game)
         ? '✅ Safe tile ဖွင့်ပြီးပါပြီ။ ဆက်ရွေးမလား Cash Out လုပ်မလား ရွေးပါ။'
-        : `✅ First safe ဖွင့်ပြီးပါပြီ။ Cash Out ပေါ်ဖို့ safe ${MIN_CASHOUT_SAFE_PICKS} ခုလိုပါတယ်။ ဆက်ရွေးပါ သို့မဟုတ် Cancel / Refund လုပ်နိုင်ပါတယ်။`;
+        : game.openedSafe.size <= FIRST_SAFE_FREE_PICKS
+          ? `✅ First safe ဖွင့်ပြီးပါပြီ။ ဒီ free safe ကို multiplier ထဲမတွက်ပါ။ Cash Out ပေါ်ဖို့ safe ${MIN_CASHOUT_SAFE_PICKS} ခုလိုပါတယ်။`
+          : `✅ Safe tile ဖွင့်ပြီးပါပြီ။ Cash Out ပေါ်ဖို့ safe ${MIN_CASHOUT_SAFE_PICKS} ခုလိုပါတယ်။ ဆက်ရွေးပါ သို့မဟုတ် Cancel / Refund လုပ်နိုင်ပါတယ်။`;
 
       return editByIds(
         bot,
