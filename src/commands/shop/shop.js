@@ -2,6 +2,7 @@
 
 const { ObjectId } = require('mongodb');
 const { COIN } = require('../../config/constants');
+const { getBotInfo } = require('../../config/bot');
 const orderModel = require('../../models/orderModel');
 const shopCardModel = require('../../models/shopCardModel');
 const shopSettingModel = require('../../models/shopSettingModel');
@@ -213,6 +214,60 @@ function rarityLabel(key, botKey = null) {
 
 function privateOnly(ctx) {
   return ctx.chat?.type === 'private';
+}
+
+function getBotUsername(ctx, targetBot) {
+  return (
+    getBotInfo()?.username ||
+    ctx.botInfo?.username ||
+    targetBot?.botInfo?.username ||
+    process.env.BOT_USERNAME ||
+    ''
+  );
+}
+
+function dmOnlyKeyboard(ctx, targetBot) {
+  const username = getBotUsername(ctx, targetBot);
+
+  if (!username) {
+    return undefined;
+  }
+
+  return {
+    inline_keyboard: [[
+      {
+        text: 'Go to DM',
+        url: `https://t.me/${username}?start=shop`,
+        style: 'primary',
+      },
+    ]],
+  };
+}
+
+function dmOnlyText() {
+  return (
+    'ℹ️ <b>This command is only use in DM.</b>\n\n' +
+    'Please open bot DM and use <code>/shop</code> there.'
+  );
+}
+
+async function requireShopDm(ctx, targetBot = null, mode = 'message') {
+  if (privateOnly(ctx)) return true;
+
+  if (mode === 'callback') {
+    try {
+      await ctx.answerCbQuery('Shop ကို bot DM ထဲမှာပဲ သုံးပါ။', { show_alert: true });
+    } catch (_) {}
+
+    return false;
+  }
+
+  await replyHTML(ctx, dmOnlyText(), {
+    ...replyOptions(ctx),
+    reply_markup: dmOnlyKeyboard(ctx, targetBot),
+  });
+
+  return false;
 }
 
 function replyOptions(ctx) {
@@ -970,7 +1025,8 @@ async function myOrdersText(userId) {
   return `📦 <b>My Recent Exchange Requests</b>\n━━━━━━━━━━━━━━━━\n${lines}`;
 }
 
-async function openShop(ctx) {
+async function openShop(ctx, targetBot = null) {
+  if (!(await requireShopDm(ctx, targetBot))) return;
   if (!(await requireShopOpen(ctx))) return;
 
   const user = await getUser(ctx.from.id);
@@ -1009,6 +1065,7 @@ async function showRarity(ctx, botKey, rarityKey, ownerId) {
 async function handleBuy(ctx, payload) {
   cleanupPendingOrders();
 
+  if (!(await requireShopDm(ctx, null, 'callback'))) return;
   if (!(await requireShopOpen(ctx, 'callback'))) return;
 
   const parts = String(payload || '').split(':');
@@ -1078,8 +1135,8 @@ module.exports = (bot) => {
     );
   });
 
-  bot.command('shop', openShop);
-  bot.hears(/^\.(shop)\s*$/i, openShop);
+  bot.command('shop', (ctx) => openShop(ctx, bot));
+  bot.hears(/^\.(shop)\s*$/i, (ctx) => openShop(ctx, bot));
 
   bot._bikaHandleBuy = handleBuy;
 
@@ -1092,6 +1149,7 @@ module.exports = (bot) => {
 
     cleanupPendingOrders();
 
+    if (data.startsWith('SHOP:') && !(await requireShopDm(ctx, bot, 'callback'))) return;
     if (data.startsWith('SHOP:') && !(await requireShopOpen(ctx, 'callback'))) return;
 
     if (data.startsWith('SHOP:BOT:')) {
@@ -1471,12 +1529,14 @@ module.exports = (bot) => {
   });
 
   bot.command('myorders', async (ctx) => {
+    if (!(await requireShopDm(ctx, bot))) return;
     if (!(await requireShopOpen(ctx))) return;
 
     return replyHTML(ctx, await myOrdersText(ctx.from.id), replyOptions(ctx));
   });
 
   bot.command('shophelp', async (ctx) => {
+    if (!(await requireShopDm(ctx, bot))) return;
     if (!(await requireShopOpen(ctx))) return;
 
     return replyHTML(ctx, helpText(), replyOptions(ctx));
