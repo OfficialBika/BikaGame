@@ -13,6 +13,27 @@ const $ = (id) => document.getElementById(id);
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
 const coin = () => config?.coin || '$';
 
+function setText(id, value) {
+  const el = $(id);
+  if (!el) return null;
+  el.textContent = value;
+  return el;
+}
+
+function setHTML(id, value) {
+  const el = $(id);
+  if (!el) return null;
+  el.innerHTML = value;
+  return el;
+}
+
+function setClassName(id, value) {
+  const el = $(id);
+  if (!el) return null;
+  el.className = value;
+  return el;
+}
+
 function setBusy(button, busy, label) {
   if (!button) return;
   if (busy) {
@@ -27,8 +48,8 @@ function setBusy(button, busy, label) {
 
 function setBalance(value) {
   const text = `${fmt(value)} ${coin()}`;
-  $('balanceText').textContent = text;
-  $('smallBalanceText').textContent = text;
+  setText('balanceText', text);
+  setText('smallBalanceText', text);
 }
 
 async function api(path, body = {}) {
@@ -52,11 +73,13 @@ async function api(path, body = {}) {
 }
 
 async function loadConfig() {
-  const res = await fetch('/api/mini/config');
+  const res = await fetch('/api/mini/config', { cache: 'no-store' });
   config = await res.json();
-  $('slotRange').textContent = `${fmt(config.slot.minBet)} - ${fmt(config.slot.maxBet)} ${config.coin}`;
-  $('crashBet').value = config.crash.minBet;
-  $('slotBet').value = config.slot.minBet;
+  setText('slotRange', `${fmt(config.slot.minBet)} - ${fmt(config.slot.maxBet)} ${config.coin}`);
+  const crashBet = $('crashBet');
+  if (crashBet) crashBet.value = config.crash.minBet;
+  const slotBet = $('slotBet');
+  if (slotBet) slotBet.value = config.slot.minBet;
 }
 
 async function loadMe() {
@@ -92,7 +115,7 @@ function setSlotReels(reels = ['?', '?', '?']) {
 
 function startSlotAnimation() {
   const machine = $('slotMachine');
-  machine.classList.add('spinning');
+  if (machine) machine.classList.add('spinning');
   if (slotSpinTimer) clearInterval(slotSpinTimer);
   slotSpinTimer = setInterval(() => {
     setSlotReels([0, 1, 2].map(() => SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)]));
@@ -103,19 +126,24 @@ function stopSlotAnimation(finalReels) {
   const machine = $('slotMachine');
   if (slotSpinTimer) clearInterval(slotSpinTimer);
   slotSpinTimer = null;
-  machine.classList.remove('spinning');
-  machine.classList.add('slot-pop');
+  if (machine) {
+    machine.classList.remove('spinning');
+    machine.classList.add('slot-pop');
+  }
   setSlotReels(finalReels);
-  setTimeout(() => machine.classList.remove('slot-pop'), 520);
+  if (machine) setTimeout(() => machine.classList.remove('slot-pop'), 520);
 }
 
 async function spinSlot() {
   const btn = $('spinBtn');
   const resultBox = $('slotResult');
-  const bet = $('slotBet').value;
+  const slotBet = $('slotBet');
+  const bet = slotBet?.value;
   setBusy(btn, true, 'SPINNING...');
-  resultBox.className = 'result muted slot-status-card';
-  resultBox.innerHTML = '🎰 Reels rolling...';
+  if (resultBox) {
+    resultBox.className = 'result muted slot-status-card';
+    resultBox.innerHTML = '🎰 Reels rolling...';
+  }
   startSlotAnimation();
 
   try {
@@ -125,21 +153,28 @@ async function spinSlot() {
     stopSlotAnimation(data.reels || ['?', '?', '?']);
     setBalance(data.balance);
     const won = Number(data.payout || 0) > 0;
-    $('slotMachine').classList.toggle('slot-win-glow', won);
-    resultBox.className = `result slot-result-card ${won ? 'win' : 'lose'}`;
-    resultBox.innerHTML = `
-      <div class="slot-result-title">${won ? '🏆 BIG WIN' : '💨 TRY AGAIN'}</div>
-      <div class="slot-result-grid">
-        <span>Bet</span><b>${fmt(data.bet)} ${coin()}</b>
-        <span>Multiplier</span><b>x${Number(data.multiplier || 0).toFixed(2)}</b>
-        <span>Payout</span><b>${fmt(data.payout)} ${coin()}</b>
-        <span>Net</span><b>${fmt(data.net)} ${coin()}</b>
-      </div>`;
+    const machine = $('slotMachine');
+    if (machine) machine.classList.toggle('slot-win-glow', won);
+    if (resultBox) {
+      resultBox.className = `result slot-result-card ${won ? 'win' : 'lose'}`;
+      resultBox.innerHTML = `
+        <div class="slot-result-title">${won ? '🏆 BIG WIN' : '💨 TRY AGAIN'}</div>
+        <div class="slot-result-grid">
+          <span>Bet</span><b>${fmt(data.bet)} ${coin()}</b>
+          <span>Multiplier</span><b>x${Number(data.multiplier || 0).toFixed(2)}</b>
+          <span>Payout</span><b>${fmt(data.payout)} ${coin()}</b>
+          <span>Net</span><b>${fmt(data.net)} ${coin()}</b>
+        </div>`;
+    }
     tg?.HapticFeedback?.notificationOccurred?.(won ? 'success' : 'warning');
   } catch (err) {
     stopSlotAnimation(['?', '?', '?']);
-    resultBox.className = 'result lose slot-status-card';
-    resultBox.textContent = err.message;
+    if (resultBox) {
+      resultBox.className = 'result lose slot-status-card';
+      resultBox.textContent = err.message;
+    } else {
+      alert(err.message || 'Slot error');
+    }
     tg?.HapticFeedback?.notificationOccurred?.('error');
   } finally {
     setBusy(btn, false);
@@ -250,7 +285,7 @@ function renderPlayers(round) {
 }
 
 function applyRunningVisual(multiplier, round) {
-  $('crashMultiplier').textContent = `x${Number(multiplier || 1).toFixed(2)}`;
+  setText('crashMultiplier', `x${Number(multiplier || 1).toFixed(2)}`);
   setRocketScene('running', multiplier, 0);
   const me = round?.me || {};
   const can = !!(me.inRound && !me.cashedOut && Number(multiplier || 1) >= Number(round?.minCashoutMultiplier || 1.1));
@@ -291,19 +326,19 @@ function renderCrash(data) {
     liveRound = null;
   }
 
-  $('roundTitle').textContent = round ? `Round #${round.no}` : 'Round #—';
-  $('playerCount').textContent = fmt(round?.playerCount || 0);
-  $('totalBet').textContent = `${fmt(round?.totalBet || 0)} ${coin()}`;
-  $('totalPaid').textContent = `${fmt(round?.totalPaid || 0)} ${coin()}`;
+  setText('roundTitle', round ? `Round #${round.no}` : 'Round #—');
+  setText('playerCount', fmt(round?.playerCount || 0));
+  setText('totalBet', `${fmt(round?.totalBet || 0)} ${coin()}`);
+  setText('totalPaid', `${fmt(round?.totalPaid || 0)} ${coin()}`);
 
   const chip = $('phaseChip');
   chip.className = 'round-chip';
 
   if (phase === 'betting') {
     chip.textContent = 'BET';
-    $('roundCountdown').textContent = Math.max(0, Number(round.secondsLeft || 0));
-    $('crashMultiplier').textContent = 'x1.00';
-    $('crashState').textContent = `Bet time ${round.secondsLeft}s • လူအများဝင်လောင်းနိုင်ပါတယ်`;
+    setText('roundCountdown', Math.max(0, Number(round.secondsLeft || 0)));
+    setText('crashMultiplier', 'x1.00');
+    setText('crashState', `Bet time ${round.secondsLeft}s • လူအများဝင်လောင်းနိုင်ပါတယ်`);
     $('crashResult').className = 'result muted';
     $('crashResult').innerHTML = me.inRound
       ? `✅ ဒီ round မှာပါဝင်ပြီးပါပြီ။ Bet: <b>${fmt(me.bet)}</b> ${coin()}`
@@ -315,7 +350,7 @@ function renderCrash(data) {
     chip.textContent = 'LIVE';
     chip.classList.add('run');
     const shown = currentLiveMultiplier(liveRound || round);
-    $('crashState').textContent = round.hypeMode ? 'Rare hype round — rocket keeps flying!' : 'Rocket ပုံမှန်ဖြည်းဖြည်းချင်း တက်နေပါတယ် • အချိန်မီ Cash Out လုပ်ပါ';
+    setText('crashState', round.hypeMode ? 'Rare hype round — rocket keeps flying!' : 'Rocket ပုံမှန်ဖြည်းဖြည်းချင်း တက်နေပါတယ် • အချိန်မီ Cash Out လုပ်ပါ');
     $('crashResult').className = 'result muted';
     $('crashResult').innerHTML = me.inRound
       ? me.cashedOut
@@ -328,8 +363,8 @@ function renderCrash(data) {
     chip.textContent = 'CRASHED';
     chip.classList.add('crash');
     const crashPoint = Number(round?.crashPoint || round?.multiplier || 1);
-    $('crashMultiplier').textContent = `x${crashPoint.toFixed(2)}`;
-    $('crashState').textContent = 'Rocket exploded! နောက် round auto စပါမယ်';
+    setText('crashMultiplier', `x${crashPoint.toFixed(2)}`);
+    setText('crashState', 'Rocket exploded! နောက် round auto စပါမယ်');
     $('crashResult').className = 'result lose';
     $('crashResult').innerHTML = `💥 <b>CRASHED</b><br>Crash Point: <b>x${crashPoint.toFixed(2)}</b><br>Cash Out: <b>${fmt(round?.cashoutCount || 0)}</b> | Lost: <b>${fmt(round?.leftCount || 0)}</b>`;
     $('crashStartBtn').disabled = true;
@@ -337,17 +372,17 @@ function renderCrash(data) {
     setRocketScene('crashed', crashPoint, 0);
   } else if (phase === 'no_bets') {
     chip.textContent = 'NEXT';
-    $('crashMultiplier').textContent = 'x1.00';
-    $('crashState').textContent = 'Bet ဝင်သူမရှိလို့ နောက် round ပြန်စပါမယ်';
+    setText('crashMultiplier', 'x1.00');
+    setText('crashState', 'Bet ဝင်သူမရှိလို့ နောက် round ပြန်စပါမယ်');
     $('crashResult').className = 'result muted';
-    $('crashResult').textContent = 'နောက် bet time ကိုစောင့်ပါ။';
+    setText('crashResult', 'နောက် bet time ကိုစောင့်ပါ။');
     $('crashStartBtn').disabled = true;
     $('cashoutBtn').disabled = true;
     setRocketScene('waiting', 1, 0);
   } else {
     chip.textContent = 'WAIT';
-    $('crashMultiplier').textContent = 'x1.00';
-    $('crashState').textContent = 'Loading next round...';
+    setText('crashMultiplier', 'x1.00');
+    setText('crashState', 'Loading next round...');
     $('crashStartBtn').disabled = true;
     $('cashoutBtn').disabled = true;
     setRocketScene('waiting', 1, 0);
@@ -373,7 +408,7 @@ async function placeCrashBet() {
     tg?.HapticFeedback?.notificationOccurred?.('success');
   } catch (err) {
     $('crashResult').className = 'result lose';
-    $('crashResult').textContent = err.message;
+    setText('crashResult', err.message);
     tg?.HapticFeedback?.notificationOccurred?.('error');
   } finally {
     btn.textContent = btn.dataset.oldText || 'Place bet';
@@ -390,7 +425,7 @@ async function cashOut() {
     tg?.HapticFeedback?.notificationOccurred?.('success');
   } catch (err) {
     $('crashResult').className = 'result lose';
-    $('crashResult').textContent = err.message;
+    setText('crashResult', err.message);
     tg?.HapticFeedback?.notificationOccurred?.('error');
     await pollCrash();
   } finally {
@@ -441,5 +476,5 @@ window.addEventListener('beforeunload', () => {
 
 init().catch((err) => {
   $('notTelegram').classList.remove('hidden');
-  $('notTelegram').textContent = err.message || 'Mini App loading error.';
+  setText('notTelegram', err.message || 'Mini App loading error.');
 });
