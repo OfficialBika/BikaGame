@@ -4,6 +4,7 @@ const { COIN, SLOT } = require('../config/constants');
 const { getUser, userPayToTreasury, treasuryPayToUser } = require('./economyService');
 const { getTreasury } = require('./treasuryService');
 const engine = require('../games/slotEngine');
+const { recordWebGameHistory } = require('./webBetHistoryService');
 
 const activeSpins = new Set();
 const cooldowns = new Map();
@@ -119,6 +120,18 @@ async function spinWebSlot({ userId, bet }) {
 
     betTaken = false;
     const updated = await getUser(finalUserId);
+    await recordWebGameHistory({
+      userId: finalUserId,
+      game: 'slot',
+      title: reels.join(' '),
+      outcome: payout > amount ? 'win' : payout > 0 ? 'paid' : 'lose',
+      bet: amount,
+      payout,
+      net: payout - amount,
+      multiplier,
+      label: reels.join(' '),
+      meta: { reels, rawPayout, rtpWinRate, vip: !!user.isVip },
+    });
 
     return {
       ok: true,

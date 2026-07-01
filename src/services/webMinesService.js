@@ -4,6 +4,7 @@ const { COIN } = require('../config/constants');
 const { getUser, userPayToTreasury, treasuryPayToUser } = require('./economyService');
 const { getTreasury } = require('./treasuryService');
 const { getWebGameRtp } = require('./webGameRtpService');
+const { recordWebGameHistory } = require('./webBetHistoryService');
 
 const activeGames = new Map();
 const BOARD_SIZE = 5;
@@ -182,6 +183,18 @@ async function openWebMinesTile({ userId, index }) {
     game.state = 'lost';
     game.explodedIndex = cell;
     activeGames.delete(finalUserId);
+    await recordWebGameHistory({
+      userId: finalUserId,
+      game: 'mines',
+      title: `BOOM after ${game.openedSafe.size} safe`,
+      outcome: 'lose',
+      bet: game.bet,
+      payout: 0,
+      net: -game.bet,
+      multiplier: multiplier(game),
+      label: 'BOOM',
+      meta: { mines: game.mineCount, safeOpened: game.openedSafe.size, explodedIndex: cell, rtp: game.rtp },
+    });
     const updated = await getUser(finalUserId);
     return { ok: true, result: 'lost', balance: Number(updated?.balance || 0), payout: 0, game: publicGame(game) };
   }
@@ -222,6 +235,18 @@ async function cashoutWebMines({ userId }) {
 
   game.state = 'cashed_out';
   activeGames.delete(finalUserId);
+  await recordWebGameHistory({
+    userId: finalUserId,
+    game: 'mines',
+    title: `${game.openedSafe.size} safe gems`,
+    outcome: payout > game.bet ? 'win' : payout > 0 ? 'paid' : 'lose',
+    bet: game.bet,
+    payout,
+    net: payout - game.bet,
+    multiplier: m,
+    label: `x${m.toFixed(2)}`,
+    meta: { mines: game.mineCount, safeOpened: game.openedSafe.size, rawPayout, rtp: game.rtp },
+  });
   const updated = await getUser(finalUserId);
   return { ok: true, result: 'cashed_out', payout, rawPayout, balance: Number(updated?.balance || 0), game: publicGame(game, { payout }) };
 }

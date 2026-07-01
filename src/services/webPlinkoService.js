@@ -4,6 +4,7 @@ const { COIN } = require('../config/constants');
 const { getUser, userPayToTreasury, treasuryPayToUser } = require('./economyService');
 const { getTreasury } = require('./treasuryService');
 const { getWebGameRtp } = require('./webGameRtpService');
+const { recordWebGameHistory } = require('./webBetHistoryService');
 
 const MIN_BET = Math.max(1, Number(process.env.WEB_PLINKO_MIN_BET || 50));
 const MAX_BET = Math.max(MIN_BET, Number(process.env.WEB_PLINKO_MAX_BET || 10000));
@@ -57,9 +58,9 @@ function buildWeightedBuckets(rtp) {
 }
 
 function generatePath(bucketIndex) {
-  const rows = 9;
+  const rows = 12;
   const path = [];
-  let pos = 4;
+  let pos = 5;
   for (let i = 0; i < rows; i += 1) {
     const wantRight = bucketIndex > pos;
     const randomRight = Math.random() > 0.5;
@@ -122,6 +123,19 @@ async function playWebPlinko({ userId, bet }) {
   }
 
   const updated = await getUser(userId);
+  const path = generatePath(bucket.index);
+  await recordWebGameHistory({
+    userId,
+    game: 'plinko',
+    title: `Bucket ${bucket.label}`,
+    outcome: payout > amount ? 'win' : payout > 0 ? 'paid' : 'lose',
+    bet: amount,
+    payout,
+    net: payout - amount,
+    multiplier: bucket.multiplier,
+    label: bucket.label,
+    meta: { bucket: bucket.index, rawPayout, rtp, path },
+  });
   return {
     ok: true,
     game: 'plinko',
@@ -129,7 +143,7 @@ async function playWebPlinko({ userId, bet }) {
     rtp,
     bet: amount,
     bucket: { index: bucket.index, label: bucket.label, multiplier: bucket.multiplier, color: bucket.color },
-    path: generatePath(bucket.index),
+    path,
     payout,
     rawPayout,
     net: payout - amount,

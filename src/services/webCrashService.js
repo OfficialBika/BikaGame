@@ -5,6 +5,7 @@ const { getDb } = require('../config/database');
 const { getUser, userPayToTreasury, treasuryPayToUser } = require('./economyService');
 const { getTreasury } = require('./treasuryService');
 const { fullNameFromTg } = require('../utils/helpers');
+const { recordWebGameHistory } = require('./webBetHistoryService');
 
 const rooms = new Map();
 const onlineUsers = new Map();
@@ -424,6 +425,25 @@ function finishRound(room, result = 'crashed') {
   round.endedAtMs = Date.now();
   round.currentMultiplier = round2(currentTarget(round) || round.currentMultiplier || 1);
   pushHistory(room, round);
+
+  for (const player of round.players?.values?.() || []) {
+    if (!player.cashedOut) {
+      recordWebGameHistory({
+        userId: player.userId,
+        game: 'rocket',
+        title: `Round #${round.no} crashed`,
+        outcome: 'lose',
+        bet: player.bet,
+        payout: 0,
+        net: -Number(player.bet || 0),
+        multiplier: round.currentMultiplier,
+        label: `x${Number(round.currentMultiplier || 1).toFixed(2)}`,
+        roundNo: round.no,
+        meta: { roomId: room.roomId, roundId: round.id, hypeMode: !!round.hypeMode, rocketRtp: round.rocketRtp || null },
+      }).catch(() => null);
+    }
+  }
+
   room.lastRound = snapshotRound(round);
   room.round = null;
   scheduleNextRound(room, NEXT_ROUND_DELAY_MS);
@@ -654,6 +674,20 @@ async function cashoutWebCrash({ userId, roomId = DEFAULT_ROOM_ID }) {
     player.cashoutMultiplier = effectiveMultiplier;
     player.payout = payout;
     player.cashedOutAt = new Date().toISOString();
+
+    await recordWebGameHistory({
+      userId: finalUserId,
+      game: 'rocket',
+      title: `Round #${round.no} cashout`,
+      outcome: payout > player.bet ? 'win' : payout > 0 ? 'paid' : 'lose',
+      bet: player.bet,
+      payout,
+      net: payout - player.bet,
+      multiplier: effectiveMultiplier,
+      label: `x${Number(effectiveMultiplier || 0).toFixed(2)}`,
+      roundNo: round.no,
+      meta: { roomId: room.roomId, roundId: round.id, shownMultiplier: round.currentMultiplier, rawPayout, rocketRtp: round.rocketRtp || null },
+    });
 
     if (allPlayersCashedOut(round) && !round.hypeMode && !round.hypeDecided) {
       round.hypeDecided = true;
