@@ -1,1 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Bika Game App</title>
+  <link rel="stylesheet" href="/miniapp/assets/style.css" />
+</head>
+<body>
+  <main class="app">
+    <section class="hero card">
+      <div>
+        <p class="eyebrow">BIKA MINI APP</p>
+        <h1>🎮 Bika Game</h1>
+        <p id="welcomeText">Telegram ထဲကနေ Slot / Crash ဆော့နိုင်ပါတယ်။</p>
+      </div>
+      <div class="balance-box">
+        <span>Balance</span>
+        <strong id="balanceText">—</strong>
+      </div>
+    </section>
 
+    <section id="notTelegram" class="notice hidden">
+      ဒီ Mini App ကို Telegram Bot ထဲကနေဖွင့်မှ login verify အလုပ်လုပ်ပါမယ်။
+    </section>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="slot">🎰 Slot</button>
+      <button class="tab" data-tab="crash">🚀 Crash</button>
+    </nav>
+
+    <section id="slot" class="panel active">
+      <div class="card game-card">
+        <div class="game-head">
+          <h2>🎰 Slot</h2>
+          <span id="slotRange">—</span>
+        </div>
+        <label class="field">
+          <span>Bet Amount</span>
+          <input id="slotBet" type="number" inputmode="numeric" min="1" placeholder="1000" />
+        </label>
+        <button id="spinBtn" class="primary-btn">SPIN</button>
+        <pre id="slotReels" class="slot-reels">┏━━━━━━━━━━━━━━━━━━┓
+┃  ?  |  ?  |  ?  ┃
+┗━━━━━━━━━━━━━━━━━━┛</pre>
+        <div id="slotResult" class="result muted">Bet ထည့်ပြီး SPIN နှိပ်ပါ။</div>
+      </div>
+    </section>
+
+    <section id="crash" class="panel">
+      <div class="card game-card">
+        <div class="game-head">
+          <h2>🚀 Crash</h2>
+          <span id="crashRange">—</span>
+        </div>
+        <div class="multiplier" id="crashMultiplier">x1.00</div>
+        <p id="crashState" class="muted">Bet ထည့်ပြီး Start နှိပ်ပါ။</p>
+        <label class="field">
+          <span>Bet Amount</span>
+          <input id="crashBet" type="number" inputmode="numeric" min="1" placeholder="1000" />
+        </label>
+        <div class="action-row">
+          <button id="crashStartBtn" class="primary-btn">START</button>
+          <button id="cashoutBtn" class="success-btn" disabled>CASH OUT</button>
+        </div>
+        <div id="crashResult" class="result muted">Cash Out timing ကိုသတိထားပါ။</div>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="/miniapp/assets/app.js"></script>
+</body>
+</html>
