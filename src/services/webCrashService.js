@@ -9,10 +9,7 @@ const rooms = new Map();
 
 const DEFAULT_ROOM_ID = 'global';
 const BET_SECONDS = Math.max(6, Number(process.env.WEB_CRASH_BET_SECONDS || CRASH.betSeconds || 15));
-// Web round result should not sit too long before the next betting round.
-const NEXT_ROUND_DELAY_MS = Math.max(800, Number(process.env.WEB_CRASH_NEXT_ROUND_DELAY_MS || 2200));
-// Fast tick + small deterministic increments make the rocket climb smoothly instead of pausing between polls.
-const TICK_MS = Math.max(80, Number(process.env.WEB_CRASH_TICK_MS || 120));
+const NEXT_ROUND_DELAY_MS = Math.max(500, Number(process.env.WEB_CRASH_NEXT_ROUND_DELAY_MS || 1200));
 const MIN_BET = Math.max(1, Number(CRASH.minBet || process.env.CRASH_MIN_BET || 50));
 const MAX_BET = Math.max(MIN_BET, Number(CRASH.maxBet || process.env.CRASH_MAX_BET || 10000));
 const MAX_PLAYERS = Math.max(2, Number(process.env.WEB_CRASH_MAX_PLAYERS || CRASH.maxPlayers || 250));
@@ -27,7 +24,6 @@ const MIN_CASHOUT_MULTIPLIER = Math.max(1, Math.min(PAYOUT_MAX_MULTIPLIER, Numbe
 const DISPLAY_PLAYER_LIMIT = Math.max(12, Number(process.env.WEB_CRASH_DISPLAY_PLAYER_LIMIT || CRASH.displayPlayerLimit || 30));
 const ALL_CASHOUT_HYPE_MIN = Math.max(8, Number(CRASH.allCashoutHypeMin || process.env.CRASH_ALL_CASHOUT_HYPE_MIN || 25));
 const ALL_CASHOUT_HYPE_MAX = Math.max(ALL_CASHOUT_HYPE_MIN, Number(CRASH.allCashoutHypeMax || process.env.CRASH_ALL_CASHOUT_HYPE_MAX || 250));
-// Big all-cashout hype is rare: default exactly once per 20 all-cashout rounds.
 const HYPE_EVERY_ALL_CASHOUT_ROUNDS = Math.max(2, Number(process.env.WEB_CRASH_HYPE_EVERY_ALL_CASHOUT_ROUNDS || 20));
 const HYPE_EXTRA_CHANCE_PERCENT = Math.max(0, Math.min(100, Number(process.env.WEB_CRASH_HYPE_EXTRA_CHANCE_PERCENT || 0)));
 const HISTORY_LIMIT = Math.max(5, Number(process.env.WEB_CRASH_HISTORY_LIMIT || 12));
@@ -94,8 +90,8 @@ function generateCrashPoint(round, treasuryBalance = 0) {
   const r = Math.max(0.0001, Math.min(0.9999, Math.random()));
   let point = (1 - HOUSE_EDGE) / (1 - r);
 
-  // Web multiplayer is intentionally tighter than solo crash.
-  point *= 0.66 + Math.random() * 0.20;
+  // Multiplayer web is controlled, but not frozen. This keeps the curve fair and smooth.
+  point *= 0.68 + Math.random() * 0.18;
 
   if (playerCount >= 25) point *= 0.80;
   else if (playerCount >= 12) point *= 0.86;
@@ -113,9 +109,7 @@ function generateCrashPoint(round, treasuryBalance = 0) {
     }
   }
 
-  point = Math.min(point, CRASH_MAX_MULTIPLIER);
-  point = Math.max(point, MIN_VISIBLE_MULTIPLIER);
-  return round2(point);
+  return round2(Math.max(MIN_VISIBLE_MULTIPLIER, Math.min(point, CRASH_MAX_MULTIPLIER)));
 }
 
 function generateHypeTarget() {
@@ -129,125 +123,75 @@ function shouldStartHype(room) {
   return Math.random() * 100 < HYPE_EXTRA_CHANCE_PERCENT;
 }
 
-function nextMultiplier(current, target, hypeMode = false) {
-  const c = Math.max(1, Number(current || 1));
-  let next;
+function normalCrashDurationMs(target) {
+  const m = Math.max(MIN_VISIBLE_MULTIPLIER, Number(target || MIN_VISIBLE_MULTIPLIER));
+  if (m <= 1.25) return 3000 + Math.round((m - 1.05) * 4200);
+  if (m <= 2) return 4200 + Math.round((m - 1.25) * 4200);
+  if (m <= 4) return 7350 + Math.round((m - 2) * 3600);
+  return Math.min(26000, 14550 + Math.round((m - 4) * 2500));
+}
+
+function hypeDurationMs(current, target) {
+  const from = Math.max(1, Number(current || 1));
+  const to = Math.max(from, Number(target || from));
+  return Math.min(22000, Math.max(4200, Math.round(2600 + Math.log(to / from + 1) * 5200)));
+}
+
+function multiplierAtElapsed(elapsedMs, durationMs, target, from = 1, hypeMode = false) {
+  const start = Math.max(1, Number(from || 1));
+  const end = Math.max(start, Number(target || start));
+  const duration = Math.max(1, Number(durationMs || 1));
+  const progress = Math.max(0, Math.min(1, Number(elapsedMs || 0) / duration));
+
+  if (progress >= 1) return round2(end);
 
   if (hypeMode) {
-    // Hype rounds still move smoothly; they just accelerate higher than normal.
-    const step = c < 3 ? 0.05 : c < 10 ? c * 0.026 : c < 60 ? c * 0.034 : c * 0.042;
-    next = c + step;
-  } else {
-    // Normal climb: small stable steps, no random stops/jumps.
-    const step = c < 1.6 ? 0.008 + c * 0.006 : c < 2.6 ? 0.015 + c * 0.012 : 0.018 + c * 0.015;
-    next = c + step;
+    // Smooth acceleration for the rare 1/20 all-cashout show-off round.
+    const eased = Math.pow(progress, 1.28);
+    return round2(start + (end - start) * eased);
   }
 
-  if (next >= target) return round2(target);
-  return round2(next);
+  // Gentle normal climb. It avoids the visual freeze caused by timer drift or polling gaps.
+  const eased = Math.pow(progress, 1.12);
+  return round2(start + (end - start) * eased);
 }
 
-function getRoom(roomId = DEFAULT_ROOM_ID) {
-  const key = String(roomId || DEFAULT_ROOM_ID);
-  let room = rooms.get(key);
+function currentTarget(round) {
+  return round.hypeMode && allPlayersCashedOut(round) ? round.hypeTarget : round.crashPoint;
+}
 
-  if (!room) {
-    room = {
-      roomId: key,
-      roundNo: 0,
-      round: null,
-      lastRound: null,
-      history: [],
-      allCashoutRoundCount: 0,
-      timers: new Set(),
-      startedAt: new Date(),
-    };
-    rooms.set(key, room);
+function computeRoundMultiplier(round, now = Date.now()) {
+  if (!round || round.state !== 'running') return Number(round?.currentMultiplier || 1);
+
+  const started = Number(round.startedAtMs || now);
+  const target = currentTarget(round);
+  const duration = Math.max(1, Number(round.crashDurationMs || normalCrashDurationMs(target)));
+  const from = Math.max(1, Number(round.multiplierFrom || 1));
+  const elapsed = Math.max(0, now - started);
+  return multiplierAtElapsed(elapsed, duration, target, from, !!round.hypeMode);
+}
+
+function advanceRoom(room, now = Date.now()) {
+  const round = room?.round;
+  if (!round) return null;
+
+  if (round.state === 'betting' && now >= round.bettingEndsAtMs) {
+    closeBettingRound(room).catch((err) => console.error('WEB_CRASH_AUTOCLOSE_FAILED:', err?.stack || err?.message || err));
+    return round;
   }
 
-  if (!room.round) scheduleNextRound(room, 0);
-  return room;
-}
+  if (round.state !== 'running') return round;
 
-function clearRoomTimers(room) {
-  for (const timer of room.timers || []) clearTimeout(timer);
-  room.timers.clear();
-}
+  round.currentMultiplier = computeRoundMultiplier(round, now);
 
-function setRoomTimer(room, fn, ms) {
-  const timer = setTimeout(() => {
-    room.timers.delete(timer);
-    fn();
-  }, ms);
-  room.timers.add(timer);
-  return timer;
-}
-
-function scheduleNextRound(room, delayMs = NEXT_ROUND_DELAY_MS) {
-  clearRoomTimers(room);
-  setRoomTimer(room, () => startBettingRound(room), Math.max(0, delayMs));
-}
-
-function startBettingRound(room) {
-  clearRoomTimers(room);
-  room.roundNo += 1;
-  room.round = {
-    id: makeId(),
-    no: room.roundNo,
-    state: 'betting',
-    players: new Map(),
-    pendingBets: new Set(),
-    currentMultiplier: 1,
-    crashPoint: null,
-    hypeMode: false,
-    hypeTarget: null,
-    hypeDecided: false,
-    startedAtMs: null,
-    betStartedAtMs: Date.now(),
-    bettingEndsAtMs: Date.now() + BET_SECONDS * 1000,
-    endedAtMs: null,
-    createdAt: new Date().toISOString(),
-  };
-
-  setRoomTimer(room, () => closeBettingRound(room).catch((err) => {
-    console.error('WEB_CRASH_CLOSE_FAILED:', err?.stack || err?.message || err);
-    finishRound(room, 'error');
-  }), BET_SECONDS * 1000);
-}
-
-async function closeBettingRound(room) {
-  const round = room.round;
-  if (!round || round.state !== 'betting') return;
-
-  if (!round.players.size) {
-    round.state = 'no_bets';
-    round.endedAtMs = Date.now();
-    room.lastRound = snapshotRound(round);
-    room.round = null;
-    return scheduleNextRound(room, NEXT_ROUND_DELAY_MS);
+  const target = currentTarget(round);
+  const crashAt = Number(round.crashAtMs || 0);
+  if (round.currentMultiplier >= target || (crashAt > 0 && now >= crashAt)) {
+    round.currentMultiplier = round2(target);
+    finishRound(room, 'crashed');
   }
 
-  const treasury = await getTreasury();
-  round.crashPoint = generateCrashPoint(round, Number(treasury?.ownerBalance || 0));
-  round.currentMultiplier = 1;
-  round.state = 'running';
-  round.startedAtMs = Date.now();
-
-  tickRound(room);
-}
-
-function tickRound(room) {
-  const round = room.round;
-  if (!round || round.state !== 'running') return;
-
-  const target = round.hypeMode && allPlayersCashedOut(round) ? round.hypeTarget : round.crashPoint;
-  round.currentMultiplier = nextMultiplier(round.currentMultiplier, target, round.hypeMode);
-
-  if (round.currentMultiplier >= target) {
-    return finishRound(room, 'crashed');
-  }
-
-  setRoomTimer(room, () => tickRound(room), TICK_MS);
+  return room.round || room.lastRound;
 }
 
 function crashHistoryColor(value) {
@@ -289,9 +233,115 @@ function snapshotRound(round) {
     betStartedAtMs: round.betStartedAtMs,
     bettingEndsAtMs: round.bettingEndsAtMs,
     startedAtMs: round.startedAtMs,
+    crashAtMs: round.crashAtMs,
+    crashDurationMs: round.crashDurationMs,
+    multiplierFrom: round.multiplierFrom,
     endedAtMs: round.endedAtMs,
     createdAt: round.createdAt,
   };
+}
+
+function getRoom(roomId = DEFAULT_ROOM_ID) {
+  const key = String(roomId || DEFAULT_ROOM_ID);
+  let room = rooms.get(key);
+
+  if (!room) {
+    room = {
+      roomId: key,
+      roundNo: 0,
+      round: null,
+      lastRound: null,
+      history: [],
+      allCashoutRoundCount: 0,
+      timers: new Set(),
+      startedAt: new Date(),
+    };
+    rooms.set(key, room);
+  }
+
+  if (!room.round) scheduleNextRound(room, 0);
+  advanceRoom(room);
+  return room;
+}
+
+function clearRoomTimers(room) {
+  for (const timer of room.timers || []) clearTimeout(timer);
+  room.timers.clear();
+}
+
+function setRoomTimer(room, fn, ms) {
+  const timer = setTimeout(() => {
+    room.timers.delete(timer);
+    fn();
+  }, ms);
+  room.timers.add(timer);
+  return timer;
+}
+
+function scheduleNextRound(room, delayMs = NEXT_ROUND_DELAY_MS) {
+  clearRoomTimers(room);
+  setRoomTimer(room, () => startBettingRound(room), Math.max(0, delayMs));
+}
+
+function startBettingRound(room) {
+  clearRoomTimers(room);
+  room.roundNo += 1;
+  const now = Date.now();
+  room.round = {
+    id: makeId(),
+    no: room.roundNo,
+    state: 'betting',
+    players: new Map(),
+    pendingBets: new Set(),
+    currentMultiplier: 1,
+    crashPoint: null,
+    hypeMode: false,
+    hypeTarget: null,
+    hypeDecided: false,
+    multiplierFrom: 1,
+    crashDurationMs: null,
+    crashAtMs: null,
+    startedAtMs: null,
+    betStartedAtMs: now,
+    bettingEndsAtMs: now + BET_SECONDS * 1000,
+    endedAtMs: null,
+    createdAt: new Date().toISOString(),
+  };
+
+  setRoomTimer(room, () => closeBettingRound(room).catch((err) => {
+    console.error('WEB_CRASH_CLOSE_FAILED:', err?.stack || err?.message || err);
+    finishRound(room, 'error');
+  }), BET_SECONDS * 1000);
+}
+
+async function closeBettingRound(room) {
+  const round = room.round;
+  if (!round || round.state !== 'betting') return;
+  clearRoomTimers(room);
+
+  if (!round.players.size) {
+    round.state = 'no_bets';
+    round.endedAtMs = Date.now();
+    room.lastRound = snapshotRound(round);
+    room.round = null;
+    return scheduleNextRound(room, NEXT_ROUND_DELAY_MS);
+  }
+
+  const treasury = await getTreasury();
+  const now = Date.now();
+  round.crashPoint = generateCrashPoint(round, Number(treasury?.ownerBalance || 0));
+  round.currentMultiplier = 1;
+  round.multiplierFrom = 1;
+  round.crashDurationMs = normalCrashDurationMs(round.crashPoint);
+  round.startedAtMs = now;
+  round.crashAtMs = now + round.crashDurationMs;
+  round.state = 'running';
+
+  // A timer is kept only as a safety net. Status/cashout also computes from Date.now(), so the UI cannot freeze.
+  setRoomTimer(room, () => {
+    advanceRoom(room);
+    if (room.round === round && round.state === 'running') finishRound(room, 'crashed');
+  }, round.crashDurationMs + 50);
 }
 
 function finishRound(room, result = 'crashed') {
@@ -301,6 +351,7 @@ function finishRound(room, result = 'crashed') {
   clearRoomTimers(room);
   round.state = result === 'error' ? 'error' : 'crashed';
   round.endedAtMs = Date.now();
+  round.currentMultiplier = round2(currentTarget(round) || round.currentMultiplier || 1);
   pushHistory(room, round);
   room.lastRound = snapshotRound(round);
   room.round = null;
@@ -379,7 +430,13 @@ function publicRound(round, userId, source = 'current') {
     multiplier: Number(round.currentMultiplier || 1),
     crashPoint: round.state === 'crashed' || round.state === 'no_bets' || source === 'last' ? Number(round.currentMultiplier || round.crashPoint || 1) : null,
     startedAtMs: round.startedAtMs || null,
+    // Do not expose hidden crashAt/crashDuration/target while running.
+    crashAtMs: round.state === 'crashed' || source === 'last' ? round.crashAtMs || null : null,
+    crashDurationMs: round.state === 'crashed' || source === 'last' ? round.crashDurationMs || null : null,
+    multiplierFrom: round.state === 'crashed' || source === 'last' ? round.multiplierFrom || 1 : null,
     endedAtMs: round.endedAtMs || null,
+    betStartedAtMs: round.betStartedAtMs || null,
+    bettingEndsAtMs: round.bettingEndsAtMs || null,
     betSeconds: BET_SECONDS,
     secondsLeft,
     nextRoundDelayMs: NEXT_ROUND_DELAY_MS,
@@ -395,6 +452,7 @@ function publicRound(round, userId, source = 'current') {
     totalPaid: totalPaid(round),
     houseNet: totalBet(round) - totalPaid(round),
     hypeMode: !!round.hypeMode,
+    hypeTarget: round.state === 'crashed' || source === 'last' ? round.hypeTarget || null : null,
     me: getMe(round, userId),
   };
 }
@@ -403,6 +461,7 @@ async function getWebCrashStatus(userId, roomId = DEFAULT_ROOM_ID) {
   const finalUserId = cleanUserId(userId);
   if (!finalUserId) throw new Error('INVALID_USER');
   const room = getRoom(roomId);
+  advanceRoom(room);
   const round = room.round;
   const current = round ? publicRound(round, finalUserId, 'current') : null;
   const last = room.lastRound ? publicRound(room.lastRound, finalUserId, 'last') : null;
@@ -430,6 +489,7 @@ async function placeWebCrashBet({ userId, user, bet, roomId = DEFAULT_ROOM_ID })
   }
 
   const room = getRoom(roomId);
+  advanceRoom(room);
   const round = room.round;
   if (!round || round.state !== 'betting') throw new Error('NOT_BETTING');
   if (round.players.has(finalUserId) || round.pendingBets.has(finalUserId)) throw new Error('ALREADY_BET');
@@ -481,6 +541,7 @@ async function cashoutWebCrash({ userId, roomId = DEFAULT_ROOM_ID }) {
   if (!finalUserId) throw new Error('INVALID_USER');
 
   const room = getRoom(roomId);
+  advanceRoom(room);
   const round = room.round;
   if (!round || round.state !== 'running') throw new Error('NO_ACTIVE_CRASH');
 
@@ -488,7 +549,7 @@ async function cashoutWebCrash({ userId, roomId = DEFAULT_ROOM_ID }) {
   if (!player) throw new Error('NOT_IN_ROUND');
   if (player.cashedOut) throw new Error('ALREADY_CASHED_OUT');
   if (player.cashingOut) throw new Error('CASHOUT_PROCESSING');
-  if (round.currentMultiplier >= round.crashPoint && !round.hypeMode) throw new Error('CRASHED');
+  if (round.currentMultiplier >= currentTarget(round) && !round.hypeMode) throw new Error('CRASHED');
   if (round.currentMultiplier < MIN_CASHOUT_MULTIPLIER && !round.hypeMode) {
     const err = new Error('CASHOUT_LOCKED');
     err.minMultiplier = MIN_CASHOUT_MULTIPLIER;
@@ -522,9 +583,19 @@ async function cashoutWebCrash({ userId, roomId = DEFAULT_ROOM_ID }) {
     if (allPlayersCashedOut(round) && !round.hypeMode && !round.hypeDecided) {
       round.hypeDecided = true;
       if (shouldStartHype(room)) {
+        clearRoomTimers(room);
         round.hypeMode = true;
         round.hypeTarget = generateHypeTarget();
+        round.multiplierFrom = Math.max(round.currentMultiplier, MIN_CASHOUT_MULTIPLIER);
+        round.startedAtMs = Date.now();
+        round.crashDurationMs = hypeDurationMs(round.multiplierFrom, round.hypeTarget);
+        round.crashAtMs = round.startedAtMs + round.crashDurationMs;
+        setRoomTimer(room, () => {
+          advanceRoom(room);
+          if (room.round === round && round.state === 'running') finishRound(room, 'crashed');
+        }, round.crashDurationMs + 50);
       }
+      // Most all-cashout rounds keep the original crash point and do not jump to big hype.
     }
 
     const updated = await getUser(finalUserId);
@@ -554,7 +625,10 @@ module.exports = {
   _private: {
     generateCrashPoint,
     generateHypeTarget,
-    nextMultiplier,
+    shouldStartHype,
+    normalCrashDurationMs,
+    multiplierAtElapsed,
+    computeRoundMultiplier,
     round2,
     rooms,
   },
