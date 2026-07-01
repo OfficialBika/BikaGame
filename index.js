@@ -187,7 +187,16 @@ function createApp() {
   });
 
   const miniAppPublicDir = path.join(__dirname, 'public', 'miniapp');
-  app.use('/miniapp/assets', express.static(miniAppPublicDir, { maxAge: '1h' }));
+  app.use('/miniapp/assets', express.static(miniAppPublicDir, {
+    maxAge: 0,
+    etag: false,
+    lastModified: false,
+    setHeaders(res) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    },
+  }));
   registerMiniAppRoutes(app, { bot, publicDir: miniAppPublicDir });
 
   app.get('/', (req, res) => {
