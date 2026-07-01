@@ -11,6 +11,7 @@ const { playWebPlinko, BUCKETS: PLINKO_BUCKETS, MIN_BET: PLINKO_MIN_BET, MAX_BET
 const { spinWebWheel, SEGMENTS: WHEEL_SEGMENTS, MIN_BET: WHEEL_MIN_BET, MAX_BET: WHEEL_MAX_BET } = require('../services/webWheelService');
 const { startWebMines, getWebMinesStatus, openWebMinesTile, cashoutWebMines, MIN_BET: MINES_MIN_BET, MAX_BET: MINES_MAX_BET, DEFAULT_MINES, MIN_CASHOUT_SAFE } = require('../services/webMinesService');
 const { getAllWebGameRtps } = require('../services/webGameRtpService');
+const { getWebGameHistory } = require('../services/webBetHistoryService');
 const { verifyTelegramMiniAppInitData, getInitDataFromRequest } = require('./telegramMiniAuth');
 
 function publicMiniAppUrl() {
@@ -163,6 +164,17 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
           isVip: !!doc.isVip,
         },
       });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+
+  app.post('/api/mini/history', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const items = await getWebGameHistory(req.telegramUser.id, req.body?.game || 'all', req.body?.limit || 20);
+      return res.json({ ok: true, items });
     } catch (err) {
       return sendError(res, err);
     }
