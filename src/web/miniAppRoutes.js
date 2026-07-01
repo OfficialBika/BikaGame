@@ -80,6 +80,9 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
   const publicDir = options.publicDir || path.join(process.cwd(), 'public', 'miniapp');
 
   app.get(['/miniapp', '/miniapp/'], (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     return res.sendFile(path.join(publicDir, 'index.html'));
   });
 
