@@ -1,10 +1,13 @@
 const tg = window.Telegram?.WebApp;
 const initData = tg?.initData || '';
 let config = null;
-let crashTimer = null;
+let pollTimer = null;
+let lastRoundId = null;
+let lastPhase = null;
 
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
+const coin = () => config?.coin || '$';
 
 function setBusy(button, busy, label) {
   if (!button) return;
@@ -18,12 +21,9 @@ function setBusy(button, busy, label) {
   }
 }
 
-function coin() {
-  return config?.coin || '$';
-}
-
 function setBalance(value) {
   $('balanceText').textContent = `${fmt(value)} ${coin()}`;
+  $('smallBalanceText').textContent = `${fmt(value)} ${coin()}`;
 }
 
 async function api(path, body = {}) {
@@ -50,16 +50,14 @@ async function loadConfig() {
   const res = await fetch('/api/mini/config');
   config = await res.json();
   $('slotRange').textContent = `${fmt(config.slot.minBet)} - ${fmt(config.slot.maxBet)} ${config.coin}`;
-  $('crashRange').textContent = `${fmt(config.crash.minBet)} - ${fmt(config.crash.maxBet)} ${config.coin}`;
-  $('slotBet').value = config.slot.minBet;
   $('crashBet').value = config.crash.minBet;
+  $('slotBet').value = config.slot.minBet;
 }
 
 async function loadMe() {
   const data = await api('/api/mini/me');
   const user = data.user || {};
   setBalance(user.balance);
-  $('welcomeText').textContent = `Welcome ${user.firstName || user.username || 'Player'} — Rocket ကိုအချိန်မီ Cash Out လုပ်ပါ။`;
 }
 
 function showTab(tab) {
@@ -92,129 +90,196 @@ async function spinSlot() {
   }
 }
 
-function rocketProgress(multiplier) {
+function rocketProgress(multiplier, phase) {
+  if (phase === 'betting') return 0;
   const m = Math.max(1, Number(multiplier || 1));
-  const visualMax = Math.max(3, Number(config?.crash?.maxPayoutMultiplier || 4));
+  const visualMax = Math.max(3.6, Number(config?.crash?.maxPayoutMultiplier || 4));
   return Math.max(0, Math.min(1, (m - 1) / (visualMax - 1)));
 }
 
-function setRocketScene(mode, multiplier) {
+function setRocketScene(phase, multiplier, secondsLeft) {
   const scene = $('rocketScene');
-  const badge = $('crashBadge');
-  const progress = rocketProgress(multiplier);
-
+  const progress = rocketProgress(multiplier, phase);
   scene.style.setProperty('--rocket-progress', progress.toFixed(3));
-  scene.classList.remove('idle', 'running', 'crashed', 'cashed');
-  badge.classList.remove('idle', 'running', 'win', 'crashed');
+  scene.classList.remove('betting', 'running', 'crashed', 'cashed', 'waiting');
 
-  if (mode === 'running') {
+  if (phase === 'betting') {
+    scene.classList.add('betting');
+    const total = Math.max(1, Number(config?.crash?.betSeconds || 15));
+    scene.style.setProperty('--count-progress', String(Math.max(0, Math.min(1, secondsLeft / total))));
+  } else if (phase === 'running') {
     scene.classList.add('running');
-    badge.classList.add('running');
-    badge.textContent = 'FLYING';
-  } else if (mode === 'win') {
-    scene.classList.add('cashed');
-    badge.classList.add('win');
-    badge.textContent = 'CASHED OUT';
-  } else if (mode === 'crashed') {
+  } else if (phase === 'crashed') {
     scene.classList.add('crashed');
-    badge.classList.add('crashed');
-    badge.textContent = 'CRASHED';
+  } else if (phase === 'cashed') {
+    scene.classList.add('cashed');
   } else {
-    scene.classList.add('idle');
-    badge.classList.add('idle');
-    badge.textContent = 'READY';
-    scene.style.setProperty('--rocket-progress', '0');
+    scene.classList.add('waiting');
   }
 }
 
-function renderCrash(data) {
-  const mult = Number(data.multiplier || data.crashPoint || 1);
-  $('crashMultiplier').textContent = `x${mult.toFixed(2)}`;
-  $('cashoutBtn').disabled = !(data.active && mult >= Number(config?.crash?.minCashoutMultiplier || 1.1));
-  $('crashStartBtn').disabled = !!data.active;
+function renderPlayers(round) {
+  const box = $('playersList');
+  const players = round?.players || [];
 
+  if (!players.length) {
+    box.innerHTML = '<div class="result muted">ဒီ round မှာ bet ဝင်သူမရှိသေးပါ။</div>';
+    return;
+  }
+
+  box.innerHTML = players.map((p) => {
+    const payout = p.cashedOut
+      ? `<span class="player-payout win">x${Number(p.cashoutMultiplier || 0).toFixed(2)} • ${fmt(p.payout)} ${coin()}</span>`
+      : `<span class="player-payout">${round.state === 'crashed' ? '💥 Lost' : 'Playing'}</span>`;
+
+    return `
+      <div class="player-row ${p.me ? 'me' : ''}">
+        <div class="avatar">${escapeHtml(p.initials || 'P')}</div>
+        <div>
+          <div class="player-name">${escapeHtml(p.name || 'Player')}${p.me ? ' • You' : ''}</div>
+          <div class="player-meta">Bet ${fmt(p.bet)} ${coin()}</div>
+        </div>
+        ${payout}
+      </div>`;
+  }).join('');
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
+function renderCrash(data) {
   if (typeof data.balance !== 'undefined') setBalance(data.balance);
 
-  if (data.active) {
-    setRocketScene('running', mult);
-    $('crashState').textContent = `Rocket flying • Bet ${fmt(data.bet)} ${coin()}`;
-    $('crashResult').className = 'result rocket-result muted';
-    $('crashResult').innerHTML = `Cash Out min <b>x${Number(data.cashoutMinMultiplier || config.crash.minCashoutMultiplier || 1.1).toFixed(2)}</b><br>မပေါက်ခင် <b>CASH OUT</b> နှိပ်ပါ။`;
-  } else if (data.cashedOut) {
-    setRocketScene('win', mult);
-    $('crashState').textContent = 'Rocket escaped successfully!';
-    $('crashResult').className = 'result rocket-result win';
-    $('crashResult').innerHTML = `🎉 <b>Congratulations</b><br>Bet: <b>${fmt(data.bet)}</b> ${coin()}<br>Multiplier: <b>x${Number(data.effectiveMultiplier || data.multiplier || 1).toFixed(2)}</b><br>Payout: <b>${fmt(data.payout)}</b> ${coin()}<br>Net: <b>${fmt(data.net)}</b> ${coin()}`;
-  } else if (data.crashed) {
-    const crashPoint = Number(data.crashPoint || data.multiplier || 1);
-    setRocketScene('crashed', crashPoint);
-    $('crashMultiplier').textContent = `x${crashPoint.toFixed(2)}`;
-    $('crashState').textContent = 'Rocket exploded!';
-    $('crashResult').className = 'result rocket-result lose';
-    $('crashResult').innerHTML = `💥 <b>CRASHED</b><br>Crash Point: <b>x${crashPoint.toFixed(2)}</b><br>Lost: <b>${fmt(data.bet)}</b> ${coin()}`;
-  } else {
-    setRocketScene('idle', 1);
-    $('crashMultiplier').textContent = 'x1.00';
-    $('crashState').textContent = 'Bet ထည့်ပြီး Launch နှိပ်ပါ။';
-    $('crashResult').className = 'result rocket-result muted';
-    $('crashResult').textContent = 'Rocket မပေါက်ခင် Cash Out လုပ်နိုင်ရင် payout ရပါမယ်။';
+  const round = data.round || data.lastRound;
+  const lastRound = data.lastRound;
+  const phase = round?.state || 'waiting';
+  const me = round?.me || {};
+  const multiplier = Number(round?.multiplier || round?.crashPoint || 1);
+
+  if (round?.id && (round.id !== lastRoundId || phase !== lastPhase)) {
+    lastRoundId = round.id;
+    lastPhase = phase;
+    if (phase === 'running') tg?.HapticFeedback?.impactOccurred?.('light');
+    if (phase === 'crashed') tg?.HapticFeedback?.notificationOccurred?.('warning');
   }
+
+  $('roundTitle').textContent = round ? `Round #${round.no}` : 'Round #—';
+  $('playerCount').textContent = fmt(round?.playerCount || 0);
+  $('totalBet').textContent = `${fmt(round?.totalBet || 0)} ${coin()}`;
+  $('totalPaid').textContent = `${fmt(round?.totalPaid || 0)} ${coin()}`;
+
+  const chip = $('phaseChip');
+  chip.className = 'round-chip';
+
+  if (phase === 'betting') {
+    chip.textContent = 'BET';
+    $('roundCountdown').textContent = Math.max(0, Number(round.secondsLeft || 0));
+    $('crashMultiplier').textContent = 'x1.00';
+    $('crashState').textContent = `Bet time ${round.secondsLeft}s • လူအများဝင်လောင်းနိုင်ပါတယ်`;
+    $('crashResult').className = 'result muted';
+    $('crashResult').innerHTML = me.inRound
+      ? `✅ ဒီ round မှာပါဝင်ပြီးပါပြီ။ Bet: <b>${fmt(me.bet)}</b> ${coin()}`
+      : `Bet range: <b>${fmt(round.minBet)}</b> - <b>${fmt(round.maxBet)}</b> ${coin()}<br>Place bet နှိပ်ပြီးဝင်ဆော့ပါ။`;
+    $('crashStartBtn').disabled = !!me.inRound;
+    $('cashoutBtn').disabled = true;
+    setRocketScene('betting', 1, Number(round.secondsLeft || 0));
+  } else if (phase === 'running') {
+    chip.textContent = 'LIVE';
+    chip.classList.add('run');
+    $('crashMultiplier').textContent = `x${multiplier.toFixed(2)}`;
+    $('crashState').textContent = round.hypeMode ? 'All players cashed out — rocket keeps flying!' : 'Rocket တက်နေပါတယ် • အချိန်မီ Cash Out လုပ်ပါ';
+    $('crashResult').className = 'result muted';
+    $('crashResult').innerHTML = me.inRound
+      ? me.cashedOut
+        ? `✅ Cash Out ပြီးပါပြီ။ Payout: <b>${fmt(me.payout)}</b> ${coin()}`
+        : `သင့် Bet: <b>${fmt(me.bet)}</b> ${coin()}<br>Cash Out min <b>x${Number(round.minCashoutMultiplier || 1.1).toFixed(2)}</b>`
+      : 'သင်ဒီ round မှာ bet မဝင်ထားပါ။ နောက် bet time ကိုစောင့်ပါ။';
+    $('crashStartBtn').disabled = true;
+    $('cashoutBtn').disabled = !(me.inRound && !me.cashedOut && round.me?.canCashout);
+    setRocketScene(me.cashedOut ? 'cashed' : 'running', multiplier, 0);
+  } else if (phase === 'crashed') {
+    chip.textContent = 'CRASHED';
+    chip.classList.add('crash');
+    const crashPoint = Number(round?.crashPoint || round?.multiplier || 1);
+    $('crashMultiplier').textContent = `x${crashPoint.toFixed(2)}`;
+    $('crashState').textContent = 'Rocket exploded! နောက် round auto စပါမယ်';
+    $('crashResult').className = 'result lose';
+    $('crashResult').innerHTML = `💥 <b>CRASHED</b><br>Crash Point: <b>x${crashPoint.toFixed(2)}</b><br>Cash Out: <b>${fmt(round?.cashoutCount || 0)}</b> | Lost: <b>${fmt(round?.leftCount || 0)}</b>`;
+    $('crashStartBtn').disabled = true;
+    $('cashoutBtn').disabled = true;
+    setRocketScene('crashed', crashPoint, 0);
+  } else if (phase === 'no_bets') {
+    chip.textContent = 'NEXT';
+    $('crashMultiplier').textContent = 'x1.00';
+    $('crashState').textContent = 'Bet ဝင်သူမရှိလို့ နောက် round ပြန်စပါမယ်';
+    $('crashResult').className = 'result muted';
+    $('crashResult').textContent = 'နောက် bet time ကိုစောင့်ပါ။';
+    $('crashStartBtn').disabled = true;
+    $('cashoutBtn').disabled = true;
+    setRocketScene('waiting', 1, 0);
+  } else {
+    chip.textContent = 'WAIT';
+    $('crashMultiplier').textContent = 'x1.00';
+    $('crashState').textContent = 'Loading next round...';
+    $('crashStartBtn').disabled = true;
+    $('cashoutBtn').disabled = true;
+    setRocketScene('waiting', 1, 0);
+  }
+
+  renderPlayers(round || lastRound);
 }
 
 async function pollCrash() {
   try {
     const data = await api('/api/mini/crash/status');
     renderCrash(data);
-    if (!data.active && crashTimer) {
-      clearInterval(crashTimer);
-      crashTimer = null;
-    }
   } catch (_) {}
 }
 
-async function startCrash() {
+async function placeCrashBet() {
   const btn = $('crashStartBtn');
-  setBusy(btn, true, 'LAUNCHING...');
+  setBusy(btn, true, 'Joining...');
   try {
-    const data = await api('/api/mini/crash/start', { bet: $('crashBet').value });
+    const data = await api('/api/mini/crash/bet', { bet: $('crashBet').value });
     renderCrash(data);
-    tg?.HapticFeedback?.impactOccurred?.('medium');
-    if (crashTimer) clearInterval(crashTimer);
-    crashTimer = setInterval(pollCrash, 420);
+    tg?.HapticFeedback?.notificationOccurred?.('success');
   } catch (err) {
-    $('crashResult').className = 'result rocket-result lose';
+    $('crashResult').className = 'result lose';
     $('crashResult').textContent = err.message;
     tg?.HapticFeedback?.notificationOccurred?.('error');
   } finally {
-    btn.textContent = btn.dataset.oldText || '🚀 LAUNCH';
-    btn.disabled = false;
+    btn.textContent = btn.dataset.oldText || 'Place bet';
+    await pollCrash();
   }
 }
 
 async function cashOut() {
   const btn = $('cashoutBtn');
-  setBusy(btn, true, 'CASHING...');
+  setBusy(btn, true, 'Cashing...');
   try {
     const data = await api('/api/mini/crash/cashout');
     renderCrash(data);
     tg?.HapticFeedback?.notificationOccurred?.('success');
-    if (crashTimer) {
-      clearInterval(crashTimer);
-      crashTimer = null;
-    }
   } catch (err) {
-    $('crashResult').className = 'result rocket-result lose';
+    $('crashResult').className = 'result lose';
     $('crashResult').textContent = err.message;
     tg?.HapticFeedback?.notificationOccurred?.('error');
     await pollCrash();
   } finally {
-    btn.textContent = btn.dataset.oldText || '💰 CASH OUT';
+    btn.textContent = btn.dataset.oldText || 'Cash Out';
   }
 }
 
 async function init() {
   tg?.ready?.();
   tg?.expand?.();
+  tg?.setHeaderColor?.('#07080d');
+  tg?.setBackgroundColor?.('#07080d');
 
   if (!initData) $('notTelegram').classList.remove('hidden');
 
@@ -225,14 +290,20 @@ async function init() {
       tg?.HapticFeedback?.selectionChanged?.();
     });
   });
+
   $('spinBtn').addEventListener('click', spinSlot);
-  $('crashStartBtn').addEventListener('click', startCrash);
+  $('crashStartBtn').addEventListener('click', placeCrashBet);
   $('cashoutBtn').addEventListener('click', cashOut);
 
   await loadConfig();
   await loadMe();
   await pollCrash();
+  pollTimer = setInterval(pollCrash, 650);
 }
+
+window.addEventListener('beforeunload', () => {
+  if (pollTimer) clearInterval(pollTimer);
+});
 
 init().catch((err) => {
   $('notTelegram').classList.remove('hidden');

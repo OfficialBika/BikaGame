@@ -8,28 +8,135 @@
 </head>
 <body>
   <main class="app">
-    <section class="hero card">
+    <header class="topbar">
       <div>
         <p class="eyebrow">BIKA MINI APP</p>
-        <h1>🚀 Bika Rocket Casino</h1>
-        <p id="welcomeText">Telegram ထဲကနေ Slot / Rocket Crash ဆော့နိုင်ပါတယ်။</p>
+        <h1>Bika Game</h1>
       </div>
-      <div class="balance-box">
+      <div class="balance-pill">
         <span>Balance</span>
         <strong id="balanceText">—</strong>
       </div>
-    </section>
+    </header>
 
     <section id="notTelegram" class="notice hidden">
       ဒီ Mini App ကို Telegram Bot ထဲကနေဖွင့်မှ login verify အလုပ်လုပ်ပါမယ်။
     </section>
 
     <nav class="tabs">
-      <button class="tab active" data-tab="slot">🎰 Slot</button>
-      <button class="tab" data-tab="crash">🚀 Rocket</button>
+      <button class="tab active" data-tab="crash">🚀 Rocket</button>
+      <button class="tab" data-tab="slot">🎰 Slot</button>
     </nav>
 
-    <section id="slot" class="panel active">
+    <section id="crash" class="panel active">
+      <div class="crash-layout">
+        <section class="rocket-stage card">
+          <div class="stage-head">
+            <button class="back-btn" type="button">‹ Back</button>
+            <div class="game-title">🚀 Bika Rocket</div>
+            <div class="wallet-chip" id="smallBalanceText">0.00</div>
+          </div>
+
+          <div id="rocketScene" class="space-window betting" style="--rocket-progress:0;">
+            <div class="stars stars-a"></div>
+            <div class="stars stars-b"></div>
+            <div class="meteor meteor-a"></div>
+            <div class="meteor meteor-b"></div>
+
+            <div id="countdownRing" class="countdown-ring">
+              <div class="ring-number" id="roundCountdown">15</div>
+              <small>BET TIME</small>
+            </div>
+
+            <div class="big-multiplier" id="crashMultiplier">x1.00</div>
+            <div class="round-status" id="crashState">နောက် round အတွက် bet time စောင့်နေပါတယ်…</div>
+
+            <svg class="flight-path" viewBox="0 0 420 270" aria-hidden="true">
+              <path class="path-guide" d="M42 232 C98 202 146 170 192 135 C242 96 300 55 374 26" />
+              <path class="path-glow" d="M42 232 C98 202 146 170 192 135 C242 96 300 55 374 26" pathLength="100" />
+            </svg>
+
+            <div id="rocketShip" class="rocket-ship" aria-hidden="true">
+              <svg viewBox="0 0 110 158">
+                <defs>
+                  <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#fff" />
+                    <stop offset="0.52" stop-color="#dce8ff" />
+                    <stop offset="1" stop-color="#7184c7" />
+                  </linearGradient>
+                  <linearGradient id="nose" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#ff7384" />
+                    <stop offset="1" stop-color="#dc224f" />
+                  </linearGradient>
+                  <linearGradient id="flame" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" stop-color="#fff7a8" />
+                    <stop offset="0.45" stop-color="#ff9b2f" />
+                    <stop offset="1" stop-color="#ff2a62" />
+                  </linearGradient>
+                </defs>
+                <path class="flame" d="M40 121 C42 147 55 160 55 160 C55 160 68 147 70 121 Z" fill="url(#flame)" />
+                <path class="flame-core" d="M49 123 C50 139 55 147 55 147 C55 147 60 139 61 123 Z" fill="#fffad1" />
+                <path d="M55 5 C34 25 27 55 27 96 L27 124 L83 124 L83 96 C83 55 76 25 55 5 Z" fill="url(#body)" />
+                <path d="M55 5 C42 18 35 35 31 52 L79 52 C75 35 68 18 55 5 Z" fill="url(#nose)" />
+                <circle cx="55" cy="75" r="17" fill="#102a59" stroke="#9be5ff" stroke-width="6" />
+                <circle cx="49" cy="69" r="4" fill="#e5ffff" />
+                <path d="M27 94 L7 129 L27 122 Z" fill="#e43d5f" />
+                <path d="M83 94 L103 129 L83 122 Z" fill="#e43d5f" />
+                <rect x="36" y="120" width="38" height="10" rx="5" fill="#394a82" />
+                <path d="M44 56 C40 74 40 98 44 116" stroke="#fff" stroke-opacity=".55" stroke-width="3" fill="none" />
+              </svg>
+            </div>
+
+            <div id="explosion" class="explosion"><span></span><span></span><span></span><b>💥</b></div>
+          </div>
+
+          <div class="odds-row" id="oddsRow">
+            <span class="odd green">1.05x</span>
+            <span class="odd red">1.10x</span>
+            <span class="odd green">1.25x</span>
+            <span class="odd yellow">1.50x</span>
+            <span class="odd blue">2.00x</span>
+          </div>
+
+          <div class="bet-card">
+            <label class="field compact">
+              <span>Bet amount</span>
+              <input id="crashBet" type="number" inputmode="numeric" min="1" placeholder="1000" />
+            </label>
+            <div class="quick-bets">
+              <button type="button" data-crash-bet="50">50</button>
+              <button type="button" data-crash-bet="100">100</button>
+              <button type="button" data-crash-bet="500">500</button>
+              <button type="button" data-crash-bet="1000">1K</button>
+              <button type="button" data-crash-bet="5000">5K</button>
+            </div>
+            <div class="action-row">
+              <button id="crashStartBtn" class="place-bet-btn">Place bet</button>
+              <button id="cashoutBtn" class="cashout-btn" disabled>Cash Out</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="players-card card">
+          <div class="players-head">
+            <div>
+              <p class="eyebrow">LIVE ROUND</p>
+              <h2 id="roundTitle">Round #—</h2>
+            </div>
+            <div class="round-chip" id="phaseChip">BET</div>
+          </div>
+          <div class="stats-grid">
+            <div><span>Players</span><b id="playerCount">0</b></div>
+            <div><span>Total Bet</span><b id="totalBet">0</b></div>
+            <div><span>Paid</span><b id="totalPaid">0</b></div>
+          </div>
+          <div id="crashResult" class="result muted">အလှည့်ကျ auto round လည်နေပါတယ်။ Bet time အတွင်း Place bet နှိပ်ပါ။</div>
+          <div id="playersList" class="players-list"></div>
+        </section>
+      </div>
+    </section>
+
+    <section id="slot" class="panel">
       <div class="card game-card slot-card">
         <div class="game-head">
           <h2>🎰 Bika Slot</h2>
@@ -44,69 +151,6 @@
 ┃  ?  |  ?  |  ?  ┃
 ┗━━━━━━━━━━━━━━━━━━┛</pre>
         <div id="slotResult" class="result muted">Bet ထည့်ပြီး SPIN နှိပ်ပါ။</div>
-      </div>
-    </section>
-
-    <section id="crash" class="panel">
-      <div class="card game-card rocket-card">
-        <div class="game-head rocket-head">
-          <div>
-            <p class="eyebrow">ROCKET CRASH</p>
-            <h2>🚀 Bika Rocket</h2>
-          </div>
-          <span id="crashRange">—</span>
-        </div>
-
-        <div id="rocketScene" class="rocket-scene idle" style="--rocket-progress: 0;">
-          <div class="space-glow"></div>
-          <div class="star s1"></div>
-          <div class="star s2"></div>
-          <div class="star s3"></div>
-          <div class="star s4"></div>
-          <div class="star s5"></div>
-          <div class="planet"></div>
-          <div class="flight-line"></div>
-          <div id="rocketShip" class="rocket-ship" aria-hidden="true">
-            <span class="rocket-emoji">🚀</span>
-            <span class="flame"></span>
-          </div>
-          <div id="explosion" class="explosion">💥</div>
-          <div class="launch-pad">
-            <span></span>
-          </div>
-        </div>
-
-        <div class="rocket-dashboard">
-          <div class="multiplier-wrap">
-            <small>Current Multiplier</small>
-            <div class="multiplier" id="crashMultiplier">x1.00</div>
-          </div>
-          <div class="rocket-status">
-            <span id="crashBadge" class="status-badge idle">READY</span>
-            <p id="crashState" class="muted">Bet ထည့်ပြီး Launch နှိပ်ပါ။</p>
-          </div>
-        </div>
-
-        <label class="field">
-          <span>Bet Amount</span>
-          <input id="crashBet" type="number" inputmode="numeric" min="1" placeholder="1000" />
-        </label>
-
-        <div class="quick-bets" aria-label="Quick bet buttons">
-          <button type="button" data-crash-bet="50">50</button>
-          <button type="button" data-crash-bet="100">100</button>
-          <button type="button" data-crash-bet="500">500</button>
-          <button type="button" data-crash-bet="1000">1K</button>
-        </div>
-
-        <div class="action-row">
-          <button id="crashStartBtn" class="launch-btn">🚀 LAUNCH</button>
-          <button id="cashoutBtn" class="cashout-btn" disabled>💰 CASH OUT</button>
-        </div>
-
-        <div id="crashResult" class="result rocket-result muted">
-          Rocket မပေါက်ခင် Cash Out လုပ်နိုင်ရင် payout ရပါမယ်။
-        </div>
       </div>
     </section>
   </main>
