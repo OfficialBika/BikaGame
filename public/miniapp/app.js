@@ -93,8 +93,28 @@ async function spinSlot() {
 function rocketProgress(multiplier, phase) {
   if (phase === 'betting') return 0;
   const m = Math.max(1, Number(multiplier || 1));
-  const visualMax = Math.max(3.6, Number(config?.crash?.maxPayoutMultiplier || 4));
-  return Math.max(0, Math.min(1, (m - 1) / (visualMax - 1)));
+  // Log mapping keeps the rocket moving normally and prevents it from sitting at the end of the path too early.
+  const visualMax = Math.max(6, Number(config?.crash?.maxMultiplier || 6));
+  const p = Math.log(m) / Math.log(visualMax);
+  return Math.max(0, Math.min(0.96, p));
+}
+
+function renderHistory(history = []) {
+  const row = $('oddsRow');
+  if (!row) return;
+
+  const items = Array.isArray(history) ? history.slice(0, 8) : [];
+  if (!items.length) {
+    row.innerHTML = '<span class="odd muted-odd">Previous rounds will show here</span>';
+    return;
+  }
+
+  row.innerHTML = items.map((item) => {
+    const color = ['red', 'yellow', 'blue', 'green'].includes(item.color) ? item.color : 'blue';
+    const value = Number(item.multiplier || 1).toFixed(2);
+    const hype = item.hype ? ' 🚀' : '';
+    return `<span class="odd ${color}" title="Round #${item.roundNo || ''}">${value}x${hype}</span>`;
+  }).join('');
 }
 
 function setRocketScene(phase, multiplier, secondsLeft) {
@@ -192,7 +212,7 @@ function renderCrash(data) {
     chip.textContent = 'LIVE';
     chip.classList.add('run');
     $('crashMultiplier').textContent = `x${multiplier.toFixed(2)}`;
-    $('crashState').textContent = round.hypeMode ? 'All players cashed out — rocket keeps flying!' : 'Rocket တက်နေပါတယ် • အချိန်မီ Cash Out လုပ်ပါ';
+    $('crashState').textContent = round.hypeMode ? 'Rare hype round — rocket keeps flying!' : 'Rocket ပုံမှန်ဖြည်းဖြည်းချင်း တက်နေပါတယ် • အချိန်မီ Cash Out လုပ်ပါ';
     $('crashResult').className = 'result muted';
     $('crashResult').innerHTML = me.inRound
       ? me.cashedOut
@@ -201,7 +221,8 @@ function renderCrash(data) {
       : 'သင်ဒီ round မှာ bet မဝင်ထားပါ။ နောက် bet time ကိုစောင့်ပါ။';
     $('crashStartBtn').disabled = true;
     $('cashoutBtn').disabled = !(me.inRound && !me.cashedOut && round.me?.canCashout);
-    setRocketScene(me.cashedOut ? 'cashed' : 'running', multiplier, 0);
+    // Keep the shared rocket moving after your cash out; only your result card changes.
+    setRocketScene('running', multiplier, 0);
   } else if (phase === 'crashed') {
     chip.textContent = 'CRASHED';
     chip.classList.add('crash');
@@ -231,6 +252,7 @@ function renderCrash(data) {
     setRocketScene('waiting', 1, 0);
   }
 
+  renderHistory(data.history || []);
   renderPlayers(round || lastRound);
 }
 
@@ -298,7 +320,8 @@ async function init() {
   await loadConfig();
   await loadMe();
   await pollCrash();
-  pollTimer = setInterval(pollCrash, 650);
+  // Faster polling keeps the multiplier and rocket movement smooth without websocket dependencies.
+  pollTimer = setInterval(pollCrash, 280);
 }
 
 window.addEventListener('beforeunload', () => {

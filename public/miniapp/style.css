@@ -55,8 +55,8 @@ h1, h2, p { margin-top: 0; } h1 { margin: 0; font-size: 24px; } h2 { margin: 0; 
 .flight-path { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; }
 .path-guide, .path-glow { fill: none; stroke-linecap: round; }
 .path-guide { stroke: rgba(255,255,255,.11); stroke-width: 3; stroke-dasharray: 9 12; }
-.path-glow { stroke: rgba(255,205,82,.92); stroke-width: 5; stroke-dasharray: calc(var(--rocket-progress) * 100) 100; filter: drop-shadow(0 0 9px rgba(255,167,49,.44)); transition: stroke-dasharray .25s ease; }
-.rocket-ship { position: absolute; z-index: 8; width: 72px; height: 104px; left: calc(36px + var(--rocket-progress) * 265px); bottom: calc(36px + var(--rocket-progress) * 210px); transform: rotate(38deg) scale(calc(.86 + var(--rocket-progress) * .30)); transform-origin: 50% 74%; filter: drop-shadow(0 14px 20px rgba(0,0,0,.38)) drop-shadow(0 0 18px rgba(255,135,56,.25)); transition: left .25s ease, bottom .25s ease, transform .25s ease, opacity .16s ease; }
+.path-glow { stroke: rgba(255,205,82,.92); stroke-width: 5; stroke-dasharray: calc(var(--rocket-progress) * 100) 100; filter: drop-shadow(0 0 9px rgba(255,167,49,.44)); transition: stroke-dasharray .16s linear; }
+.rocket-ship { position: absolute; z-index: 8; width: 72px; height: 104px; left: calc(36px + var(--rocket-progress) * 265px); bottom: calc(36px + var(--rocket-progress) * 210px); transform: rotate(38deg) scale(calc(.86 + var(--rocket-progress) * .30)); transform-origin: 50% 74%; filter: drop-shadow(0 14px 20px rgba(0,0,0,.38)) drop-shadow(0 0 18px rgba(255,135,56,.25)); transition: left .16s linear, bottom .16s linear, transform .16s linear, opacity .12s ease; }
 .rocket-ship svg { width: 100%; height: 100%; overflow: visible; }
 .space-window.betting .rocket-ship { left: 34px; bottom: 34px; opacity: .9; }
 .space-window.running .rocket-ship { animation: vibrate .09s infinite alternate; }
@@ -67,8 +67,9 @@ h1, h2, p { margin-top: 0; } h1 { margin: 0; font-size: 24px; } h2 { margin: 0; 
 .explosion b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 58px; filter: drop-shadow(0 0 22px rgba(255,74,104,.55)); }
 .explosion span { position: absolute; inset: 22px; border-radius: 50%; border: 2px solid rgba(255,214,92,.8); }
 .space-window.crashed .explosion { animation: explode .75s ease both; }
-.odds-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; padding: 8px 10px 0; }
-.odd { text-align: center; font-size: 11px; font-weight: 1000; border-radius: 999px; padding: 6px 4px; color: #061018; }
+.odds-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; padding: 8px 10px 0; }
+.odd { text-align: center; font-size: 11px; font-weight: 1000; border-radius: 999px; padding: 6px 4px; color: #061018; white-space: nowrap; }
+.muted-odd { grid-column: 1 / -1; background: rgba(255,255,255,.06); color: var(--muted); }
 .odd.green { background: #31d985; } .odd.red { background: #ff586e; } .odd.yellow { background: #ffd45c; } .odd.blue { background: #429dff; }
 .bet-card { padding: 10px; }
 .field { display: block; margin: 12px 0; } .field.compact { margin-top: 2px; }
