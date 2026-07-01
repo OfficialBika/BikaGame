@@ -18,14 +18,17 @@ const CONFIG_KEY_APPROVED = 'crash_approved_users';
 const BET_SECONDS = Math.max(5, Number(CRASH.betSeconds || process.env.CRASH_BET_TIME_SECONDS || 15));
 const MIN_BET = Math.max(1, Number(CRASH.minBet || process.env.CRASH_MIN_BET || 50));
 const MAX_BET = Math.max(MIN_BET, Number(CRASH.maxBet || process.env.CRASH_MAX_BET || 10000));
-const EDIT_INTERVAL_MS = Math.max(700, Number(CRASH.editIntervalMs || process.env.CRASH_EDIT_INTERVAL_MS || 1000));
+const EDIT_INTERVAL_MS = Math.max(700, Number(CRASH.editIntervalMs || process.env.CRASH_EDIT_INTERVAL_MS || 900));
 const NEXT_ROUND_DELAY_MS = Math.max(1500, Number(CRASH.nextRoundDelayMs || process.env.CRASH_NEXT_ROUND_DELAY_MS || 5000));
 const MAX_PLAYERS = Math.max(2, Number(CRASH.maxPlayers || process.env.CRASH_MAX_PLAYERS || 150));
 const HOUSE_EDGE = Math.max(0.05, Math.min(0.50, Number(CRASH.houseEdge ?? process.env.CRASH_HOUSE_EDGE ?? 0.24)));
 const CAP_PERCENT = Math.max(0.03, Math.min(0.50, Number(CRASH.capPercent ?? process.env.CRASH_CAP_PERCENT ?? 0.12)));
 const CRASH_MAX_MULTIPLIER = Math.max(1.2, Math.min(20, Number(CRASH.maxMultiplier || process.env.CRASH_MAX_MULTIPLIER || 6)));
 const PAYOUT_MAX_MULTIPLIER = Math.max(1, Math.min(CRASH_MAX_MULTIPLIER, Number(CRASH.maxPayoutMultiplier || process.env.CRASH_MAX_PAYOUT_MULTIPLIER || 4)));
-const INSTANT_CRASH_PERCENT = Math.max(0, Math.min(40, Number(CRASH.instantCrashPercent || process.env.CRASH_INSTANT_PERCENT || 18)));
+const INSTANT_CRASH_PERCENT = Math.max(0, Math.min(40, Number(CRASH.instantCrashPercent || process.env.CRASH_INSTANT_PERCENT || 10)));
+const MIN_VISIBLE_MULTIPLIER = Math.max(1.05, Math.min(CRASH_MAX_MULTIPLIER, Number(CRASH.minVisibleMultiplier || process.env.CRASH_MIN_VISIBLE_MULTIPLIER || 1.16)));
+const LOW_CRASH_MAX_MULTIPLIER = Math.max(MIN_VISIBLE_MULTIPLIER, Math.min(CRASH_MAX_MULTIPLIER, Number(CRASH.lowCrashMaxMultiplier || process.env.CRASH_LOW_CRASH_MAX_MULTIPLIER || 1.35)));
+const MIN_CASHOUT_MULTIPLIER = Math.max(1, Math.min(PAYOUT_MAX_MULTIPLIER, Number(CRASH.minCashoutMultiplier || process.env.CRASH_MIN_CASHOUT_MULTIPLIER || 1.10)));
 const ALL_CASHOUT_HYPE_MIN = Math.max(8, Number(CRASH.allCashoutHypeMin || process.env.CRASH_ALL_CASHOUT_HYPE_MIN || 25));
 const ALL_CASHOUT_HYPE_MAX = Math.max(ALL_CASHOUT_HYPE_MIN, Number(CRASH.allCashoutHypeMax || process.env.CRASH_ALL_CASHOUT_HYPE_MAX || 250));
 const DISPLAY_PLAYER_LIMIT = Math.max(5, Number(CRASH.displayPlayerLimit || process.env.CRASH_DISPLAY_PLAYER_LIMIT || 15));
@@ -189,8 +192,10 @@ function generateCrashPoint(round, treasuryBalance = 0) {
   const betTotal = totalBet(round);
   const playerCount = round.players.size;
 
+  // Low/instant crash rounds must still be visible to users.
+  // Old logic could round to x1.00 and finish before the first message edit.
   if (Math.random() * 100 < INSTANT_CRASH_PERCENT) {
-    return round2(1 + Math.random() * 0.18);
+    return round2(MIN_VISIBLE_MULTIPLIER + Math.random() * (LOW_CRASH_MAX_MULTIPLIER - MIN_VISIBLE_MULTIPLIER));
   }
 
   const r = Math.max(0.0001, Math.min(0.9999, Math.random()));
@@ -216,7 +221,7 @@ function generateCrashPoint(round, treasuryBalance = 0) {
   }
 
   point = Math.min(point, CRASH_MAX_MULTIPLIER);
-  point = Math.max(point, 1.01);
+  point = Math.max(point, MIN_VISIBLE_MULTIPLIER);
 
   return round2(point);
 }
@@ -316,6 +321,7 @@ function runningText(round, note = '') {
     `Multiplier: <b>${multiplierText(round.currentMultiplier)}</b>\n` +
     `Players: <b>${fmt(round.players.size)}</b> | Cash Out: <b>${fmt(cashed)}</b> | Left: <b>${fmt(left)}</b>\n` +
     `Total Bet: <b>${fmt(totalBet(round))}</b> ${COIN}\n` +
+    `Cash Out Min: <b>${multiplierText(MIN_CASHOUT_MULTIPLIER)}</b>\n` +
     `━━━━━━━━━━━━━━━━\n` +
     `${playerLines(round)}\n` +
     `━━━━━━━━━━━━━━━━\n` +
@@ -712,6 +718,14 @@ async function handleCashout(ctx, bot) {
 
   if (round.currentMultiplier >= round.crashPoint && !round.hypeMode) {
     return replyHTML(ctx, '💥 Crash ဖြစ်သွားပြီးပါပြီ။', replyOptions(ctx));
+  }
+
+  if (round.currentMultiplier < MIN_CASHOUT_MULTIPLIER && !round.hypeMode) {
+    return replyHTML(
+      ctx,
+      `⏳ Cash Out ကို <b>${multiplierText(MIN_CASHOUT_MULTIPLIER)}</b> ရောက်မှလုပ်နိုင်ပါတယ်။`,
+      replyOptions(ctx)
+    );
   }
 
   player.cashingOut = true;
