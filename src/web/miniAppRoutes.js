@@ -98,6 +98,7 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
         maxBet: Number(CRASH.maxBet || 10000),
         minCashoutMultiplier: Number(CRASH.minCashoutMultiplier || 1.10),
         maxPayoutMultiplier: Number(CRASH.maxPayoutMultiplier || 4),
+        maxMultiplier: Number(CRASH.maxMultiplier || 6),
         betSeconds: Number(process.env.WEB_CRASH_BET_SECONDS || CRASH.betSeconds || 15),
         multiplayer: true,
       },
