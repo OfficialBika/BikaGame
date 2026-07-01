@@ -7,6 +7,10 @@ const { getBotInfo } = require('../config/bot');
 const { ensureUser, getUser } = require('../services/economyService');
 const { spinWebSlot } = require('../services/webSlotService');
 const { startWebCrashLoop, placeWebCrashBet, getWebCrashStatus, cashoutWebCrash } = require('../services/webCrashService');
+const { playWebPlinko, BUCKETS: PLINKO_BUCKETS, MIN_BET: PLINKO_MIN_BET, MAX_BET: PLINKO_MAX_BET } = require('../services/webPlinkoService');
+const { spinWebWheel, SEGMENTS: WHEEL_SEGMENTS, MIN_BET: WHEEL_MIN_BET, MAX_BET: WHEEL_MAX_BET } = require('../services/webWheelService');
+const { startWebMines, getWebMinesStatus, openWebMinesTile, cashoutWebMines, MIN_BET: MINES_MIN_BET, MAX_BET: MINES_MAX_BET, DEFAULT_MINES, MIN_CASHOUT_SAFE } = require('../services/webMinesService');
+const { getAllWebGameRtps } = require('../services/webGameRtpService');
 const { verifyTelegramMiniAppInitData, getInitDataFromRequest } = require('./telegramMiniAuth');
 
 function publicMiniAppUrl() {
@@ -38,6 +42,11 @@ function sendError(res, err) {
     CASHOUT_LOCKED: [400, 'Cash Out မလုပ်နိုင်သေးပါ။'],
     CASHOUT_PROCESSING: [429, 'Cash Out processing...'],
     CRASHED: [400, 'Crash ဖြစ်သွားပါပြီ။'],
+    MINES_ACTIVE: [400, 'Mines round လက်ရှိ run နေပါတယ်။ Cash Out သို့မဟုတ် mine ထိပြီးမှ အသစ်စပါ။'],
+    NO_ACTIVE_MINES: [400, 'Active Mines round မရှိပါ။'],
+    INVALID_TILE: [400, 'Tile မမှန်ပါ။'],
+    TILE_OPENED: [400, 'ဒီ tile ကိုဖွင့်ပြီးသားပါ။'],
+    MINES_CASHOUT_LOCKED: [400, 'Safe tile မလုံလောက်သေးပါ။'],
   };
   const [status, message] = map[code] || [500, 'Server error ဖြစ်နေပါတယ်။'];
 
@@ -49,6 +58,7 @@ function sendError(res, err) {
     maxBet: err?.maxBet,
     cooldownLeft: err?.cooldownLeft,
     minMultiplier: err?.minMultiplier,
+    minSafe: err?.minSafe,
   });
 }
 
@@ -86,12 +96,21 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
     return res.sendFile(path.join(publicDir, 'index.html'));
   });
 
-  app.get('/api/mini/config', (req, res) => {
+  app.get('/api/mini/config', async (req, res) => {
+    const rtps = await getAllWebGameRtps().catch(() => ({}));
     return res.json({
       ok: true,
       appUrl: publicMiniAppUrl(),
       botUsername: getBotInfo()?.username || null,
       coin: COIN,
+      rtps,
+      games: [
+        { key: 'rocket', title: 'Rocket Crash', badge: 'LIVE', hot: true },
+        { key: 'slot', title: 'Premium Slot', badge: 'HOT', hot: true },
+        { key: 'plinko', title: 'Plinko', badge: 'NEW', hot: false },
+        { key: 'wheel', title: 'Lucky Wheel', badge: 'DAILY', hot: false },
+        { key: 'mines', title: 'Web Mines', badge: 'NEW', hot: false },
+      ],
       slot: {
         minBet: Number(SLOT.minBet || 50),
         maxBet: Number(SLOT.maxBet || 7000),
@@ -104,6 +123,24 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
         maxMultiplier: Number(CRASH.maxMultiplier || 6),
         betSeconds: Number(process.env.WEB_CRASH_BET_SECONDS || CRASH.betSeconds || 15),
         multiplayer: true,
+        roundMax: 100,
+      },
+      plinko: {
+        minBet: PLINKO_MIN_BET,
+        maxBet: PLINKO_MAX_BET,
+        buckets: PLINKO_BUCKETS,
+      },
+      wheel: {
+        minBet: WHEEL_MIN_BET,
+        maxBet: WHEEL_MAX_BET,
+        segments: WHEEL_SEGMENTS,
+      },
+      mines: {
+        minBet: MINES_MIN_BET,
+        maxBet: MINES_MAX_BET,
+        boardSize: 5,
+        mines: DEFAULT_MINES,
+        minCashoutSafe: MIN_CASHOUT_SAFE,
       },
     });
   });
@@ -134,10 +171,7 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
   app.post('/api/mini/slot/spin', authMiddleware, async (req, res) => {
     try {
       await ensureUser(normalizeTelegramUser(req.telegramUser));
-      const result = await spinWebSlot({
-        userId: req.telegramUser.id,
-        bet: req.body?.bet,
-      });
+      const result = await spinWebSlot({ userId: req.telegramUser.id, bet: req.body?.bet });
       return res.json(result);
     } catch (err) {
       return sendError(res, err);
@@ -147,11 +181,7 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
   app.post('/api/mini/crash/start', authMiddleware, async (req, res) => {
     try {
       await ensureUser(normalizeTelegramUser(req.telegramUser));
-      const result = await placeWebCrashBet({
-        userId: req.telegramUser.id,
-        user: req.telegramUser,
-        bet: req.body?.bet,
-      });
+      const result = await placeWebCrashBet({ userId: req.telegramUser.id, user: req.telegramUser, bet: req.body?.bet });
       return res.json({ ok: true, ...result });
     } catch (err) {
       return sendError(res, err);
@@ -161,11 +191,7 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
   app.post('/api/mini/crash/bet', authMiddleware, async (req, res) => {
     try {
       await ensureUser(normalizeTelegramUser(req.telegramUser));
-      const result = await placeWebCrashBet({
-        userId: req.telegramUser.id,
-        user: req.telegramUser,
-        bet: req.body?.bet,
-      });
+      const result = await placeWebCrashBet({ userId: req.telegramUser.id, user: req.telegramUser, bet: req.body?.bet });
       return res.json({ ok: true, ...result });
     } catch (err) {
       return sendError(res, err);
@@ -186,6 +212,63 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
     try {
       const result = await cashoutWebCrash({ userId: req.telegramUser.id });
       return res.json({ ok: true, ...result });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/plinko/drop', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await playWebPlinko({ userId: req.telegramUser.id, bet: req.body?.bet });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/wheel/spin', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await spinWebWheel({ userId: req.telegramUser.id, bet: req.body?.bet });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/mines/start', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await startWebMines({ userId: req.telegramUser.id, bet: req.body?.bet });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/mines/status', authMiddleware, async (req, res) => {
+    try {
+      const result = await getWebMinesStatus(req.telegramUser.id);
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/mines/open', authMiddleware, async (req, res) => {
+    try {
+      const result = await openWebMinesTile({ userId: req.telegramUser.id, index: req.body?.index });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/mines/cashout', authMiddleware, async (req, res) => {
+    try {
+      const result = await cashoutWebMines({ userId: req.telegramUser.id });
+      return res.json(result);
     } catch (err) {
       return sendError(res, err);
     }
