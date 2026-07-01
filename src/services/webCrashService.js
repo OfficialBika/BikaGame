@@ -1,11 +1,13 @@
 'use strict';
 
 const { COIN, CRASH = {} } = require('../config/constants');
+const { getDb } = require('../config/database');
 const { getUser, userPayToTreasury, treasuryPayToUser } = require('./economyService');
 const { getTreasury } = require('./treasuryService');
 const { fullNameFromTg } = require('../utils/helpers');
 
 const rooms = new Map();
+const onlineUsers = new Map();
 
 const DEFAULT_ROOM_ID = 'global';
 const BET_SECONDS = Math.max(6, Number(process.env.WEB_CRASH_BET_SECONDS || CRASH.betSeconds || 15));
@@ -27,6 +29,9 @@ const ALL_CASHOUT_HYPE_MAX = Math.max(ALL_CASHOUT_HYPE_MIN, Number(CRASH.allCash
 const HYPE_EVERY_ALL_CASHOUT_ROUNDS = Math.max(2, Number(process.env.WEB_CRASH_HYPE_EVERY_ALL_CASHOUT_ROUNDS || 20));
 const HYPE_EXTRA_CHANCE_PERCENT = Math.max(0, Math.min(100, Number(process.env.WEB_CRASH_HYPE_EXTRA_CHANCE_PERCENT || 0)));
 const HISTORY_LIMIT = Math.max(5, Number(process.env.WEB_CRASH_HISTORY_LIMIT || 12));
+const ROCKET_RTP_CONFIG_KEY = 'web_rocket_rtp_percent';
+const DEFAULT_ROCKET_RTP = Math.max(40, Math.min(95, Number(process.env.WEB_ROCKET_RTP || Math.round((1 - HOUSE_EDGE) * 100))));
+const ONLINE_TTL_MS = Math.max(10_000, Number(process.env.WEB_MINIAPP_ONLINE_TTL_MS || 45_000));
 
 function cleanUserId(value) {
   const id = Number(value);
@@ -49,6 +54,68 @@ function makeId(prefix = 'wcr') {
 function publicName(tg = {}) {
   return fullNameFromTg(tg) || tg.username || 'Player';
 }
+
+function configCollection() {
+  return getDb().collection('config');
+}
+
+function clampRocketRtp(value, fallback = DEFAULT_ROCKET_RTP) {
+  const raw = String(value ?? '').replace('%', '').trim();
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return Math.max(40, Math.min(95, Number(fallback) || DEFAULT_ROCKET_RTP));
+  return Math.max(40, Math.min(95, Math.floor(n)));
+}
+
+async function getRocketRtp() {
+  try {
+    const doc = await configCollection().findOne({ key: ROCKET_RTP_CONFIG_KEY });
+    return clampRocketRtp(doc?.value, DEFAULT_ROCKET_RTP);
+  } catch (_) {
+    return DEFAULT_ROCKET_RTP;
+  }
+}
+
+async function setRocketRtp(value, updatedBy = null) {
+  const rtp = clampRocketRtp(value, DEFAULT_ROCKET_RTP);
+  await configCollection().updateOne(
+    { key: ROCKET_RTP_CONFIG_KEY },
+    {
+      $set: {
+        key: ROCKET_RTP_CONFIG_KEY,
+        value: rtp,
+        updatedBy: updatedBy || null,
+        updatedAt: new Date(),
+      },
+      $setOnInsert: { createdAt: new Date() },
+    },
+    { upsert: true }
+  );
+  return rtp;
+}
+
+function houseEdgeFromRtp(rtpPercent) {
+  return Math.max(0.05, Math.min(0.55, 1 - clampRocketRtp(rtpPercent, DEFAULT_ROCKET_RTP) / 100));
+}
+
+function markOnline(userId) {
+  const id = cleanUserId(userId);
+  if (!id) return 0;
+  const now = Date.now();
+  onlineUsers.set(id, now);
+  for (const [key, seenAt] of onlineUsers.entries()) {
+    if (now - seenAt > ONLINE_TTL_MS) onlineUsers.delete(key);
+  }
+  return onlineUsers.size;
+}
+
+function onlineCount() {
+  const now = Date.now();
+  for (const [key, seenAt] of onlineUsers.entries()) {
+    if (now - seenAt > ONLINE_TTL_MS) onlineUsers.delete(key);
+  }
+  return onlineUsers.size;
+}
+
 
 function totalBet(round) {
   let total = 0;
@@ -79,16 +146,17 @@ function allPlayersCashedOut(round) {
   return round?.players?.size > 0 && cashoutCount(round) >= round.players.size;
 }
 
-function generateCrashPoint(round, treasuryBalance = 0) {
+function generateCrashPoint(round, treasuryBalance = 0, rtpPercent = DEFAULT_ROCKET_RTP) {
   const betTotal = totalBet(round);
   const playerCount = round?.players?.size || 0;
+  const dynamicHouseEdge = houseEdgeFromRtp(rtpPercent);
 
   if (Math.random() * 100 < INSTANT_CRASH_PERCENT) {
     return round2(MIN_VISIBLE_MULTIPLIER + Math.random() * (LOW_CRASH_MAX_MULTIPLIER - MIN_VISIBLE_MULTIPLIER));
   }
 
   const r = Math.max(0.0001, Math.min(0.9999, Math.random()));
-  let point = (1 - HOUSE_EDGE) / (1 - r);
+  let point = (1 - dynamicHouseEdge) / (1 - r);
 
   // Multiplayer web is controlled, but not frozen. This keeps the curve fair and smooth.
   point *= 0.68 + Math.random() * 0.18;
@@ -238,6 +306,7 @@ function snapshotRound(round) {
     multiplierFrom: round.multiplierFrom,
     endedAtMs: round.endedAtMs,
     createdAt: round.createdAt,
+    rocketRtp: round.rocketRtp || null,
   };
 }
 
@@ -285,7 +354,7 @@ function scheduleNextRound(room, delayMs = NEXT_ROUND_DELAY_MS) {
 
 function startBettingRound(room) {
   clearRoomTimers(room);
-  room.roundNo += 1;
+  room.roundNo = (Number(room.roundNo || 0) % 100) + 1;
   const now = Date.now();
   room.round = {
     id: makeId(),
@@ -328,8 +397,10 @@ async function closeBettingRound(room) {
   }
 
   const treasury = await getTreasury();
+  const rocketRtp = await getRocketRtp();
   const now = Date.now();
-  round.crashPoint = generateCrashPoint(round, Number(treasury?.ownerBalance || 0));
+  round.rocketRtp = rocketRtp;
+  round.crashPoint = generateCrashPoint(round, Number(treasury?.ownerBalance || 0), rocketRtp);
   round.currentMultiplier = 1;
   round.multiplierFrom = 1;
   round.crashDurationMs = normalCrashDurationMs(round.crashPoint);
@@ -460,6 +531,7 @@ function publicRound(round, userId, source = 'current') {
 async function getWebCrashStatus(userId, roomId = DEFAULT_ROOM_ID) {
   const finalUserId = cleanUserId(userId);
   if (!finalUserId) throw new Error('INVALID_USER');
+  markOnline(finalUserId);
   const room = getRoom(roomId);
   advanceRoom(room);
   const round = room.round;
@@ -473,6 +545,7 @@ async function getWebCrashStatus(userId, roomId = DEFAULT_ROOM_ID) {
     round: current,
     lastRound: last,
     history: room.history || [],
+    onlineCount: onlineCount(),
     serverNowMs: Date.now(),
   };
 }
@@ -481,6 +554,7 @@ async function placeWebCrashBet({ userId, user, bet, roomId = DEFAULT_ROOM_ID })
   const finalUserId = cleanUserId(userId);
   const amount = parseBet(bet);
   if (!finalUserId) throw new Error('INVALID_USER');
+  markOnline(finalUserId);
   if (!Number.isInteger(amount) || amount < MIN_BET || amount > MAX_BET) {
     const err = new Error('BET_RANGE');
     err.minBet = MIN_BET;
@@ -539,6 +613,7 @@ async function placeWebCrashBet({ userId, user, bet, roomId = DEFAULT_ROOM_ID })
 async function cashoutWebCrash({ userId, roomId = DEFAULT_ROOM_ID }) {
   const finalUserId = cleanUserId(userId);
   if (!finalUserId) throw new Error('INVALID_USER');
+  markOnline(finalUserId);
 
   const room = getRoom(roomId);
   advanceRoom(room);
@@ -620,6 +695,8 @@ module.exports = {
   getWebCrashStatus,
   placeWebCrashBet,
   cashoutWebCrash,
+  getRocketRtp,
+  setRocketRtp,
   // Backward compatible name used by older Mini App route versions.
   startWebCrash: placeWebCrashBet,
   _private: {
@@ -631,5 +708,7 @@ module.exports = {
     computeRoundMultiplier,
     round2,
     rooms,
+    getRocketRtp,
+    setRocketRtp,
   },
 };
