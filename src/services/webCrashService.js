@@ -9,8 +9,10 @@ const rooms = new Map();
 
 const DEFAULT_ROOM_ID = 'global';
 const BET_SECONDS = Math.max(6, Number(process.env.WEB_CRASH_BET_SECONDS || CRASH.betSeconds || 15));
-const NEXT_ROUND_DELAY_MS = Math.max(1200, Number(process.env.WEB_CRASH_NEXT_ROUND_DELAY_MS || CRASH.nextRoundDelayMs || 3500));
-const TICK_MS = Math.max(180, Number(process.env.WEB_CRASH_TICK_MS || 350));
+// Web round result should not sit too long before the next betting round.
+const NEXT_ROUND_DELAY_MS = Math.max(800, Number(process.env.WEB_CRASH_NEXT_ROUND_DELAY_MS || 2200));
+// Fast tick + small deterministic increments make the rocket climb smoothly instead of pausing between polls.
+const TICK_MS = Math.max(80, Number(process.env.WEB_CRASH_TICK_MS || 120));
 const MIN_BET = Math.max(1, Number(CRASH.minBet || process.env.CRASH_MIN_BET || 50));
 const MAX_BET = Math.max(MIN_BET, Number(CRASH.maxBet || process.env.CRASH_MAX_BET || 10000));
 const MAX_PLAYERS = Math.max(2, Number(process.env.WEB_CRASH_MAX_PLAYERS || CRASH.maxPlayers || 250));
@@ -25,6 +27,10 @@ const MIN_CASHOUT_MULTIPLIER = Math.max(1, Math.min(PAYOUT_MAX_MULTIPLIER, Numbe
 const DISPLAY_PLAYER_LIMIT = Math.max(12, Number(process.env.WEB_CRASH_DISPLAY_PLAYER_LIMIT || CRASH.displayPlayerLimit || 30));
 const ALL_CASHOUT_HYPE_MIN = Math.max(8, Number(CRASH.allCashoutHypeMin || process.env.CRASH_ALL_CASHOUT_HYPE_MIN || 25));
 const ALL_CASHOUT_HYPE_MAX = Math.max(ALL_CASHOUT_HYPE_MIN, Number(CRASH.allCashoutHypeMax || process.env.CRASH_ALL_CASHOUT_HYPE_MAX || 250));
+// Big all-cashout hype is rare: default exactly once per 20 all-cashout rounds.
+const HYPE_EVERY_ALL_CASHOUT_ROUNDS = Math.max(2, Number(process.env.WEB_CRASH_HYPE_EVERY_ALL_CASHOUT_ROUNDS || 20));
+const HYPE_EXTRA_CHANCE_PERCENT = Math.max(0, Math.min(100, Number(process.env.WEB_CRASH_HYPE_EXTRA_CHANCE_PERCENT || 0)));
+const HISTORY_LIMIT = Math.max(5, Number(process.env.WEB_CRASH_HISTORY_LIMIT || 12));
 
 function cleanUserId(value) {
   const id = Number(value);
@@ -117,18 +123,24 @@ function generateHypeTarget() {
   return round2(ALL_CASHOUT_HYPE_MIN + curved * (ALL_CASHOUT_HYPE_MAX - ALL_CASHOUT_HYPE_MIN));
 }
 
+function shouldStartHype(room) {
+  room.allCashoutRoundCount = Number(room.allCashoutRoundCount || 0) + 1;
+  if (room.allCashoutRoundCount % HYPE_EVERY_ALL_CASHOUT_ROUNDS === 0) return true;
+  return Math.random() * 100 < HYPE_EXTRA_CHANCE_PERCENT;
+}
+
 function nextMultiplier(current, target, hypeMode = false) {
   const c = Math.max(1, Number(current || 1));
   let next;
 
   if (hypeMode) {
-    if (c < 5) next = c + 0.65 + Math.random() * 1.3;
-    else if (c < 20) next = c + 2 + Math.random() * 5;
-    else if (c < 80) next = c + 7 + Math.random() * 16;
-    else next = c + 18 + Math.random() * 45;
+    // Hype rounds still move smoothly; they just accelerate higher than normal.
+    const step = c < 3 ? 0.05 : c < 10 ? c * 0.026 : c < 60 ? c * 0.034 : c * 0.042;
+    next = c + step;
   } else {
-    const growth = c < 1.6 ? 0.082 : c < 2.5 ? 0.105 : 0.13;
-    next = c * (1 + growth) + 0.01;
+    // Normal climb: small stable steps, no random stops/jumps.
+    const step = c < 1.6 ? 0.008 + c * 0.006 : c < 2.6 ? 0.015 + c * 0.012 : 0.018 + c * 0.015;
+    next = c + step;
   }
 
   if (next >= target) return round2(target);
@@ -145,6 +157,8 @@ function getRoom(roomId = DEFAULT_ROOM_ID) {
       roundNo: 0,
       round: null,
       lastRound: null,
+      history: [],
+      allCashoutRoundCount: 0,
       timers: new Set(),
       startedAt: new Date(),
     };
@@ -187,6 +201,7 @@ function startBettingRound(room) {
     crashPoint: null,
     hypeMode: false,
     hypeTarget: null,
+    hypeDecided: false,
     startedAtMs: null,
     betStartedAtMs: Date.now(),
     bettingEndsAtMs: Date.now() + BET_SECONDS * 1000,
@@ -235,6 +250,31 @@ function tickRound(room) {
   setRoomTimer(room, () => tickRound(room), TICK_MS);
 }
 
+function crashHistoryColor(value) {
+  const m = Number(value || 1);
+  if (m < 1.5) return 'red';
+  if (m < 2.5) return 'yellow';
+  if (m < 5) return 'blue';
+  return 'green';
+}
+
+function pushHistory(room, round) {
+  if (!room || !round) return;
+  const multiplier = Number(round.currentMultiplier || round.crashPoint || 1);
+  room.history = [
+    {
+      roundNo: round.no,
+      multiplier,
+      color: crashHistoryColor(multiplier),
+      hype: !!round.hypeMode,
+      players: round.players?.size || 0,
+      totalBet: totalBet(round),
+      endedAtMs: Date.now(),
+    },
+    ...(room.history || []),
+  ].slice(0, HISTORY_LIMIT);
+}
+
 function snapshotRound(round) {
   if (!round) return null;
   return {
@@ -261,6 +301,7 @@ function finishRound(room, result = 'crashed') {
   clearRoomTimers(room);
   round.state = result === 'error' ? 'error' : 'crashed';
   round.endedAtMs = Date.now();
+  pushHistory(room, round);
   room.lastRound = snapshotRound(round);
   room.round = null;
   scheduleNextRound(room, NEXT_ROUND_DELAY_MS);
@@ -337,6 +378,8 @@ function publicRound(round, userId, source = 'current') {
     coin: COIN,
     multiplier: Number(round.currentMultiplier || 1),
     crashPoint: round.state === 'crashed' || round.state === 'no_bets' || source === 'last' ? Number(round.currentMultiplier || round.crashPoint || 1) : null,
+    startedAtMs: round.startedAtMs || null,
+    endedAtMs: round.endedAtMs || null,
     betSeconds: BET_SECONDS,
     secondsLeft,
     nextRoundDelayMs: NEXT_ROUND_DELAY_MS,
@@ -370,6 +413,8 @@ async function getWebCrashStatus(userId, roomId = DEFAULT_ROOM_ID) {
     coin: COIN,
     round: current,
     lastRound: last,
+    history: room.history || [],
+    serverNowMs: Date.now(),
   };
 }
 
@@ -474,9 +519,12 @@ async function cashoutWebCrash({ userId, roomId = DEFAULT_ROOM_ID }) {
     player.payout = payout;
     player.cashedOutAt = new Date().toISOString();
 
-    if (allPlayersCashedOut(round) && !round.hypeMode) {
-      round.hypeMode = true;
-      round.hypeTarget = generateHypeTarget();
+    if (allPlayersCashedOut(round) && !round.hypeMode && !round.hypeDecided) {
+      round.hypeDecided = true;
+      if (shouldStartHype(room)) {
+        round.hypeMode = true;
+        round.hypeTarget = generateHypeTarget();
+      }
     }
 
     const updated = await getUser(finalUserId);
