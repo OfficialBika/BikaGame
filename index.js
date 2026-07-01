@@ -1,10 +1,12 @@
 require('dotenv').config();
 
+const path = require('path');
 const express = require('express');
 const { bot, initBotInfo, getBotInfo } = require('./src/config/bot');
 const { connectMongo, closeMongo } = require('./src/config/database');
 const { env, USE_WEBHOOK } = require('./src/config/env');
 const logger = require('./src/utils/logger');
+const registerMiniAppRoutes = require('./src/web/miniAppRoutes');
 
 let server = null;
 let isReady = false;
@@ -26,6 +28,7 @@ const COMMAND_MODULES = [
   './src/commands/user/dailyTournament',
   './src/commands/user/wallet',
   './src/commands/user/sell',
+  './src/commands/user/webapp',
   './src/commands/games/slot',
   './src/commands/games/mines',
   './src/commands/games/crash',
@@ -182,6 +185,10 @@ function createApp() {
 
     return next();
   });
+
+  const miniAppPublicDir = path.join(__dirname, 'public', 'miniapp');
+  app.use('/miniapp/assets', express.static(miniAppPublicDir, { maxAge: '1h' }));
+  registerMiniAppRoutes(app, { bot, publicDir: miniAppPublicDir });
 
   app.get('/', (req, res) => {
     return res.status(200).send('BIKA Bot OK');
