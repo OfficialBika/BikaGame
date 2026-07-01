@@ -28,6 +28,7 @@ const COMMAND_MODULES = [
   './src/commands/user/sell',
   './src/commands/games/slot',
   './src/commands/games/mines',
+  './src/commands/games/crash',
   './src/commands/games/dice',
   './src/commands/games/shan',
   './src/commands/games/blackjack',
