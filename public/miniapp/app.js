@@ -3,478 +3,179 @@ const initData = tg?.initData || '';
 let config = null;
 let pollTimer = null;
 let rafTimer = null;
-let lastRoundId = null;
-let lastPhase = null;
 let liveRound = null;
 let slotSpinTimer = null;
+let wheelRotation = 0;
 
 const SLOT_SYMBOLS = ['🍒', '🍋', '🍉', '🔔', '⭐', 'BAR', '7️⃣'];
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
 const coin = () => config?.coin || '$';
 
-function setText(id, value) {
-  const el = $(id);
-  if (!el) return null;
-  el.textContent = value;
-  return el;
-}
-
-function setHTML(id, value) {
-  const el = $(id);
-  if (!el) return null;
-  el.innerHTML = value;
-  return el;
-}
-
-function setClassName(id, value) {
-  const el = $(id);
-  if (!el) return null;
-  el.className = value;
-  return el;
-}
-
-function setBusy(button, busy, label) {
-  if (!button) return;
-  if (busy) {
-    button.dataset.oldText = button.textContent;
-    button.textContent = label || 'Loading...';
-    button.disabled = true;
-  } else {
-    button.textContent = button.dataset.oldText || button.textContent;
-    button.disabled = false;
-  }
-}
-
-function setBalance(value) {
-  const text = `${fmt(value)} ${coin()}`;
-  setText('balanceText', text);
-  setText('smallBalanceText', text);
-}
+function setText(id, value) { const el = $(id); if (el) el.textContent = value; return el; }
+function setHTML(id, value) { const el = $(id); if (el) el.innerHTML = value; return el; }
+function setClass(id, value) { const el = $(id); if (el) el.className = value; return el; }
+function setBusy(btn, busy, label) { if (!btn) return; if (busy) { btn.dataset.oldText = btn.textContent; btn.textContent = label || 'Loading...'; btn.disabled = true; } else { btn.textContent = btn.dataset.oldText || btn.textContent; btn.disabled = false; } }
+function setBalance(value) { const text = `${fmt(value)} ${coin()}`; setText('balanceText', text); setText('stickyBalanceText', text); }
+function displayName(user = {}) { return [user.firstName || user.first_name, user.lastName || user.last_name].filter(Boolean).join(' ').trim() || user.username || 'Bika Player'; }
+function setPlayer(user = {}) { const name = displayName(user); setText('playerNameText', name); setText('avatarText', name.slice(0, 2).toUpperCase()); }
+function escapeHtml(v) { return String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'); }
 
 async function api(path, body = {}) {
-  const res = await fetch(path, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Telegram-Init-Data': initData,
-    },
-    body: JSON.stringify(body),
-  });
-
+  const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': initData }, body: JSON.stringify(body) });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.ok === false) {
-    const err = new Error(data.message || data.error || 'Request failed');
-    err.payload = data;
-    throw err;
-  }
-
+  if (!res.ok || data.ok === false) { const err = new Error(data.message || data.error || 'Request failed'); err.payload = data; throw err; }
   return data;
 }
 
 async function loadConfig() {
   const res = await fetch('/api/mini/config', { cache: 'no-store' });
   config = await res.json();
-  setText('slotRange', `${fmt(config.slot.minBet)} - ${fmt(config.slot.maxBet)} ${config.coin}`);
-  const crashBet = $('crashBet');
-  if (crashBet) crashBet.value = config.crash.minBet;
-  const slotBet = $('slotBet');
-  if (slotBet) slotBet.value = config.slot.minBet;
+  setText('slotRange', `${fmt(config.slot.minBet)} - ${fmt(config.slot.maxBet)} ${coin()}`);
+  [['crashBet', config.crash.minBet], ['slotBet', config.slot.minBet], ['plinkoBet', config.plinko.minBet], ['wheelBet', config.wheel.minBet], ['minesBet', config.mines.minBet]].forEach(([id, value]) => { const el = $(id); if (el) el.value = value; });
+  renderPlinkoBuckets();
+  renderMinesBoard(null);
 }
 
 async function loadMe() {
   const data = await api('/api/mini/me');
-  const user = data.user || {};
-  setBalance(user.balance);
+  setPlayer(data.user || {});
+  setBalance(data.user?.balance || 0);
 }
 
-function showTab(tab) {
-  document.querySelectorAll('.tab').forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab));
-  document.querySelectorAll('.panel').forEach((panel) => panel.classList.toggle('active', panel.id === tab));
+function openPanel(id) {
+  document.querySelectorAll('.panel').forEach((el) => el.classList.toggle('active', el.id === id));
+  document.querySelectorAll('.tab').forEach((el) => el.classList.toggle('active', el.dataset.open === id));
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;');
+function renderHistory(history = []) {
+  const row = $('oddsRow'); if (!row) return;
+  const items = Array.isArray(history) ? history.slice(0, 10) : [];
+  row.innerHTML = items.length ? items.map((item) => `<span class="odd ${item.color || 'blue'}">x${Number(item.multiplier || 1).toFixed(2)}</span>`).join('') : '<span class="odd blue">waiting</span>';
 }
 
-function normalizeSlotSymbol(symbol) {
-  return String(symbol || '?') === '7' ? '7️⃣' : String(symbol || '?');
-}
-
-function setSlotReels(reels = ['?', '?', '?']) {
-  const final = reels.map(normalizeSlotSymbol);
-  ['slotReelA', 'slotReelB', 'slotReelC'].forEach((id, index) => {
-    const el = $(id);
-    if (el) el.textContent = final[index] || '?';
-  });
-}
-
-function startSlotAnimation() {
-  const machine = $('slotMachine');
-  if (machine) machine.classList.add('spinning');
-  if (slotSpinTimer) clearInterval(slotSpinTimer);
-  slotSpinTimer = setInterval(() => {
-    setSlotReels([0, 1, 2].map(() => SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)]));
-  }, 70);
-}
-
-function stopSlotAnimation(finalReels) {
-  const machine = $('slotMachine');
-  if (slotSpinTimer) clearInterval(slotSpinTimer);
-  slotSpinTimer = null;
-  if (machine) {
-    machine.classList.remove('spinning');
-    machine.classList.add('slot-pop');
-  }
-  setSlotReels(finalReels);
-  if (machine) setTimeout(() => machine.classList.remove('slot-pop'), 520);
-}
-
-async function spinSlot() {
-  const btn = $('spinBtn');
-  const resultBox = $('slotResult');
-  const slotBet = $('slotBet');
-  const bet = slotBet?.value;
-  setBusy(btn, true, 'SPINNING...');
-  if (resultBox) {
-    resultBox.className = 'result muted slot-status-card';
-    resultBox.innerHTML = '🎰 Reels rolling...';
-  }
-  startSlotAnimation();
-
-  try {
-    const data = await api('/api/mini/slot/spin', { bet });
-    // Keep a short premium animation even on fast backend responses.
-    await new Promise((resolve) => setTimeout(resolve, 850));
-    stopSlotAnimation(data.reels || ['?', '?', '?']);
-    setBalance(data.balance);
-    const won = Number(data.payout || 0) > 0;
-    const machine = $('slotMachine');
-    if (machine) machine.classList.toggle('slot-win-glow', won);
-    if (resultBox) {
-      resultBox.className = `result slot-result-card ${won ? 'win' : 'lose'}`;
-      resultBox.innerHTML = `
-        <div class="slot-result-title">${won ? '🏆 BIG WIN' : '💨 TRY AGAIN'}</div>
-        <div class="slot-result-grid">
-          <span>Bet</span><b>${fmt(data.bet)} ${coin()}</b>
-          <span>Multiplier</span><b>x${Number(data.multiplier || 0).toFixed(2)}</b>
-          <span>Payout</span><b>${fmt(data.payout)} ${coin()}</b>
-          <span>Net</span><b>${fmt(data.net)} ${coin()}</b>
-        </div>`;
-    }
-    tg?.HapticFeedback?.notificationOccurred?.(won ? 'success' : 'warning');
-  } catch (err) {
-    stopSlotAnimation(['?', '?', '?']);
-    if (resultBox) {
-      resultBox.className = 'result lose slot-status-card';
-      resultBox.textContent = err.message;
-    } else {
-      alert(err.message || 'Slot error');
-    }
-    tg?.HapticFeedback?.notificationOccurred?.('error');
-  } finally {
-    setBusy(btn, false);
-  }
-}
-
-function multiplierAtElapsed(elapsedMs, durationMs, target, from = 1, hypeMode = false) {
-  const start = Math.max(1, Number(from || 1));
-  const end = Math.max(start, Number(target || start));
-  const duration = Math.max(1, Number(durationMs || 1));
-  const progress = Math.max(0, Math.min(1, Number(elapsedMs || 0) / duration));
-  if (progress >= 1) return end;
-  const eased = hypeMode ? Math.pow(progress, 1.28) : Math.pow(progress, 1.12);
-  return start + (end - start) * eased;
-}
-
-function currentLiveMultiplier(round) {
+function multiplierAt(round) {
   if (!round || round.state !== 'running') return Number(round?.multiplier || 1);
   const base = Number(round.multiplier || 1);
-  const serverNow = Number(round.serverNowMs || Date.now());
   const receivedAt = Number(round.receivedAtMs || Date.now());
-  const nowServerEstimate = serverNow + (Date.now() - receivedAt);
-
-  // If backend sends an ended/safe target, use exact interpolation. During live rounds
-  // the real crash point is intentionally hidden, so use tiny visual extrapolation only.
-  const targetRaw = Number(round.hypeMode ? round.hypeTarget : round.crashPoint);
-  const duration = Number(round.crashDurationMs || 0);
-  if (Number.isFinite(targetRaw) && targetRaw > base && duration > 0) {
-    const started = Number(round.startedAtMs || nowServerEstimate);
-    const from = Number(round.multiplierFrom || 1);
-    const m = multiplierAtElapsed(nowServerEstimate - started, duration, targetRaw, from, !!round.hypeMode);
-    return Math.max(base, Math.min(targetRaw, m));
-  }
-
-  const elapsedSec = Math.max(0, (Date.now() - receivedAt) / 1000);
-  const speed = base < 1.6 ? 0.045 : base < 2.6 ? 0.075 : 0.12;
-  return base + Math.min(0.09, elapsedSec * speed);
+  const elapsed = Math.max(0, (Date.now() - receivedAt) / 1000);
+  const speed = base < 1.6 ? 0.055 : base < 2.6 ? 0.085 : 0.13;
+  return base + Math.min(0.12, elapsed * speed);
 }
 
 function rocketProgress(multiplier, phase) {
   if (phase === 'betting') return 0;
   const m = Math.max(1, Number(multiplier || 1));
   const visualMax = Math.max(6, Number(config?.crash?.maxMultiplier || 6));
-  const p = Math.log(m) / Math.log(visualMax);
-  return Math.max(0, Math.min(0.96, p));
-}
-
-function renderHistory(history = []) {
-  const row = $('oddsRow');
-  if (!row) return;
-  const items = Array.isArray(history) ? history.slice(0, 8) : [];
-  if (!items.length) {
-    row.innerHTML = '<span class="odd muted-odd">Previous round crash points</span>';
-    return;
-  }
-  row.innerHTML = items.map((item) => {
-    const color = ['red', 'yellow', 'blue', 'green'].includes(item.color) ? item.color : 'blue';
-    const value = Number(item.multiplier || 1).toFixed(2);
-    const hype = item.hype ? ' 🚀' : '';
-    return `<span class="odd ${color}" title="Round #${item.roundNo || ''}">${value}x${hype}</span>`;
-  }).join('');
-}
-
-function setRocketScene(phase, multiplier, secondsLeft) {
-  const scene = $('rocketScene');
-  const progress = rocketProgress(multiplier, phase);
-  scene.style.setProperty('--rocket-progress', progress.toFixed(4));
-  scene.classList.remove('betting', 'running', 'crashed', 'cashed', 'waiting');
-
-  if (phase === 'betting') {
-    scene.classList.add('betting');
-    const total = Math.max(1, Number(config?.crash?.betSeconds || 15));
-    scene.style.setProperty('--count-progress', String(Math.max(0, Math.min(1, secondsLeft / total))));
-  } else if (phase === 'running') {
-    scene.classList.add('running');
-  } else if (phase === 'crashed') {
-    scene.classList.add('crashed');
-  } else if (phase === 'cashed') {
-    scene.classList.add('cashed');
-  } else {
-    scene.classList.add('waiting');
-  }
+  return Math.max(0, Math.min(0.96, Math.log(m) / Math.log(visualMax)));
 }
 
 function renderPlayers(round) {
-  const box = $('playersList');
+  const list = $('playersList'); if (!list) return;
   const players = round?.players || [];
-  if (!players.length) {
-    box.innerHTML = '<div class="result muted">ဒီ round မှာ bet ဝင်သူမရှိသေးပါ။</div>';
-    return;
-  }
-
-  box.innerHTML = players.map((p) => {
-    const payout = p.cashedOut
-      ? `<span class="player-payout win">x${Number(p.cashoutMultiplier || 0).toFixed(2)} • ${fmt(p.payout)} ${coin()}</span>`
-      : `<span class="player-payout">${round.state === 'crashed' ? '💥 Lost' : 'Playing'}</span>`;
-
-    return `
-      <div class="player-row ${p.me ? 'me' : ''}">
-        <div class="avatar">${escapeHtml(p.initials || 'P')}</div>
-        <div>
-          <div class="player-name">${escapeHtml(p.name || 'Player')}${p.me ? ' • You' : ''}</div>
-          <div class="player-meta">Bet ${fmt(p.bet)} ${coin()}</div>
-        </div>
-        ${payout}
-      </div>`;
-  }).join('');
+  list.innerHTML = players.length ? players.map((p) => `
+    <div class="player-row ${p.me ? 'me' : ''}">
+      <span>${p.cashedOut ? '✅' : '⏳'} ${escapeHtml(p.name)}</span>
+      <b>${p.cashedOut ? fmt(p.payout) + ' ' + coin() : fmt(p.bet) + ' ' + coin()}</b>
+    </div>`).join('') : '<div class="result muted">No players yet.</div>';
 }
 
-function applyRunningVisual(multiplier, round) {
-  setText('crashMultiplier', `x${Number(multiplier || 1).toFixed(2)}`);
-  setRocketScene('running', multiplier, 0);
-  const me = round?.me || {};
-  const can = !!(me.inRound && !me.cashedOut && Number(multiplier || 1) >= Number(round?.minCashoutMultiplier || 1.1));
-  $('cashoutBtn').disabled = !can;
+function renderRocket(status) {
+  const round = status.round || status.lastRound;
+  if (!round) return;
+  liveRound = { ...round, serverNowMs: status.serverNowMs, receivedAtMs: Date.now() };
+  setText('onlineCountText', status.onlineCount ?? '—');
+  setBalance(status.balance ?? 0);
+  setText('roundTitle', `Round #${round.no || '—'} / 100`);
+  setText('phaseChip', String(round.state || 'idle').toUpperCase());
+  setText('playerCount', fmt(round.playerCount || 0));
+  setText('totalBet', `${fmt(round.totalBet || 0)} ${coin()}`);
+  setText('totalPaid', `${fmt(round.totalPaid || 0)} ${coin()}`);
+  renderPlayers(round);
+  renderHistory(status.history);
+  const cashBtn = $('cashoutBtn');
+  if (cashBtn) cashBtn.disabled = !(round.state === 'running' && round.me?.canCashout);
+  const betBtn = $('crashStartBtn');
+  if (betBtn) betBtn.disabled = !(round.state === 'betting') || !!round.me?.inRound;
+
+  const state = round.state;
+  const scene = $('rocketScene');
+  if (scene) scene.className = `rocket-scene ${state || ''}`;
+  if (state === 'betting') {
+    const left = Math.max(0, Number(round.secondsLeft || 0));
+    setText('roundCountdown', left);
+    setText('crashMultiplier', 'x1.00');
+    setText('crashState', `Bet time — ${left}s`);
+    if (scene) scene.style.setProperty('--count-progress', Math.max(0, left / Math.max(1, round.betSeconds || 15)));
+  } else if (state === 'running') {
+    setText('roundCountdown', 'GO');
+    setText('crashState', round.me?.inRound ? (round.me.cashedOut ? `Cashed out: ${fmt(round.me.payout)} ${coin()}` : 'Rocket တက်နေပါတယ် — Cash Out timing!') : 'Rocket တက်နေပါတယ်');
+  } else if (state === 'crashed') {
+    setText('roundCountdown', '💥');
+    setText('crashMultiplier', `x${Number(round.crashPoint || round.multiplier || 1).toFixed(2)}`);
+    setText('crashState', 'CRASHED — next round coming');
+    setHTML('crashResult', `💥 Crashed at <b>x${Number(round.crashPoint || round.multiplier || 1).toFixed(2)}</b>`);
+  }
+  updateRocketFrame();
 }
 
-function localRocketLoop() {
-  if (liveRound?.state === 'running') {
-    const m = currentLiveMultiplier(liveRound);
-    applyRunningVisual(m, liveRound);
-  }
-  rafTimer = requestAnimationFrame(localRocketLoop);
-}
-
-function renderCrash(data) {
-  if (typeof data.balance !== 'undefined') setBalance(data.balance);
-
-  const round = data.round || data.lastRound;
-  const lastRound = data.lastRound;
-  const phase = round?.state || 'waiting';
-  const me = round?.me || {};
-  const multiplier = Number(round?.multiplier || round?.crashPoint || 1);
-
-  if (round?.id && (round.id !== lastRoundId || phase !== lastPhase)) {
-    lastRoundId = round.id;
-    lastPhase = phase;
-    if (phase === 'running') tg?.HapticFeedback?.impactOccurred?.('light');
-    if (phase === 'crashed') tg?.HapticFeedback?.notificationOccurred?.('warning');
-  }
-
-  if (phase === 'running') {
-    liveRound = {
-      ...round,
-      serverNowMs: data.serverNowMs || Date.now(),
-      receivedAtMs: Date.now(),
-    };
-  } else {
-    liveRound = null;
-  }
-
-  setText('roundTitle', round ? `Round #${round.no}` : 'Round #—');
-  setText('playerCount', fmt(round?.playerCount || 0));
-  setText('totalBet', `${fmt(round?.totalBet || 0)} ${coin()}`);
-  setText('totalPaid', `${fmt(round?.totalPaid || 0)} ${coin()}`);
-
-  const chip = $('phaseChip');
-  chip.className = 'round-chip';
-
-  if (phase === 'betting') {
-    chip.textContent = 'BET';
-    setText('roundCountdown', Math.max(0, Number(round.secondsLeft || 0)));
-    setText('crashMultiplier', 'x1.00');
-    setText('crashState', `Bet time ${round.secondsLeft}s • လူအများဝင်လောင်းနိုင်ပါတယ်`);
-    $('crashResult').className = 'result muted';
-    $('crashResult').innerHTML = me.inRound
-      ? `✅ ဒီ round မှာပါဝင်ပြီးပါပြီ။ Bet: <b>${fmt(me.bet)}</b> ${coin()}`
-      : `Bet range: <b>${fmt(round.minBet)}</b> - <b>${fmt(round.maxBet)}</b> ${coin()}<br>Place bet နှိပ်ပြီးဝင်ဆော့ပါ။`;
-    $('crashStartBtn').disabled = !!me.inRound;
-    $('cashoutBtn').disabled = true;
-    setRocketScene('betting', 1, Number(round.secondsLeft || 0));
-  } else if (phase === 'running') {
-    chip.textContent = 'LIVE';
-    chip.classList.add('run');
-    const shown = currentLiveMultiplier(liveRound || round);
-    setText('crashState', round.hypeMode ? 'Rare hype round — rocket keeps flying!' : 'Rocket ပုံမှန်ဖြည်းဖြည်းချင်း တက်နေပါတယ် • အချိန်မီ Cash Out လုပ်ပါ');
-    $('crashResult').className = 'result muted';
-    $('crashResult').innerHTML = me.inRound
-      ? me.cashedOut
-        ? `✅ Cash Out ပြီးပါပြီ။ Payout: <b>${fmt(me.payout)}</b> ${coin()}<br>Rocket က shared round အတိုင်း ဆက်တက်နေပါမယ်။`
-        : `သင့် Bet: <b>${fmt(me.bet)}</b> ${coin()}<br>Cash Out min <b>x${Number(round.minCashoutMultiplier || 1.1).toFixed(2)}</b>`
-      : 'သင်ဒီ round မှာ bet မဝင်ထားပါ။ နောက် bet time ကိုစောင့်ပါ။';
-    $('crashStartBtn').disabled = true;
-    applyRunningVisual(shown, liveRound || round);
-  } else if (phase === 'crashed') {
-    chip.textContent = 'CRASHED';
-    chip.classList.add('crash');
-    const crashPoint = Number(round?.crashPoint || round?.multiplier || 1);
-    setText('crashMultiplier', `x${crashPoint.toFixed(2)}`);
-    setText('crashState', 'Rocket exploded! နောက် round auto စပါမယ်');
-    $('crashResult').className = 'result lose';
-    $('crashResult').innerHTML = `💥 <b>CRASHED</b><br>Crash Point: <b>x${crashPoint.toFixed(2)}</b><br>Cash Out: <b>${fmt(round?.cashoutCount || 0)}</b> | Lost: <b>${fmt(round?.leftCount || 0)}</b>`;
-    $('crashStartBtn').disabled = true;
-    $('cashoutBtn').disabled = true;
-    setRocketScene('crashed', crashPoint, 0);
-  } else if (phase === 'no_bets') {
-    chip.textContent = 'NEXT';
-    setText('crashMultiplier', 'x1.00');
-    setText('crashState', 'Bet ဝင်သူမရှိလို့ နောက် round ပြန်စပါမယ်');
-    $('crashResult').className = 'result muted';
-    setText('crashResult', 'နောက် bet time ကိုစောင့်ပါ။');
-    $('crashStartBtn').disabled = true;
-    $('cashoutBtn').disabled = true;
-    setRocketScene('waiting', 1, 0);
-  } else {
-    chip.textContent = 'WAIT';
-    setText('crashMultiplier', 'x1.00');
-    setText('crashState', 'Loading next round...');
-    $('crashStartBtn').disabled = true;
-    $('cashoutBtn').disabled = true;
-    setRocketScene('waiting', 1, 0);
-  }
-
-  renderHistory(data.history || []);
-  renderPlayers(round || lastRound);
+function updateRocketFrame() {
+  if (!liveRound) return;
+  const m = multiplierAt(liveRound);
+  if (liveRound.state === 'running') setText('crashMultiplier', `x${m.toFixed(2)}`);
+  const scene = $('rocketScene');
+  if (scene) scene.style.setProperty('--rocket-progress', rocketProgress(m, liveRound.state));
 }
 
 async function pollCrash() {
-  try {
-    const data = await api('/api/mini/crash/status');
-    renderCrash(data);
-  } catch (_) {}
+  try { renderRocket(await api('/api/mini/crash/status')); } catch (err) { if (!initData) $('notTelegram')?.classList.remove('hidden'); }
 }
 
-async function placeCrashBet() {
-  const btn = $('crashStartBtn');
-  setBusy(btn, true, 'Joining...');
-  try {
-    const data = await api('/api/mini/crash/bet', { bet: $('crashBet').value });
-    renderCrash(data);
-    tg?.HapticFeedback?.notificationOccurred?.('success');
-  } catch (err) {
-    $('crashResult').className = 'result lose';
-    setText('crashResult', err.message);
-    tg?.HapticFeedback?.notificationOccurred?.('error');
-  } finally {
-    btn.textContent = btn.dataset.oldText || 'Place bet';
-    await pollCrash();
-  }
-}
+function startRocketRaf() { if (rafTimer) cancelAnimationFrame(rafTimer); const tick = () => { updateRocketFrame(); rafTimer = requestAnimationFrame(tick); }; tick(); }
+function startPolling() { if (pollTimer) clearInterval(pollTimer); pollCrash(); pollTimer = setInterval(pollCrash, 850); startRocketRaf(); }
 
-async function cashOut() {
-  const btn = $('cashoutBtn');
-  setBusy(btn, true, 'Cashing...');
-  try {
-    const data = await api('/api/mini/crash/cashout');
-    renderCrash(data);
-    tg?.HapticFeedback?.notificationOccurred?.('success');
-  } catch (err) {
-    $('crashResult').className = 'result lose';
-    setText('crashResult', err.message);
-    tg?.HapticFeedback?.notificationOccurred?.('error');
-    await pollCrash();
-  } finally {
-    btn.textContent = btn.dataset.oldText || 'Cash Out';
-  }
+async function placeCrashBet() { const btn = $('crashStartBtn'); setBusy(btn, true, 'Joining...'); try { renderRocket(await api('/api/mini/crash/bet', { bet: $('crashBet')?.value })); tg?.HapticFeedback?.notificationOccurred?.('success'); } catch (err) { setHTML('crashResult', `<span class="lose">${escapeHtml(err.message)}</span>`); tg?.HapticFeedback?.notificationOccurred?.('error'); } finally { setBusy(btn, false); } }
+async function cashoutCrash() { const btn = $('cashoutBtn'); setBusy(btn, true, 'Cash Out...'); try { const data = await api('/api/mini/crash/cashout'); setBalance(data.balance); renderRocket(data); setHTML('crashResult', `🎉 Cash Out: <b>${fmt(data.payout)} ${coin()}</b> at <b>x${Number(data.effectiveMultiplier || 0).toFixed(2)}</b>`); tg?.HapticFeedback?.notificationOccurred?.('success'); } catch (err) { setHTML('crashResult', `<span class="lose">${escapeHtml(err.message)}</span>`); tg?.HapticFeedback?.notificationOccurred?.('error'); } finally { setBusy(btn, false); } }
+
+function setSlotReels(reels = ['?', '?', '?']) { ['slotReelA','slotReelB','slotReelC'].forEach((id, i) => setText(id, String(reels[i] || '?') === '7' ? '7️⃣' : String(reels[i] || '?'))); }
+function startSlotAnimation() { const machine = $('slotMachine'); machine?.classList.add('spinning'); if (slotSpinTimer) clearInterval(slotSpinTimer); slotSpinTimer = setInterval(() => setSlotReels([0,1,2].map(() => SLOT_SYMBOLS[Math.floor(Math.random()*SLOT_SYMBOLS.length)])), 60); }
+function stopSlotAnimation(reels) { if (slotSpinTimer) clearInterval(slotSpinTimer); slotSpinTimer = null; $('slotMachine')?.classList.remove('spinning'); setSlotReels(reels); }
+async function spinSlot() { const btn = $('spinBtn'); setBusy(btn, true, 'SPINNING...'); setClass('slotResult', 'result muted'); setText('slotResult', '🎰 Reels rolling...'); startSlotAnimation(); try { const data = await api('/api/mini/slot/spin', { bet: $('slotBet')?.value }); await new Promise(r => setTimeout(r, 900)); stopSlotAnimation(data.reels || ['?','?','?']); setBalance(data.balance); const won = Number(data.payout || 0) > 0; $('slotMachine')?.classList.toggle('slot-win-glow', won); setClass('slotResult', `result ${won ? 'win' : 'lose'}`); setHTML('slotResult', `${won ? '🏆 BIG WIN' : '💨 TRY AGAIN'}<br>Bet: <b>${fmt(data.bet)} ${coin()}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`); } catch (err) { stopSlotAnimation(['?','?','?']); setClass('slotResult','result lose'); setText('slotResult', err.message); } finally { setBusy(btn, false); } }
+
+function renderPlinkoBuckets(hitIndex = null) { const row = $('plinkoBuckets'); if (!row || !config?.plinko?.buckets) return; row.innerHTML = config.plinko.buckets.map((b) => `<div class="bucket ${hitIndex === b.index ? 'hit' : ''}">${b.label}</div>`).join(''); }
+async function dropPlinko() { const btn = $('plinkoBtn'); const ball = $('plinkoBall'); setBusy(btn, true, 'DROPPING...'); setClass('plinkoResult','result muted'); setText('plinkoResult','🟡 Ball dropping...'); renderPlinkoBuckets(); try { const data = await api('/api/mini/plinko/drop', { bet: $('plinkoBet')?.value }); if (ball) { ball.classList.remove('drop'); ball.style.setProperty('--plinko-x', `${5 + data.bucket.index * 10}%`); void ball.offsetWidth; ball.classList.add('drop'); } await new Promise(r => setTimeout(r, 1000)); renderPlinkoBuckets(data.bucket.index); setBalance(data.balance); const won = Number(data.payout || 0) > Number(data.bet || 0); setClass('plinkoResult', `result ${won ? 'win' : Number(data.payout) > 0 ? '' : 'lose'}`); setHTML('plinkoResult', `Bucket: <b>${escapeHtml(data.bucket.label)}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`); } catch (err) { setClass('plinkoResult','result lose'); setText('plinkoResult', err.message); } finally { setBusy(btn, false); } }
+
+function buildWheel() { const disk = $('wheelDisk'); if (!disk || !config?.wheel?.segments) return; disk.title = config.wheel.segments.map(s => s.label).join(' • '); }
+async function spinWheel() { const btn = $('wheelBtn'); setBusy(btn, true, 'SPINNING...'); setClass('wheelResult','result muted'); setText('wheelResult','🎡 Wheel spinning...'); try { const data = await api('/api/mini/wheel/spin', { bet: $('wheelBet')?.value }); wheelRotation += Number(data.spinAngle || 1800); const disk = $('wheelDisk'); if (disk) disk.style.transform = `rotate(${wheelRotation}deg)`; await new Promise(r => setTimeout(r, 3050)); setBalance(data.balance); const won = Number(data.payout || 0) > Number(data.bet || 0); setClass('wheelResult', `result ${won ? 'win' : Number(data.payout) > 0 ? '' : 'lose'}`); setHTML('wheelResult', `Result: <b>${escapeHtml(data.segment.label)}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`); } catch (err) { setClass('wheelResult','result lose'); setText('wheelResult', err.message); } finally { setBusy(btn, false); } }
+
+function renderMinesBoard(game) { const board = $('minesBoard'); if (!board) return; const tiles = game?.tiles || Array.from({length:25}, (_, i) => ({ index:i, label:'hidden' })); board.innerHTML = tiles.map((t) => { const cls = t.exploded ? 'boom' : t.label === 'mine' ? 'mine' : t.opened ? 'safe' : ''; const icon = t.exploded ? '💥' : t.label === 'mine' ? '💣' : t.opened ? '💎' : '?'; return `<button class="mine-tile ${cls}" data-mine-index="${t.index}" ${game?.state !== 'playing' || t.opened ? 'disabled' : ''}>${icon}</button>`; }).join(''); }
+function renderMines(game, balance) { if (balance != null) setBalance(balance); renderMinesBoard(game); setText('minesSafe', game ? `${game.safeOpened}/${25 - game.mineCount}` : '0'); setText('minesMulti', `x${Number(game?.multiplier || 1).toFixed(2)}`); setText('minesCash', game?.cashoutLocked ? 'Locked' : `${fmt(game?.cashoutEstimate || 0)} ${coin()}`); const cashBtn = $('minesCashoutBtn'); if (cashBtn) cashBtn.disabled = !game || game.cashoutLocked || game.state !== 'playing'; }
+async function startMines() { const btn = $('minesStartBtn'); setBusy(btn, true, 'STARTING...'); try { const data = await api('/api/mini/mines/start', { bet: $('minesBet')?.value }); renderMines(data.game, data.balance); setClass('minesResult','result muted'); setText('minesResult', `Safe ${data.game.minCashoutSafe} ခုဖွင့်ပြီးမှ Cash Out လုပ်နိုင်ပါတယ်။`); } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } finally { setBusy(btn, false); } }
+async function openMine(index) { try { const data = await api('/api/mini/mines/open', { index }); renderMines(data.game, data.balance); if (data.result === 'lost') { setClass('minesResult','result lose'); setText('minesResult', '💥 BOOM! Mine ထိသွားပါပြီ။'); } else { setClass('minesResult','result win'); setText('minesResult', '💎 Safe! ဆက်ဖွင့်မလား Cash Out လုပ်မလား ရွေးပါ။'); } } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } }
+async function cashoutMines() { const btn = $('minesCashoutBtn'); setBusy(btn, true, 'CASHING...'); try { const data = await api('/api/mini/mines/cashout'); renderMines(data.game, data.balance); setClass('minesResult','result win'); setHTML('minesResult', `✅ Cash Out Success: <b>${fmt(data.payout)} ${coin()}</b>`); } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } finally { setBusy(btn, false); } }
+
+function bindEvents() {
+  document.querySelectorAll('[data-open]').forEach((btn) => btn.addEventListener('click', () => openPanel(btn.dataset.open)));
+  $('crashStartBtn')?.addEventListener('click', placeCrashBet); $('cashoutBtn')?.addEventListener('click', cashoutCrash);
+  $('spinBtn')?.addEventListener('click', spinSlot); $('plinkoBtn')?.addEventListener('click', dropPlinko); $('wheelBtn')?.addEventListener('click', spinWheel); $('minesStartBtn')?.addEventListener('click', startMines); $('minesCashoutBtn')?.addEventListener('click', cashoutMines);
+  document.querySelectorAll('[data-crash-bet]').forEach((b) => b.addEventListener('click', () => $('crashBet').value = b.dataset.crashBet));
+  document.querySelectorAll('[data-slot-bet]').forEach((b) => b.addEventListener('click', () => $('slotBet').value = b.dataset.slotBet));
+  document.querySelectorAll('[data-plinko-bet]').forEach((b) => b.addEventListener('click', () => $('plinkoBet').value = b.dataset.plinkoBet));
+  document.querySelectorAll('[data-wheel-bet]').forEach((b) => b.addEventListener('click', () => $('wheelBet').value = b.dataset.wheelBet));
+  document.querySelectorAll('[data-mines-bet]').forEach((b) => b.addEventListener('click', () => $('minesBet').value = b.dataset.minesBet));
+  $('minesBoard')?.addEventListener('click', (e) => { const btn = e.target.closest('[data-mine-index]'); if (btn && !btn.disabled) openMine(Number(btn.dataset.mineIndex)); });
 }
 
 async function init() {
-  tg?.ready?.();
-  tg?.expand?.();
-  tg?.setHeaderColor?.('#07080d');
-  tg?.setBackgroundColor?.('#07080d');
-
-  if (!initData) $('notTelegram').classList.remove('hidden');
-
-  setSlotReels(['?', '?', '?']);
-
-  document.querySelectorAll('.tab').forEach((btn) => btn.addEventListener('click', () => showTab(btn.dataset.tab)));
-  document.querySelectorAll('[data-crash-bet]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      $('crashBet').value = btn.dataset.crashBet;
-      tg?.HapticFeedback?.selectionChanged?.();
-    });
-  });
-  document.querySelectorAll('[data-slot-bet]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      $('slotBet').value = btn.dataset.slotBet;
-      tg?.HapticFeedback?.selectionChanged?.();
-    });
-  });
-
-  $('spinBtn').addEventListener('click', spinSlot);
-  $('crashStartBtn').addEventListener('click', placeCrashBet);
-  $('cashoutBtn').addEventListener('click', cashOut);
-
+  tg?.ready?.(); tg?.expand?.();
+  if (!initData) $('notTelegram')?.classList.remove('hidden');
+  bindEvents();
   await loadConfig();
-  await loadMe();
-  await pollCrash();
-  pollTimer = setInterval(pollCrash, 650);
-  rafTimer = requestAnimationFrame(localRocketLoop);
+  buildWheel();
+  try { await loadMe(); } catch (_) {}
+  try { const status = await api('/api/mini/mines/status'); renderMines(status.game, status.balance); } catch (_) {}
+  startPolling();
 }
 
-window.addEventListener('beforeunload', () => {
-  if (pollTimer) clearInterval(pollTimer);
-  if (rafTimer) cancelAnimationFrame(rafTimer);
-  if (slotSpinTimer) clearInterval(slotSpinTimer);
-});
-
-init().catch((err) => {
-  $('notTelegram').classList.remove('hidden');
-  setText('notTelegram', err.message || 'Mini App loading error.');
-});
+init().catch((err) => { setHTML('notTelegram', escapeHtml(err.message || err)); $('notTelegram')?.classList.remove('hidden'); });

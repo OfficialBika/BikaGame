@@ -4,179 +4,143 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Bika Game App</title>
-  <link rel="stylesheet" href="/miniapp/assets/style.css?v=slotfix-v51" />
+  <link rel="stylesheet" href="/miniapp/assets/style.css?v=premium-v7" />
 </head>
 <body>
-  <main class="app">
+  <div class="bg-orb orb-a"></div>
+  <div class="bg-orb orb-b"></div>
+  <div class="bg-grid"></div>
+
+  <main class="app-shell">
     <header class="topbar">
-      <div>
-        <p class="eyebrow">BIKA MINI APP</p>
-        <h1>Bika Game</h1>
+      <div class="top-user">
+        <div id="avatarText" class="avatar">B</div>
+        <div><span>PLAYER</span><b id="playerNameText">Loading...</b></div>
       </div>
-      <div class="balance-pill">
-        <span>Balance</span>
-        <strong id="balanceText">—</strong>
-      </div>
+      <div class="online-pill"><i></i><b id="onlineCountText">—</b><span>online</span></div>
+      <div class="wallet-pill"><span>Balance</span><b id="stickyBalanceText">—</b></div>
     </header>
 
-    <section id="notTelegram" class="notice hidden">
-      ဒီ Mini App ကို Telegram Bot ထဲကနေဖွင့်မှ login verify အလုပ်လုပ်ပါမယ်။
-    </section>
+    <section id="notTelegram" class="notice hidden">Telegram Mini App ထဲကနေဖွင့်မှ login verify အလုပ်လုပ်ပါမယ်။</section>
 
-    <nav class="tabs">
-      <button class="tab active" data-tab="crash">🚀 Rocket</button>
-      <button class="tab" data-tab="slot">🎰 Slot</button>
-    </nav>
+    <section id="home" class="panel active home-panel">
+      <div class="hero-premium">
+        <div>
+          <p class="eyebrow">BIKA PREMIUM CASINO</p>
+          <h1>Play smarter. Win brighter.</h1>
+          <p>Rocket, Slot, Plinko, Wheel, Mines — one premium Telegram Mini App.</p>
+        </div>
+        <div class="hero-wallet"><span>Wallet</span><strong id="balanceText">—</strong></div>
+      </div>
 
-    <section id="crash" class="panel active">
-      <div class="crash-layout">
-        <section class="rocket-stage card">
-          <div class="stage-head">
-            <button class="back-btn" type="button">‹ Back</button>
-            <div class="game-title">🚀 Bika Rocket</div>
-            <div class="wallet-chip" id="smallBalanceText">0.00</div>
-          </div>
-
-          <div id="rocketScene" class="space-window betting" style="--rocket-progress:0;">
-            <div class="stars stars-a"></div>
-            <div class="stars stars-b"></div>
-            <div class="meteor meteor-a"></div>
-            <div class="meteor meteor-b"></div>
-
-            <div id="countdownRing" class="countdown-ring">
-              <div class="ring-number" id="roundCountdown">15</div>
-              <small>BET TIME</small>
-            </div>
-
-            <div class="big-multiplier" id="crashMultiplier">x1.00</div>
-            <div class="round-status" id="crashState">နောက် round အတွက် bet time စောင့်နေပါတယ်…</div>
-
-            <svg class="flight-path" viewBox="0 0 420 270" aria-hidden="true">
-              <path class="path-guide" d="M42 232 C98 202 146 170 192 135 C242 96 300 55 374 26" />
-              <path class="path-glow" d="M42 232 C98 202 146 170 192 135 C242 96 300 55 374 26" pathLength="100" />
-            </svg>
-
-            <div id="rocketShip" class="rocket-ship" aria-hidden="true">
-              <svg viewBox="0 0 110 158">
-                <defs>
-                  <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stop-color="#fff" />
-                    <stop offset="0.52" stop-color="#dce8ff" />
-                    <stop offset="1" stop-color="#7184c7" />
-                  </linearGradient>
-                  <linearGradient id="nose" x1="0" y1="0" x2="1" y2="1">
-                    <stop offset="0" stop-color="#ff7384" />
-                    <stop offset="1" stop-color="#dc224f" />
-                  </linearGradient>
-                  <linearGradient id="flame" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0" stop-color="#fff7a8" />
-                    <stop offset="0.45" stop-color="#ff9b2f" />
-                    <stop offset="1" stop-color="#ff2a62" />
-                  </linearGradient>
-                </defs>
-                <path class="flame" d="M40 121 C42 147 55 160 55 160 C55 160 68 147 70 121 Z" fill="url(#flame)" />
-                <path class="flame-core" d="M49 123 C50 139 55 147 55 147 C55 147 60 139 61 123 Z" fill="#fffad1" />
-                <path d="M55 5 C34 25 27 55 27 96 L27 124 L83 124 L83 96 C83 55 76 25 55 5 Z" fill="url(#body)" />
-                <path d="M55 5 C42 18 35 35 31 52 L79 52 C75 35 68 18 55 5 Z" fill="url(#nose)" />
-                <circle cx="55" cy="75" r="17" fill="#102a59" stroke="#9be5ff" stroke-width="6" />
-                <circle cx="49" cy="69" r="4" fill="#e5ffff" />
-                <path d="M27 94 L7 129 L27 122 Z" fill="#e43d5f" />
-                <path d="M83 94 L103 129 L83 122 Z" fill="#e43d5f" />
-                <rect x="36" y="120" width="38" height="10" rx="5" fill="#394a82" />
-                <path d="M44 56 C40 74 40 98 44 116" stroke="#fff" stroke-opacity=".55" stroke-width="3" fill="none" />
-              </svg>
-            </div>
-
-            <div id="explosion" class="explosion"><span></span><span></span><span></span><b>💥</b></div>
-          </div>
-
-          <div class="odds-row" id="oddsRow">
-            <span class="odd green">1.05x</span>
-            <span class="odd red">1.10x</span>
-            <span class="odd green">1.25x</span>
-            <span class="odd yellow">1.50x</span>
-            <span class="odd blue">2.00x</span>
-          </div>
-
-          <div class="bet-card">
-            <label class="field compact">
-              <span>Bet amount</span>
-              <input id="crashBet" type="number" inputmode="numeric" min="1" placeholder="1000" />
-            </label>
-            <div class="quick-bets">
-              <button type="button" data-crash-bet="50">50</button>
-              <button type="button" data-crash-bet="100">100</button>
-              <button type="button" data-crash-bet="500">500</button>
-              <button type="button" data-crash-bet="1000">1K</button>
-              <button type="button" data-crash-bet="5000">5K</button>
-            </div>
-            <div class="action-row">
-              <button id="crashStartBtn" class="place-bet-btn">Place bet</button>
-              <button id="cashoutBtn" class="cashout-btn" disabled>Cash Out</button>
-            </div>
-          </div>
-        </section>
-
-        <section class="players-card card">
-          <div class="players-head">
-            <div>
-              <p class="eyebrow">LIVE ROUND</p>
-              <h2 id="roundTitle">Round #—</h2>
-            </div>
-            <div class="round-chip" id="phaseChip">BET</div>
-          </div>
-          <div class="stats-grid">
-            <div><span>Players</span><b id="playerCount">0</b></div>
-            <div><span>Total Bet</span><b id="totalBet">0</b></div>
-            <div><span>Paid</span><b id="totalPaid">0</b></div>
-          </div>
-          <div id="crashResult" class="result muted">အလှည့်ကျ auto round လည်နေပါတယ်။ Bet time အတွင်း Place bet နှိပ်ပါ။</div>
-          <div id="playersList" class="players-list"></div>
-        </section>
+      <div class="game-grid">
+        <button class="game-card rocket-card" data-open="crash">
+          <div class="badge live">LIVE</div><div class="game-icon">🚀</div>
+          <h2>Rocket Crash</h2><p>Multiplayer auto rounds</p><span>Open game</span>
+        </button>
+        <button class="game-card slot-home-card" data-open="slot">
+          <div class="badge hot">HOT</div><div class="game-icon">🎰</div>
+          <h2>Premium Slot</h2><p>Neon reels & jackpot glow</p><span>Spin now</span>
+        </button>
+        <button class="game-card plinko-home-card" data-open="plinko">
+          <div class="badge new">NEW</div><div class="game-icon">🟡</div>
+          <h2>Plinko</h2><p>Drop ball to multiplier lane</p><span>Drop ball</span>
+        </button>
+        <button class="game-card wheel-home-card" data-open="wheel">
+          <div class="badge daily">DAILY</div><div class="game-icon">🎡</div>
+          <h2>Lucky Wheel</h2><p>Spin for bonus multipliers</p><span>Spin wheel</span>
+        </button>
+        <button class="game-card mines-home-card" data-open="mines">
+          <div class="badge new">NEW</div><div class="game-icon">💣</div>
+          <h2>Web Mines</h2><p>Open gems, avoid bombs</p><span>Play mines</span>
+        </button>
       </div>
     </section>
 
-    <section id="slot" class="panel">
-      <div class="card game-card slot-card premium-slot">
-        <div class="game-head slot-head">
-          <div>
-            <p class="eyebrow">BIKA LUCKY REELS</p>
-            <h2>🎰 Bika Slot</h2>
+    <nav class="nav-tabs">
+      <button class="tab active" data-open="home">🏠 Home</button>
+      <button class="tab" data-open="crash">🚀 Rocket</button>
+      <button class="tab" data-open="slot">🎰 Slot</button>
+      <button class="tab" data-open="plinko">🟡 Plinko</button>
+      <button class="tab" data-open="wheel">🎡 Wheel</button>
+      <button class="tab" data-open="mines">💣 Mines</button>
+    </nav>
+
+    <section id="crash" class="panel game-panel">
+      <div class="game-toolbar"><button class="back-home" data-open="home">‹ Home</button><h2>🚀 Rocket Crash</h2><span class="badge live">LIVE</span></div>
+      <div class="rocket-compact-grid">
+        <div class="rocket-stage premium-card">
+          <div id="rocketScene" class="rocket-scene betting" style="--rocket-progress:0; --count-progress:1;">
+            <div class="stars"></div><div class="planet"></div><div class="launch-pad"></div>
+            <div id="roundCountdown" class="countdown-bubble">15</div>
+            <div id="crashMultiplier" class="rocket-multiplier">x1.00</div>
+            <div id="crashState" class="rocket-state">Bet time စောင့်နေပါတယ်…</div>
+            <svg class="flight-path" viewBox="0 0 420 260"><path d="M38 222 C100 195 162 146 214 102 C270 55 330 28 386 22" /></svg>
+            <div id="rocketShip" class="ship"><div class="ship-body"><span></span></div><div class="flame"></div></div>
+            <div id="explosion" class="explosion">💥</div>
           </div>
-          <span id="slotRange" class="round-chip">—</span>
-        </div>
-
-        <div id="slotMachine" class="slot-machine" aria-live="polite">
-          <div class="slot-lights"></div>
-          <div class="slot-brand">BIKA JACKPOT</div>
-          <div class="reel-window">
-            <div id="slotReelA" class="slot-reel">?</div>
-            <div id="slotReelB" class="slot-reel">?</div>
-            <div id="slotReelC" class="slot-reel">?</div>
+          <div class="history-row" id="oddsRow"></div>
+          <div class="bet-box compact-bet">
+            <input id="crashBet" type="number" inputmode="numeric" placeholder="Bet amount" />
+            <button id="crashStartBtn" class="primary-btn">Place Bet</button>
+            <button id="cashoutBtn" class="cashout-btn" disabled>Cash Out</button>
           </div>
-          <div class="slot-payline"></div>
+          <div class="quick-bets"><button data-crash-bet="50">50</button><button data-crash-bet="100">100</button><button data-crash-bet="500">500</button><button data-crash-bet="1000">1K</button><button data-crash-bet="5000">5K</button></div>
         </div>
-
-        <label class="field">
-          <span>Bet Amount</span>
-          <input id="slotBet" type="number" inputmode="numeric" min="1" placeholder="1000" />
-        </label>
-
-        <div class="quick-bets slot-quick-bets">
-          <button type="button" data-slot-bet="50">50</button>
-          <button type="button" data-slot-bet="100">100</button>
-          <button type="button" data-slot-bet="500">500</button>
-          <button type="button" data-slot-bet="1000">1K</button>
-          <button type="button" data-slot-bet="5000">5K</button>
+        <div class="players-card premium-card">
+          <div class="players-head"><div><p class="eyebrow">ROUND</p><h3 id="roundTitle">#—</h3></div><b id="phaseChip" class="phase-chip">BET</b></div>
+          <div class="mini-stats"><div><span>Players</span><b id="playerCount">0</b></div><div><span>Total</span><b id="totalBet">0</b></div><div><span>Paid</span><b id="totalPaid">0</b></div></div>
+          <div id="crashResult" class="result muted">Auto round လည်နေပါတယ်။ Bet time အတွင်းဝင်ပါ။</div>
+          <div id="playersList" class="players-list"></div>
         </div>
+      </div>
+    </section>
 
-        <button id="spinBtn" class="primary-btn spin-premium-btn">SPIN NOW</button>
-        <div id="slotResult" class="result muted slot-status-card">Bet ထည့်ပြီး SPIN နှိပ်ပါ။</div>
+    <section id="slot" class="panel game-panel">
+      <div class="game-toolbar"><button class="back-home" data-open="home">‹ Home</button><h2>🎰 Premium Slot</h2><span class="badge hot">HOT</span></div>
+      <div class="premium-card slot-card">
+        <div class="slot-header"><p class="eyebrow">BIKA LUCKY REELS</p><b id="slotRange">—</b></div>
+        <div id="slotMachine" class="slot-machine"><div class="slot-brand">BIKA JACKPOT</div><div class="reel-window"><div id="slotReelA" class="slot-reel">?</div><div id="slotReelB" class="slot-reel">?</div><div id="slotReelC" class="slot-reel">?</div></div><div class="slot-payline"></div></div>
+        <div class="bet-box"><input id="slotBet" type="number" inputmode="numeric" placeholder="Bet amount" /><button id="spinBtn" class="primary-btn">SPIN NOW</button></div>
+        <div class="quick-bets"><button data-slot-bet="50">50</button><button data-slot-bet="100">100</button><button data-slot-bet="500">500</button><button data-slot-bet="1000">1K</button><button data-slot-bet="5000">5K</button></div>
+        <div id="slotResult" class="result muted">Bet ထည့်ပြီး SPIN နှိပ်ပါ။</div>
+      </div>
+    </section>
+
+    <section id="plinko" class="panel game-panel">
+      <div class="game-toolbar"><button class="back-home" data-open="home">‹ Home</button><h2>🟡 Plinko</h2><span class="badge new">NEW</span></div>
+      <div class="premium-card plinko-card">
+        <div class="plinko-board" id="plinkoBoard"><div id="plinkoBall" class="plinko-ball"></div><div class="pin-row r1"></div><div class="pin-row r2"></div><div class="pin-row r3"></div><div class="pin-row r4"></div><div class="pin-row r5"></div></div>
+        <div id="plinkoBuckets" class="bucket-row"></div>
+        <div class="bet-box"><input id="plinkoBet" type="number" inputmode="numeric" placeholder="Bet amount" /><button id="plinkoBtn" class="primary-btn">DROP BALL</button></div>
+        <div class="quick-bets"><button data-plinko-bet="50">50</button><button data-plinko-bet="100">100</button><button data-plinko-bet="500">500</button><button data-plinko-bet="1000">1K</button></div>
+        <div id="plinkoResult" class="result muted">Ball drop လုပ်ရန် bet ထည့်ပါ။</div>
+      </div>
+    </section>
+
+    <section id="wheel" class="panel game-panel">
+      <div class="game-toolbar"><button class="back-home" data-open="home">‹ Home</button><h2>🎡 Lucky Wheel</h2><span class="badge daily">DAILY</span></div>
+      <div class="premium-card wheel-card">
+        <div class="wheel-wrap"><div class="wheel-pointer"></div><div id="wheelDisk" class="wheel-disk"></div><div class="wheel-center">BIKA</div></div>
+        <div class="bet-box"><input id="wheelBet" type="number" inputmode="numeric" placeholder="Bet amount" /><button id="wheelBtn" class="primary-btn">SPIN WHEEL</button></div>
+        <div class="quick-bets"><button data-wheel-bet="50">50</button><button data-wheel-bet="100">100</button><button data-wheel-bet="500">500</button><button data-wheel-bet="1000">1K</button></div>
+        <div id="wheelResult" class="result muted">Wheel spin လုပ်ရန် bet ထည့်ပါ။</div>
+      </div>
+    </section>
+
+    <section id="mines" class="panel game-panel">
+      <div class="game-toolbar"><button class="back-home" data-open="home">‹ Home</button><h2>💣 Web Mines</h2><span class="badge new">NEW</span></div>
+      <div class="premium-card mines-card">
+        <div class="mines-info"><div><span>Safe</span><b id="minesSafe">0</b></div><div><span>Multiplier</span><b id="minesMulti">x1.00</b></div><div><span>Cashout</span><b id="minesCash">Locked</b></div></div>
+        <div id="minesBoard" class="mines-board"></div>
+        <div class="bet-box"><input id="minesBet" type="number" inputmode="numeric" placeholder="Bet amount" /><button id="minesStartBtn" class="primary-btn">START</button><button id="minesCashoutBtn" class="cashout-btn" disabled>CASH OUT</button></div>
+        <div class="quick-bets"><button data-mines-bet="50">50</button><button data-mines-bet="100">100</button><button data-mines-bet="500">500</button><button data-mines-bet="1000">1K</button></div>
+        <div id="minesResult" class="result muted">Start နှိပ်ပြီး gems ဖွင့်ပါ။</div>
       </div>
     </section>
   </main>
 
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="/miniapp/assets/app.js?v=slotfix-v51"></script>
+  <script src="/miniapp/assets/app.js?v=premium-v7"></script>
 </body>
 </html>
