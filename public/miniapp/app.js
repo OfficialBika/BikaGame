@@ -2,9 +2,13 @@ const tg = window.Telegram?.WebApp;
 const initData = tg?.initData || '';
 let config = null;
 let pollTimer = null;
+let rafTimer = null;
 let lastRoundId = null;
 let lastPhase = null;
+let liveRound = null;
+let slotSpinTimer = null;
 
+const SLOT_SYMBOLS = ['🍒', '🍋', '🍉', '🔔', '⭐', 'BAR', '7️⃣'];
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
 const coin = () => config?.coin || '$';
@@ -22,8 +26,9 @@ function setBusy(button, busy, label) {
 }
 
 function setBalance(value) {
-  $('balanceText').textContent = `${fmt(value)} ${coin()}`;
-  $('smallBalanceText').textContent = `${fmt(value)} ${coin()}`;
+  const text = `${fmt(value)} ${coin()}`;
+  $('balanceText').textContent = text;
+  $('smallBalanceText').textContent = text;
 }
 
 async function api(path, body = {}) {
@@ -65,24 +70,75 @@ function showTab(tab) {
   document.querySelectorAll('.panel').forEach((panel) => panel.classList.toggle('active', panel.id === tab));
 }
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
+function normalizeSlotSymbol(symbol) {
+  return String(symbol || '?') === '7' ? '7️⃣' : String(symbol || '?');
+}
+
+function setSlotReels(reels = ['?', '?', '?']) {
+  const final = reels.map(normalizeSlotSymbol);
+  ['slotReelA', 'slotReelB', 'slotReelC'].forEach((id, index) => {
+    const el = $(id);
+    if (el) el.textContent = final[index] || '?';
+  });
+}
+
+function startSlotAnimation() {
+  const machine = $('slotMachine');
+  machine.classList.add('spinning');
+  if (slotSpinTimer) clearInterval(slotSpinTimer);
+  slotSpinTimer = setInterval(() => {
+    setSlotReels([0, 1, 2].map(() => SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)]));
+  }, 70);
+}
+
+function stopSlotAnimation(finalReels) {
+  const machine = $('slotMachine');
+  if (slotSpinTimer) clearInterval(slotSpinTimer);
+  slotSpinTimer = null;
+  machine.classList.remove('spinning');
+  machine.classList.add('slot-pop');
+  setSlotReels(finalReels);
+  setTimeout(() => machine.classList.remove('slot-pop'), 520);
+}
+
 async function spinSlot() {
   const btn = $('spinBtn');
   const resultBox = $('slotResult');
   const bet = $('slotBet').value;
   setBusy(btn, true, 'SPINNING...');
-  resultBox.className = 'result muted';
-  resultBox.textContent = 'Rolling...';
+  resultBox.className = 'result muted slot-status-card';
+  resultBox.innerHTML = '🎰 Reels rolling...';
+  startSlotAnimation();
 
   try {
     const data = await api('/api/mini/slot/spin', { bet });
-    $('slotReels').textContent = data.art || (data.reels || []).join(' | ');
+    // Keep a short premium animation even on fast backend responses.
+    await new Promise((resolve) => setTimeout(resolve, 850));
+    stopSlotAnimation(data.reels || ['?', '?', '?']);
     setBalance(data.balance);
     const won = Number(data.payout || 0) > 0;
-    resultBox.className = `result ${won ? 'win' : 'lose'}`;
-    resultBox.innerHTML = `${won ? '✅ WIN' : '❌ LOSE'}<br>Bet: <b>${fmt(data.bet)}</b> ${coin()}<br>Multiplier: <b>x${Number(data.multiplier || 0).toFixed(2)}</b><br>Payout: <b>${fmt(data.payout)}</b> ${coin()}<br>Net: <b>${fmt(data.net)}</b> ${coin()}`;
+    $('slotMachine').classList.toggle('slot-win-glow', won);
+    resultBox.className = `result slot-result-card ${won ? 'win' : 'lose'}`;
+    resultBox.innerHTML = `
+      <div class="slot-result-title">${won ? '🏆 BIG WIN' : '💨 TRY AGAIN'}</div>
+      <div class="slot-result-grid">
+        <span>Bet</span><b>${fmt(data.bet)} ${coin()}</b>
+        <span>Multiplier</span><b>x${Number(data.multiplier || 0).toFixed(2)}</b>
+        <span>Payout</span><b>${fmt(data.payout)} ${coin()}</b>
+        <span>Net</span><b>${fmt(data.net)} ${coin()}</b>
+      </div>`;
     tg?.HapticFeedback?.notificationOccurred?.(won ? 'success' : 'warning');
   } catch (err) {
-    resultBox.className = 'result lose';
+    stopSlotAnimation(['?', '?', '?']);
+    resultBox.className = 'result lose slot-status-card';
     resultBox.textContent = err.message;
     tg?.HapticFeedback?.notificationOccurred?.('error');
   } finally {
@@ -90,10 +146,42 @@ async function spinSlot() {
   }
 }
 
+function multiplierAtElapsed(elapsedMs, durationMs, target, from = 1, hypeMode = false) {
+  const start = Math.max(1, Number(from || 1));
+  const end = Math.max(start, Number(target || start));
+  const duration = Math.max(1, Number(durationMs || 1));
+  const progress = Math.max(0, Math.min(1, Number(elapsedMs || 0) / duration));
+  if (progress >= 1) return end;
+  const eased = hypeMode ? Math.pow(progress, 1.28) : Math.pow(progress, 1.12);
+  return start + (end - start) * eased;
+}
+
+function currentLiveMultiplier(round) {
+  if (!round || round.state !== 'running') return Number(round?.multiplier || 1);
+  const base = Number(round.multiplier || 1);
+  const serverNow = Number(round.serverNowMs || Date.now());
+  const receivedAt = Number(round.receivedAtMs || Date.now());
+  const nowServerEstimate = serverNow + (Date.now() - receivedAt);
+
+  // If backend sends an ended/safe target, use exact interpolation. During live rounds
+  // the real crash point is intentionally hidden, so use tiny visual extrapolation only.
+  const targetRaw = Number(round.hypeMode ? round.hypeTarget : round.crashPoint);
+  const duration = Number(round.crashDurationMs || 0);
+  if (Number.isFinite(targetRaw) && targetRaw > base && duration > 0) {
+    const started = Number(round.startedAtMs || nowServerEstimate);
+    const from = Number(round.multiplierFrom || 1);
+    const m = multiplierAtElapsed(nowServerEstimate - started, duration, targetRaw, from, !!round.hypeMode);
+    return Math.max(base, Math.min(targetRaw, m));
+  }
+
+  const elapsedSec = Math.max(0, (Date.now() - receivedAt) / 1000);
+  const speed = base < 1.6 ? 0.045 : base < 2.6 ? 0.075 : 0.12;
+  return base + Math.min(0.09, elapsedSec * speed);
+}
+
 function rocketProgress(multiplier, phase) {
   if (phase === 'betting') return 0;
   const m = Math.max(1, Number(multiplier || 1));
-  // Log mapping keeps the rocket moving normally and prevents it from sitting at the end of the path too early.
   const visualMax = Math.max(6, Number(config?.crash?.maxMultiplier || 6));
   const p = Math.log(m) / Math.log(visualMax);
   return Math.max(0, Math.min(0.96, p));
@@ -102,13 +190,11 @@ function rocketProgress(multiplier, phase) {
 function renderHistory(history = []) {
   const row = $('oddsRow');
   if (!row) return;
-
   const items = Array.isArray(history) ? history.slice(0, 8) : [];
   if (!items.length) {
-    row.innerHTML = '<span class="odd muted-odd">Previous rounds will show here</span>';
+    row.innerHTML = '<span class="odd muted-odd">Previous round crash points</span>';
     return;
   }
-
   row.innerHTML = items.map((item) => {
     const color = ['red', 'yellow', 'blue', 'green'].includes(item.color) ? item.color : 'blue';
     const value = Number(item.multiplier || 1).toFixed(2);
@@ -120,7 +206,7 @@ function renderHistory(history = []) {
 function setRocketScene(phase, multiplier, secondsLeft) {
   const scene = $('rocketScene');
   const progress = rocketProgress(multiplier, phase);
-  scene.style.setProperty('--rocket-progress', progress.toFixed(3));
+  scene.style.setProperty('--rocket-progress', progress.toFixed(4));
   scene.classList.remove('betting', 'running', 'crashed', 'cashed', 'waiting');
 
   if (phase === 'betting') {
@@ -141,7 +227,6 @@ function setRocketScene(phase, multiplier, secondsLeft) {
 function renderPlayers(round) {
   const box = $('playersList');
   const players = round?.players || [];
-
   if (!players.length) {
     box.innerHTML = '<div class="result muted">ဒီ round မှာ bet ဝင်သူမရှိသေးပါ။</div>';
     return;
@@ -164,12 +249,20 @@ function renderPlayers(round) {
   }).join('');
 }
 
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;');
+function applyRunningVisual(multiplier, round) {
+  $('crashMultiplier').textContent = `x${Number(multiplier || 1).toFixed(2)}`;
+  setRocketScene('running', multiplier, 0);
+  const me = round?.me || {};
+  const can = !!(me.inRound && !me.cashedOut && Number(multiplier || 1) >= Number(round?.minCashoutMultiplier || 1.1));
+  $('cashoutBtn').disabled = !can;
+}
+
+function localRocketLoop() {
+  if (liveRound?.state === 'running') {
+    const m = currentLiveMultiplier(liveRound);
+    applyRunningVisual(m, liveRound);
+  }
+  rafTimer = requestAnimationFrame(localRocketLoop);
 }
 
 function renderCrash(data) {
@@ -186,6 +279,16 @@ function renderCrash(data) {
     lastPhase = phase;
     if (phase === 'running') tg?.HapticFeedback?.impactOccurred?.('light');
     if (phase === 'crashed') tg?.HapticFeedback?.notificationOccurred?.('warning');
+  }
+
+  if (phase === 'running') {
+    liveRound = {
+      ...round,
+      serverNowMs: data.serverNowMs || Date.now(),
+      receivedAtMs: Date.now(),
+    };
+  } else {
+    liveRound = null;
   }
 
   $('roundTitle').textContent = round ? `Round #${round.no}` : 'Round #—';
@@ -211,18 +314,16 @@ function renderCrash(data) {
   } else if (phase === 'running') {
     chip.textContent = 'LIVE';
     chip.classList.add('run');
-    $('crashMultiplier').textContent = `x${multiplier.toFixed(2)}`;
+    const shown = currentLiveMultiplier(liveRound || round);
     $('crashState').textContent = round.hypeMode ? 'Rare hype round — rocket keeps flying!' : 'Rocket ပုံမှန်ဖြည်းဖြည်းချင်း တက်နေပါတယ် • အချိန်မီ Cash Out လုပ်ပါ';
     $('crashResult').className = 'result muted';
     $('crashResult').innerHTML = me.inRound
       ? me.cashedOut
-        ? `✅ Cash Out ပြီးပါပြီ။ Payout: <b>${fmt(me.payout)}</b> ${coin()}`
+        ? `✅ Cash Out ပြီးပါပြီ။ Payout: <b>${fmt(me.payout)}</b> ${coin()}<br>Rocket က shared round အတိုင်း ဆက်တက်နေပါမယ်။`
         : `သင့် Bet: <b>${fmt(me.bet)}</b> ${coin()}<br>Cash Out min <b>x${Number(round.minCashoutMultiplier || 1.1).toFixed(2)}</b>`
       : 'သင်ဒီ round မှာ bet မဝင်ထားပါ။ နောက် bet time ကိုစောင့်ပါ။';
     $('crashStartBtn').disabled = true;
-    $('cashoutBtn').disabled = !(me.inRound && !me.cashedOut && round.me?.canCashout);
-    // Keep the shared rocket moving after your cash out; only your result card changes.
-    setRocketScene('running', multiplier, 0);
+    applyRunningVisual(shown, liveRound || round);
   } else if (phase === 'crashed') {
     chip.textContent = 'CRASHED';
     chip.classList.add('crash');
@@ -305,10 +406,18 @@ async function init() {
 
   if (!initData) $('notTelegram').classList.remove('hidden');
 
+  setSlotReels(['?', '?', '?']);
+
   document.querySelectorAll('.tab').forEach((btn) => btn.addEventListener('click', () => showTab(btn.dataset.tab)));
   document.querySelectorAll('[data-crash-bet]').forEach((btn) => {
     btn.addEventListener('click', () => {
       $('crashBet').value = btn.dataset.crashBet;
+      tg?.HapticFeedback?.selectionChanged?.();
+    });
+  });
+  document.querySelectorAll('[data-slot-bet]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      $('slotBet').value = btn.dataset.slotBet;
       tg?.HapticFeedback?.selectionChanged?.();
     });
   });
@@ -320,12 +429,14 @@ async function init() {
   await loadConfig();
   await loadMe();
   await pollCrash();
-  // Faster polling keeps the multiplier and rocket movement smooth without websocket dependencies.
-  pollTimer = setInterval(pollCrash, 280);
+  pollTimer = setInterval(pollCrash, 650);
+  rafTimer = requestAnimationFrame(localRocketLoop);
 }
 
 window.addEventListener('beforeunload', () => {
   if (pollTimer) clearInterval(pollTimer);
+  if (rafTimer) cancelAnimationFrame(rafTimer);
+  if (slotSpinTimer) clearInterval(slotSpinTimer);
 });
 
 init().catch((err) => {

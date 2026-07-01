@@ -137,20 +137,41 @@
     </section>
 
     <section id="slot" class="panel">
-      <div class="card game-card slot-card">
-        <div class="game-head">
-          <h2>🎰 Bika Slot</h2>
-          <span id="slotRange">—</span>
+      <div class="card game-card slot-card premium-slot">
+        <div class="game-head slot-head">
+          <div>
+            <p class="eyebrow">BIKA LUCKY REELS</p>
+            <h2>🎰 Bika Slot</h2>
+          </div>
+          <span id="slotRange" class="round-chip">—</span>
         </div>
+
+        <div id="slotMachine" class="slot-machine" aria-live="polite">
+          <div class="slot-lights"></div>
+          <div class="slot-brand">BIKA JACKPOT</div>
+          <div class="reel-window">
+            <div id="slotReelA" class="slot-reel">?</div>
+            <div id="slotReelB" class="slot-reel">?</div>
+            <div id="slotReelC" class="slot-reel">?</div>
+          </div>
+          <div class="slot-payline"></div>
+        </div>
+
         <label class="field">
           <span>Bet Amount</span>
           <input id="slotBet" type="number" inputmode="numeric" min="1" placeholder="1000" />
         </label>
-        <button id="spinBtn" class="primary-btn">SPIN</button>
-        <pre id="slotReels" class="slot-reels">┏━━━━━━━━━━━━━━━━━━┓
-┃  ?  |  ?  |  ?  ┃
-┗━━━━━━━━━━━━━━━━━━┛</pre>
-        <div id="slotResult" class="result muted">Bet ထည့်ပြီး SPIN နှိပ်ပါ။</div>
+
+        <div class="quick-bets slot-quick-bets">
+          <button type="button" data-slot-bet="50">50</button>
+          <button type="button" data-slot-bet="100">100</button>
+          <button type="button" data-slot-bet="500">500</button>
+          <button type="button" data-slot-bet="1000">1K</button>
+          <button type="button" data-slot-bet="5000">5K</button>
+        </div>
+
+        <button id="spinBtn" class="primary-btn spin-premium-btn">SPIN NOW</button>
+        <div id="slotResult" class="result muted slot-status-card">Bet ထည့်ပြီး SPIN နှိပ်ပါ။</div>
       </div>
     </section>
   </main>
