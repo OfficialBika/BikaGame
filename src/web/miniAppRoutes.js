@@ -6,7 +6,7 @@ const { COIN, SLOT, CRASH = {} } = require('../config/constants');
 const { getBotInfo } = require('../config/bot');
 const { ensureUser, getUser } = require('../services/economyService');
 const { spinWebSlot } = require('../services/webSlotService');
-const { startWebCrash, getWebCrashStatus, cashoutWebCrash } = require('../services/webCrashService');
+const { startWebCrashLoop, placeWebCrashBet, getWebCrashStatus, cashoutWebCrash } = require('../services/webCrashService');
 const { verifyTelegramMiniAppInitData, getInitDataFromRequest } = require('./telegramMiniAuth');
 
 function publicMiniAppUrl() {
@@ -29,6 +29,11 @@ function sendError(res, err) {
     COOLDOWN: [429, 'Cooldown ခဏစောင့်ပါ။'],
     SPIN_RUNNING: [429, 'Slot spin လက်ရှိ run နေပါတယ်။'],
     CRASH_RUNNING: [400, 'Crash round လက်ရှိ run နေပါတယ်။'],
+    NOT_BETTING: [400, 'အခု bet time မဟုတ်ပါ။ နောက် round ကိုစောင့်ပါ။'],
+    ALREADY_BET: [400, 'ဒီ round မှာ bet ဝင်ပြီးသားပါ။'],
+    ROUND_FULL: [400, 'ဒီ round မှာ player ပြည့်နေပါပြီ။'],
+    NOT_IN_ROUND: [400, 'သင် ဒီ round မှာ bet မဝင်ထားပါ။'],
+    ALREADY_CASHED_OUT: [400, 'Cash Out လုပ်ပြီးသားပါ။'],
     NO_ACTIVE_CRASH: [400, 'Active Crash round မရှိပါ။'],
     CASHOUT_LOCKED: [400, 'Cash Out မလုပ်နိုင်သေးပါ။'],
     CASHOUT_PROCESSING: [429, 'Cash Out processing...'],
@@ -71,6 +76,7 @@ function normalizeTelegramUser(user) {
 }
 
 module.exports = function registerMiniAppRoutes(app, options = {}) {
+  startWebCrashLoop();
   const publicDir = options.publicDir || path.join(process.cwd(), 'public', 'miniapp');
 
   app.get(['/miniapp', '/miniapp/'], (req, res) => {
@@ -92,6 +98,8 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
         maxBet: Number(CRASH.maxBet || 10000),
         minCashoutMultiplier: Number(CRASH.minCashoutMultiplier || 1.10),
         maxPayoutMultiplier: Number(CRASH.maxPayoutMultiplier || 4),
+        betSeconds: Number(process.env.WEB_CRASH_BET_SECONDS || CRASH.betSeconds || 15),
+        multiplayer: true,
       },
     });
   });
@@ -135,8 +143,23 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
   app.post('/api/mini/crash/start', authMiddleware, async (req, res) => {
     try {
       await ensureUser(normalizeTelegramUser(req.telegramUser));
-      const result = await startWebCrash({
+      const result = await placeWebCrashBet({
         userId: req.telegramUser.id,
+        user: req.telegramUser,
+        bet: req.body?.bet,
+      });
+      return res.json({ ok: true, ...result });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/crash/bet', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await placeWebCrashBet({
+        userId: req.telegramUser.id,
+        user: req.telegramUser,
         bet: req.body?.bet,
       });
       return res.json({ ok: true, ...result });
