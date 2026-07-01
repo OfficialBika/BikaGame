@@ -11,8 +11,8 @@
     <section class="hero card">
       <div>
         <p class="eyebrow">BIKA MINI APP</p>
-        <h1>🎮 Bika Game</h1>
-        <p id="welcomeText">Telegram ထဲကနေ Slot / Crash ဆော့နိုင်ပါတယ်။</p>
+        <h1>🚀 Bika Rocket Casino</h1>
+        <p id="welcomeText">Telegram ထဲကနေ Slot / Rocket Crash ဆော့နိုင်ပါတယ်။</p>
       </div>
       <div class="balance-box">
         <span>Balance</span>
@@ -26,13 +26,13 @@
 
     <nav class="tabs">
       <button class="tab active" data-tab="slot">🎰 Slot</button>
-      <button class="tab" data-tab="crash">🚀 Crash</button>
+      <button class="tab" data-tab="crash">🚀 Rocket</button>
     </nav>
 
     <section id="slot" class="panel active">
-      <div class="card game-card">
+      <div class="card game-card slot-card">
         <div class="game-head">
-          <h2>🎰 Slot</h2>
+          <h2>🎰 Bika Slot</h2>
           <span id="slotRange">—</span>
         </div>
         <label class="field">
@@ -48,22 +48,65 @@
     </section>
 
     <section id="crash" class="panel">
-      <div class="card game-card">
-        <div class="game-head">
-          <h2>🚀 Crash</h2>
+      <div class="card game-card rocket-card">
+        <div class="game-head rocket-head">
+          <div>
+            <p class="eyebrow">ROCKET CRASH</p>
+            <h2>🚀 Bika Rocket</h2>
+          </div>
           <span id="crashRange">—</span>
         </div>
-        <div class="multiplier" id="crashMultiplier">x1.00</div>
-        <p id="crashState" class="muted">Bet ထည့်ပြီး Start နှိပ်ပါ။</p>
+
+        <div id="rocketScene" class="rocket-scene idle" style="--rocket-progress: 0;">
+          <div class="space-glow"></div>
+          <div class="star s1"></div>
+          <div class="star s2"></div>
+          <div class="star s3"></div>
+          <div class="star s4"></div>
+          <div class="star s5"></div>
+          <div class="planet"></div>
+          <div class="flight-line"></div>
+          <div id="rocketShip" class="rocket-ship" aria-hidden="true">
+            <span class="rocket-emoji">🚀</span>
+            <span class="flame"></span>
+          </div>
+          <div id="explosion" class="explosion">💥</div>
+          <div class="launch-pad">
+            <span></span>
+          </div>
+        </div>
+
+        <div class="rocket-dashboard">
+          <div class="multiplier-wrap">
+            <small>Current Multiplier</small>
+            <div class="multiplier" id="crashMultiplier">x1.00</div>
+          </div>
+          <div class="rocket-status">
+            <span id="crashBadge" class="status-badge idle">READY</span>
+            <p id="crashState" class="muted">Bet ထည့်ပြီး Launch နှိပ်ပါ။</p>
+          </div>
+        </div>
+
         <label class="field">
           <span>Bet Amount</span>
           <input id="crashBet" type="number" inputmode="numeric" min="1" placeholder="1000" />
         </label>
-        <div class="action-row">
-          <button id="crashStartBtn" class="primary-btn">START</button>
-          <button id="cashoutBtn" class="success-btn" disabled>CASH OUT</button>
+
+        <div class="quick-bets" aria-label="Quick bet buttons">
+          <button type="button" data-crash-bet="50">50</button>
+          <button type="button" data-crash-bet="100">100</button>
+          <button type="button" data-crash-bet="500">500</button>
+          <button type="button" data-crash-bet="1000">1K</button>
         </div>
-        <div id="crashResult" class="result muted">Cash Out timing ကိုသတိထားပါ။</div>
+
+        <div class="action-row">
+          <button id="crashStartBtn" class="launch-btn">🚀 LAUNCH</button>
+          <button id="cashoutBtn" class="cashout-btn" disabled>💰 CASH OUT</button>
+        </div>
+
+        <div id="crashResult" class="result rocket-result muted">
+          Rocket မပေါက်ခင် Cash Out လုပ်နိုင်ရင် payout ရပါမယ်။
+        </div>
       </div>
     </section>
   </main>

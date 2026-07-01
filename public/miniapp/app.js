@@ -59,7 +59,7 @@ async function loadMe() {
   const data = await api('/api/mini/me');
   const user = data.user || {};
   setBalance(user.balance);
-  $('welcomeText').textContent = `Welcome ${user.firstName || user.username || 'Player'}`;
+  $('welcomeText').textContent = `Welcome ${user.firstName || user.username || 'Player'} — Rocket ကိုအချိန်မီ Cash Out လုပ်ပါ။`;
 }
 
 function showTab(tab) {
@@ -92,8 +92,43 @@ async function spinSlot() {
   }
 }
 
+function rocketProgress(multiplier) {
+  const m = Math.max(1, Number(multiplier || 1));
+  const visualMax = Math.max(3, Number(config?.crash?.maxPayoutMultiplier || 4));
+  return Math.max(0, Math.min(1, (m - 1) / (visualMax - 1)));
+}
+
+function setRocketScene(mode, multiplier) {
+  const scene = $('rocketScene');
+  const badge = $('crashBadge');
+  const progress = rocketProgress(multiplier);
+
+  scene.style.setProperty('--rocket-progress', progress.toFixed(3));
+  scene.classList.remove('idle', 'running', 'crashed', 'cashed');
+  badge.classList.remove('idle', 'running', 'win', 'crashed');
+
+  if (mode === 'running') {
+    scene.classList.add('running');
+    badge.classList.add('running');
+    badge.textContent = 'FLYING';
+  } else if (mode === 'win') {
+    scene.classList.add('cashed');
+    badge.classList.add('win');
+    badge.textContent = 'CASHED OUT';
+  } else if (mode === 'crashed') {
+    scene.classList.add('crashed');
+    badge.classList.add('crashed');
+    badge.textContent = 'CRASHED';
+  } else {
+    scene.classList.add('idle');
+    badge.classList.add('idle');
+    badge.textContent = 'READY';
+    scene.style.setProperty('--rocket-progress', '0');
+  }
+}
+
 function renderCrash(data) {
-  const mult = Number(data.multiplier || 1);
+  const mult = Number(data.multiplier || data.crashPoint || 1);
   $('crashMultiplier').textContent = `x${mult.toFixed(2)}`;
   $('cashoutBtn').disabled = !(data.active && mult >= Number(config?.crash?.minCashoutMultiplier || 1.1));
   $('crashStartBtn').disabled = !!data.active;
@@ -101,21 +136,28 @@ function renderCrash(data) {
   if (typeof data.balance !== 'undefined') setBalance(data.balance);
 
   if (data.active) {
-    $('crashState').textContent = `Running • Bet ${fmt(data.bet)} ${coin()}`;
-    $('crashResult').className = 'result muted';
-    $('crashResult').textContent = `Cash Out min x${Number(data.cashoutMinMultiplier || config.crash.minCashoutMultiplier || 1.1).toFixed(2)}`;
+    setRocketScene('running', mult);
+    $('crashState').textContent = `Rocket flying • Bet ${fmt(data.bet)} ${coin()}`;
+    $('crashResult').className = 'result rocket-result muted';
+    $('crashResult').innerHTML = `Cash Out min <b>x${Number(data.cashoutMinMultiplier || config.crash.minCashoutMultiplier || 1.1).toFixed(2)}</b><br>မပေါက်ခင် <b>CASH OUT</b> နှိပ်ပါ။`;
   } else if (data.cashedOut) {
-    $('crashState').textContent = 'Cash Out Success';
-    $('crashResult').className = 'result win';
-    $('crashResult').innerHTML = `🎉 Congratulations<br>Bet: <b>${fmt(data.bet)}</b> ${coin()}<br>Multiplier: <b>x${Number(data.effectiveMultiplier || data.multiplier || 1).toFixed(2)}</b><br>Payout: <b>${fmt(data.payout)}</b> ${coin()}<br>Net: <b>${fmt(data.net)}</b> ${coin()}`;
+    setRocketScene('win', mult);
+    $('crashState').textContent = 'Rocket escaped successfully!';
+    $('crashResult').className = 'result rocket-result win';
+    $('crashResult').innerHTML = `🎉 <b>Congratulations</b><br>Bet: <b>${fmt(data.bet)}</b> ${coin()}<br>Multiplier: <b>x${Number(data.effectiveMultiplier || data.multiplier || 1).toFixed(2)}</b><br>Payout: <b>${fmt(data.payout)}</b> ${coin()}<br>Net: <b>${fmt(data.net)}</b> ${coin()}`;
   } else if (data.crashed) {
-    $('crashState').textContent = 'Crashed';
-    $('crashResult').className = 'result lose';
-    $('crashResult').innerHTML = `💥 CRASHED<br>Crash Point: <b>x${Number(data.crashPoint || data.multiplier || 1).toFixed(2)}</b><br>Lost: <b>${fmt(data.bet)}</b> ${coin()}`;
+    const crashPoint = Number(data.crashPoint || data.multiplier || 1);
+    setRocketScene('crashed', crashPoint);
+    $('crashMultiplier').textContent = `x${crashPoint.toFixed(2)}`;
+    $('crashState').textContent = 'Rocket exploded!';
+    $('crashResult').className = 'result rocket-result lose';
+    $('crashResult').innerHTML = `💥 <b>CRASHED</b><br>Crash Point: <b>x${crashPoint.toFixed(2)}</b><br>Lost: <b>${fmt(data.bet)}</b> ${coin()}`;
   } else {
-    $('crashState').textContent = 'Bet ထည့်ပြီး Start နှိပ်ပါ။';
-    $('crashResult').className = 'result muted';
-    $('crashResult').textContent = 'Cash Out timing ကိုသတိထားပါ။';
+    setRocketScene('idle', 1);
+    $('crashMultiplier').textContent = 'x1.00';
+    $('crashState').textContent = 'Bet ထည့်ပြီး Launch နှိပ်ပါ။';
+    $('crashResult').className = 'result rocket-result muted';
+    $('crashResult').textContent = 'Rocket မပေါက်ခင် Cash Out လုပ်နိုင်ရင် payout ရပါမယ်။';
   }
 }
 
@@ -132,19 +174,19 @@ async function pollCrash() {
 
 async function startCrash() {
   const btn = $('crashStartBtn');
-  setBusy(btn, true, 'STARTING...');
+  setBusy(btn, true, 'LAUNCHING...');
   try {
     const data = await api('/api/mini/crash/start', { bet: $('crashBet').value });
     renderCrash(data);
     tg?.HapticFeedback?.impactOccurred?.('medium');
     if (crashTimer) clearInterval(crashTimer);
-    crashTimer = setInterval(pollCrash, 550);
+    crashTimer = setInterval(pollCrash, 420);
   } catch (err) {
-    $('crashResult').className = 'result lose';
+    $('crashResult').className = 'result rocket-result lose';
     $('crashResult').textContent = err.message;
     tg?.HapticFeedback?.notificationOccurred?.('error');
   } finally {
-    btn.textContent = btn.dataset.oldText || 'START';
+    btn.textContent = btn.dataset.oldText || '🚀 LAUNCH';
     btn.disabled = false;
   }
 }
@@ -161,12 +203,12 @@ async function cashOut() {
       crashTimer = null;
     }
   } catch (err) {
-    $('crashResult').className = 'result lose';
+    $('crashResult').className = 'result rocket-result lose';
     $('crashResult').textContent = err.message;
     tg?.HapticFeedback?.notificationOccurred?.('error');
     await pollCrash();
   } finally {
-    btn.textContent = btn.dataset.oldText || 'CASH OUT';
+    btn.textContent = btn.dataset.oldText || '💰 CASH OUT';
   }
 }
 
@@ -177,6 +219,12 @@ async function init() {
   if (!initData) $('notTelegram').classList.remove('hidden');
 
   document.querySelectorAll('.tab').forEach((btn) => btn.addEventListener('click', () => showTab(btn.dataset.tab)));
+  document.querySelectorAll('[data-crash-bet]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      $('crashBet').value = btn.dataset.crashBet;
+      tg?.HapticFeedback?.selectionChanged?.();
+    });
+  });
   $('spinBtn').addEventListener('click', spinSlot);
   $('crashStartBtn').addEventListener('click', startCrash);
   $('cashoutBtn').addEventListener('click', cashOut);
