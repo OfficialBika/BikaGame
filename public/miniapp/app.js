@@ -8,9 +8,11 @@ let slotSpinTimer = null;
 let wheelRotation = 0;
 
 const SLOT_SYMBOLS = ['🍒', '🍋', '🍉', '🔔', '⭐', 'BAR', '7️⃣'];
+const PANEL_TO_GAME = { crash: 'rocket', slot: 'slot', plinko: 'plinko', wheel: 'wheel', mines: 'mines' };
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
 const coin = () => config?.coin || '$';
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function setText(id, value) { const el = $(id); if (el) el.textContent = value; return el; }
 function setHTML(id, value) { const el = $(id); if (el) el.innerHTML = value; return el; }
@@ -20,6 +22,7 @@ function setBalance(value) { const text = `${fmt(value)} ${coin()}`; setText('ba
 function displayName(user = {}) { return [user.firstName || user.first_name, user.lastName || user.last_name].filter(Boolean).join(' ').trim() || user.username || 'Bika Player'; }
 function setPlayer(user = {}) { const name = displayName(user); setText('playerNameText', name); setText('avatarText', name.slice(0, 2).toUpperCase()); }
 function escapeHtml(v) { return String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'); }
+function shortTime(ms) { const d = ms ? new Date(ms) : new Date(); return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
 
 async function api(path, body = {}) {
   const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': initData }, body: JSON.stringify(body) });
@@ -33,6 +36,7 @@ async function loadConfig() {
   config = await res.json();
   setText('slotRange', `${fmt(config.slot.minBet)} - ${fmt(config.slot.maxBet)} ${coin()}`);
   [['crashBet', config.crash.minBet], ['slotBet', config.slot.minBet], ['plinkoBet', config.plinko.minBet], ['wheelBet', config.wheel.minBet], ['minesBet', config.mines.minBet]].forEach(([id, value]) => { const el = $(id); if (el) el.value = value; });
+  renderPlinkoPins();
   renderPlinkoBuckets();
   renderMinesBoard(null);
 }
@@ -47,6 +51,31 @@ function openPanel(id) {
   document.querySelectorAll('.panel').forEach((el) => el.classList.toggle('active', el.id === id));
   document.querySelectorAll('.tab').forEach((el) => el.classList.toggle('active', el.dataset.open === id));
   window.scrollTo({ top: 0, behavior: 'smooth' });
+  const game = PANEL_TO_GAME[id];
+  if (game) loadHistory(game).catch(() => null);
+}
+
+function renderGameHistory(game, items = []) {
+  const box = $(`${game}History`); if (!box) return;
+  box.innerHTML = items.length ? items.map((item) => {
+    const positive = Number(item.net || 0) > 0;
+    const cls = positive ? 'win' : Number(item.payout || 0) > 0 ? 'paid' : 'lose';
+    const label = item.label || (item.multiplier ? `x${Number(item.multiplier).toFixed(2)}` : item.outcome);
+    const round = item.roundNo ? `#${item.roundNo}` : shortTime(item.createdAtMs);
+    return `<div class="history-item ${cls}"><div><b>${escapeHtml(label)}</b><span>${escapeHtml(item.title || item.game)} • ${round}</span></div><strong>${Number(item.net || 0) >= 0 ? '+' : ''}${fmt(item.net)} ${coin()}</strong></div>`;
+  }).join('') : '<div class="history-empty">ဒီနေ့ history မရှိသေးပါ။</div>';
+}
+
+async function loadHistory(game = 'all') {
+  if (!initData) return;
+  const data = await api('/api/mini/history', { game, limit: 12 });
+  renderGameHistory(game, data.items || []);
+}
+
+function refreshAllVisibleHistory() {
+  const active = document.querySelector('.panel.active')?.id;
+  const game = PANEL_TO_GAME[active];
+  if (game) loadHistory(game).catch(() => null);
 }
 
 function renderHistory(history = []) {
@@ -60,7 +89,7 @@ function multiplierAt(round) {
   const base = Number(round.multiplier || 1);
   const receivedAt = Number(round.receivedAtMs || Date.now());
   const elapsed = Math.max(0, (Date.now() - receivedAt) / 1000);
-  const speed = base < 1.6 ? 0.055 : base < 2.6 ? 0.085 : 0.13;
+  const speed = base < 1.6 ? 0.052 : base < 2.6 ? 0.08 : 0.12;
   return base + Math.min(0.12, elapsed * speed);
 }
 
@@ -135,34 +164,100 @@ async function pollCrash() {
 function startRocketRaf() { if (rafTimer) cancelAnimationFrame(rafTimer); const tick = () => { updateRocketFrame(); rafTimer = requestAnimationFrame(tick); }; tick(); }
 function startPolling() { if (pollTimer) clearInterval(pollTimer); pollCrash(); pollTimer = setInterval(pollCrash, 850); startRocketRaf(); }
 
-async function placeCrashBet() { const btn = $('crashStartBtn'); setBusy(btn, true, 'Joining...'); try { renderRocket(await api('/api/mini/crash/bet', { bet: $('crashBet')?.value })); tg?.HapticFeedback?.notificationOccurred?.('success'); } catch (err) { setHTML('crashResult', `<span class="lose">${escapeHtml(err.message)}</span>`); tg?.HapticFeedback?.notificationOccurred?.('error'); } finally { setBusy(btn, false); } }
-async function cashoutCrash() { const btn = $('cashoutBtn'); setBusy(btn, true, 'Cash Out...'); try { const data = await api('/api/mini/crash/cashout'); setBalance(data.balance); renderRocket(data); setHTML('crashResult', `🎉 Cash Out: <b>${fmt(data.payout)} ${coin()}</b> at <b>x${Number(data.effectiveMultiplier || 0).toFixed(2)}</b>`); tg?.HapticFeedback?.notificationOccurred?.('success'); } catch (err) { setHTML('crashResult', `<span class="lose">${escapeHtml(err.message)}</span>`); tg?.HapticFeedback?.notificationOccurred?.('error'); } finally { setBusy(btn, false); } }
+async function placeCrashBet() { const btn = $('crashStartBtn'); setBusy(btn, true, 'Joining...'); try { renderRocket(await api('/api/mini/crash/bet', { bet: $('crashBet')?.value })); refreshAllVisibleHistory(); tg?.HapticFeedback?.notificationOccurred?.('success'); } catch (err) { setHTML('crashResult', `<span class="lose">${escapeHtml(err.message)}</span>`); tg?.HapticFeedback?.notificationOccurred?.('error'); } finally { setBusy(btn, false); } }
+async function cashoutCrash() { const btn = $('cashoutBtn'); setBusy(btn, true, 'Cash Out...'); try { const data = await api('/api/mini/crash/cashout'); setBalance(data.balance); renderRocket(data); setHTML('crashResult', `🎉 Cash Out: <b>${fmt(data.payout)} ${coin()}</b> at <b>x${Number(data.effectiveMultiplier || 0).toFixed(2)}</b>`); refreshAllVisibleHistory(); tg?.HapticFeedback?.notificationOccurred?.('success'); } catch (err) { setHTML('crashResult', `<span class="lose">${escapeHtml(err.message)}</span>`); tg?.HapticFeedback?.notificationOccurred?.('error'); } finally { setBusy(btn, false); } }
 
 function setSlotReels(reels = ['?', '?', '?']) { ['slotReelA','slotReelB','slotReelC'].forEach((id, i) => setText(id, String(reels[i] || '?') === '7' ? '7️⃣' : String(reels[i] || '?'))); }
-function startSlotAnimation() { const machine = $('slotMachine'); machine?.classList.add('spinning'); if (slotSpinTimer) clearInterval(slotSpinTimer); slotSpinTimer = setInterval(() => setSlotReels([0,1,2].map(() => SLOT_SYMBOLS[Math.floor(Math.random()*SLOT_SYMBOLS.length)])), 60); }
-function stopSlotAnimation(reels) { if (slotSpinTimer) clearInterval(slotSpinTimer); slotSpinTimer = null; $('slotMachine')?.classList.remove('spinning'); setSlotReels(reels); }
-async function spinSlot() { const btn = $('spinBtn'); setBusy(btn, true, 'SPINNING...'); setClass('slotResult', 'result muted'); setText('slotResult', '🎰 Reels rolling...'); startSlotAnimation(); try { const data = await api('/api/mini/slot/spin', { bet: $('slotBet')?.value }); await new Promise(r => setTimeout(r, 900)); stopSlotAnimation(data.reels || ['?','?','?']); setBalance(data.balance); const won = Number(data.payout || 0) > 0; $('slotMachine')?.classList.toggle('slot-win-glow', won); setClass('slotResult', `result ${won ? 'win' : 'lose'}`); setHTML('slotResult', `${won ? '🏆 BIG WIN' : '💨 TRY AGAIN'}<br>Bet: <b>${fmt(data.bet)} ${coin()}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`); } catch (err) { stopSlotAnimation(['?','?','?']); setClass('slotResult','result lose'); setText('slotResult', err.message); } finally { setBusy(btn, false); } }
+function startSlotAnimation() {
+  const machine = $('slotMachine'); machine?.classList.remove('slot-win-glow'); machine?.classList.add('spinning');
+  if (slotSpinTimer) clearInterval(slotSpinTimer);
+  let ticks = 0;
+  slotSpinTimer = setInterval(() => {
+    ticks += 1;
+    setSlotReels([0,1,2].map(() => SLOT_SYMBOLS[(Math.floor(Math.random()*SLOT_SYMBOLS.length) + ticks) % SLOT_SYMBOLS.length]));
+  }, 70);
+}
+async function stopSlotAnimation(reels) {
+  if (slotSpinTimer) clearInterval(slotSpinTimer);
+  slotSpinTimer = null;
+  const ids = ['slotReelA','slotReelB','slotReelC'];
+  for (let i = 0; i < ids.length; i += 1) {
+    await sleep(260);
+    setText(ids[i], String(reels[i] || '?') === '7' ? '7️⃣' : String(reels[i] || '?'));
+    $(ids[i])?.classList.add('reel-stop');
+    setTimeout(() => $(ids[i])?.classList.remove('reel-stop'), 420);
+    tg?.HapticFeedback?.impactOccurred?.('light');
+  }
+  $('slotMachine')?.classList.remove('spinning');
+}
+async function spinSlot() { const btn = $('spinBtn'); setBusy(btn, true, 'SPINNING...'); setClass('slotResult', 'result muted'); setText('slotResult', '🎰 Reels rolling...'); startSlotAnimation(); try { const data = await api('/api/mini/slot/spin', { bet: $('slotBet')?.value }); await sleep(1900); await stopSlotAnimation(data.reels || ['?','?','?']); setBalance(data.balance); const won = Number(data.payout || 0) > 0; $('slotMachine')?.classList.toggle('slot-win-glow', won); setClass('slotResult', `result ${won ? 'win' : 'lose'}`); setHTML('slotResult', `${won ? '🏆 BIG WIN' : '💨 TRY AGAIN'}<br>Bet: <b>${fmt(data.bet)} ${coin()}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`); refreshAllVisibleHistory(); } catch (err) { await stopSlotAnimation(['?','?','?']); setClass('slotResult','result lose'); setText('slotResult', err.message); } finally { setBusy(btn, false); } }
 
+function renderPlinkoPins() {
+  const board = $('plinkoBoard'); if (!board) return;
+  board.querySelectorAll('.plinko-pin').forEach((pin) => pin.remove());
+  const rows = 12;
+  for (let r = 0; r < rows; r += 1) {
+    const count = 5 + r;
+    const top = 12 + r * 6.35;
+    for (let c = 0; c < count; c += 1) {
+      const pin = document.createElement('i');
+      pin.className = 'plinko-pin';
+      const left = 50 + (c - (count - 1) / 2) * (72 / Math.max(1, count - 1));
+      pin.style.left = `${left}%`;
+      pin.style.top = `${top}%`;
+      board.appendChild(pin);
+    }
+  }
+}
 function renderPlinkoBuckets(hitIndex = null) { const row = $('plinkoBuckets'); if (!row || !config?.plinko?.buckets) return; row.innerHTML = config.plinko.buckets.map((b) => `<div class="bucket ${hitIndex === b.index ? 'hit' : ''}">${b.label}</div>`).join(''); }
-async function dropPlinko() { const btn = $('plinkoBtn'); const ball = $('plinkoBall'); setBusy(btn, true, 'DROPPING...'); setClass('plinkoResult','result muted'); setText('plinkoResult','🟡 Ball dropping...'); renderPlinkoBuckets(); try { const data = await api('/api/mini/plinko/drop', { bet: $('plinkoBet')?.value }); if (ball) { ball.classList.remove('drop'); ball.style.setProperty('--plinko-x', `${5 + data.bucket.index * 10}%`); void ball.offsetWidth; ball.classList.add('drop'); } await new Promise(r => setTimeout(r, 1000)); renderPlinkoBuckets(data.bucket.index); setBalance(data.balance); const won = Number(data.payout || 0) > Number(data.bet || 0); setClass('plinkoResult', `result ${won ? 'win' : Number(data.payout) > 0 ? '' : 'lose'}`); setHTML('plinkoResult', `Bucket: <b>${escapeHtml(data.bucket.label)}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`); } catch (err) { setClass('plinkoResult','result lose'); setText('plinkoResult', err.message); } finally { setBusy(btn, false); } }
+async function animatePlinkoPath(data) {
+  const ball = $('plinkoBall'); if (!ball) return;
+  const path = Array.isArray(data.path) ? data.path : [];
+  ball.classList.remove('settled');
+  ball.style.opacity = '1';
+  ball.style.left = '50%';
+  ball.style.top = '4%';
+  ball.style.transform = 'translate(-50%, -50%) scale(1)';
+  await sleep(80);
+  let x = 50;
+  for (let i = 0; i < 12; i += 1) {
+    const dir = path[i] || (Math.random() > 0.5 ? 'R' : 'L');
+    x += dir === 'R' ? 4.2 : -4.2;
+    x += (Math.random() - 0.5) * 2.1;
+    x = Math.max(7, Math.min(93, x));
+    const y = 12 + i * 6.7;
+    ball.style.left = `${x}%`;
+    ball.style.top = `${y}%`;
+    ball.style.transform = `translate(-50%, -50%) scale(${i % 2 ? 0.94 : 1.08})`;
+    tg?.HapticFeedback?.impactOccurred?.('soft');
+    await sleep(185);
+  }
+  const finalX = 5 + Number(data.bucket?.index || 0) * 10;
+  ball.style.left = `${finalX}%`;
+  ball.style.top = '94%';
+  ball.style.transform = 'translate(-50%, -50%) scale(1.15)';
+  ball.classList.add('settled');
+}
+async function dropPlinko() { const btn = $('plinkoBtn'); setBusy(btn, true, 'DROPPING...'); setClass('plinkoResult','result muted'); setText('plinkoResult','🟡 Ball တစ်ချက်ချင်းလှိမ့်ကျနေပါတယ်...'); renderPlinkoBuckets(); try { const data = await api('/api/mini/plinko/drop', { bet: $('plinkoBet')?.value }); await animatePlinkoPath(data); renderPlinkoBuckets(data.bucket.index); setBalance(data.balance); const won = Number(data.payout || 0) > Number(data.bet || 0); setClass('plinkoResult', `result ${won ? 'win' : Number(data.payout) > 0 ? '' : 'lose'}`); setHTML('plinkoResult', `Bucket: <b>${escapeHtml(data.bucket.label)}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`); refreshAllVisibleHistory(); } catch (err) { setClass('plinkoResult','result lose'); setText('plinkoResult', err.message); } finally { setBusy(btn, false); } }
 
 function buildWheel() { const disk = $('wheelDisk'); if (!disk || !config?.wheel?.segments) return; disk.title = config.wheel.segments.map(s => s.label).join(' • '); }
-async function spinWheel() { const btn = $('wheelBtn'); setBusy(btn, true, 'SPINNING...'); setClass('wheelResult','result muted'); setText('wheelResult','🎡 Wheel spinning...'); try { const data = await api('/api/mini/wheel/spin', { bet: $('wheelBet')?.value }); wheelRotation += Number(data.spinAngle || 1800); const disk = $('wheelDisk'); if (disk) disk.style.transform = `rotate(${wheelRotation}deg)`; await new Promise(r => setTimeout(r, 3050)); setBalance(data.balance); const won = Number(data.payout || 0) > Number(data.bet || 0); setClass('wheelResult', `result ${won ? 'win' : Number(data.payout) > 0 ? '' : 'lose'}`); setHTML('wheelResult', `Result: <b>${escapeHtml(data.segment.label)}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`); } catch (err) { setClass('wheelResult','result lose'); setText('wheelResult', err.message); } finally { setBusy(btn, false); } }
+async function spinWheel() { const btn = $('wheelBtn'); setBusy(btn, true, 'SPINNING...'); setClass('wheelResult','result muted'); setText('wheelResult','🎡 Wheel spinning...'); try { const data = await api('/api/mini/wheel/spin', { bet: $('wheelBet')?.value }); wheelRotation += Number(data.spinAngle || 1800); const disk = $('wheelDisk'); if (disk) disk.style.transform = `rotate(${wheelRotation}deg)`; await sleep(3350); setBalance(data.balance); const won = Number(data.payout || 0) > Number(data.bet || 0); setClass('wheelResult', `result ${won ? 'win' : Number(data.payout) > 0 ? '' : 'lose'}`); setHTML('wheelResult', `Result: <b>${escapeHtml(data.segment?.label || '?')}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`); refreshAllVisibleHistory(); } catch (err) { setClass('wheelResult','result lose'); setText('wheelResult', err.message); } finally { setBusy(btn, false); } }
 
 function renderMinesBoard(game) { const board = $('minesBoard'); if (!board) return; const tiles = game?.tiles || Array.from({length:25}, (_, i) => ({ index:i, label:'hidden' })); board.innerHTML = tiles.map((t) => { const cls = t.exploded ? 'boom' : t.label === 'mine' ? 'mine' : t.opened ? 'safe' : ''; const icon = t.exploded ? '💥' : t.label === 'mine' ? '💣' : t.opened ? '💎' : '?'; return `<button class="mine-tile ${cls}" data-mine-index="${t.index}" ${game?.state !== 'playing' || t.opened ? 'disabled' : ''}>${icon}</button>`; }).join(''); }
 function renderMines(game, balance) { if (balance != null) setBalance(balance); renderMinesBoard(game); setText('minesSafe', game ? `${game.safeOpened}/${25 - game.mineCount}` : '0'); setText('minesMulti', `x${Number(game?.multiplier || 1).toFixed(2)}`); setText('minesCash', game?.cashoutLocked ? 'Locked' : `${fmt(game?.cashoutEstimate || 0)} ${coin()}`); const cashBtn = $('minesCashoutBtn'); if (cashBtn) cashBtn.disabled = !game || game.cashoutLocked || game.state !== 'playing'; }
 async function startMines() { const btn = $('minesStartBtn'); setBusy(btn, true, 'STARTING...'); try { const data = await api('/api/mini/mines/start', { bet: $('minesBet')?.value }); renderMines(data.game, data.balance); setClass('minesResult','result muted'); setText('minesResult', `Safe ${data.game.minCashoutSafe} ခုဖွင့်ပြီးမှ Cash Out လုပ်နိုင်ပါတယ်။`); } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } finally { setBusy(btn, false); } }
-async function openMine(index) { try { const data = await api('/api/mini/mines/open', { index }); renderMines(data.game, data.balance); if (data.result === 'lost') { setClass('minesResult','result lose'); setText('minesResult', '💥 BOOM! Mine ထိသွားပါပြီ။'); } else { setClass('minesResult','result win'); setText('minesResult', '💎 Safe! ဆက်ဖွင့်မလား Cash Out လုပ်မလား ရွေးပါ။'); } } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } }
-async function cashoutMines() { const btn = $('minesCashoutBtn'); setBusy(btn, true, 'CASHING...'); try { const data = await api('/api/mini/mines/cashout'); renderMines(data.game, data.balance); setClass('minesResult','result win'); setHTML('minesResult', `✅ Cash Out Success: <b>${fmt(data.payout)} ${coin()}</b>`); } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } finally { setBusy(btn, false); } }
+async function openMine(index) { try { const data = await api('/api/mini/mines/open', { index }); renderMines(data.game, data.balance); if (data.result === 'lost') { setClass('minesResult','result lose'); setText('minesResult', '💥 BOOM! Mine ထိသွားပါပြီ။'); refreshAllVisibleHistory(); } else { setClass('minesResult','result win'); setText('minesResult', '💎 Safe! ဆက်ဖွင့်မလား Cash Out လုပ်မလား ရွေးပါ။'); } } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } }
+async function cashoutMines() { const btn = $('minesCashoutBtn'); setBusy(btn, true, 'CASHING...'); try { const data = await api('/api/mini/mines/cashout'); renderMines(data.game, data.balance); setClass('minesResult','result win'); setHTML('minesResult', `✅ Cash Out Success: <b>${fmt(data.payout)} ${coin()}</b>`); refreshAllVisibleHistory(); } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } finally { setBusy(btn, false); } }
 
 function bindEvents() {
   document.querySelectorAll('[data-open]').forEach((btn) => btn.addEventListener('click', () => openPanel(btn.dataset.open)));
+  document.querySelectorAll('[data-refresh-history]').forEach((btn) => btn.addEventListener('click', () => loadHistory(btn.dataset.refreshHistory).catch(() => null)));
   $('crashStartBtn')?.addEventListener('click', placeCrashBet); $('cashoutBtn')?.addEventListener('click', cashoutCrash);
   $('spinBtn')?.addEventListener('click', spinSlot); $('plinkoBtn')?.addEventListener('click', dropPlinko); $('wheelBtn')?.addEventListener('click', spinWheel); $('minesStartBtn')?.addEventListener('click', startMines); $('minesCashoutBtn')?.addEventListener('click', cashoutMines);
   document.querySelectorAll('[data-crash-bet]').forEach((b) => b.addEventListener('click', () => $('crashBet').value = b.dataset.crashBet));
   document.querySelectorAll('[data-slot-bet]').forEach((b) => b.addEventListener('click', () => $('slotBet').value = b.dataset.slotBet));
   document.querySelectorAll('[data-plinko-bet]').forEach((b) => b.addEventListener('click', () => $('plinkoBet').value = b.dataset.plinkoBet));
-  document.querySelectorAll('[data-wheel-bet]').forEach((b) => b.addEventListener('click', () => $('wheelBet').value = b.dataset.wheelBet));
+  document.querySelectorAll('[data-wheel-bet]').forEach((b) => b.addEventListener('click', () => $('wheelBet').value = b.datasetWheelBet || b.dataset.wheelBet));
   document.querySelectorAll('[data-mines-bet]').forEach((b) => b.addEventListener('click', () => $('minesBet').value = b.dataset.minesBet));
   $('minesBoard')?.addEventListener('click', (e) => { const btn = e.target.closest('[data-mine-index]'); if (btn && !btn.disabled) openMine(Number(btn.dataset.mineIndex)); });
 }

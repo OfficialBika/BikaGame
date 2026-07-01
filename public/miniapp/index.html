@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Bika Game App</title>
-  <link rel="stylesheet" href="/miniapp/assets/style.css?v=premium-v7" />
+  <link rel="stylesheet" href="/miniapp/assets/style.css?v=premium-v8" />
 </head>
 <body>
   <div class="bg-orb orb-a"></div>
@@ -27,8 +27,8 @@
       <div class="hero-premium">
         <div>
           <p class="eyebrow">BIKA PREMIUM CASINO</p>
-          <h1>Play smarter. Win brighter.</h1>
-          <p>Rocket, Slot, Plinko, Wheel, Mines — one premium Telegram Mini App.</p>
+          <h1>Bika Premium Arena</h1>
+          <p>Rocket, Slot, Plinko, Wheel, Mines — compact, fast, premium.</p>
         </div>
         <div class="hero-wallet"><span>Wallet</span><strong id="balanceText">—</strong></div>
       </div>
@@ -91,6 +91,7 @@
           <div class="players-head"><div><p class="eyebrow">ROUND</p><h3 id="roundTitle">#—</h3></div><b id="phaseChip" class="phase-chip">BET</b></div>
           <div class="mini-stats"><div><span>Players</span><b id="playerCount">0</b></div><div><span>Total</span><b id="totalBet">0</b></div><div><span>Paid</span><b id="totalPaid">0</b></div></div>
           <div id="crashResult" class="result muted">Auto round လည်နေပါတယ်။ Bet time အတွင်းဝင်ပါ။</div>
+          <div class="history-card small-history"><div class="history-head"><b>Today History</b><button data-refresh-history="rocket">Refresh</button></div><div id="rocketHistory" class="history-list"><div class="history-empty">ဒီနေ့ history မရှိသေးပါ။</div></div></div>
           <div id="playersList" class="players-list"></div>
         </div>
       </div>
@@ -104,17 +105,19 @@
         <div class="bet-box"><input id="slotBet" type="number" inputmode="numeric" placeholder="Bet amount" /><button id="spinBtn" class="primary-btn">SPIN NOW</button></div>
         <div class="quick-bets"><button data-slot-bet="50">50</button><button data-slot-bet="100">100</button><button data-slot-bet="500">500</button><button data-slot-bet="1000">1K</button><button data-slot-bet="5000">5K</button></div>
         <div id="slotResult" class="result muted">Bet ထည့်ပြီး SPIN နှိပ်ပါ။</div>
+        <div class="history-card"><div class="history-head"><b>Today Slot History</b><button data-refresh-history="slot">Refresh</button></div><div id="slotHistory" class="history-list"><div class="history-empty">ဒီနေ့ history မရှိသေးပါ။</div></div></div>
       </div>
     </section>
 
     <section id="plinko" class="panel game-panel">
       <div class="game-toolbar"><button class="back-home" data-open="home">‹ Home</button><h2>🟡 Plinko</h2><span class="badge new">NEW</span></div>
       <div class="premium-card plinko-card">
-        <div class="plinko-board" id="plinkoBoard"><div id="plinkoBall" class="plinko-ball"></div><div class="pin-row r1"></div><div class="pin-row r2"></div><div class="pin-row r3"></div><div class="pin-row r4"></div><div class="pin-row r5"></div></div>
+        <div class="plinko-board" id="plinkoBoard"><div class="plinko-glow"></div><div id="plinkoBall" class="plinko-ball"></div></div>
         <div id="plinkoBuckets" class="bucket-row"></div>
         <div class="bet-box"><input id="plinkoBet" type="number" inputmode="numeric" placeholder="Bet amount" /><button id="plinkoBtn" class="primary-btn">DROP BALL</button></div>
         <div class="quick-bets"><button data-plinko-bet="50">50</button><button data-plinko-bet="100">100</button><button data-plinko-bet="500">500</button><button data-plinko-bet="1000">1K</button></div>
         <div id="plinkoResult" class="result muted">Ball drop လုပ်ရန် bet ထည့်ပါ။</div>
+        <div class="history-card"><div class="history-head"><b>Today Plinko History</b><button data-refresh-history="plinko">Refresh</button></div><div id="plinkoHistory" class="history-list"><div class="history-empty">ဒီနေ့ history မရှိသေးပါ။</div></div></div>
       </div>
     </section>
 
@@ -125,6 +128,7 @@
         <div class="bet-box"><input id="wheelBet" type="number" inputmode="numeric" placeholder="Bet amount" /><button id="wheelBtn" class="primary-btn">SPIN WHEEL</button></div>
         <div class="quick-bets"><button data-wheel-bet="50">50</button><button data-wheel-bet="100">100</button><button data-wheel-bet="500">500</button><button data-wheel-bet="1000">1K</button></div>
         <div id="wheelResult" class="result muted">Wheel spin လုပ်ရန် bet ထည့်ပါ။</div>
+        <div class="history-card"><div class="history-head"><b>Today Wheel History</b><button data-refresh-history="wheel">Refresh</button></div><div id="wheelHistory" class="history-list"><div class="history-empty">ဒီနေ့ history မရှိသေးပါ။</div></div></div>
       </div>
     </section>
 
@@ -136,11 +140,12 @@
         <div class="bet-box"><input id="minesBet" type="number" inputmode="numeric" placeholder="Bet amount" /><button id="minesStartBtn" class="primary-btn">START</button><button id="minesCashoutBtn" class="cashout-btn" disabled>CASH OUT</button></div>
         <div class="quick-bets"><button data-mines-bet="50">50</button><button data-mines-bet="100">100</button><button data-mines-bet="500">500</button><button data-mines-bet="1000">1K</button></div>
         <div id="minesResult" class="result muted">Start နှိပ်ပြီး gems ဖွင့်ပါ။</div>
+        <div class="history-card"><div class="history-head"><b>Today Mines History</b><button data-refresh-history="mines">Refresh</button></div><div id="minesHistory" class="history-list"><div class="history-empty">ဒီနေ့ history မရှိသေးပါ။</div></div></div>
       </div>
     </section>
   </main>
 
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="/miniapp/assets/app.js?v=premium-v7"></script>
+  <script src="/miniapp/assets/app.js?v=premium-v8"></script>
 </body>
 </html>
