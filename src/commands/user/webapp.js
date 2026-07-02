@@ -36,7 +36,6 @@ function miniAppJoinKeyboard(ctx, webUrl, label, startParam) {
     return {
       inline_keyboard: [
         [{ text: label, web_app: { url: webUrl } }],
-        [{ text: '🔗 Open Direct Link', url: directUrl || webUrl }],
       ],
     };
   }
