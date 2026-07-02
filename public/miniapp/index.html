@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Bika Game App</title>
-  <link rel="stylesheet" href="/miniapp/assets/style.css?v=premium-v11" />
+  <link rel="stylesheet" href="/miniapp/assets/style.css?v=premium-v12" />
 </head>
 <body>
   <div class="bg-orb orb-a"></div>
@@ -28,7 +28,7 @@
         <div>
           <p class="eyebrow">BIKA PREMIUM CASINO</p>
           <h1>Bika Premium Arena</h1>
-          <p>Rocket, Slot, Plinko, Wheel, Mines — compact, fast, premium.</p>
+          <p>Rocket, Slot, Blackjack, Shan Koe Mee, Plinko, Wheel, Mines — premium mobile arena.</p>
         </div>
         <div class="hero-wallet"><span>Wallet</span><strong id="balanceText">—</strong></div>
       </div>
@@ -45,6 +45,10 @@
         <button class="game-card blackjack-home-card" data-open="blackjack">
           <div class="badge live">LIVE</div><div class="game-icon">🃏</div>
           <h2>Web Blackjack</h2><p>5-player private-hand table</p><span>Join table</span>
+        </button>
+        <button class="game-card shan-home-card" data-open="shan">
+          <div class="badge new">NEW</div><div class="game-icon">🃏</div>
+          <h2>Shan Koe Mee</h2><p>3-card Myanmar classic vs dealer</p><span>Deal cards</span>
         </button>
         <button class="game-card plinko-home-card" data-open="plinko">
           <div class="badge new">NEW</div><div class="game-icon">🟡</div>
@@ -66,6 +70,7 @@
       <button class="tab" data-open="crash">🚀 Rocket</button>
       <button class="tab" data-open="slot">🎰 Slot</button>
       <button class="tab" data-open="blackjack">🃏 BJ</button>
+      <button class="tab" data-open="shan">🎴 Shan</button>
       <button class="tab" data-open="plinko">🟡 Plinko</button>
       <button class="tab" data-open="wheel">🎡 Wheel</button>
       <button class="tab" data-open="mines">💣 Mines</button>
@@ -142,6 +147,42 @@
       </div>
     </section>
 
+    <section id="shan" class="panel game-panel">
+      <div class="game-toolbar"><button class="back-home" data-open="home">‹ Home</button><h2>🎴 Shan Koe Mee</h2><span class="badge new">NEW</span></div>
+      <div class="premium-card shan-card">
+        <div class="shan-hero">
+          <div>
+            <p class="eyebrow">3-CARD MYANMAR CLASSIC</p>
+            <h3>Shan Koe Mee Table</h3>
+            <span>3 cards each. Highest category, then points, then high card wins.</span>
+          </div>
+          <div class="shan-rules-chip"><b>RULE</b><span>9 Point • SKM • Zat Toe</span></div>
+        </div>
+        <div class="shan-table">
+          <div class="shan-side dealer">
+            <div class="shan-zone-title"><span>Dealer</span><b id="shanDealerInfo">Hidden</b></div>
+            <div id="shanDealerCards" class="shan-cards"><span class="shan-card-face back">BIKA</span><span class="shan-card-face back">BIKA</span><span class="shan-card-face back">BIKA</span></div>
+          </div>
+          <div class="vs-pill">VS</div>
+          <div class="shan-side player">
+            <div class="shan-zone-title"><span>Your Hand</span><b id="shanPlayerInfo">Waiting</b></div>
+            <div id="shanPlayerCards" class="shan-cards"><span class="shan-card-face empty">?</span><span class="shan-card-face empty">?</span><span class="shan-card-face empty">?</span></div>
+          </div>
+        </div>
+        <div class="shan-score-strip">
+          <div><span>Cards</span><b>3 + 3</b></div>
+          <div><span>Normal Top</span><b>9 Points</b></div>
+          <div><span>Special</span><b>SKM</b></div>
+        </div>
+        <div class="bet-box"><input id="shanBet" type="number" inputmode="numeric" placeholder="Bet amount" /><button id="shanDealBtn" class="primary-btn">DEAL SHAN</button></div>
+        <div class="quick-bets"><button data-shan-bet="50">50</button><button data-shan-bet="100">100</button><button data-shan-bet="500">500</button><button data-shan-bet="1000">1K</button><button data-shan-bet="5000">5K</button></div>
+        <div id="shanResult" class="result muted">Bet ထည့်ပြီး DEAL SHAN နှိပ်ပါ။ Dealer cards ကို reveal animation နဲ့ဖော်ပြပါမယ်။</div>
+        <details class="rules-box"><summary>Shan Koe Mee Rules</summary><p>A = 1, 2-9 = face value, 10/J/Q/K = 0. Total points are counted by modulo 10. Ranking: Shan Koe Mee / Three of a Kind, Zat Toe, Suit Triple, then normal points. Same rank compares by high-card tiebreaker.</p></details>
+        <div class="history-card"><div class="history-head"><b>Today Shan History</b><button data-refresh-history="shan">Refresh</button></div><div id="shanHistory" class="history-list"><div class="history-empty">ဒီနေ့ history မရှိသေးပါ။</div></div></div>
+      </div>
+    </section>
+
+
     <section id="plinko" class="panel game-panel">
       <div class="game-toolbar"><button class="back-home" data-open="home">‹ Home</button><h2>🟡 Plinko</h2><span class="badge new">NEW</span></div>
       <div class="premium-card plinko-card">
@@ -181,6 +222,6 @@
   </main>
 
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="/miniapp/assets/app.js?v=premium-v11"></script>
+  <script src="/miniapp/assets/app.js?v=premium-v12"></script>
 </body>
 </html>

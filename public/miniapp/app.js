@@ -6,11 +6,30 @@ let rafTimer = null;
 let liveRound = null;
 let slotSpinTimer = null;
 let wheelRotation = 0;
-let currentBjRoomId = new URLSearchParams(window.location.search).get('room') || '';
+const urlParams = new URLSearchParams(window.location.search);
+function getStartParam() {
+  return String(
+    tg?.initDataUnsafe?.start_param ||
+    urlParams.get('tgWebAppStartParam') ||
+    urlParams.get('startapp') ||
+    ''
+  ).trim();
+}
+function parseStartTarget() {
+  const start = getStartParam();
+  const queryGame = urlParams.get('game') || '';
+  const queryRoom = urlParams.get('room') || '';
+  if (/^wbj_/i.test(start)) return { game: 'blackjack', room: start.replace(/^wbj_/i, '') };
+  if (/^(blackjack|webbj|bj)$/i.test(start)) return { game: 'blackjack', room: queryRoom };
+  if (/^(shan|wshan|skm)$/i.test(start)) return { game: 'shan', room: '' };
+  return { game: queryGame, room: queryRoom };
+}
+const startTarget = parseStartTarget();
+let currentBjRoomId = startTarget.room || '';
 let bjPollTimer = null;
 
 const SLOT_SYMBOLS = ['🍒', '🍋', '🍉', '🔔', '⭐', 'BAR', '7️⃣'];
-const PANEL_TO_GAME = { crash: 'rocket', slot: 'slot', blackjack: 'blackjack', plinko: 'plinko', wheel: 'wheel', mines: 'mines' };
+const PANEL_TO_GAME = { crash: 'rocket', slot: 'slot', blackjack: 'blackjack', shan: 'shan', plinko: 'plinko', wheel: 'wheel', mines: 'mines' };
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
 const coin = () => config?.coin || '$';
@@ -37,7 +56,7 @@ async function loadConfig() {
   const res = await fetch('/api/mini/config', { cache: 'no-store' });
   config = await res.json();
   setText('slotRange', `${fmt(config.slot.minBet)} - ${fmt(config.slot.maxBet)} ${coin()}`);
-  [['crashBet', config.crash.minBet], ['slotBet', config.slot.minBet], ['bjBet', config.blackjack?.minBet || 50], ['plinkoBet', config.plinko.minBet], ['wheelBet', config.wheel.minBet], ['minesBet', config.mines.minBet]].forEach(([id, value]) => { const el = $(id); if (el) el.value = value; });
+  [['crashBet', config.crash.minBet], ['slotBet', config.slot.minBet], ['bjBet', config.blackjack?.minBet || 50], ['shanBet', config.shan?.minBet || 50], ['plinkoBet', config.plinko.minBet], ['wheelBet', config.wheel.minBet], ['minesBet', config.mines.minBet]].forEach(([id, value]) => { const el = $(id); if (el) el.value = value; });
   renderPlinkoPins();
   renderPlinkoBuckets();
   renderMinesBoard(null);
@@ -465,6 +484,62 @@ async function standBlackjack() {
   finally { if (btn) { btn.textContent = btn.dataset.oldText || btn.textContent; delete btn.dataset.oldText; } loadBjStatus().catch(() => null); }
 }
 
+
+function shanCardHtml(card, delay = 0) {
+  if (!card || card.hidden) return '<span class="shan-card-face back">BIKA</span>';
+  const red = card.red ? ' red' : '';
+  return `<span class="shan-card-face${red}" style="--deal-delay:${delay}ms"><b>${escapeHtml(card.rank)}</b><em>${escapeHtml(card.suit)}</em></span>`;
+}
+function shanInfoText(info) {
+  if (!info) return '—';
+  return `${escapeHtml(info.name || '?')} • ${Number(info.points || 0)} pts`;
+}
+function resetShanCards() {
+  setHTML('shanDealerCards', '<span class="shan-card-face back">BIKA</span><span class="shan-card-face back">BIKA</span><span class="shan-card-face back">BIKA</span>');
+  setHTML('shanPlayerCards', '<span class="shan-card-face empty">?</span><span class="shan-card-face empty">?</span><span class="shan-card-face empty">?</span>');
+  setText('shanDealerInfo', 'Hidden');
+  setText('shanPlayerInfo', 'Waiting');
+}
+async function revealShanRound(data) {
+  const pc = data.playerCards || [];
+  const dc = data.dealerCards || [];
+  setText('shanPlayerInfo', 'Dealing...');
+  setText('shanDealerInfo', 'Hidden');
+  setHTML('shanDealerCards', '<span class="shan-card-face back">BIKA</span><span class="shan-card-face back">BIKA</span><span class="shan-card-face back">BIKA</span>');
+  setHTML('shanPlayerCards', pc.map((c, i) => shanCardHtml(c, i * 130)).join(''));
+  await sleep(880);
+  setText('shanPlayerInfo', shanInfoText(data.playerInfo));
+  setText('shanDealerInfo', 'Revealing...');
+  setHTML('shanDealerCards', dc.map((c, i) => shanCardHtml(c, i * 130)).join(''));
+  await sleep(760);
+  setText('shanDealerInfo', shanInfoText(data.dealerInfo));
+}
+async function dealShan() {
+  const btn = $('shanDealBtn');
+  setBusy(btn, true, 'DEALING...');
+  setClass('shanResult','result muted');
+  setText('shanResult','🎴 Cards are dealing... Shan points တွက်နေပါတယ်။');
+  resetShanCards();
+  try {
+    const data = await api('/api/mini/shan/deal', { bet: $('shanBet')?.value });
+    await revealShanRound(data);
+    setBalance(data.balance);
+    const win = data.result === 'WIN';
+    const push = data.result === 'PUSH';
+    setClass('shanResult', `result ${win ? 'win' : push ? '' : 'lose'}`);
+    const icon = win ? '🏆' : push ? '🤝' : '💨';
+    setHTML('shanResult', `${icon} <b>${escapeHtml(data.result)}</b> • You: <b>${shanInfoText(data.playerInfo)}</b> • Dealer: <b>${shanInfoText(data.dealerInfo)}</b><br>Bet: <b>${fmt(data.bet)} ${coin()}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`);
+    loadHistory('shan').catch(() => null);
+    tg?.HapticFeedback?.notificationOccurred?.(win ? 'success' : push ? 'warning' : 'error');
+  } catch (err) {
+    setClass('shanResult','result lose');
+    setText('shanResult', err.message);
+    tg?.HapticFeedback?.notificationOccurred?.('error');
+  } finally {
+    setBusy(btn, false);
+  }
+}
+
 function renderMinesBoard(game) { const board = $('minesBoard'); if (!board) return; const tiles = game?.tiles || Array.from({length:25}, (_, i) => ({ index:i, label:'hidden' })); board.innerHTML = tiles.map((t) => { const cls = t.exploded ? 'boom' : t.label === 'mine' ? 'mine' : t.opened ? 'safe' : ''; const icon = t.exploded ? '💥' : t.label === 'mine' ? '💣' : t.opened ? '💎' : '?'; return `<button class="mine-tile ${cls}" data-mine-index="${t.index}" ${game?.state !== 'playing' || t.opened ? 'disabled' : ''}>${icon}</button>`; }).join(''); }
 function renderMines(game, balance) { if (balance != null) setBalance(balance); renderMinesBoard(game); setText('minesSafe', game ? `${game.safeOpened}/${25 - game.mineCount}` : '0'); setText('minesMulti', `x${Number(game?.multiplier || 1).toFixed(2)}`); setText('minesCash', game?.cashoutLocked ? 'Locked' : `${fmt(game?.cashoutEstimate || 0)} ${coin()}`); const cashBtn = $('minesCashoutBtn'); if (cashBtn) cashBtn.disabled = !game || game.cashoutLocked || game.state !== 'playing'; }
 async function startMines() { const btn = $('minesStartBtn'); setBusy(btn, true, 'STARTING...'); try { const data = await api('/api/mini/mines/start', { bet: $('minesBet')?.value }); renderMines(data.game, data.balance); setClass('minesResult','result muted'); setText('minesResult', `Safe ${data.game.minCashoutSafe} ခုဖွင့်ပြီးမှ Cash Out လုပ်နိုင်ပါတယ်။`); } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } finally { setBusy(btn, false); } }
@@ -475,10 +550,11 @@ function bindEvents() {
   document.querySelectorAll('[data-open]').forEach((btn) => btn.addEventListener('click', () => openPanel(btn.dataset.open)));
   document.querySelectorAll('[data-refresh-history]').forEach((btn) => btn.addEventListener('click', () => loadHistory(btn.dataset.refreshHistory).catch(() => null)));
   $('crashStartBtn')?.addEventListener('click', placeCrashBet); $('cashoutBtn')?.addEventListener('click', cashoutCrash);
-  $('spinBtn')?.addEventListener('click', spinSlot); $('bjJoinBtn')?.addEventListener('click', joinBlackjack); $('bjHitBtn')?.addEventListener('click', hitBlackjack); $('bjStandBtn')?.addEventListener('click', standBlackjack); $('plinkoBtn')?.addEventListener('click', dropPlinko); $('wheelBtn')?.addEventListener('click', spinWheel); $('dailyWheelBtn')?.addEventListener('click', spinDailyWheel); $('minesStartBtn')?.addEventListener('click', startMines); $('minesCashoutBtn')?.addEventListener('click', cashoutMines);
+  $('spinBtn')?.addEventListener('click', spinSlot); $('shanDealBtn')?.addEventListener('click', dealShan); $('bjJoinBtn')?.addEventListener('click', joinBlackjack); $('bjHitBtn')?.addEventListener('click', hitBlackjack); $('bjStandBtn')?.addEventListener('click', standBlackjack); $('plinkoBtn')?.addEventListener('click', dropPlinko); $('wheelBtn')?.addEventListener('click', spinWheel); $('dailyWheelBtn')?.addEventListener('click', spinDailyWheel); $('minesStartBtn')?.addEventListener('click', startMines); $('minesCashoutBtn')?.addEventListener('click', cashoutMines);
   document.querySelectorAll('[data-crash-bet]').forEach((b) => b.addEventListener('click', () => $('crashBet').value = b.dataset.crashBet));
   document.querySelectorAll('[data-slot-bet]').forEach((b) => b.addEventListener('click', () => $('slotBet').value = b.dataset.slotBet));
   document.querySelectorAll('[data-bj-bet]').forEach((b) => b.addEventListener('click', () => $('bjBet').value = b.dataset.bjBet));
+  document.querySelectorAll('[data-shan-bet]').forEach((b) => b.addEventListener('click', () => $('shanBet').value = b.dataset.shanBet));
   document.querySelectorAll('[data-plinko-bet]').forEach((b) => b.addEventListener('click', () => $('plinkoBet').value = b.dataset.plinkoBet));
   document.querySelectorAll('[data-wheel-bet]').forEach((b) => b.addEventListener('click', () => $('wheelBet').value = b.datasetWheelBet || b.dataset.wheelBet));
   document.querySelectorAll('[data-mines-bet]').forEach((b) => b.addEventListener('click', () => $('minesBet').value = b.dataset.minesBet));
@@ -495,8 +571,9 @@ async function init() {
   try { await loadWheelDailyStatus(); } catch (_) {}
   try { const status = await api('/api/mini/mines/status'); renderMines(status.game, status.balance); } catch (_) {}
   startPolling();
-  const startGame = new URLSearchParams(window.location.search).get('game');
+  const startGame = startTarget.game;
   if (startGame === 'blackjack') openPanel('blackjack');
+  if (startGame === 'shan') openPanel('shan');
 }
 
 
