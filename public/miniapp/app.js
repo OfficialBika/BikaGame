@@ -182,7 +182,7 @@ async function stopSlotAnimation(reels) {
   slotSpinTimer = null;
   const ids = ['slotReelA','slotReelB','slotReelC'];
   for (let i = 0; i < ids.length; i += 1) {
-    await sleep(260);
+    await sleep(430);
     setText(ids[i], String(reels[i] || '?') === '7' ? '7️⃣' : String(reels[i] || '?'));
     $(ids[i])?.classList.add('reel-stop');
     setTimeout(() => $(ids[i])?.classList.remove('reel-stop'), 420);
@@ -190,58 +190,106 @@ async function stopSlotAnimation(reels) {
   }
   $('slotMachine')?.classList.remove('spinning');
 }
-async function spinSlot() { const btn = $('spinBtn'); setBusy(btn, true, 'SPINNING...'); setClass('slotResult', 'result muted'); setText('slotResult', '🎰 Reels rolling...'); startSlotAnimation(); try { const data = await api('/api/mini/slot/spin', { bet: $('slotBet')?.value }); await sleep(1900); await stopSlotAnimation(data.reels || ['?','?','?']); setBalance(data.balance); const won = Number(data.payout || 0) > 0; $('slotMachine')?.classList.toggle('slot-win-glow', won); setClass('slotResult', `result ${won ? 'win' : 'lose'}`); setHTML('slotResult', `${won ? '🏆 BIG WIN' : '💨 TRY AGAIN'}<br>Bet: <b>${fmt(data.bet)} ${coin()}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`); refreshAllVisibleHistory(); } catch (err) { await stopSlotAnimation(['?','?','?']); setClass('slotResult','result lose'); setText('slotResult', err.message); } finally { setBusy(btn, false); } }
+async function spinSlot() { const btn = $('spinBtn'); setBusy(btn, true, 'SPINNING...'); setClass('slotResult', 'result muted'); setText('slotResult', '🎰 Reels rolling...'); startSlotAnimation(); try { const data = await api('/api/mini/slot/spin', { bet: $('slotBet')?.value }); await sleep(2800); await stopSlotAnimation(data.reels || ['?','?','?']); setBalance(data.balance); const won = Number(data.payout || 0) > 0; $('slotMachine')?.classList.toggle('slot-win-glow', won); setClass('slotResult', `result ${won ? 'win' : 'lose'}`); setHTML('slotResult', `${won ? '🏆 BIG WIN' : '💨 TRY AGAIN'}<br>Bet: <b>${fmt(data.bet)} ${coin()}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`); refreshAllVisibleHistory(); } catch (err) { await stopSlotAnimation(['?','?','?']); setClass('slotResult','result lose'); setText('slotResult', err.message); } finally { setBusy(btn, false); } }
 
 function renderPlinkoPins() {
   const board = $('plinkoBoard'); if (!board) return;
   board.querySelectorAll('.plinko-pin').forEach((pin) => pin.remove());
-  const rows = 12;
+  const rows = 14;
   for (let r = 0; r < rows; r += 1) {
-    const count = 5 + r;
-    const top = 12 + r * 6.35;
+    const count = 4 + r;
+    const top = 8 + r * 6.05;
     for (let c = 0; c < count; c += 1) {
       const pin = document.createElement('i');
       pin.className = 'plinko-pin';
-      const left = 50 + (c - (count - 1) / 2) * (72 / Math.max(1, count - 1));
+      const span = Math.min(82, 34 + r * 4.3);
+      const left = 50 + (c - (count - 1) / 2) * (span / Math.max(1, count - 1));
       pin.style.left = `${left}%`;
       pin.style.top = `${top}%`;
       board.appendChild(pin);
     }
+  }
+  const ball = $('plinkoBall');
+  if (ball && !ball.dataset.dropped) {
+    ball.style.left = '50%';
+    ball.style.top = '5%';
+    ball.style.opacity = '0.92';
+    ball.style.transform = 'translate(-50%, -50%) scale(1)';
   }
 }
 function renderPlinkoBuckets(hitIndex = null) { const row = $('plinkoBuckets'); if (!row || !config?.plinko?.buckets) return; row.innerHTML = config.plinko.buckets.map((b) => `<div class="bucket ${hitIndex === b.index ? 'hit' : ''}">${b.label}</div>`).join(''); }
 async function animatePlinkoPath(data) {
   const ball = $('plinkoBall'); if (!ball) return;
   const path = Array.isArray(data.path) ? data.path : [];
+  const board = $('plinkoBoard');
+  if (board) board.classList.add('dropping');
+  ball.dataset.dropped = '1';
   ball.classList.remove('settled');
   ball.style.opacity = '1';
   ball.style.left = '50%';
-  ball.style.top = '4%';
+  ball.style.top = '5%';
   ball.style.transform = 'translate(-50%, -50%) scale(1)';
-  await sleep(80);
+  await sleep(180);
   let x = 50;
-  for (let i = 0; i < 12; i += 1) {
+  const rows = 14;
+  for (let i = 0; i < rows; i += 1) {
     const dir = path[i] || (Math.random() > 0.5 ? 'R' : 'L');
-    x += dir === 'R' ? 4.2 : -4.2;
-    x += (Math.random() - 0.5) * 2.1;
-    x = Math.max(7, Math.min(93, x));
-    const y = 12 + i * 6.7;
+    const wobble = i % 3 === 0 ? 1.1 : i % 3 === 1 ? -0.7 : 0.35;
+    x += dir === 'R' ? 3.55 : -3.55;
+    x += wobble;
+    x = Math.max(8, Math.min(92, x));
+    const y = 10 + i * 5.95;
     ball.style.left = `${x}%`;
     ball.style.top = `${y}%`;
-    ball.style.transform = `translate(-50%, -50%) scale(${i % 2 ? 0.94 : 1.08})`;
+    ball.style.transform = `translate(-50%, -50%) scale(${i % 2 ? 0.92 : 1.1}) rotate(${dir === 'R' ? 16 : -16}deg)`;
     tg?.HapticFeedback?.impactOccurred?.('soft');
-    await sleep(185);
+    await sleep(255);
   }
   const finalX = 5 + Number(data.bucket?.index || 0) * 10;
   ball.style.left = `${finalX}%`;
-  ball.style.top = '94%';
-  ball.style.transform = 'translate(-50%, -50%) scale(1.15)';
+  ball.style.top = '92%';
+  ball.style.transform = 'translate(-50%, -50%) scale(1.18)';
   ball.classList.add('settled');
+  if (board) board.classList.remove('dropping');
+  await sleep(250);
 }
 async function dropPlinko() { const btn = $('plinkoBtn'); setBusy(btn, true, 'DROPPING...'); setClass('plinkoResult','result muted'); setText('plinkoResult','🟡 Ball တစ်ချက်ချင်းလှိမ့်ကျနေပါတယ်...'); renderPlinkoBuckets(); try { const data = await api('/api/mini/plinko/drop', { bet: $('plinkoBet')?.value }); await animatePlinkoPath(data); renderPlinkoBuckets(data.bucket.index); setBalance(data.balance); const won = Number(data.payout || 0) > Number(data.bet || 0); setClass('plinkoResult', `result ${won ? 'win' : Number(data.payout) > 0 ? '' : 'lose'}`); setHTML('plinkoResult', `Bucket: <b>${escapeHtml(data.bucket.label)}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`); refreshAllVisibleHistory(); } catch (err) { setClass('plinkoResult','result lose'); setText('plinkoResult', err.message); } finally { setBusy(btn, false); } }
 
-function buildWheel() { const disk = $('wheelDisk'); if (!disk || !config?.wheel?.segments) return; disk.title = config.wheel.segments.map(s => s.label).join(' • '); }
-async function spinWheel() { const btn = $('wheelBtn'); setBusy(btn, true, 'SPINNING...'); setClass('wheelResult','result muted'); setText('wheelResult','🎡 Wheel spinning...'); try { const data = await api('/api/mini/wheel/spin', { bet: $('wheelBet')?.value }); wheelRotation += Number(data.spinAngle || 1800); const disk = $('wheelDisk'); if (disk) disk.style.transform = `rotate(${wheelRotation}deg)`; await sleep(3350); setBalance(data.balance); const won = Number(data.payout || 0) > Number(data.bet || 0); setClass('wheelResult', `result ${won ? 'win' : Number(data.payout) > 0 ? '' : 'lose'}`); setHTML('wheelResult', `Result: <b>${escapeHtml(data.segment?.label || '?')}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`); refreshAllVisibleHistory(); } catch (err) { setClass('wheelResult','result lose'); setText('wheelResult', err.message); } finally { setBusy(btn, false); } }
+function buildWheel() {
+  const disk = $('wheelDisk');
+  const legend = $('wheelLegend');
+  if (!disk || !config?.wheel?.segments) return;
+  const segments = config.wheel.segments;
+  disk.title = segments.map((s) => s.label).join(' • ');
+  disk.innerHTML = segments.map((s, i) => {
+    const angle = i * 36 + 18;
+    return `<span class="wheel-mark" style="--a:${angle}deg; --c:${escapeHtml(s.color || '#fff')}"><i>${escapeHtml(s.label)}</i></span>`;
+  }).join('');
+  if (legend) {
+    legend.innerHTML = segments.map((s) => `<span style="--c:${escapeHtml(s.color || '#fff')}">${escapeHtml(s.label)}</span>`).join('');
+  }
+}
+async function spinWheel() {
+  const btn = $('wheelBtn');
+  setBusy(btn, true, 'SPINNING...');
+  setClass('wheelResult','result muted');
+  setText('wheelResult','🎡 Wheel လည်နေပါတယ်... ရပ်မယ့်နေရာကိုစောင့်ပါ');
+  try {
+    const data = await api('/api/mini/wheel/spin', { bet: $('wheelBet')?.value });
+    wheelRotation += Number(data.spinAngle || 1800) + 720;
+    const disk = $('wheelDisk');
+    if (disk) disk.style.transform = `rotate(${wheelRotation}deg)`;
+    await sleep(4550);
+    setBalance(data.balance);
+    const won = Number(data.payout || 0) > Number(data.bet || 0);
+    setClass('wheelResult', `result ${won ? 'win' : Number(data.payout) > 0 ? '' : 'lose'}`);
+    setHTML('wheelResult', `Result: <b>${escapeHtml(data.segment?.label || '?')}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`);
+    refreshAllVisibleHistory();
+  } catch (err) {
+    setClass('wheelResult','result lose');
+    setText('wheelResult', err.message);
+  } finally { setBusy(btn, false); }
+}
 
 function renderMinesBoard(game) { const board = $('minesBoard'); if (!board) return; const tiles = game?.tiles || Array.from({length:25}, (_, i) => ({ index:i, label:'hidden' })); board.innerHTML = tiles.map((t) => { const cls = t.exploded ? 'boom' : t.label === 'mine' ? 'mine' : t.opened ? 'safe' : ''; const icon = t.exploded ? '💥' : t.label === 'mine' ? '💣' : t.opened ? '💎' : '?'; return `<button class="mine-tile ${cls}" data-mine-index="${t.index}" ${game?.state !== 'playing' || t.opened ? 'disabled' : ''}>${icon}</button>`; }).join(''); }
 function renderMines(game, balance) { if (balance != null) setBalance(balance); renderMinesBoard(game); setText('minesSafe', game ? `${game.safeOpened}/${25 - game.mineCount}` : '0'); setText('minesMulti', `x${Number(game?.multiplier || 1).toFixed(2)}`); setText('minesCash', game?.cashoutLocked ? 'Locked' : `${fmt(game?.cashoutEstimate || 0)} ${coin()}`); const cashBtn = $('minesCashoutBtn'); if (cashBtn) cashBtn.disabled = !game || game.cashoutLocked || game.state !== 'playing'; }
