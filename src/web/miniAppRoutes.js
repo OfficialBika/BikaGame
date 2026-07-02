@@ -11,7 +11,7 @@ const { playWebPlinko, BUCKETS: PLINKO_BUCKETS, MIN_BET: PLINKO_MIN_BET, MAX_BET
 const { spinWebWheel, spinDailyWebWheel, getDailyWheelStatus, SEGMENTS: WHEEL_SEGMENTS, MIN_BET: WHEEL_MIN_BET, MAX_BET: WHEEL_MAX_BET, DAILY_BASE_REWARD: WHEEL_DAILY_BASE_REWARD } = require('../services/webWheelService');
 const { startWebMines, getWebMinesStatus, openWebMinesTile, cashoutWebMines, MIN_BET: MINES_MIN_BET, MAX_BET: MINES_MAX_BET, DEFAULT_MINES, MIN_CASHOUT_SAFE } = require('../services/webMinesService');
 const { joinWebBlackjack, getWebBlackjackStatus, hitWebBlackjack, standWebBlackjack, MIN_BET: BJ_MIN_BET, MAX_BET: BJ_MAX_BET, MAX_PLAYERS: BJ_MAX_PLAYERS, JOIN_SECONDS: BJ_JOIN_SECONDS, ACTION_SECONDS: BJ_ACTION_SECONDS } = require('../services/webBlackjackService');
-const { createWebShanRoom, joinWebShan, getWebShanStatus, drawWebShan, stayWebShan, playWebShan, MIN_BET: SHAN_MIN_BET, MAX_BET: SHAN_MAX_BET, MAX_PLAYERS: SHAN_MAX_PLAYERS, JOIN_SECONDS: SHAN_JOIN_SECONDS, ACTION_SECONDS: SHAN_ACTION_SECONDS } = require('../services/webShanService');
+const { createWebShanRoom, joinWebShan, getWebShanStatus, drawWebShan, stayWebShan, playWebShan, MIN_BET: SHAN_MIN_BET, MAX_BET: SHAN_MAX_BET, MAX_PLAYERS: SHAN_MAX_PLAYERS, JOIN_SECONDS: SHAN_JOIN_SECONDS, ACTION_SECONDS: SHAN_ACTION_SECONDS, MIN_BANKER_STAKE: SHAN_MIN_BANKER_STAKE, MAX_BANKER_STAKE: SHAN_MAX_BANKER_STAKE } = require('../services/webShanService');
 const { getAllWebGameRtps } = require('../services/webGameRtpService');
 const { getWebGameHistory } = require('../services/webBetHistoryService');
 const { verifyTelegramMiniAppInitData, getInitDataFromRequest } = require('./telegramMiniAuth');
@@ -67,6 +67,12 @@ function sendError(res, err) {
     SHAN_NOT_PLAYING: [400, 'အခု Shan action time မဟုတ်ပါ။'],
     SHAN_ACTION_DONE: [400, 'ဒီ hand အတွက် Draw/Stay လုပ်ပြီးသားပါ။'],
     SHAN_MAX_CARDS: [400, 'Shan မှာ card 3 ချပ်ထက်ပိုမဆွဲနိုင်ပါ။'],
+    SHAN_TABLE_NOT_FOUND: [404, 'Shan Koe Mee table မတွေ့ပါ။ Group ထဲမှာ .wshan ပြန်ပို့ပါ သို့မဟုတ် Web ထဲက Create Table နှိပ်ပါ။'],
+    SHAN_TABLE_EXPIRED: [400, 'Shan Koe Mee table expired ဖြစ်သွားပါပြီ။ Table အသစ်ထောင်ပါ။'],
+    SHAN_TABLE_ALREADY_STARTED: [400, 'ဒီ Shan table round စပြီးသွားပါပြီ။ Table အသစ်ကိုစောင့်ပါ။'],
+    BANKER_INSUFFICIENT_RESERVE: [400, 'ဒိုင် reserve မတည်ငွေ မလုံလောက်ပါ။ Banker stake ကိုလျှော့ပြီးပြန်ထောင်ပါ။'],
+    SHAN_BANKER_LIMIT_REACHED: [400, 'ဒိုင် limit ပြည့်သွားပါပြီ။ Table အသစ်ထောင်ပါ။'],
+    SHAN_NOT_YOUR_TURN: [400, 'အခု သင့်အလှည့်မဟုတ်သေးပါ။'],
   };
   const [status, message] = map[code] || [500, 'Server error ဖြစ်နေပါတယ်။'];
 
@@ -161,6 +167,10 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
         maxPlayers: SHAN_MAX_PLAYERS,
         joinSeconds: SHAN_JOIN_SECONDS,
         actionSeconds: SHAN_ACTION_SECONDS,
+        minBankerStake: SHAN_MIN_BANKER_STAKE,
+        maxBankerStake: SHAN_MAX_BANKER_STAKE,
+        bankerLimitMultiplier: Number(process.env.WEB_SHAN_BANKER_BET_LIMIT_MULTIPLIER || 3),
+        mode: 'human_banker_table',
         rules: { initialCards: 2, optionalThirdCard: true, pointModulo: 10, facePoint: 0, acePoint: 1 },
       },
       plinko: {
@@ -312,8 +322,10 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
     try {
       await ensureUser(normalizeTelegramUser(req.telegramUser));
       const result = await createWebShanRoom({
-        title: req.body?.title || 'Bika Shan Koe Mee Table',
+        title: req.body?.title || 'Bika Shan Koe Mee Pro Table',
         createdBy: req.telegramUser.id,
+        user: req.telegramUser,
+        bankerStake: req.body?.bankerStake,
       });
       return res.json(result);
     } catch (err) {
