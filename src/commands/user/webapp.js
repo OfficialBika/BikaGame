@@ -7,6 +7,7 @@ const { ensureTreasury, isOwner } = require('../../services/treasuryService');
 const { getRocketRtp, setRocketRtp } = require('../../services/webCrashService');
 const { cleanGameKey, getWebGameRtp, setWebGameRtp, getAllWebGameRtps, gameLabel } = require('../../services/webGameRtpService');
 const { createWebBlackjackRoom } = require('../../services/webBlackjackService');
+const { createWebShanRoom } = require('../../services/webShanService');
 
 function appKeyboard(url) {
   return {
@@ -306,18 +307,25 @@ module.exports = (bot) => {
       );
     }
 
-    const url = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}game=shan`;
+    const room = await createWebShanRoom({
+      chatId: ctx.chat?.id,
+      title: ctx.chat?.title || 'Bika Shan Koe Mee Table',
+      createdBy: ctx.from?.id || null,
+    });
+    const url = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}game=shan&room=${encodeURIComponent(room.room.id)}`;
+
     return replyHTML(
       ctx,
-      '🃏 <b>Web Shan Koe Mee is ready!</b>\n' +
+      '🎴 <b>Web Shan Koe Mee Table is open!</b>\n' +
         '━━━━━━━━━━━━━━━━\n' +
-        'Play premium Shan Koe Mee in the Mini App.\n' +
-        'You will receive 3 private cards and compare against the dealer.\n' +
-        'Special hands and 9-point hands are ranked automatically.\n\n' +
-        'Tap the button below to open the Shan table.',
+        'Players can join this premium Shan Koe Mee table from the Mini App.\n' +
+        'Each player receives <b>2 private cards</b>, then chooses <b>Draw</b> or <b>Stay</b>.\n' +
+        'Only your own cards are visible. Other players\' cards stay hidden until the final reveal.\n' +
+        'Dealer cards are hidden until all players finish their actions.\n\n' +
+        'Tap the button below to join the table.',
       {
         ...replyOptions(ctx),
-        reply_markup: miniAppJoinKeyboard(ctx, url, '🃏 Open Web Shan Koe Mee', 'shan'),
+        reply_markup: miniAppJoinKeyboard(ctx, url, '🎴 Join Shan Koe Mee', `wshan_${room.room.id}`),
       }
     );
   });
