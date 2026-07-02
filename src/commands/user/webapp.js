@@ -5,6 +5,7 @@ const { replyHTML } = require('../../utils/telegram');
 const { ensureTreasury, isOwner } = require('../../services/treasuryService');
 const { getRocketRtp, setRocketRtp } = require('../../services/webCrashService');
 const { cleanGameKey, getWebGameRtp, setWebGameRtp, getAllWebGameRtps, gameLabel } = require('../../services/webGameRtpService');
+const { createWebBlackjackRoom } = require('../../services/webBlackjackService');
 
 function appKeyboard(url) {
   return {
@@ -38,6 +39,14 @@ function parseSetGameRtp(text) {
   return { game, value: Number.isFinite(n) ? Math.floor(n) : null };
 }
 
+function setCommandFor(gameKey) {
+  const key = cleanGameKey(gameKey);
+  if (key === 'rocket') return '/setrocketrtp 70';
+  if (key === 'blackjack') return '/setwebbjrtp 70';
+  if (key === 'mines') return '/setwebminesrtp 70';
+  return `/set${key}rtp 70`;
+}
+
 async function requireOwnerDm(ctx) {
   const treasury = await ensureTreasury();
   if (!isOwner(ctx, treasury)) {
@@ -56,7 +65,7 @@ async function requireOwnerDm(ctx) {
 async function showSingleRtp(ctx, game) {
   const key = cleanGameKey(game);
   const rtp = key === 'rocket' ? await getRocketRtp() : await getWebGameRtp(key);
-  const setCmd = key === 'rocket' ? '/setrocketrtp 70' : `/set${key}rtp 70`;
+  const setCmd = setCommandFor(key);
   return replyHTML(
     ctx,
     `🎛 <b>Web ${gameLabel(key)} RTP</b>\n` +
@@ -74,7 +83,7 @@ async function setSingleRtp(ctx, game, value) {
   if (value == null || value < 40 || value > 95) {
     return replyHTML(
       ctx,
-      `Usage: <code>/set${key}rtp 70</code>\n` +
+      `Usage: <code>${setCommandFor(key)}</code>\n` +
         `Range: <b>40% - 95%</b>`,
       replyOptions(ctx)
     );
@@ -89,8 +98,8 @@ async function setSingleRtp(ctx, game, value) {
     `✅ <b>Web ${gameLabel(key)} RTP Updated</b>\n` +
       `━━━━━━━━━━━━━━━━\n` +
       `New RTP: <b>${rtp}%</b>\n\n` +
-      `ပိုတင်းချင်ရင်: <code>/set${key}rtp 60</code>\n` +
-      `ပိုပေးချင်ရင်: <code>/set${key}rtp 80</code>`,
+      `ပိုတင်းချင်ရင်: <code>${setCommandFor(key).replace('70', '60')}</code>\n` +
+      `ပိုပေးချင်ရင်: <code>${setCommandFor(key).replace('70', '80')}</code>`,
     replyOptions(ctx)
   );
 }
@@ -111,7 +120,7 @@ module.exports = (bot) => {
       ctx,
       '🎮 <b>Bika Game Mini App</b>\n' +
         '━━━━━━━━━━━━━━━━\n' +
-        'Web ထဲမှာ Rocket / Slot / Plinko / Wheel / Mines ဆော့နိုင်ပါတယ်။\n\n' +
+        'Web ထဲမှာ Rocket / Slot / Blackjack / Plinko / Wheel / Mines ဆော့နိုင်ပါတယ်။\n\n' +
         'အောက်က button ကိုနှိပ်ပါ။',
       { ...replyOptions(ctx), reply_markup: appKeyboard(url) }
     );
@@ -122,7 +131,7 @@ module.exports = (bot) => {
 
     const rtps = await getAllWebGameRtps();
     rtps.rocket = await getRocketRtp();
-    const lines = ['rocket', 'plinko', 'wheel', 'mines']
+    const lines = ['rocket', 'blackjack', 'plinko', 'wheel', 'mines']
       .map((key) => `• <b>${gameLabel(key)}</b>: <b>${rtps[key]}%</b>`)
       .join('\n');
 
@@ -133,6 +142,7 @@ module.exports = (bot) => {
         `${lines}\n\n` +
         `Commands:\n` +
         `<code>/setrocketrtp 70</code>\n` +
+        `<code>/setwebbjrtp 70</code>\n` +
         `<code>/setplinkortp 70</code>\n` +
         `<code>/setwheelrtp 70</code>\n` +
         `<code>/setwebminesrtp 70</code>\n\n` +
@@ -144,6 +154,11 @@ module.exports = (bot) => {
   bot.command(['rocketrtp', 'webcrashrtp'], async (ctx) => {
     if (!(await requireOwnerDm(ctx))) return;
     return showSingleRtp(ctx, 'rocket');
+  });
+
+  bot.command(['webbjrtp', 'webblackjackrtp', 'bjwebrtp'], async (ctx) => {
+    if (!(await requireOwnerDm(ctx))) return;
+    return showSingleRtp(ctx, 'blackjack');
   });
 
   bot.command(['plinkortp'], async (ctx) => {
@@ -166,6 +181,11 @@ module.exports = (bot) => {
     return setSingleRtp(ctx, 'rocket', parsePercent(ctx.message?.text));
   });
 
+  bot.command(['setwebbjrtp', 'setwebblackjackrtp', 'setbjwebrtp'], async (ctx) => {
+    if (!(await requireOwnerDm(ctx))) return;
+    return setSingleRtp(ctx, 'blackjack', parsePercent(ctx.message?.text));
+  });
+
   bot.command(['setplinkortp'], async (ctx) => {
     if (!(await requireOwnerDm(ctx))) return;
     return setSingleRtp(ctx, 'plinko', parsePercent(ctx.message?.text));
@@ -184,15 +204,58 @@ module.exports = (bot) => {
   bot.command(['setwebgamertp'], async (ctx) => {
     if (!(await requireOwnerDm(ctx))) return;
     const parsed = parseSetGameRtp(ctx.message?.text);
-    if (!['rocket', 'plinko', 'wheel', 'mines'].includes(parsed.game)) {
+    if (!['rocket', 'blackjack', 'plinko', 'wheel', 'mines'].includes(parsed.game)) {
       return replyHTML(
         ctx,
         `Usage: <code>/setwebgamertp plinko 70</code>\n` +
-          `Games: rocket, plinko, wheel, mines`,
+          `Games: rocket, blackjack, plinko, wheel, mines`,
         replyOptions(ctx)
       );
     }
 
     return setSingleRtp(ctx, parsed.game, parsed.value);
   });
+
+  bot.hears(/^\.(wbj|webbj|webblackjack)\b/i, async (ctx) => {
+    const chatType = ctx.chat?.type;
+    if (!['group', 'supergroup'].includes(chatType)) {
+      return replyHTML(ctx, 'ℹ️ <code>.wbj</code> ကို group ထဲမှာပဲသုံးပါ။', replyOptions(ctx));
+    }
+
+    const baseUrl = publicMiniAppUrl();
+    if (!baseUrl || baseUrl === '/miniapp') {
+      return replyHTML(
+        ctx,
+        '⚠️ Mini App URL မသတ်မှတ်ရသေးပါ။ Render မှာ <code>PUBLIC_URL</code> ကို သင့် service URL နဲ့ထည့်ပါ။',
+        replyOptions(ctx)
+      );
+    }
+
+    const room = await createWebBlackjackRoom({
+      chatId: ctx.chat?.id,
+      title: ctx.chat?.title || 'Bika Blackjack Table',
+      createdBy: ctx.from?.id || null,
+    });
+    const url = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}game=blackjack&room=${encodeURIComponent(room.room.id)}`;
+
+    return replyHTML(
+      ctx,
+      '🃏 <b>Web Blackjack Table is open!</b>\n' +
+        '━━━━━━━━━━━━━━━━\n' +
+        'Up to <b>5 players</b> can join this premium Blackjack table.\n' +
+        'Only your own cards are visible. Other players cannot see your hand.\n' +
+        'Dealer cards stay hidden until the dealer turn / final comparison.\n\n' +
+        'Tap the button below to join the table.',
+      {
+        ...replyOptions(ctx),
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '🃏 Join Web Blackjack', web_app: { url } }],
+            [{ text: '🔗 Open Join Link', url }],
+          ],
+        },
+      }
+    );
+  });
+
 };
