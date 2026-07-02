@@ -8,6 +8,7 @@ const { getRocketRtp, setRocketRtp } = require('../../services/webCrashService')
 const { cleanGameKey, getWebGameRtp, setWebGameRtp, getAllWebGameRtps, gameLabel } = require('../../services/webGameRtpService');
 const { createWebBlackjackRoom } = require('../../services/webBlackjackService');
 const { createWebShanRoom } = require('../../services/webShanService');
+const { ensureUser } = require('../../services/economyService');
 
 function appKeyboard(url) {
   return {
@@ -60,6 +61,13 @@ function parsePercent(text) {
   const raw = String(parts[1] || '').replace('%', '').trim();
   const n = Number(raw);
   return Number.isFinite(n) ? Math.floor(n) : null;
+}
+
+function parseAmountArg(text, fallback = 5000) {
+  const parts = String(text || '').trim().split(/\s+/);
+  const raw = String(parts[1] || '').replace(/,/g, '').trim();
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
 }
 
 function parseSetGameRtp(text) {
@@ -307,25 +315,42 @@ module.exports = (bot) => {
       );
     }
 
-    const room = await createWebShanRoom({
-      chatId: ctx.chat?.id,
-      title: ctx.chat?.title || 'Bika Shan Koe Mee Table',
-      createdBy: ctx.from?.id || null,
-    });
+    const bankerStake = parseAmountArg(ctx.message?.text, Number(process.env.WEB_SHAN_DEFAULT_BANKER_STAKE || 5000));
+    await ensureUser(ctx.from || {});
+    let room;
+    try {
+      room = await createWebShanRoom({
+        chatId: ctx.chat?.id,
+        title: ctx.chat?.title || 'Bika Shan Koe Mee Pro Table',
+        createdBy: ctx.from?.id || null,
+        user: ctx.from || {},
+        bankerStake,
+      });
+    } catch (err) {
+      const required = err?.required ? `\nRequired reserve: <b>${Number(err.required).toLocaleString('en-US')}</b>` : '';
+      return replyHTML(
+        ctx,
+        '⚠️ <b>Cannot open Shan banker table.</b>\n' +
+          'Banker must have enough balance because this is a human-banker table.\n' +
+          'Usage: <code>.wshan 5000</code>' + required,
+        replyOptions(ctx)
+      );
+    }
     const url = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}game=shan&room=${encodeURIComponent(room.room.id)}`;
 
     return replyHTML(
       ctx,
-      '🎴 <b>Web Shan Koe Mee Table is open!</b>\n' +
+      '🎴 <b>Shan Koe Mee Pro Table is open!</b>\n' +
         '━━━━━━━━━━━━━━━━\n' +
-        'Players can join this premium Shan Koe Mee table from the Mini App.\n' +
-        'Each player receives <b>2 private cards</b>, then chooses <b>Draw</b> or <b>Stay</b>.\n' +
-        'Only your own cards are visible. Other players\' cards stay hidden until the final reveal.\n' +
-        'Dealer cards are hidden until all players finish their actions.\n\n' +
+        'Human banker table: players compete against the banker.\n' +
+        `Banker stake: <b>${Number(room.room.banker.stake).toLocaleString('en-US')}</b> • Bet limit: <b>${Number(room.room.betLimit).toLocaleString('en-US')}</b>\n` +
+        'When total bets reach 3x banker stake, the table auto-calls <b>TIN x3</b> and starts dealing.\n' +
+        'Dealer moves turn-by-turn from one player to the next.\n' +
+        'Only your own cards are visible until final reveal.\n\n' +
         'Tap the button below to join the table.',
       {
         ...replyOptions(ctx),
-        reply_markup: miniAppJoinKeyboard(ctx, url, '🎴 Join Shan Koe Mee', `wshan_${room.room.id}`),
+        reply_markup: miniAppJoinKeyboard(ctx, url, '🎴 Join Shan Pro Table', `wshan_${room.room.id}`),
       }
     );
   });
