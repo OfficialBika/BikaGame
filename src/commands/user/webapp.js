@@ -1,6 +1,7 @@
 'use strict';
 
 const { publicMiniAppUrl } = require('../../web/miniAppRoutes');
+const { getBotInfo } = require('../../config/bot');
 const { replyHTML } = require('../../utils/telegram');
 const { ensureTreasury, isOwner } = require('../../services/treasuryService');
 const { getRocketRtp, setRocketRtp } = require('../../services/webCrashService');
@@ -13,6 +14,35 @@ function appKeyboard(url) {
       [{ text: '🎮 Open Bika Game App', web_app: { url } }],
     ],
   };
+}
+
+
+function miniAppDirectLink(startParam = '') {
+  const username = getBotInfo()?.username || process.env.BOT_USERNAME || '';
+  if (!username) return null;
+  const clean = String(username).replace(/^@/, '');
+  const suffix = startParam ? `?startapp=${encodeURIComponent(startParam)}` : '?startapp';
+  return `https://t.me/${clean}${suffix}`;
+}
+
+function miniAppJoinKeyboard(ctx, webUrl, label, startParam) {
+  const chatType = ctx.chat?.type;
+  const isPrivate = chatType === 'private';
+  const directUrl = miniAppDirectLink(startParam);
+
+  if (isPrivate) {
+    return {
+      inline_keyboard: [
+        [{ text: label, web_app: { url: webUrl } }],
+        [{ text: '🔗 Open Direct Link', url: directUrl || webUrl }],
+      ],
+    };
+  }
+
+  const rows = [];
+  if (directUrl) rows.push([{ text: label, url: directUrl }]);
+  rows.push([{ text: '🌐 Open Web Link', url: webUrl }]);
+  return { inline_keyboard: rows };
 }
 
 function replyOptions(ctx) {
@@ -43,6 +73,7 @@ function setCommandFor(gameKey) {
   const key = cleanGameKey(gameKey);
   if (key === 'rocket') return '/setrocketrtp 70';
   if (key === 'blackjack') return '/setwebbjrtp 70';
+  if (key === 'shan') return '/setwebshanrtp 70';
   if (key === 'mines') return '/setwebminesrtp 70';
   return `/set${key}rtp 70`;
 }
@@ -120,7 +151,7 @@ module.exports = (bot) => {
       ctx,
       '🎮 <b>Bika Game Mini App</b>\n' +
         '━━━━━━━━━━━━━━━━\n' +
-        'Web ထဲမှာ Rocket / Slot / Blackjack / Plinko / Wheel / Mines ဆော့နိုင်ပါတယ်။\n\n' +
+        'Web ထဲမှာ Rocket / Slot / Blackjack / Shan Koe Mee / Plinko / Wheel / Mines ဆော့နိုင်ပါတယ်။\n\n' +
         'အောက်က button ကိုနှိပ်ပါ။',
       { ...replyOptions(ctx), reply_markup: appKeyboard(url) }
     );
@@ -131,7 +162,7 @@ module.exports = (bot) => {
 
     const rtps = await getAllWebGameRtps();
     rtps.rocket = await getRocketRtp();
-    const lines = ['rocket', 'blackjack', 'plinko', 'wheel', 'mines']
+    const lines = ['rocket', 'blackjack', 'shan', 'plinko', 'wheel', 'mines']
       .map((key) => `• <b>${gameLabel(key)}</b>: <b>${rtps[key]}%</b>`)
       .join('\n');
 
@@ -143,6 +174,7 @@ module.exports = (bot) => {
         `Commands:\n` +
         `<code>/setrocketrtp 70</code>\n` +
         `<code>/setwebbjrtp 70</code>\n` +
+        `<code>/setwebshanrtp 70</code>\n` +
         `<code>/setplinkortp 70</code>\n` +
         `<code>/setwheelrtp 70</code>\n` +
         `<code>/setwebminesrtp 70</code>\n\n` +
@@ -159,6 +191,11 @@ module.exports = (bot) => {
   bot.command(['webbjrtp', 'webblackjackrtp', 'bjwebrtp'], async (ctx) => {
     if (!(await requireOwnerDm(ctx))) return;
     return showSingleRtp(ctx, 'blackjack');
+  });
+
+  bot.command(['webshanrtp', 'shankoemeertp', 'shanrtp'], async (ctx) => {
+    if (!(await requireOwnerDm(ctx))) return;
+    return showSingleRtp(ctx, 'shan');
   });
 
   bot.command(['plinkortp'], async (ctx) => {
@@ -186,6 +223,11 @@ module.exports = (bot) => {
     return setSingleRtp(ctx, 'blackjack', parsePercent(ctx.message?.text));
   });
 
+  bot.command(['setwebshanrtp', 'setshankoemeertp', 'setshanrtp'], async (ctx) => {
+    if (!(await requireOwnerDm(ctx))) return;
+    return setSingleRtp(ctx, 'shan', parsePercent(ctx.message?.text));
+  });
+
   bot.command(['setplinkortp'], async (ctx) => {
     if (!(await requireOwnerDm(ctx))) return;
     return setSingleRtp(ctx, 'plinko', parsePercent(ctx.message?.text));
@@ -204,11 +246,11 @@ module.exports = (bot) => {
   bot.command(['setwebgamertp'], async (ctx) => {
     if (!(await requireOwnerDm(ctx))) return;
     const parsed = parseSetGameRtp(ctx.message?.text);
-    if (!['rocket', 'blackjack', 'plinko', 'wheel', 'mines'].includes(parsed.game)) {
+    if (!['rocket', 'blackjack', 'shan', 'plinko', 'wheel', 'mines'].includes(parsed.game)) {
       return replyHTML(
         ctx,
         `Usage: <code>/setwebgamertp plinko 70</code>\n` +
-          `Games: rocket, blackjack, plinko, wheel, mines`,
+          `Games: rocket, blackjack, shan, plinko, wheel, mines`,
         replyOptions(ctx)
       );
     }
@@ -248,12 +290,34 @@ module.exports = (bot) => {
         'Tap the button below to join the table.',
       {
         ...replyOptions(ctx),
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '🃏 Join Web Blackjack', web_app: { url } }],
-            [{ text: '🔗 Open Join Link', url }],
-          ],
-        },
+        reply_markup: miniAppJoinKeyboard(ctx, url, '🃏 Join Web Blackjack', `wbj_${room.room.id}`),
+      }
+    );
+  });
+
+
+  bot.hears(/^\.(wshan|webshan|skm)\b/i, async (ctx) => {
+    const baseUrl = publicMiniAppUrl();
+    if (!baseUrl || baseUrl === '/miniapp') {
+      return replyHTML(
+        ctx,
+        '⚠️ Mini App URL မသတ်မှတ်ရသေးပါ။ Render မှာ <code>PUBLIC_URL</code> ကို သင့် service URL နဲ့ထည့်ပါ။',
+        replyOptions(ctx)
+      );
+    }
+
+    const url = `${baseUrl}${baseUrl.includes('?') ? '&' : '?'}game=shan`;
+    return replyHTML(
+      ctx,
+      '🃏 <b>Web Shan Koe Mee is ready!</b>\n' +
+        '━━━━━━━━━━━━━━━━\n' +
+        'Play premium Shan Koe Mee in the Mini App.\n' +
+        'You will receive 3 private cards and compare against the dealer.\n' +
+        'Special hands and 9-point hands are ranked automatically.\n\n' +
+        'Tap the button below to open the Shan table.',
+      {
+        ...replyOptions(ctx),
+        reply_markup: miniAppJoinKeyboard(ctx, url, '🃏 Open Web Shan Koe Mee', 'shan'),
       }
     );
   });
