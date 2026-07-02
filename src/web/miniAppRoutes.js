@@ -11,7 +11,7 @@ const { playWebPlinko, BUCKETS: PLINKO_BUCKETS, MIN_BET: PLINKO_MIN_BET, MAX_BET
 const { spinWebWheel, spinDailyWebWheel, getDailyWheelStatus, SEGMENTS: WHEEL_SEGMENTS, MIN_BET: WHEEL_MIN_BET, MAX_BET: WHEEL_MAX_BET, DAILY_BASE_REWARD: WHEEL_DAILY_BASE_REWARD } = require('../services/webWheelService');
 const { startWebMines, getWebMinesStatus, openWebMinesTile, cashoutWebMines, MIN_BET: MINES_MIN_BET, MAX_BET: MINES_MAX_BET, DEFAULT_MINES, MIN_CASHOUT_SAFE } = require('../services/webMinesService');
 const { joinWebBlackjack, getWebBlackjackStatus, hitWebBlackjack, standWebBlackjack, MIN_BET: BJ_MIN_BET, MAX_BET: BJ_MAX_BET, MAX_PLAYERS: BJ_MAX_PLAYERS, JOIN_SECONDS: BJ_JOIN_SECONDS, ACTION_SECONDS: BJ_ACTION_SECONDS } = require('../services/webBlackjackService');
-const { playWebShan, MIN_BET: SHAN_MIN_BET, MAX_BET: SHAN_MAX_BET } = require('../services/webShanService');
+const { createWebShanRoom, joinWebShan, getWebShanStatus, drawWebShan, stayWebShan, playWebShan, MIN_BET: SHAN_MIN_BET, MAX_BET: SHAN_MAX_BET, MAX_PLAYERS: SHAN_MAX_PLAYERS, JOIN_SECONDS: SHAN_JOIN_SECONDS, ACTION_SECONDS: SHAN_ACTION_SECONDS } = require('../services/webShanService');
 const { getAllWebGameRtps } = require('../services/webGameRtpService');
 const { getWebGameHistory } = require('../services/webBetHistoryService');
 const { verifyTelegramMiniAppInitData, getInitDataFromRequest } = require('./telegramMiniAuth');
@@ -59,6 +59,14 @@ function sendError(res, err) {
     BJ_NOT_PLAYING: [400, 'အခု action time မဟုတ်ပါ။'],
     BJ_ACTION_DONE: [400, 'ဒီ hand အတွက် action လုပ်ပြီးသားပါ။'],
     SHAN_DEAL_RUNNING: [429, 'Shan deal လက်ရှိ run နေပါတယ်။'],
+    SHAN_ROOM_NOT_FOUND: [404, 'Shan Koe Mee table မတွေ့ပါ။ Group ထဲမှာ .wshan ပြန်ပို့ပါ သို့မဟုတ် Web ထဲက Create Table နှိပ်ပါ။'],
+    SHAN_ROOM_EXPIRED: [400, 'Shan Koe Mee table expired ဖြစ်သွားပါပြီ။ Table အသစ်ထောင်ပါ။'],
+    SHAN_ALREADY_STARTED: [400, 'ဒီ Shan table round စပြီးသွားပါပြီ။ Table အသစ်ကိုစောင့်ပါ။'],
+    SHAN_TABLE_FULL: [400, 'Shan table player ပြည့်သွားပါပြီ။'],
+    SHAN_NOT_JOINED: [400, 'ဒီ Shan table ထဲ မဝင်ထားပါ။'],
+    SHAN_NOT_PLAYING: [400, 'အခု Shan action time မဟုတ်ပါ။'],
+    SHAN_ACTION_DONE: [400, 'ဒီ hand အတွက် Draw/Stay လုပ်ပြီးသားပါ။'],
+    SHAN_MAX_CARDS: [400, 'Shan မှာ card 3 ချပ်ထက်ပိုမဆွဲနိုင်ပါ။'],
   };
   const [status, message] = map[code] || [500, 'Server error ဖြစ်နေပါတယ်။'];
 
@@ -121,7 +129,7 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
         { key: 'rocket', title: 'Rocket Crash', badge: 'LIVE', hot: true },
         { key: 'slot', title: 'Premium Slot', badge: 'HOT', hot: true },
         { key: 'blackjack', title: 'Web Blackjack', badge: 'LIVE', hot: true },
-        { key: 'shan', title: 'Shan Koe Mee', badge: 'NEW', hot: true },
+        { key: 'shan', title: 'Shan Koe Mee', badge: 'LIVE', hot: true },
         { key: 'plinko', title: 'Plinko', badge: 'NEW', hot: false },
         { key: 'wheel', title: 'Lucky Wheel', badge: 'DAILY', hot: false },
         { key: 'mines', title: 'Web Mines', badge: 'NEW', hot: false },
@@ -150,7 +158,10 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
       shan: {
         minBet: SHAN_MIN_BET,
         maxBet: SHAN_MAX_BET,
-        rules: { cards: 3, pointModulo: 10, facePoint: 0, acePoint: 1 },
+        maxPlayers: SHAN_MAX_PLAYERS,
+        joinSeconds: SHAN_JOIN_SECONDS,
+        actionSeconds: SHAN_ACTION_SECONDS,
+        rules: { initialCards: 2, optionalThirdCard: true, pointModulo: 10, facePoint: 0, acePoint: 1 },
       },
       plinko: {
         minBet: PLINKO_MIN_BET,
@@ -296,6 +307,57 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
   });
 
 
+
+  app.post('/api/mini/shan/create', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await createWebShanRoom({
+        title: req.body?.title || 'Bika Shan Koe Mee Table',
+        createdBy: req.telegramUser.id,
+      });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/shan/status', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await getWebShanStatus({ roomId: req.body?.roomId, userId: req.telegramUser.id });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/shan/join', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await joinWebShan({ roomId: req.body?.roomId, userId: req.telegramUser.id, user: req.telegramUser, bet: req.body?.bet });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/shan/draw', authMiddleware, async (req, res) => {
+    try {
+      const result = await drawWebShan({ roomId: req.body?.roomId, userId: req.telegramUser.id });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/shan/stay', authMiddleware, async (req, res) => {
+    try {
+      const result = await stayWebShan({ roomId: req.body?.roomId, userId: req.telegramUser.id });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
 
   app.post('/api/mini/shan/deal', authMiddleware, async (req, res) => {
     try {
