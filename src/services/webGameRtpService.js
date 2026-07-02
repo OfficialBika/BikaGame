@@ -9,6 +9,7 @@ const DEFAULT_RTPS = Object.freeze({
   plinko: Number(process.env.WEB_PLINKO_RTP || 72),
   wheel: Number(process.env.WEB_WHEEL_RTP || 70),
   mines: Number(process.env.WEB_MINES_RTP || 68),
+  blackjack: Number(process.env.WEB_BLACKJACK_RTP || process.env.WEB_BJ_RTP || 68),
 });
 
 const GAME_LABELS = Object.freeze({
@@ -16,6 +17,7 @@ const GAME_LABELS = Object.freeze({
   plinko: 'Plinko',
   wheel: 'Lucky Wheel',
   mines: 'Web Mines',
+  blackjack: 'Web Blackjack',
 });
 
 function cleanGameKey(value) {
@@ -24,6 +26,7 @@ function cleanGameKey(value) {
   if (key === 'plinko' || key === 'plink') return 'plinko';
   if (key === 'wheel' || key === 'luckywheel' || key === 'spin') return 'wheel';
   if (key === 'mines' || key === 'mine' || key === 'webmines') return 'mines';
+  if (key === 'blackjack' || key === 'bj' || key === 'webbj' || key === 'webblackjack') return 'blackjack';
   return key;
 }
 
