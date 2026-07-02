@@ -8,8 +8,9 @@ const { ensureUser, getUser } = require('../services/economyService');
 const { spinWebSlot } = require('../services/webSlotService');
 const { startWebCrashLoop, placeWebCrashBet, getWebCrashStatus, cashoutWebCrash } = require('../services/webCrashService');
 const { playWebPlinko, BUCKETS: PLINKO_BUCKETS, MIN_BET: PLINKO_MIN_BET, MAX_BET: PLINKO_MAX_BET } = require('../services/webPlinkoService');
-const { spinWebWheel, SEGMENTS: WHEEL_SEGMENTS, MIN_BET: WHEEL_MIN_BET, MAX_BET: WHEEL_MAX_BET } = require('../services/webWheelService');
+const { spinWebWheel, spinDailyWebWheel, getDailyWheelStatus, SEGMENTS: WHEEL_SEGMENTS, MIN_BET: WHEEL_MIN_BET, MAX_BET: WHEEL_MAX_BET, DAILY_BASE_REWARD: WHEEL_DAILY_BASE_REWARD } = require('../services/webWheelService');
 const { startWebMines, getWebMinesStatus, openWebMinesTile, cashoutWebMines, MIN_BET: MINES_MIN_BET, MAX_BET: MINES_MAX_BET, DEFAULT_MINES, MIN_CASHOUT_SAFE } = require('../services/webMinesService');
+const { joinWebBlackjack, getWebBlackjackStatus, hitWebBlackjack, standWebBlackjack, MIN_BET: BJ_MIN_BET, MAX_BET: BJ_MAX_BET, MAX_PLAYERS: BJ_MAX_PLAYERS, JOIN_SECONDS: BJ_JOIN_SECONDS, ACTION_SECONDS: BJ_ACTION_SECONDS } = require('../services/webBlackjackService');
 const { getAllWebGameRtps } = require('../services/webGameRtpService');
 const { getWebGameHistory } = require('../services/webBetHistoryService');
 const { verifyTelegramMiniAppInitData, getInitDataFromRequest } = require('./telegramMiniAuth');
@@ -48,6 +49,14 @@ function sendError(res, err) {
     INVALID_TILE: [400, 'Tile မမှန်ပါ။'],
     TILE_OPENED: [400, 'ဒီ tile ကိုဖွင့်ပြီးသားပါ။'],
     MINES_CASHOUT_LOCKED: [400, 'Safe tile မလုံလောက်သေးပါ။'],
+    WHEEL_DAILY_USED: [400, 'Daily Free Spin ကို ဒီနေ့ claim လုပ်ပြီးသားပါ။ မနက်ဖြန် ပြန်လာပါ။'],
+    BJ_ROOM_NOT_FOUND: [404, 'Blackjack table မတွေ့ပါ။ Group ထဲမှာ .wbj ပြန်ပို့ပြီး table အသစ်ဖွင့်ပါ။'],
+    BJ_ROOM_EXPIRED: [400, 'Blackjack table expired ဖြစ်သွားပါပြီ။'],
+    BJ_ALREADY_STARTED: [400, 'Blackjack round စပြီးသွားပါပြီ။ နောက် table ကိုစောင့်ပါ။'],
+    BJ_TABLE_FULL: [400, 'Blackjack table player ပြည့်သွားပါပြီ။'],
+    BJ_NOT_JOINED: [400, 'ဒီ Blackjack table ထဲ မဝင်ထားပါ။'],
+    BJ_NOT_PLAYING: [400, 'အခု action time မဟုတ်ပါ။'],
+    BJ_ACTION_DONE: [400, 'ဒီ hand အတွက် action လုပ်ပြီးသားပါ။'],
   };
   const [status, message] = map[code] || [500, 'Server error ဖြစ်နေပါတယ်။'];
 
@@ -60,6 +69,7 @@ function sendError(res, err) {
     cooldownLeft: err?.cooldownLeft,
     minMultiplier: err?.minMultiplier,
     minSafe: err?.minSafe,
+    nextAtMs: err?.nextAtMs,
   });
 }
 
@@ -108,6 +118,7 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
       games: [
         { key: 'rocket', title: 'Rocket Crash', badge: 'LIVE', hot: true },
         { key: 'slot', title: 'Premium Slot', badge: 'HOT', hot: true },
+        { key: 'blackjack', title: 'Web Blackjack', badge: 'LIVE', hot: true },
         { key: 'plinko', title: 'Plinko', badge: 'NEW', hot: false },
         { key: 'wheel', title: 'Lucky Wheel', badge: 'DAILY', hot: false },
         { key: 'mines', title: 'Web Mines', badge: 'NEW', hot: false },
@@ -126,6 +137,13 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
         multiplayer: true,
         roundMax: 100,
       },
+      blackjack: {
+        minBet: BJ_MIN_BET,
+        maxBet: BJ_MAX_BET,
+        maxPlayers: BJ_MAX_PLAYERS,
+        joinSeconds: BJ_JOIN_SECONDS,
+        actionSeconds: BJ_ACTION_SECONDS,
+      },
       plinko: {
         minBet: PLINKO_MIN_BET,
         maxBet: PLINKO_MAX_BET,
@@ -134,6 +152,8 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
       wheel: {
         minBet: WHEEL_MIN_BET,
         maxBet: WHEEL_MAX_BET,
+        dailyBaseReward: WHEEL_DAILY_BASE_REWARD,
+        segmentDegrees: 36,
         segments: WHEEL_SEGMENTS,
       },
       mines: {
@@ -229,10 +249,69 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
     }
   });
 
+  app.post('/api/mini/blackjack/status', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await getWebBlackjackStatus({ roomId: req.body?.roomId, userId: req.telegramUser.id });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/blackjack/join', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await joinWebBlackjack({ roomId: req.body?.roomId, userId: req.telegramUser.id, user: req.telegramUser, bet: req.body?.bet });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/blackjack/hit', authMiddleware, async (req, res) => {
+    try {
+      const result = await hitWebBlackjack({ roomId: req.body?.roomId, userId: req.telegramUser.id });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/blackjack/stand', authMiddleware, async (req, res) => {
+    try {
+      const result = await standWebBlackjack({ roomId: req.body?.roomId, userId: req.telegramUser.id });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
   app.post('/api/mini/plinko/drop', authMiddleware, async (req, res) => {
     try {
       await ensureUser(normalizeTelegramUser(req.telegramUser));
       const result = await playWebPlinko({ userId: req.telegramUser.id, bet: req.body?.bet });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+
+  app.post('/api/mini/wheel/daily-status', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const status = await getDailyWheelStatus(req.telegramUser.id);
+      return res.json(status);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/wheel/daily-spin', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await spinDailyWebWheel({ userId: req.telegramUser.id });
       return res.json(result);
     } catch (err) {
       return sendError(res, err);
