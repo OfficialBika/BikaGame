@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Bika Game App</title>
-  <link rel="stylesheet" href="/miniapp/assets/style.css?v=premium-v9" />
+  <link rel="stylesheet" href="/miniapp/assets/style.css?v=premium-v11" />
 </head>
 <body>
   <div class="bg-orb orb-a"></div>
@@ -42,6 +42,10 @@
           <div class="badge hot">HOT</div><div class="game-icon">🎰</div>
           <h2>Premium Slot</h2><p>Neon reels & jackpot glow</p><span>Spin now</span>
         </button>
+        <button class="game-card blackjack-home-card" data-open="blackjack">
+          <div class="badge live">LIVE</div><div class="game-icon">🃏</div>
+          <h2>Web Blackjack</h2><p>5-player private-hand table</p><span>Join table</span>
+        </button>
         <button class="game-card plinko-home-card" data-open="plinko">
           <div class="badge new">NEW</div><div class="game-icon">🟡</div>
           <h2>Plinko</h2><p>Drop ball to multiplier lane</p><span>Drop ball</span>
@@ -61,6 +65,7 @@
       <button class="tab active" data-open="home">🏠 Home</button>
       <button class="tab" data-open="crash">🚀 Rocket</button>
       <button class="tab" data-open="slot">🎰 Slot</button>
+      <button class="tab" data-open="blackjack">🃏 BJ</button>
       <button class="tab" data-open="plinko">🟡 Plinko</button>
       <button class="tab" data-open="wheel">🎡 Wheel</button>
       <button class="tab" data-open="mines">💣 Mines</button>
@@ -109,6 +114,34 @@
       </div>
     </section>
 
+    <section id="blackjack" class="panel game-panel">
+      <div class="game-toolbar"><button class="back-home" data-open="home">‹ Home</button><h2>🃏 Web Blackjack</h2><span class="badge live">LIVE</span></div>
+      <div class="premium-card blackjack-card">
+        <div class="bj-hero">
+          <div><p class="eyebrow">PRIVATE HANDS • MAX 5 PLAYERS</p><h3 id="bjTableTitle">Blackjack Table</h3><span id="bjRoomHint">Send .wbj in group and open the join button.</span></div>
+          <div class="bj-room-chip"><b id="bjRoomState">NO ROOM</b><span id="bjRoomCount">0/5</span></div>
+        </div>
+        <div class="bj-table">
+          <div class="bj-dealer-zone">
+            <div class="bj-zone-title"><span>Dealer</span><b id="bjDealerTotal">Hidden</b></div>
+            <div id="bjDealerCards" class="bj-cards"></div>
+          </div>
+          <div class="bj-player-zone">
+            <div class="bj-zone-title"><span>Your Hand</span><b id="bjMyTotal">—</b></div>
+            <div id="bjMyCards" class="bj-cards my-cards"></div>
+          </div>
+          <div id="bjSeats" class="bj-seats"></div>
+        </div>
+        <div class="bj-control-grid">
+          <div class="bet-box bj-join-box"><input id="bjBet" type="number" inputmode="numeric" placeholder="Bet amount" /><button id="bjJoinBtn" class="primary-btn">JOIN TABLE</button></div>
+          <div class="bj-actions"><button id="bjHitBtn" class="hit-btn" disabled>🃏 HIT</button><button id="bjStandBtn" class="stand-btn" disabled>✋ STAND</button></div>
+        </div>
+        <div class="quick-bets"><button data-bj-bet="50">50</button><button data-bj-bet="100">100</button><button data-bj-bet="500">500</button><button data-bj-bet="1000">1K</button><button data-bj-bet="5000">5K</button></div>
+        <div id="bjResult" class="result muted">Group ထဲမှာ <b>.wbj</b> ပို့ပြီး Join button ကနေဝင်ပါ။ Player 5 ယောက်အထိဆော့နိုင်ပါတယ်။</div>
+        <div class="history-card"><div class="history-head"><b>Today Blackjack History</b><button data-refresh-history="blackjack">Refresh</button></div><div id="blackjackHistory" class="history-list"><div class="history-empty">ဒီနေ့ history မရှိသေးပါ။</div></div></div>
+      </div>
+    </section>
+
     <section id="plinko" class="panel game-panel">
       <div class="game-toolbar"><button class="back-home" data-open="home">‹ Home</button><h2>🟡 Plinko</h2><span class="badge new">NEW</span></div>
       <div class="premium-card plinko-card">
@@ -125,6 +158,8 @@
       <div class="game-toolbar"><button class="back-home" data-open="home">‹ Home</button><h2>🎡 Lucky Wheel</h2><span class="badge daily">DAILY</span></div>
       <div class="premium-card wheel-card">
         <div class="wheel-wrap"><div class="wheel-pointer"></div><div id="wheelDisk" class="wheel-disk"></div><div class="wheel-center">BIKA</div></div><div id="wheelLegend" class="wheel-legend"></div>
+        <div id="wheelTarget" class="wheel-target">Pointer result: <b>—</b></div>
+        <div class="daily-wheel-card"><div><b>🎁 Daily Free Spin</b><span id="dailyWheelInfo">Checking today's free spin...</span></div><button id="dailyWheelBtn" class="daily-btn">FREE DAILY SPIN</button></div>
         <div class="bet-box"><input id="wheelBet" type="number" inputmode="numeric" placeholder="Bet amount" /><button id="wheelBtn" class="primary-btn">SPIN WHEEL</button></div>
         <div class="quick-bets"><button data-wheel-bet="50">50</button><button data-wheel-bet="100">100</button><button data-wheel-bet="500">500</button><button data-wheel-bet="1000">1K</button></div>
         <div id="wheelResult" class="result muted">Wheel spin လုပ်ရန် bet ထည့်ပါ။</div>
@@ -146,6 +181,6 @@
   </main>
 
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="/miniapp/assets/app.js?v=premium-v9"></script>
+  <script src="/miniapp/assets/app.js?v=premium-v11"></script>
 </body>
 </html>

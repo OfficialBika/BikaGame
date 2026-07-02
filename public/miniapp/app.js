@@ -6,9 +6,11 @@ let rafTimer = null;
 let liveRound = null;
 let slotSpinTimer = null;
 let wheelRotation = 0;
+let currentBjRoomId = new URLSearchParams(window.location.search).get('room') || '';
+let bjPollTimer = null;
 
 const SLOT_SYMBOLS = ['🍒', '🍋', '🍉', '🔔', '⭐', 'BAR', '7️⃣'];
-const PANEL_TO_GAME = { crash: 'rocket', slot: 'slot', plinko: 'plinko', wheel: 'wheel', mines: 'mines' };
+const PANEL_TO_GAME = { crash: 'rocket', slot: 'slot', blackjack: 'blackjack', plinko: 'plinko', wheel: 'wheel', mines: 'mines' };
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
 const coin = () => config?.coin || '$';
@@ -35,7 +37,7 @@ async function loadConfig() {
   const res = await fetch('/api/mini/config', { cache: 'no-store' });
   config = await res.json();
   setText('slotRange', `${fmt(config.slot.minBet)} - ${fmt(config.slot.maxBet)} ${coin()}`);
-  [['crashBet', config.crash.minBet], ['slotBet', config.slot.minBet], ['plinkoBet', config.plinko.minBet], ['wheelBet', config.wheel.minBet], ['minesBet', config.mines.minBet]].forEach(([id, value]) => { const el = $(id); if (el) el.value = value; });
+  [['crashBet', config.crash.minBet], ['slotBet', config.slot.minBet], ['bjBet', config.blackjack?.minBet || 50], ['plinkoBet', config.plinko.minBet], ['wheelBet', config.wheel.minBet], ['minesBet', config.mines.minBet]].forEach(([id, value]) => { const el = $(id); if (el) el.value = value; });
   renderPlinkoPins();
   renderPlinkoBuckets();
   renderMinesBoard(null);
@@ -53,7 +55,10 @@ function openPanel(id) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
   const game = PANEL_TO_GAME[id];
   if (game) loadHistory(game).catch(() => null);
+  if (id === 'wheel') loadWheelDailyStatus().catch(() => null);
+  if (id === 'blackjack') startBjPolling();
 }
+
 
 function renderGameHistory(game, items = []) {
   const box = $(`${game}History`); if (!box) return;
@@ -255,15 +260,56 @@ async function animatePlinkoPath(data) {
 }
 async function dropPlinko() { const btn = $('plinkoBtn'); setBusy(btn, true, 'DROPPING...'); setClass('plinkoResult','result muted'); setText('plinkoResult','🟡 Ball တစ်ချက်ချင်းလှိမ့်ကျနေပါတယ်...'); renderPlinkoBuckets(); try { const data = await api('/api/mini/plinko/drop', { bet: $('plinkoBet')?.value }); await animatePlinkoPath(data); renderPlinkoBuckets(data.bucket.index); setBalance(data.balance); const won = Number(data.payout || 0) > Number(data.bet || 0); setClass('plinkoResult', `result ${won ? 'win' : Number(data.payout) > 0 ? '' : 'lose'}`); setHTML('plinkoResult', `Bucket: <b>${escapeHtml(data.bucket.label)}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`); refreshAllVisibleHistory(); } catch (err) { setClass('plinkoResult','result lose'); setText('plinkoResult', err.message); } finally { setBusy(btn, false); } }
 
+
+function normalizeDeg(value) { return ((Number(value || 0) % 360) + 360) % 360; }
+function wheelSegmentStopAngle(segmentIndex, jitter = 0) {
+  const degrees = Number(config?.wheel?.segmentDegrees || 36);
+  const center = Number(segmentIndex || 0) * degrees + degrees / 2;
+  return normalizeDeg(360 - center + Number(jitter || 0));
+}
+function spinWheelTo(segmentIndex, stopAngleDegrees, mode = 'paid') {
+  const target = Number.isFinite(Number(stopAngleDegrees)) ? normalizeDeg(stopAngleDegrees) : wheelSegmentStopAngle(segmentIndex);
+  const current = normalizeDeg(wheelRotation);
+  const delta = normalizeDeg(target - current);
+  const extraTurns = mode === 'daily' ? 7 : 6;
+  wheelRotation += extraTurns * 360 + delta;
+  const disk = $('wheelDisk');
+  if (disk) {
+    disk.dataset.activeIndex = String(segmentIndex ?? '');
+    disk.classList.add('wheel-spinning');
+    disk.style.transform = `rotate(${wheelRotation}deg)`;
+    setTimeout(() => disk.classList.remove('wheel-spinning'), mode === 'daily' ? 5850 : 5250);
+  }
+}
+function renderWheelTarget(segment) {
+  const label = segment?.label || '—';
+  setHTML('wheelTarget', `Pointer result: <b>${escapeHtml(label)}</b>`);
+}
+async function loadWheelDailyStatus() {
+  if (!initData) return;
+  try {
+    const data = await api('/api/mini/wheel/daily-status');
+    const btn = $('dailyWheelBtn');
+    const info = $('dailyWheelInfo');
+    if (btn) btn.disabled = !data.available;
+    if (btn) btn.textContent = data.available ? 'FREE DAILY SPIN' : 'CLAIMED TODAY';
+    if (info) {
+      if (data.available) info.innerHTML = `1 free spin today • base reward <b>${fmt(data.baseReward)} ${coin()}</b>`;
+      else info.innerHTML = `Claimed today: <b>${escapeHtml(data.last?.label || '—')}</b> • next reset tomorrow`;
+    }
+  } catch (_) {}
+}
+
 function buildWheel() {
   const disk = $('wheelDisk');
   const legend = $('wheelLegend');
   if (!disk || !config?.wheel?.segments) return;
   const segments = config.wheel.segments;
+  const degrees = Number(config?.wheel?.segmentDegrees || 36);
   disk.title = segments.map((s) => s.label).join(' • ');
   disk.innerHTML = segments.map((s, i) => {
-    const angle = i * 36 + 18;
-    return `<span class="wheel-mark" style="--a:${angle}deg; --c:${escapeHtml(s.color || '#fff')}"><i>${escapeHtml(s.label)}</i></span>`;
+    const angle = i * degrees + degrees / 2;
+    return `<span class="wheel-mark" data-wheel-mark="${i}" style="--a:${angle}deg; --c:${escapeHtml(s.color || '#fff')}"><i>${escapeHtml(s.label)}</i></span>`;
   }).join('');
   if (legend) {
     legend.innerHTML = segments.map((s) => `<span style="--c:${escapeHtml(s.color || '#fff')}">${escapeHtml(s.label)}</span>`).join('');
@@ -273,22 +319,150 @@ async function spinWheel() {
   const btn = $('wheelBtn');
   setBusy(btn, true, 'SPINNING...');
   setClass('wheelResult','result muted');
-  setText('wheelResult','🎡 Wheel လည်နေပါတယ်... ရပ်မယ့်နေရာကိုစောင့်ပါ');
+  setText('wheelResult','🎡 Wheel လည်နေပါတယ်... မြှားအောက်မှာရပ်တဲ့ result နဲ့ payout တိတိကျကျတူပါမယ်');
+  renderWheelTarget(null);
   try {
     const data = await api('/api/mini/wheel/spin', { bet: $('wheelBet')?.value });
-    wheelRotation += Number(data.spinAngle || 1800) + 720;
-    const disk = $('wheelDisk');
-    if (disk) disk.style.transform = `rotate(${wheelRotation}deg)`;
-    await sleep(4550);
+    spinWheelTo(data.segment?.index, data.stopAngleDegrees, 'paid');
+    await sleep(5350);
     setBalance(data.balance);
+    renderWheelTarget(data.segment);
     const won = Number(data.payout || 0) > Number(data.bet || 0);
     setClass('wheelResult', `result ${won ? 'win' : Number(data.payout) > 0 ? '' : 'lose'}`);
     setHTML('wheelResult', `Result: <b>${escapeHtml(data.segment?.label || '?')}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`);
     refreshAllVisibleHistory();
+    loadWheelDailyStatus().catch(() => null);
+    tg?.HapticFeedback?.notificationOccurred?.(won ? 'success' : 'warning');
   } catch (err) {
     setClass('wheelResult','result lose');
     setText('wheelResult', err.message);
+    tg?.HapticFeedback?.notificationOccurred?.('error');
   } finally { setBusy(btn, false); }
+}
+
+async function spinDailyWheel() {
+  const btn = $('dailyWheelBtn');
+  setBusy(btn, true, 'CLAIMING...');
+  setClass('wheelResult','result muted');
+  setText('wheelResult','🎁 Daily Free Spin လည်နေပါတယ်...');
+  renderWheelTarget(null);
+  try {
+    const data = await api('/api/mini/wheel/daily-spin');
+    spinWheelTo(data.segment?.index, data.stopAngleDegrees, 'daily');
+    await sleep(5950);
+    setBalance(data.balance);
+    renderWheelTarget(data.segment);
+    const won = Number(data.payout || 0) > 0;
+    setClass('wheelResult', `result ${won ? 'win' : 'lose'}`);
+    setHTML('wheelResult', `🎁 Daily Result: <b>${escapeHtml(data.segment?.label || '?')}</b> • Bonus: <b>${fmt(data.payout)} ${coin()}</b>`);
+    refreshAllVisibleHistory();
+    await loadWheelDailyStatus();
+    tg?.HapticFeedback?.notificationOccurred?.(won ? 'success' : 'warning');
+  } catch (err) {
+    setClass('wheelResult','result lose');
+    setText('wheelResult', err.message);
+    await loadWheelDailyStatus();
+    tg?.HapticFeedback?.notificationOccurred?.('error');
+  } finally { setBusy(btn, false); }
+}
+
+
+function bjCardHtml(card) {
+  if (!card || card.hidden) return '<span class="bj-card back"><i>BIKA</i></span>';
+  const red = card.red ? ' red' : '';
+  return `<span class="bj-card${red}"><b>${escapeHtml(card.rank)}</b><em>${escapeHtml(card.suit)}</em></span>`;
+}
+function bjStatusText(status, result) {
+  if (result) return result === 'BLACKJACK' ? 'BLACKJACK' : result;
+  const map = { waiting: 'WAITING', playing: 'YOUR TURN', stand: 'STAND', bust: 'BUST', blackjack: 'BLACKJACK', settled: 'DONE' };
+  return map[status] || String(status || '—').toUpperCase();
+}
+function renderBjRoom(data = {}) {
+  const room = data.room;
+  if (data.balance != null) setBalance(data.balance);
+  if (!room) return;
+  currentBjRoomId = room.id || currentBjRoomId;
+  setText('bjTableTitle', room.title || 'Blackjack Table');
+  setText('bjRoomState', String(room.state || 'NO ROOM').toUpperCase());
+  setText('bjRoomCount', `${room.playerCount || 0}/${room.maxPlayers || 5}`);
+  const hint = room.state === 'lobby'
+    ? `Join time: ${room.joinSecondsLeft || 0}s • ${room.maxPlayers || 5} players max`
+    : room.state === 'playing'
+      ? `Action time: ${room.actionSecondsLeft || 0}s • Hit or Stand`
+      : room.state === 'finished'
+        ? 'Dealer compared all hands. Send .wbj for a new table.'
+        : 'Blackjack table status';
+  setText('bjRoomHint', hint);
+
+  const dealer = room.dealer || {};
+  setText('bjDealerTotal', dealer.reveal ? `Total ${dealer.total}` : 'Hidden');
+  const dealerCards = Array.isArray(dealer.cards) && dealer.cards.length ? dealer.cards : [{ hidden:true }, { hidden:true }];
+  setHTML('bjDealerCards', dealerCards.map(bjCardHtml).join(''));
+
+  const me = room.me;
+  setText('bjMyTotal', me ? `Total ${me.total ?? '—'} • ${bjStatusText(me.status, me.result)}` : 'Not joined');
+  setHTML('bjMyCards', me?.cards?.length ? me.cards.map(bjCardHtml).join('') : '<span class="bj-empty">Join table to receive private cards</span>');
+
+  const seats = $('bjSeats');
+  if (seats) {
+    const items = room.players || [];
+    seats.innerHTML = Array.from({ length: room.maxPlayers || 5 }, (_, i) => {
+      const p = items[i];
+      if (!p) return `<div class="bj-seat empty"><span>Seat ${i + 1}</span><b>OPEN</b></div>`;
+      const money = p.result ? `${Number(p.net || 0) >= 0 ? '+' : ''}${fmt(p.net)} ${coin()}` : `${fmt(p.bet)} ${coin()}`;
+      return `<div class="bj-seat ${p.me ? 'me' : ''}"><div class="seat-avatar">${escapeHtml(p.avatar || 'BJ')}</div><div><b>${escapeHtml(p.me ? p.name + ' • You' : p.name)}</b><span>${bjStatusText(p.status, p.result)} • ${money}</span></div><div class="seat-cards">${(p.cards || []).map(bjCardHtml).join('')}</div></div>`;
+    }).join('');
+  }
+
+  const joinBtn = $('bjJoinBtn');
+  if (joinBtn) joinBtn.disabled = !currentBjRoomId || room.state !== 'lobby' || !!me || Number(room.playerCount || 0) >= Number(room.maxPlayers || 5);
+  const canAct = room.state === 'playing' && me && me.status === 'playing';
+  const hitBtn = $('bjHitBtn'); const standBtn = $('bjStandBtn');
+  if (hitBtn) hitBtn.disabled = !canAct;
+  if (standBtn) standBtn.disabled = !canAct;
+
+  if (room.state === 'lobby') setHTML('bjResult', `🃏 Table opened. Up to <b>${room.maxPlayers || 5}</b> players can join. Cards are private.`);
+  else if (room.state === 'playing') setHTML('bjResult', me?.status === 'playing' ? '🔥 Your turn — choose HIT or STAND.' : '⏳ Waiting for players to finish their hands.');
+  else if (room.state === 'finished' && me) setHTML('bjResult', `Dealer Total: <b>${dealer.total}</b> • Result: <b>${bjStatusText(me.status, me.result)}</b> • Payout: <b>${fmt(me.payout)} ${coin()}</b> • Net: <b>${fmt(me.net)} ${coin()}</b>`);
+}
+async function loadBjStatus() {
+  if (!initData || !currentBjRoomId) {
+    setText('bjRoomState', 'NO ROOM');
+    setText('bjRoomHint', 'Send .wbj in group and open the Join Web Blackjack button.');
+    return;
+  }
+  try { renderBjRoom(await api('/api/mini/blackjack/status', { roomId: currentBjRoomId })); }
+  catch (err) { setClass('bjResult', 'result lose'); setText('bjResult', err.message); }
+}
+function startBjPolling() {
+  if (bjPollTimer) clearInterval(bjPollTimer);
+  loadBjStatus().catch(() => null);
+  bjPollTimer = setInterval(() => {
+    if (document.querySelector('.panel.active')?.id === 'blackjack') loadBjStatus().catch(() => null);
+  }, 1350);
+}
+async function joinBlackjack() {
+  const btn = $('bjJoinBtn');
+  if (!currentBjRoomId) { setClass('bjResult','result lose'); setText('bjResult','Group ထဲမှာ .wbj ပို့ပြီး join link ကနေဝင်ပါ။'); return; }
+  setBusy(btn, true, 'JOINING...');
+  try {
+    const data = await api('/api/mini/blackjack/join', { roomId: currentBjRoomId, bet: $('bjBet')?.value });
+    renderBjRoom(data); loadHistory('blackjack').catch(() => null);
+    tg?.HapticFeedback?.notificationOccurred?.('success');
+  } catch (err) { setClass('bjResult','result lose'); setText('bjResult', err.message); tg?.HapticFeedback?.notificationOccurred?.('error'); }
+  finally { if (btn) { btn.textContent = btn.dataset.oldText || btn.textContent; delete btn.dataset.oldText; } loadBjStatus().catch(() => null); }
+}
+async function hitBlackjack() {
+  const btn = $('bjHitBtn'); setBusy(btn, true, 'HIT...');
+  try { const data = await api('/api/mini/blackjack/hit', { roomId: currentBjRoomId }); renderBjRoom(data); if (data.room?.state === 'finished') loadHistory('blackjack').catch(() => null); tg?.HapticFeedback?.impactOccurred?.('medium'); }
+  catch (err) { setClass('bjResult','result lose'); setText('bjResult', err.message); tg?.HapticFeedback?.notificationOccurred?.('error'); }
+  finally { if (btn) { btn.textContent = btn.dataset.oldText || btn.textContent; delete btn.dataset.oldText; } loadBjStatus().catch(() => null); }
+}
+async function standBlackjack() {
+  const btn = $('bjStandBtn'); setBusy(btn, true, 'STAND...');
+  try { const data = await api('/api/mini/blackjack/stand', { roomId: currentBjRoomId }); renderBjRoom(data); if (data.room?.state === 'finished') loadHistory('blackjack').catch(() => null); tg?.HapticFeedback?.impactOccurred?.('light'); }
+  catch (err) { setClass('bjResult','result lose'); setText('bjResult', err.message); tg?.HapticFeedback?.notificationOccurred?.('error'); }
+  finally { if (btn) { btn.textContent = btn.dataset.oldText || btn.textContent; delete btn.dataset.oldText; } loadBjStatus().catch(() => null); }
 }
 
 function renderMinesBoard(game) { const board = $('minesBoard'); if (!board) return; const tiles = game?.tiles || Array.from({length:25}, (_, i) => ({ index:i, label:'hidden' })); board.innerHTML = tiles.map((t) => { const cls = t.exploded ? 'boom' : t.label === 'mine' ? 'mine' : t.opened ? 'safe' : ''; const icon = t.exploded ? '💥' : t.label === 'mine' ? '💣' : t.opened ? '💎' : '?'; return `<button class="mine-tile ${cls}" data-mine-index="${t.index}" ${game?.state !== 'playing' || t.opened ? 'disabled' : ''}>${icon}</button>`; }).join(''); }
@@ -301,9 +475,10 @@ function bindEvents() {
   document.querySelectorAll('[data-open]').forEach((btn) => btn.addEventListener('click', () => openPanel(btn.dataset.open)));
   document.querySelectorAll('[data-refresh-history]').forEach((btn) => btn.addEventListener('click', () => loadHistory(btn.dataset.refreshHistory).catch(() => null)));
   $('crashStartBtn')?.addEventListener('click', placeCrashBet); $('cashoutBtn')?.addEventListener('click', cashoutCrash);
-  $('spinBtn')?.addEventListener('click', spinSlot); $('plinkoBtn')?.addEventListener('click', dropPlinko); $('wheelBtn')?.addEventListener('click', spinWheel); $('minesStartBtn')?.addEventListener('click', startMines); $('minesCashoutBtn')?.addEventListener('click', cashoutMines);
+  $('spinBtn')?.addEventListener('click', spinSlot); $('bjJoinBtn')?.addEventListener('click', joinBlackjack); $('bjHitBtn')?.addEventListener('click', hitBlackjack); $('bjStandBtn')?.addEventListener('click', standBlackjack); $('plinkoBtn')?.addEventListener('click', dropPlinko); $('wheelBtn')?.addEventListener('click', spinWheel); $('dailyWheelBtn')?.addEventListener('click', spinDailyWheel); $('minesStartBtn')?.addEventListener('click', startMines); $('minesCashoutBtn')?.addEventListener('click', cashoutMines);
   document.querySelectorAll('[data-crash-bet]').forEach((b) => b.addEventListener('click', () => $('crashBet').value = b.dataset.crashBet));
   document.querySelectorAll('[data-slot-bet]').forEach((b) => b.addEventListener('click', () => $('slotBet').value = b.dataset.slotBet));
+  document.querySelectorAll('[data-bj-bet]').forEach((b) => b.addEventListener('click', () => $('bjBet').value = b.dataset.bjBet));
   document.querySelectorAll('[data-plinko-bet]').forEach((b) => b.addEventListener('click', () => $('plinkoBet').value = b.dataset.plinkoBet));
   document.querySelectorAll('[data-wheel-bet]').forEach((b) => b.addEventListener('click', () => $('wheelBet').value = b.datasetWheelBet || b.dataset.wheelBet));
   document.querySelectorAll('[data-mines-bet]').forEach((b) => b.addEventListener('click', () => $('minesBet').value = b.dataset.minesBet));
@@ -317,8 +492,12 @@ async function init() {
   await loadConfig();
   buildWheel();
   try { await loadMe(); } catch (_) {}
+  try { await loadWheelDailyStatus(); } catch (_) {}
   try { const status = await api('/api/mini/mines/status'); renderMines(status.game, status.balance); } catch (_) {}
   startPolling();
+  const startGame = new URLSearchParams(window.location.search).get('game');
+  if (startGame === 'blackjack') openPanel('blackjack');
 }
+
 
 init().catch((err) => { setHTML('notTelegram', escapeHtml(err.message || err)); $('notTelegram')?.classList.remove('hidden'); });
