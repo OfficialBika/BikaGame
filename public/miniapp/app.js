@@ -21,12 +21,15 @@ function parseStartTarget() {
   const queryRoom = urlParams.get('room') || '';
   if (/^wbj_/i.test(start)) return { game: 'blackjack', room: start.replace(/^wbj_/i, '') };
   if (/^(blackjack|webbj|bj)$/i.test(start)) return { game: 'blackjack', room: queryRoom };
-  if (/^(shan|wshan|skm)$/i.test(start)) return { game: 'shan', room: '' };
+  if (/^wshan_/i.test(start)) return { game: 'shan', room: start.replace(/^wshan_/i, '') };
+  if (/^(shan|wshan|skm)$/i.test(start)) return { game: 'shan', room: queryRoom };
   return { game: queryGame, room: queryRoom };
 }
 const startTarget = parseStartTarget();
-let currentBjRoomId = startTarget.room || '';
+let currentBjRoomId = startTarget.game === 'blackjack' ? (startTarget.room || '') : '';
+let currentShanRoomId = startTarget.game === 'shan' ? (startTarget.room || '') : '';
 let bjPollTimer = null;
+let shanPollTimer = null;
 
 const SLOT_SYMBOLS = ['🍒', '🍋', '🍉', '🔔', '⭐', 'BAR', '7️⃣'];
 const PANEL_TO_GAME = { crash: 'rocket', slot: 'slot', blackjack: 'blackjack', shan: 'shan', plinko: 'plinko', wheel: 'wheel', mines: 'mines' };
@@ -34,6 +37,125 @@ const $ = (id) => document.getElementById(id);
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
 const coin = () => config?.coin || '$';
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/* ===== Premium v13 Audio Engine: no external files, generated with Web Audio ===== */
+const AudioFX = (() => {
+  const KEY_ON = 'bika_audio_enabled_v13';
+  const KEY_MUSIC = 'bika_audio_music_v13';
+  const KEY_SFX = 'bika_audio_sfx_v13';
+  const sceneNames = { home:'Lobby Ambience', crash:'Rocket Engine', slot:'Slot Neon', blackjack:'Blackjack Table', shan:'Shan Cards', plinko:'Plinko Bounce', wheel:'Lucky Wheel', mines:'Mines Tension' };
+  const scales = {
+    home:[196,246.94,293.66,392], crash:[110,146.83,220,293.66], slot:[261.63,329.63,392,523.25], blackjack:[174.61,220,261.63,329.63], shan:[196,233.08,293.66,349.23], plinko:[293.66,369.99,440,587.33], wheel:[261.63,329.63,392,493.88], mines:[82.41,110,164.81,220]
+  };
+  let ctx = null, master = null, musicGain = null, sfxGain = null, musicTimer = null, enabled = localStorage.getItem(KEY_ON) === '1', scene = 'home', step = 0;
+  let musicVolume = Number(localStorage.getItem(KEY_MUSIC) || 32) / 100;
+  let sfxVolume = Number(localStorage.getItem(KEY_SFX) || 68) / 100;
+  function setup() {
+    if (ctx) return ctx;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    ctx = new AC();
+    master = ctx.createGain(); master.gain.value = 0.85; master.connect(ctx.destination);
+    musicGain = ctx.createGain(); sfxGain = ctx.createGain();
+    musicGain.gain.value = musicVolume * 0.10; sfxGain.gain.value = sfxVolume * 0.34;
+    musicGain.connect(master); sfxGain.connect(master);
+    return ctx;
+  }
+  function now() { return setup()?.currentTime || 0; }
+  function safeResume() { const c = setup(); if (c && c.state === 'suspended') c.resume().catch(() => null); }
+  function setGain() { if (musicGain) musicGain.gain.setTargetAtTime(musicVolume * 0.10, now(), 0.04); if (sfxGain) sfxGain.gain.setTargetAtTime(sfxVolume * 0.34, now(), 0.03); }
+  function tone(freq, dur = 0.12, type = 'sine', gain = 0.18, delay = 0, dest = sfxGain) {
+    const c = setup(); if (!c || !dest) return;
+    const t = c.currentTime + delay;
+    const osc = c.createOscillator(); const g = c.createGain();
+    osc.type = type; osc.frequency.setValueAtTime(Math.max(20, Number(freq) || 440), t);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain), t + 0.018);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(0.03, dur));
+    osc.connect(g); g.connect(dest); osc.start(t); osc.stop(t + dur + 0.05);
+  }
+  function sweep(from, to, dur = 0.4, type = 'sawtooth', gain = 0.16) {
+    const c = setup(); if (!c || !sfxGain) return;
+    const t = c.currentTime; const osc = c.createOscillator(); const g = c.createGain();
+    osc.type = type; osc.frequency.setValueAtTime(from, t); osc.frequency.exponentialRampToValueAtTime(Math.max(20, to), t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(gain, t + 0.035); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(g); g.connect(sfxGain); osc.start(t); osc.stop(t + dur + 0.05);
+  }
+  function noise(dur = 0.24, gain = 0.12, filterFreq = 900) {
+    const c = setup(); if (!c || !sfxGain) return;
+    const len = Math.max(1, Math.floor(c.sampleRate * dur));
+    const buffer = c.createBuffer(1, len, c.sampleRate); const data = buffer.getChannelData(0);
+    for (let i = 0; i < len; i += 1) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = c.createBufferSource(); src.buffer = buffer;
+    const filt = c.createBiquadFilter(); filt.type = 'bandpass'; filt.frequency.value = filterFreq; filt.Q.value = 0.9;
+    const g = c.createGain(); g.gain.value = gain;
+    src.connect(filt); filt.connect(g); g.connect(sfxGain); src.start();
+  }
+  function arp(notes, baseDelay = 0, dur = 0.13, type = 'triangle', gain = 0.15) { notes.forEach((n, i) => tone(n, dur, type, gain, baseDelay + i * 0.075)); }
+  function musicTick() {
+    if (!enabled || !ctx || !musicGain) return;
+    const notes = scales[scene] || scales.home;
+    const n = notes[step % notes.length];
+    tone(n, 0.7, scene === 'rocket' || scene === 'mines' ? 'sawtooth' : 'triangle', scene === 'slot' || scene === 'wheel' ? 0.045 : 0.035, 0, musicGain);
+    tone(n * 1.5, 0.45, 'sine', 0.018, 0.08, musicGain);
+    step += 1;
+  }
+  function startMusic() { if (!enabled) return; safeResume(); clearInterval(musicTimer); musicTick(); musicTimer = setInterval(musicTick, scene === 'rocket' ? 680 : scene === 'mines' ? 920 : 1180); }
+  function stopMusic() { clearInterval(musicTimer); musicTimer = null; }
+  function updateUI() {
+    const btn = document.getElementById('soundToggleBtn');
+    const dock = document.getElementById('soundDock');
+    const sceneText = document.getElementById('soundSceneText');
+    const mv = document.getElementById('musicVolume'); const sv = document.getElementById('sfxVolume');
+    if (btn) btn.textContent = enabled ? '🔊 Sound On' : '🔇 Sound Off';
+    if (dock) dock.classList.toggle('sound-on', enabled);
+    if (sceneText) sceneText.textContent = enabled ? sceneNames[scene] || 'Premium Audio' : 'Tap Sound On';
+    if (mv) mv.value = Math.round(musicVolume * 100);
+    if (sv) sv.value = Math.round(sfxVolume * 100);
+  }
+  function setScene(panelId = 'home') { scene = PANEL_TO_GAME[panelId] || panelId || 'home'; updateUI(); if (enabled) startMusic(); }
+  function enable() { enabled = true; localStorage.setItem(KEY_ON, '1'); setup(); safeResume(); updateUI(); startMusic(); sfx('open'); }
+  function disable() { enabled = false; localStorage.setItem(KEY_ON, '0'); stopMusic(); updateUI(); }
+  function toggle() { enabled ? disable() : enable(); }
+  function setMusicVolume(v) { musicVolume = Math.max(0, Math.min(1, Number(v) / 100)); localStorage.setItem(KEY_MUSIC, String(Math.round(musicVolume * 100))); setGain(); updateUI(); }
+  function setSfxVolume(v) { sfxVolume = Math.max(0, Math.min(1, Number(v) / 100)); localStorage.setItem(KEY_SFX, String(Math.round(sfxVolume * 100))); setGain(); updateUI(); sfx('tap'); }
+  function sfx(name) {
+    if (!enabled) return; safeResume();
+    switch (name) {
+      case 'tap': tone(520, .055, 'triangle', .11); break;
+      case 'open': arp([523,659,784], 0, .09, 'triangle', .13); break;
+      case 'bet': arp([330,440,660], 0, .1, 'square', .10); break;
+      case 'cashout': arp([523,659,784,1046], 0, .12, 'triangle', .16); break;
+      case 'rocketLaunch': noise(.38,.08,420); sweep(130,560,.48,'sawtooth',.12); break;
+      case 'crash': noise(.46,.20,220); sweep(240,55,.55,'sawtooth',.16); break;
+      case 'slotSpin': noise(.75,.055,1800); for (let i=0;i<9;i++) tone(700+i*24,.035,'square',.055,i*.075); break;
+      case 'reelStop': tone(360,.065,'square',.12); tone(720,.045,'triangle',.08,.04); break;
+      case 'win': arp([523,659,784,1046,1318],0,.13,'triangle',.18); break;
+      case 'lose': tone(180,.15,'sawtooth',.10); tone(120,.18,'sine',.08,.12); break;
+      case 'plinkoDrop': arp([620,560,500,450],0,.08,'triangle',.10); break;
+      case 'plinkoTick': tone(640 + Math.random()*220,.035,'triangle',.08); break;
+      case 'plinkoLand': tone(260,.08,'sine',.10); tone(520,.11,'triangle',.11,.08); break;
+      case 'wheelSpin': sweep(260,920,.72,'triangle',.11); noise(.42,.045,2600); break;
+      case 'wheelStop': arp([784,659,523],0,.09,'triangle',.12); break;
+      case 'dailySpin': sweep(330,1320,.9,'triangle',.12); arp([659,784,988],.14,.09,'sine',.08); break;
+      case 'cardDeal': noise(.055,.06,1900); tone(440,.045,'triangle',.08,.015); break;
+      case 'mineGem': arp([600,760],0,.065,'triangle',.12); break;
+      case 'mineBoom': noise(.44,.18,160); sweep(190,60,.42,'sawtooth',.12); break;
+      case 'error': tone(130,.16,'sawtooth',.14); break;
+      default: tone(440,.08,'sine',.08);
+    }
+  }
+  function init() {
+    setup(); setGain(); updateUI();
+    document.getElementById('soundToggleBtn')?.addEventListener('click', toggle);
+    document.getElementById('musicVolume')?.addEventListener('input', (e) => setMusicVolume(e.target.value));
+    document.getElementById('sfxVolume')?.addEventListener('input', (e) => setSfxVolume(e.target.value));
+    const unlock = () => { if (enabled) { safeResume(); startMusic(); } };
+    window.addEventListener('pointerdown', unlock, { once: true, passive: true });
+  }
+  return { init, setScene, sfx, toggle, isEnabled: () => enabled };
+})();
+
 
 function setText(id, value) { const el = $(id); if (el) el.textContent = value; return el; }
 function setHTML(id, value) { const el = $(id); if (el) el.innerHTML = value; return el; }
@@ -69,6 +191,8 @@ async function loadMe() {
 }
 
 function openPanel(id) {
+  AudioFX.setScene(id);
+  AudioFX.sfx('tap');
   document.querySelectorAll('.panel').forEach((el) => el.classList.toggle('active', el.id === id));
   document.querySelectorAll('.tab').forEach((el) => el.classList.toggle('active', el.dataset.open === id));
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -135,6 +259,7 @@ function renderPlayers(round) {
 }
 
 function renderRocket(status) {
+  const prevAudioKey = liveRound ? `${liveRound.no || ''}:${liveRound.state || ''}` : '';
   const round = status.round || status.lastRound;
   if (!round) return;
   liveRound = { ...round, serverNowMs: status.serverNowMs, receivedAtMs: Date.now() };
@@ -153,6 +278,12 @@ function renderRocket(status) {
   if (betBtn) betBtn.disabled = !(round.state === 'betting') || !!round.me?.inRound;
 
   const state = round.state;
+  const nextAudioKey = `${round.no || ''}:${state || ''}`;
+  if (nextAudioKey && nextAudioKey !== prevAudioKey) {
+    if (state === 'betting') AudioFX.sfx('open');
+    if (state === 'running') AudioFX.sfx('rocketLaunch');
+    if (state === 'crashed') AudioFX.sfx('crash');
+  }
   const scene = $('rocketScene');
   if (scene) scene.className = `rocket-scene ${state || ''}`;
   if (state === 'betting') {
@@ -188,11 +319,12 @@ async function pollCrash() {
 function startRocketRaf() { if (rafTimer) cancelAnimationFrame(rafTimer); const tick = () => { updateRocketFrame(); rafTimer = requestAnimationFrame(tick); }; tick(); }
 function startPolling() { if (pollTimer) clearInterval(pollTimer); pollCrash(); pollTimer = setInterval(pollCrash, 850); startRocketRaf(); }
 
-async function placeCrashBet() { const btn = $('crashStartBtn'); setBusy(btn, true, 'Joining...'); try { renderRocket(await api('/api/mini/crash/bet', { bet: $('crashBet')?.value })); refreshAllVisibleHistory(); tg?.HapticFeedback?.notificationOccurred?.('success'); } catch (err) { setHTML('crashResult', `<span class="lose">${escapeHtml(err.message)}</span>`); tg?.HapticFeedback?.notificationOccurred?.('error'); } finally { setBusy(btn, false); } }
-async function cashoutCrash() { const btn = $('cashoutBtn'); setBusy(btn, true, 'Cash Out...'); try { const data = await api('/api/mini/crash/cashout'); setBalance(data.balance); renderRocket(data); setHTML('crashResult', `🎉 Cash Out: <b>${fmt(data.payout)} ${coin()}</b> at <b>x${Number(data.effectiveMultiplier || 0).toFixed(2)}</b>`); refreshAllVisibleHistory(); tg?.HapticFeedback?.notificationOccurred?.('success'); } catch (err) { setHTML('crashResult', `<span class="lose">${escapeHtml(err.message)}</span>`); tg?.HapticFeedback?.notificationOccurred?.('error'); } finally { setBusy(btn, false); } }
+async function placeCrashBet() { const btn = $('crashStartBtn'); setBusy(btn, true, 'Joining...'); try { renderRocket(await api('/api/mini/crash/bet', { bet: $('crashBet')?.value })); AudioFX.sfx('bet'); refreshAllVisibleHistory(); tg?.HapticFeedback?.notificationOccurred?.('success'); } catch (err) { setHTML('crashResult', `<span class="lose">${escapeHtml(err.message)}</span>`); AudioFX.sfx('error'); tg?.HapticFeedback?.notificationOccurred?.('error'); } finally { setBusy(btn, false); } }
+async function cashoutCrash() { const btn = $('cashoutBtn'); setBusy(btn, true, 'Cash Out...'); try { const data = await api('/api/mini/crash/cashout'); setBalance(data.balance); renderRocket(data); setHTML('crashResult', `🎉 Cash Out: <b>${fmt(data.payout)} ${coin()}</b> at <b>x${Number(data.effectiveMultiplier || 0).toFixed(2)}</b>`); AudioFX.sfx('cashout'); refreshAllVisibleHistory(); tg?.HapticFeedback?.notificationOccurred?.('success'); } catch (err) { setHTML('crashResult', `<span class="lose">${escapeHtml(err.message)}</span>`); tg?.HapticFeedback?.notificationOccurred?.('error'); } finally { setBusy(btn, false); } }
 
 function setSlotReels(reels = ['?', '?', '?']) { ['slotReelA','slotReelB','slotReelC'].forEach((id, i) => setText(id, String(reels[i] || '?') === '7' ? '7️⃣' : String(reels[i] || '?'))); }
 function startSlotAnimation() {
+  AudioFX.sfx('slotSpin');
   const machine = $('slotMachine'); machine?.classList.remove('slot-win-glow'); machine?.classList.add('spinning');
   if (slotSpinTimer) clearInterval(slotSpinTimer);
   let ticks = 0;
@@ -211,10 +343,11 @@ async function stopSlotAnimation(reels) {
     $(ids[i])?.classList.add('reel-stop');
     setTimeout(() => $(ids[i])?.classList.remove('reel-stop'), 420);
     tg?.HapticFeedback?.impactOccurred?.('light');
+    AudioFX.sfx('reelStop');
   }
   $('slotMachine')?.classList.remove('spinning');
 }
-async function spinSlot() { const btn = $('spinBtn'); setBusy(btn, true, 'SPINNING...'); setClass('slotResult', 'result muted'); setText('slotResult', '🎰 Reels rolling...'); startSlotAnimation(); try { const data = await api('/api/mini/slot/spin', { bet: $('slotBet')?.value }); await sleep(2800); await stopSlotAnimation(data.reels || ['?','?','?']); setBalance(data.balance); const won = Number(data.payout || 0) > 0; $('slotMachine')?.classList.toggle('slot-win-glow', won); setClass('slotResult', `result ${won ? 'win' : 'lose'}`); setHTML('slotResult', `${won ? '🏆 BIG WIN' : '💨 TRY AGAIN'}<br>Bet: <b>${fmt(data.bet)} ${coin()}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`); refreshAllVisibleHistory(); } catch (err) { await stopSlotAnimation(['?','?','?']); setClass('slotResult','result lose'); setText('slotResult', err.message); } finally { setBusy(btn, false); } }
+async function spinSlot() { const btn = $('spinBtn'); setBusy(btn, true, 'SPINNING...'); setClass('slotResult', 'result muted'); setText('slotResult', '🎰 Reels rolling...'); startSlotAnimation(); try { const data = await api('/api/mini/slot/spin', { bet: $('slotBet')?.value }); await sleep(2800); await stopSlotAnimation(data.reels || ['?','?','?']); setBalance(data.balance); const won = Number(data.payout || 0) > 0; $('slotMachine')?.classList.toggle('slot-win-glow', won); setClass('slotResult', `result ${won ? 'win' : 'lose'}`); setHTML('slotResult', `${won ? '🏆 BIG WIN' : '💨 TRY AGAIN'}<br>Bet: <b>${fmt(data.bet)} ${coin()}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`); AudioFX.sfx(won ? 'win' : 'lose'); refreshAllVisibleHistory(); } catch (err) { await stopSlotAnimation(['?','?','?']); setClass('slotResult','result lose'); setText('slotResult', err.message); AudioFX.sfx('error'); } finally { setBusy(btn, false); } }
 
 function renderPlinkoPins() {
   const board = $('plinkoBoard'); if (!board) return;
@@ -243,6 +376,7 @@ function renderPlinkoPins() {
 }
 function renderPlinkoBuckets(hitIndex = null) { const row = $('plinkoBuckets'); if (!row || !config?.plinko?.buckets) return; row.innerHTML = config.plinko.buckets.map((b) => `<div class="bucket ${hitIndex === b.index ? 'hit' : ''}">${b.label}</div>`).join(''); }
 async function animatePlinkoPath(data) {
+  AudioFX.sfx('plinkoDrop');
   const ball = $('plinkoBall'); if (!ball) return;
   const path = Array.isArray(data.path) ? data.path : [];
   const board = $('plinkoBoard');
@@ -267,6 +401,7 @@ async function animatePlinkoPath(data) {
     ball.style.top = `${y}%`;
     ball.style.transform = `translate(-50%, -50%) scale(${i % 2 ? 0.92 : 1.1}) rotate(${dir === 'R' ? 16 : -16}deg)`;
     tg?.HapticFeedback?.impactOccurred?.('soft');
+    AudioFX.sfx('plinkoTick');
     await sleep(255);
   }
   const finalX = 5 + Number(data.bucket?.index || 0) * 10;
@@ -274,10 +409,11 @@ async function animatePlinkoPath(data) {
   ball.style.top = '92%';
   ball.style.transform = 'translate(-50%, -50%) scale(1.18)';
   ball.classList.add('settled');
+  AudioFX.sfx('plinkoLand');
   if (board) board.classList.remove('dropping');
   await sleep(250);
 }
-async function dropPlinko() { const btn = $('plinkoBtn'); setBusy(btn, true, 'DROPPING...'); setClass('plinkoResult','result muted'); setText('plinkoResult','🟡 Ball တစ်ချက်ချင်းလှိမ့်ကျနေပါတယ်...'); renderPlinkoBuckets(); try { const data = await api('/api/mini/plinko/drop', { bet: $('plinkoBet')?.value }); await animatePlinkoPath(data); renderPlinkoBuckets(data.bucket.index); setBalance(data.balance); const won = Number(data.payout || 0) > Number(data.bet || 0); setClass('plinkoResult', `result ${won ? 'win' : Number(data.payout) > 0 ? '' : 'lose'}`); setHTML('plinkoResult', `Bucket: <b>${escapeHtml(data.bucket.label)}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`); refreshAllVisibleHistory(); } catch (err) { setClass('plinkoResult','result lose'); setText('plinkoResult', err.message); } finally { setBusy(btn, false); } }
+async function dropPlinko() { const btn = $('plinkoBtn'); setBusy(btn, true, 'DROPPING...'); setClass('plinkoResult','result muted'); setText('plinkoResult','🟡 Ball တစ်ချက်ချင်းလှိမ့်ကျနေပါတယ်...'); renderPlinkoBuckets(); try { const data = await api('/api/mini/plinko/drop', { bet: $('plinkoBet')?.value }); await animatePlinkoPath(data); renderPlinkoBuckets(data.bucket.index); setBalance(data.balance); const won = Number(data.payout || 0) > Number(data.bet || 0); setClass('plinkoResult', `result ${won ? 'win' : Number(data.payout) > 0 ? '' : 'lose'}`); setHTML('plinkoResult', `Bucket: <b>${escapeHtml(data.bucket.label)}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`); AudioFX.sfx(won ? 'win' : Number(data.payout) > 0 ? 'cashout' : 'lose'); refreshAllVisibleHistory(); } catch (err) { setClass('plinkoResult','result lose'); setText('plinkoResult', err.message); AudioFX.sfx('error'); } finally { setBusy(btn, false); } }
 
 
 function normalizeDeg(value) { return ((Number(value || 0) % 360) + 360) % 360; }
@@ -287,6 +423,7 @@ function wheelSegmentStopAngle(segmentIndex, jitter = 0) {
   return normalizeDeg(360 - center + Number(jitter || 0));
 }
 function spinWheelTo(segmentIndex, stopAngleDegrees, mode = 'paid') {
+  AudioFX.sfx(mode === 'daily' ? 'dailySpin' : 'wheelSpin');
   const target = Number.isFinite(Number(stopAngleDegrees)) ? normalizeDeg(stopAngleDegrees) : wheelSegmentStopAngle(segmentIndex);
   const current = normalizeDeg(wheelRotation);
   const delta = normalizeDeg(target - current);
@@ -297,7 +434,7 @@ function spinWheelTo(segmentIndex, stopAngleDegrees, mode = 'paid') {
     disk.dataset.activeIndex = String(segmentIndex ?? '');
     disk.classList.add('wheel-spinning');
     disk.style.transform = `rotate(${wheelRotation}deg)`;
-    setTimeout(() => disk.classList.remove('wheel-spinning'), mode === 'daily' ? 5850 : 5250);
+    setTimeout(() => { disk.classList.remove('wheel-spinning'); AudioFX.sfx('wheelStop'); }, mode === 'daily' ? 5850 : 5250);
   }
 }
 function renderWheelTarget(segment) {
@@ -351,8 +488,10 @@ async function spinWheel() {
     setHTML('wheelResult', `Result: <b>${escapeHtml(data.segment?.label || '?')}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`);
     refreshAllVisibleHistory();
     loadWheelDailyStatus().catch(() => null);
+    AudioFX.sfx(won ? 'win' : Number(data.payout) > 0 ? 'cashout' : 'lose');
     tg?.HapticFeedback?.notificationOccurred?.(won ? 'success' : 'warning');
   } catch (err) {
+    AudioFX.sfx('error');
     setClass('wheelResult','result lose');
     setText('wheelResult', err.message);
     tg?.HapticFeedback?.notificationOccurred?.('error');
@@ -376,8 +515,10 @@ async function spinDailyWheel() {
     setHTML('wheelResult', `🎁 Daily Result: <b>${escapeHtml(data.segment?.label || '?')}</b> • Bonus: <b>${fmt(data.payout)} ${coin()}</b>`);
     refreshAllVisibleHistory();
     await loadWheelDailyStatus();
+    AudioFX.sfx(won ? 'win' : 'lose');
     tg?.HapticFeedback?.notificationOccurred?.(won ? 'success' : 'warning');
   } catch (err) {
+    AudioFX.sfx('error');
     setClass('wheelResult','result lose');
     setText('wheelResult', err.message);
     await loadWheelDailyStatus();
@@ -466,20 +607,20 @@ async function joinBlackjack() {
   setBusy(btn, true, 'JOINING...');
   try {
     const data = await api('/api/mini/blackjack/join', { roomId: currentBjRoomId, bet: $('bjBet')?.value });
-    renderBjRoom(data); loadHistory('blackjack').catch(() => null);
+    renderBjRoom(data); AudioFX.sfx('cardDeal'); loadHistory('blackjack').catch(() => null);
     tg?.HapticFeedback?.notificationOccurred?.('success');
-  } catch (err) { setClass('bjResult','result lose'); setText('bjResult', err.message); tg?.HapticFeedback?.notificationOccurred?.('error'); }
+  } catch (err) { setClass('bjResult','result lose'); setText('bjResult', err.message); AudioFX.sfx('error'); tg?.HapticFeedback?.notificationOccurred?.('error'); }
   finally { if (btn) { btn.textContent = btn.dataset.oldText || btn.textContent; delete btn.dataset.oldText; } loadBjStatus().catch(() => null); }
 }
 async function hitBlackjack() {
   const btn = $('bjHitBtn'); setBusy(btn, true, 'HIT...');
-  try { const data = await api('/api/mini/blackjack/hit', { roomId: currentBjRoomId }); renderBjRoom(data); if (data.room?.state === 'finished') loadHistory('blackjack').catch(() => null); tg?.HapticFeedback?.impactOccurred?.('medium'); }
+  try { const data = await api('/api/mini/blackjack/hit', { roomId: currentBjRoomId }); renderBjRoom(data); AudioFX.sfx('cardDeal'); if (data.room?.state === 'finished') { AudioFX.sfx('win'); loadHistory('blackjack').catch(() => null); } tg?.HapticFeedback?.impactOccurred?.('medium'); }
   catch (err) { setClass('bjResult','result lose'); setText('bjResult', err.message); tg?.HapticFeedback?.notificationOccurred?.('error'); }
   finally { if (btn) { btn.textContent = btn.dataset.oldText || btn.textContent; delete btn.dataset.oldText; } loadBjStatus().catch(() => null); }
 }
 async function standBlackjack() {
   const btn = $('bjStandBtn'); setBusy(btn, true, 'STAND...');
-  try { const data = await api('/api/mini/blackjack/stand', { roomId: currentBjRoomId }); renderBjRoom(data); if (data.room?.state === 'finished') loadHistory('blackjack').catch(() => null); tg?.HapticFeedback?.impactOccurred?.('light'); }
+  try { const data = await api('/api/mini/blackjack/stand', { roomId: currentBjRoomId }); renderBjRoom(data); AudioFX.sfx('cardDeal'); if (data.room?.state === 'finished') { AudioFX.sfx('win'); loadHistory('blackjack').catch(() => null); } tg?.HapticFeedback?.impactOccurred?.('light'); }
   catch (err) { setClass('bjResult','result lose'); setText('bjResult', err.message); tg?.HapticFeedback?.notificationOccurred?.('error'); }
   finally { if (btn) { btn.textContent = btn.dataset.oldText || btn.textContent; delete btn.dataset.oldText; } loadBjStatus().catch(() => null); }
 }
@@ -491,66 +632,129 @@ function shanCardHtml(card, delay = 0) {
   return `<span class="shan-card-face${red}" style="--deal-delay:${delay}ms"><b>${escapeHtml(card.rank)}</b><em>${escapeHtml(card.suit)}</em></span>`;
 }
 function shanInfoText(info) {
-  if (!info) return '—';
-  return `${escapeHtml(info.name || '?')} • ${Number(info.points || 0)} pts`;
+  if (!info) return 'Hidden';
+  return `${escapeHtml(info.short || info.name || '?')} • ${Number(info.points || 0)} pts`;
+}
+function shanStateText(state) {
+  const map = { lobby:'JOINING', playing:'ACTION', dealer:'REVEAL', finished:'DONE', expired:'EXPIRED' };
+  return map[state] || 'TABLE';
 }
 function resetShanCards() {
-  setHTML('shanDealerCards', '<span class="shan-card-face back">BIKA</span><span class="shan-card-face back">BIKA</span><span class="shan-card-face back">BIKA</span>');
+  setHTML('shanDealerCards', '<span class="shan-card-face back">BIKA</span><span class="shan-card-face back">BIKA</span>');
   setHTML('shanPlayerCards', '<span class="shan-card-face empty">?</span><span class="shan-card-face empty">?</span><span class="shan-card-face empty">?</span>');
   setText('shanDealerInfo', 'Hidden');
   setText('shanPlayerInfo', 'Waiting');
 }
-async function revealShanRound(data) {
-  const pc = data.playerCards || [];
-  const dc = data.dealerCards || [];
-  setText('shanPlayerInfo', 'Dealing...');
-  setText('shanDealerInfo', 'Hidden');
-  setHTML('shanDealerCards', '<span class="shan-card-face back">BIKA</span><span class="shan-card-face back">BIKA</span><span class="shan-card-face back">BIKA</span>');
-  setHTML('shanPlayerCards', pc.map((c, i) => shanCardHtml(c, i * 130)).join(''));
-  await sleep(880);
-  setText('shanPlayerInfo', shanInfoText(data.playerInfo));
-  setText('shanDealerInfo', 'Revealing...');
-  setHTML('shanDealerCards', dc.map((c, i) => shanCardHtml(c, i * 130)).join(''));
-  await sleep(760);
-  setText('shanDealerInfo', shanInfoText(data.dealerInfo));
-}
-async function dealShan() {
-  const btn = $('shanDealBtn');
-  setBusy(btn, true, 'DEALING...');
-  setClass('shanResult','result muted');
-  setText('shanResult','🎴 Cards are dealing... Shan points တွက်နေပါတယ်။');
-  resetShanCards();
-  try {
-    const data = await api('/api/mini/shan/deal', { bet: $('shanBet')?.value });
-    await revealShanRound(data);
-    setBalance(data.balance);
-    const win = data.result === 'WIN';
-    const push = data.result === 'PUSH';
-    setClass('shanResult', `result ${win ? 'win' : push ? '' : 'lose'}`);
-    const icon = win ? '🏆' : push ? '🤝' : '💨';
-    setHTML('shanResult', `${icon} <b>${escapeHtml(data.result)}</b> • You: <b>${shanInfoText(data.playerInfo)}</b> • Dealer: <b>${shanInfoText(data.dealerInfo)}</b><br>Bet: <b>${fmt(data.bet)} ${coin()}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`);
-    loadHistory('shan').catch(() => null);
-    tg?.HapticFeedback?.notificationOccurred?.(win ? 'success' : push ? 'warning' : 'error');
-  } catch (err) {
-    setClass('shanResult','result lose');
-    setText('shanResult', err.message);
-    tg?.HapticFeedback?.notificationOccurred?.('error');
-  } finally {
-    setBusy(btn, false);
+function renderShanRoom(data = {}) {
+  if (data.balance != null) setBalance(data.balance);
+  const room = data.room || null;
+  if (!room) return;
+  currentShanRoomId = room.id || currentShanRoomId;
+  setText('shanTableTitle', room.title || 'Shan Koe Mee Table');
+  setText('shanRoomState', shanStateText(room.state));
+  setText('shanRoomCount', `${room.playerCount || 0}/${room.maxPlayers || config?.shan?.maxPlayers || 6}`);
+  setText('shanJoinTimer', room.state === 'lobby' ? `${room.joinSecondsLeft || 0}s` : '—');
+  setText('shanActionTimer', room.state === 'playing' ? `${room.actionSecondsLeft || 0}s` : '—');
+
+  const dealerCards = room.dealer?.cards || [];
+  setHTML('shanDealerCards', dealerCards.length ? dealerCards.map((c, i) => shanCardHtml(c, i * 120)).join('') : '<span class="shan-card-face back">BIKA</span><span class="shan-card-face back">BIKA</span>');
+  setText('shanDealerInfo', room.dealer?.reveal ? shanInfoText(room.dealer.info) : 'Hidden');
+
+  const me = room.me || null;
+  setHTML('shanPlayerCards', me?.cards?.length ? me.cards.map((c, i) => shanCardHtml(c, i * 120)).join('') : '<span class="shan-card-face empty">?</span><span class="shan-card-face empty">?</span><span class="shan-card-face empty">?</span>');
+  setText('shanPlayerInfo', me ? shanInfoText(me.info) : 'Not joined');
+
+  const seats = $('shanSeats');
+  if (seats) {
+    const players = room.players || [];
+    seats.innerHTML = players.length ? players.map((p) => {
+      const cls = p.me ? 'me' : '';
+      const status = p.result ? p.result : p.status;
+      const cards = (p.cards || []).map((c, i) => shanCardHtml(c, i * 70)).join('');
+      const net = p.result ? `<b class="${Number(p.net || 0) >= 0 ? 'pos' : 'neg'}">${Number(p.net || 0) >= 0 ? '+' : ''}${fmt(p.net)} ${coin()}</b>` : `<b>${escapeHtml(status || 'waiting')}</b>`;
+      return `<div class="shan-seat ${cls}"><div class="avatar">${escapeHtml(p.avatar || 'SK')}</div><div class="seat-main"><strong>${escapeHtml(p.me ? `${p.name} • You` : p.name)}</strong><span>Bet ${fmt(p.bet)} ${coin()} • ${escapeHtml(status || 'waiting')}</span><div class="mini-hand">${cards}</div></div>${net}</div>`;
+    }).join('') : '<div class="history-empty">No players yet. Join the table.</div>';
   }
+
+  const joined = !!me;
+  const canJoin = room.state === 'lobby' && !joined;
+  const canAct = room.state === 'playing' && me && me.status === 'playing';
+  if ($('shanJoinBtn')) $('shanJoinBtn').disabled = !canJoin;
+  if ($('shanDrawBtn')) $('shanDrawBtn').disabled = !canAct || (me?.cards?.length || 0) >= 3;
+  if ($('shanStayBtn')) $('shanStayBtn').disabled = !canAct;
+  if ($('shanCreateBtn')) $('shanCreateBtn').disabled = false;
+
+  if (room.state === 'lobby') setHTML('shanResult', `🎴 Table is open. Join closes in <b>${room.joinSecondsLeft || 0}s</b>.`);
+  else if (room.state === 'playing') setHTML('shanResult', `🃏 Choose <b>DRAW</b> or <b>STAY</b>. Action time: <b>${room.actionSecondsLeft || 0}s</b>.`);
+  else if (room.state === 'finished' && me) {
+    const win = me.result === 'WIN'; const push = me.result === 'PUSH';
+    setClass('shanResult', `result ${win ? 'win' : push ? '' : 'lose'}`);
+    setHTML('shanResult', `${win ? '🏆' : push ? '🤝' : '💨'} <b>${escapeHtml(me.result)}</b> • You: <b>${shanInfoText(me.info)}</b> • Dealer: <b>${shanInfoText(room.dealer?.info)}</b><br>Payout: <b>${fmt(me.payout)} ${coin()}</b> • Net: <b>${fmt(me.net)} ${coin()}</b>`);
+  }
+}
+async function createShanTable() {
+  const btn = $('shanCreateBtn'); setBusy(btn, true, 'CREATING...');
+  try {
+    const data = await api('/api/mini/shan/create', { title: 'Bika Shan Koe Mee Table' });
+    renderShanRoom(data); AudioFX.sfx('open'); startShanPolling();
+    setClass('shanResult','result muted'); setHTML('shanResult', '✅ New Shan table created. Enter bet and JOIN TABLE.');
+  } catch (err) { setClass('shanResult','result lose'); setText('shanResult', err.message); }
+  finally { setBusy(btn, false); }
+}
+async function loadShanStatus() {
+  if (!currentShanRoomId) return;
+  const data = await api('/api/mini/shan/status', { roomId: currentShanRoomId });
+  renderShanRoom(data);
+  if (data.room?.state === 'finished') loadHistory('shan').catch(() => null);
+}
+function startShanPolling() {
+  clearInterval(shanPollTimer);
+  if (!currentShanRoomId) return;
+  shanPollTimer = setInterval(() => {
+    if (!document.getElementById('shan')?.classList.contains('active')) return;
+    loadShanStatus().catch(() => null);
+  }, 1500);
+}
+async function joinShan() {
+  const btn = $('shanJoinBtn');
+  if (!currentShanRoomId) await createShanTable();
+  if (!currentShanRoomId) return;
+  setBusy(btn, true, 'JOINING...');
+  try {
+    const data = await api('/api/mini/shan/join', { roomId: currentShanRoomId, bet: $('shanBet')?.value });
+    renderShanRoom(data); AudioFX.sfx('bet'); startShanPolling();
+    tg?.HapticFeedback?.notificationOccurred?.('success');
+  } catch (err) { setClass('shanResult','result lose'); setText('shanResult', err.message); tg?.HapticFeedback?.notificationOccurred?.('error'); }
+  finally { if (btn) { btn.textContent = btn.dataset.oldText || btn.textContent; delete btn.dataset.oldText; } loadShanStatus().catch(() => null); }
+}
+async function drawShan() {
+  const btn = $('shanDrawBtn'); setBusy(btn, true, 'DRAW...');
+  try {
+    const data = await api('/api/mini/shan/draw', { roomId: currentShanRoomId });
+    renderShanRoom(data); AudioFX.sfx('cardDeal'); if (data.room?.state === 'finished') { AudioFX.sfx('win'); loadHistory('shan').catch(() => null); }
+  } catch (err) { setClass('shanResult','result lose'); setText('shanResult', err.message); }
+  finally { if (btn) { btn.textContent = btn.dataset.oldText || btn.textContent; delete btn.dataset.oldText; } loadShanStatus().catch(() => null); }
+}
+async function stayShan() {
+  const btn = $('shanStayBtn'); setBusy(btn, true, 'STAY...');
+  try {
+    const data = await api('/api/mini/shan/stay', { roomId: currentShanRoomId });
+    renderShanRoom(data); AudioFX.sfx('cardDeal'); if (data.room?.state === 'finished') { AudioFX.sfx('win'); loadHistory('shan').catch(() => null); }
+  } catch (err) { setClass('shanResult','result lose'); setText('shanResult', err.message); }
+  finally { if (btn) { btn.textContent = btn.dataset.oldText || btn.textContent; delete btn.dataset.oldText; } loadShanStatus().catch(() => null); }
 }
 
 function renderMinesBoard(game) { const board = $('minesBoard'); if (!board) return; const tiles = game?.tiles || Array.from({length:25}, (_, i) => ({ index:i, label:'hidden' })); board.innerHTML = tiles.map((t) => { const cls = t.exploded ? 'boom' : t.label === 'mine' ? 'mine' : t.opened ? 'safe' : ''; const icon = t.exploded ? '💥' : t.label === 'mine' ? '💣' : t.opened ? '💎' : '?'; return `<button class="mine-tile ${cls}" data-mine-index="${t.index}" ${game?.state !== 'playing' || t.opened ? 'disabled' : ''}>${icon}</button>`; }).join(''); }
 function renderMines(game, balance) { if (balance != null) setBalance(balance); renderMinesBoard(game); setText('minesSafe', game ? `${game.safeOpened}/${25 - game.mineCount}` : '0'); setText('minesMulti', `x${Number(game?.multiplier || 1).toFixed(2)}`); setText('minesCash', game?.cashoutLocked ? 'Locked' : `${fmt(game?.cashoutEstimate || 0)} ${coin()}`); const cashBtn = $('minesCashoutBtn'); if (cashBtn) cashBtn.disabled = !game || game.cashoutLocked || game.state !== 'playing'; }
-async function startMines() { const btn = $('minesStartBtn'); setBusy(btn, true, 'STARTING...'); try { const data = await api('/api/mini/mines/start', { bet: $('minesBet')?.value }); renderMines(data.game, data.balance); setClass('minesResult','result muted'); setText('minesResult', `Safe ${data.game.minCashoutSafe} ခုဖွင့်ပြီးမှ Cash Out လုပ်နိုင်ပါတယ်။`); } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } finally { setBusy(btn, false); } }
-async function openMine(index) { try { const data = await api('/api/mini/mines/open', { index }); renderMines(data.game, data.balance); if (data.result === 'lost') { setClass('minesResult','result lose'); setText('minesResult', '💥 BOOM! Mine ထိသွားပါပြီ။'); refreshAllVisibleHistory(); } else { setClass('minesResult','result win'); setText('minesResult', '💎 Safe! ဆက်ဖွင့်မလား Cash Out လုပ်မလား ရွေးပါ။'); } } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } }
-async function cashoutMines() { const btn = $('minesCashoutBtn'); setBusy(btn, true, 'CASHING...'); try { const data = await api('/api/mini/mines/cashout'); renderMines(data.game, data.balance); setClass('minesResult','result win'); setHTML('minesResult', `✅ Cash Out Success: <b>${fmt(data.payout)} ${coin()}</b>`); refreshAllVisibleHistory(); } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } finally { setBusy(btn, false); } }
+async function startMines() { const btn = $('minesStartBtn'); setBusy(btn, true, 'STARTING...'); try { const data = await api('/api/mini/mines/start', { bet: $('minesBet')?.value }); renderMines(data.game, data.balance); AudioFX.sfx('bet'); setClass('minesResult','result muted'); setText('minesResult', `Safe ${data.game.minCashoutSafe} ခုဖွင့်ပြီးမှ Cash Out လုပ်နိုင်ပါတယ်။`); } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } finally { setBusy(btn, false); } }
+async function openMine(index) { try { const data = await api('/api/mini/mines/open', { index }); renderMines(data.game, data.balance); if (data.result === 'lost') { setClass('minesResult','result lose'); setText('minesResult', '💥 BOOM! Mine ထိသွားပါပြီ။'); AudioFX.sfx('mineBoom'); refreshAllVisibleHistory(); } else { setClass('minesResult','result win'); setText('minesResult', '💎 Safe! ဆက်ဖွင့်မလား Cash Out လုပ်မလား ရွေးပါ။'); AudioFX.sfx('mineGem'); } } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } }
+async function cashoutMines() { const btn = $('minesCashoutBtn'); setBusy(btn, true, 'CASHING...'); try { const data = await api('/api/mini/mines/cashout'); renderMines(data.game, data.balance); setClass('minesResult','result win'); setHTML('minesResult', `✅ Cash Out Success: <b>${fmt(data.payout)} ${coin()}</b>`); AudioFX.sfx('cashout'); refreshAllVisibleHistory(); } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } finally { setBusy(btn, false); } }
 
 function bindEvents() {
   document.querySelectorAll('[data-open]').forEach((btn) => btn.addEventListener('click', () => openPanel(btn.dataset.open)));
   document.querySelectorAll('[data-refresh-history]').forEach((btn) => btn.addEventListener('click', () => loadHistory(btn.dataset.refreshHistory).catch(() => null)));
   $('crashStartBtn')?.addEventListener('click', placeCrashBet); $('cashoutBtn')?.addEventListener('click', cashoutCrash);
-  $('spinBtn')?.addEventListener('click', spinSlot); $('shanDealBtn')?.addEventListener('click', dealShan); $('bjJoinBtn')?.addEventListener('click', joinBlackjack); $('bjHitBtn')?.addEventListener('click', hitBlackjack); $('bjStandBtn')?.addEventListener('click', standBlackjack); $('plinkoBtn')?.addEventListener('click', dropPlinko); $('wheelBtn')?.addEventListener('click', spinWheel); $('dailyWheelBtn')?.addEventListener('click', spinDailyWheel); $('minesStartBtn')?.addEventListener('click', startMines); $('minesCashoutBtn')?.addEventListener('click', cashoutMines);
+  $('spinBtn')?.addEventListener('click', spinSlot); $('shanCreateBtn')?.addEventListener('click', createShanTable); $('shanJoinBtn')?.addEventListener('click', joinShan); $('shanDrawBtn')?.addEventListener('click', drawShan); $('shanStayBtn')?.addEventListener('click', stayShan); $('bjJoinBtn')?.addEventListener('click', joinBlackjack); $('bjHitBtn')?.addEventListener('click', hitBlackjack); $('bjStandBtn')?.addEventListener('click', standBlackjack); $('plinkoBtn')?.addEventListener('click', dropPlinko); $('wheelBtn')?.addEventListener('click', spinWheel); $('dailyWheelBtn')?.addEventListener('click', spinDailyWheel); $('minesStartBtn')?.addEventListener('click', startMines); $('minesCashoutBtn')?.addEventListener('click', cashoutMines);
   document.querySelectorAll('[data-crash-bet]').forEach((b) => b.addEventListener('click', () => $('crashBet').value = b.dataset.crashBet));
   document.querySelectorAll('[data-slot-bet]').forEach((b) => b.addEventListener('click', () => $('slotBet').value = b.dataset.slotBet));
   document.querySelectorAll('[data-bj-bet]').forEach((b) => b.addEventListener('click', () => $('bjBet').value = b.dataset.bjBet));
@@ -564,6 +768,7 @@ function bindEvents() {
 async function init() {
   tg?.ready?.(); tg?.expand?.();
   if (!initData) $('notTelegram')?.classList.remove('hidden');
+  AudioFX.init();
   bindEvents();
   await loadConfig();
   buildWheel();
@@ -573,7 +778,7 @@ async function init() {
   startPolling();
   const startGame = startTarget.game;
   if (startGame === 'blackjack') openPanel('blackjack');
-  if (startGame === 'shan') openPanel('shan');
+  if (startGame === 'shan') { openPanel('shan'); if (currentShanRoomId) { loadShanStatus().catch(() => null); startShanPolling(); } }
 }
 
 
