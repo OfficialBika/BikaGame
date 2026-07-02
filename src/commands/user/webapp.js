@@ -40,10 +40,14 @@ function miniAppJoinKeyboard(ctx, webUrl, label, startParam) {
     };
   }
 
-  const rows = [];
-  if (directUrl) rows.push([{ text: label, url: directUrl }]);
-  rows.push([{ text: '🌐 Open Web Link', url: webUrl }]);
-  return { inline_keyboard: rows };
+  // Group / supergroup ထဲမှာ web_app button မသုံးပါ။
+  // Telegram group button အတွက် direct Mini App link တစ်ခုပဲထားမယ်။
+  // ဒုတိယ fallback URL row ကို user request အတိုင်းဖယ်ထားပါတယ်။
+  return {
+    inline_keyboard: [
+      [{ text: label, url: directUrl || webUrl }],
+    ],
+  };
 }
 
 function replyOptions(ctx) {
