@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <title>Bika Game App</title>
-  <link rel="stylesheet" href="/miniapp/assets/style.css?v=premium-v13-audio" />
+  <link rel="stylesheet" href="/miniapp/assets/style.css?v=premium-v15-shan-pro" />
 </head>
 <body>
   <div class="bg-orb orb-a"></div>
@@ -57,7 +57,7 @@
         </button>
         <button class="game-card shan-home-card" data-open="shan">
           <div class="badge new">NEW</div><div class="game-icon">🃏</div>
-          <h2>Shan Koe Mee</h2><p>3-card Myanmar classic vs dealer</p><span>Deal cards</span>
+          <h2>Shan Koe Mee</h2><p>Human banker live table</p><span>Open table</span>
         </button>
         <button class="game-card plinko-home-card" data-open="plinko">
           <div class="badge new">NEW</div><div class="game-icon">🟡</div>
@@ -157,40 +157,48 @@
     </section>
 
     <section id="shan" class="panel game-panel">
-      <div class="game-toolbar"><button class="back-home" data-open="home">‹ Home</button><h2>🎴 Shan Koe Mee</h2><span class="badge live">LIVE</span></div>
-      <div class="premium-card shan-card shan-room-card">
-        <div class="shan-hero">
+      <div class="game-toolbar"><button class="back-home" data-open="home">‹ Home</button><h2>🎴 Shan Koe Mee Pro</h2><span class="badge live">LIVE</span></div>
+      <div class="premium-card shan-card shan-pro-card">
+        <div class="shan-pro-hero">
           <div>
-            <p class="eyebrow">LIVE TABLE • PRIVATE CARDS • DRAW / STAY</p>
-            <h3 id="shanTableTitle">Shan Koe Mee Table</h3>
-            <span id="shanRoomHint">Create a table in Web or send .wshan in group to invite players.</span>
+            <p class="eyebrow">HUMAN BANKER • TURN BY TURN • PRIVATE CARDS</p>
+            <h3 id="shanTableTitle">Bika Shan Pro Table</h3>
+            <span id="shanRoomHint">Create a banker table or join a table from group link.</span>
           </div>
           <div class="shan-rules-chip"><b id="shanRoomState">NO TABLE</b><span id="shanRoomCount">0/6</span></div>
         </div>
-        <div class="shan-stagebar">
-          <div><span>Join Time</span><b id="shanJoinTimer">—</b></div>
-          <div><span>Action Time</span><b id="shanActionTimer">—</b></div>
-          <div><span>Rule</span><b>2 Cards + Draw</b></div>
+
+        <div class="shan-metrics">
+          <div><span>Banker Stake</span><b id="shanBankerStake">—</b></div>
+          <div><span>Total Bet</span><b id="shanTotalBet">0</b></div>
+          <div><span>3x Limit</span><b id="shanBetLimit">—</b></div>
+          <div><span>Turn Timer</span><b id="shanActionTimer">—</b></div>
         </div>
-        <div class="shan-table live-shan-table">
-          <div class="shan-side dealer">
-            <div class="shan-zone-title"><span>Dealer</span><b id="shanDealerInfo">Hidden</b></div>
-            <div id="shanDealerCards" class="shan-cards"><span class="shan-card-face back">BIKA</span><span class="shan-card-face back">BIKA</span></div>
-          </div>
-          <div class="vs-pill">VS</div>
-          <div class="shan-side player">
-            <div class="shan-zone-title"><span>Your Hand</span><b id="shanPlayerInfo">Waiting</b></div>
-            <div id="shanPlayerCards" class="shan-cards"><span class="shan-card-face empty">?</span><span class="shan-card-face empty">?</span><span class="shan-card-face empty">?</span></div>
-          </div>
+
+        <div class="shan-dealer-shoe">
+          <div class="shoe-stack"><span></span><span></span><span></span></div>
+          <div class="shoe-text"><b>BIKA CARD SHOE</b><small>Cards are dealt from here, one player at a time.</small></div>
+          <div id="shanTinBanner" class="tin-banner">TIN 1 / 3</div>
         </div>
-        <div id="shanSeats" class="shan-seats"></div>
-        <div class="shan-control-grid">
-          <div class="bet-box shan-join-box"><input id="shanBet" type="number" inputmode="numeric" placeholder="Bet amount" /><button id="shanJoinBtn" class="primary-btn">JOIN TABLE</button></div>
-          <div class="shan-actions"><button id="shanCreateBtn" class="secondary-btn">CREATE TABLE</button><button id="shanDrawBtn" class="hit-btn" disabled>🃏 DRAW</button><button id="shanStayBtn" class="stand-btn" disabled>✋ STAY</button></div>
+
+        <div class="shan-pro-table" id="shanProTable">
+          <div class="banker-seat" id="shanBankerSeat">
+            <div class="seat-avatar" id="shanBankerAvatar">BK</div>
+            <div class="seat-title"><b id="shanBankerName">Banker</b><span id="shanBankerInfo">Hidden</span></div>
+            <div id="shanBankerCards" class="shan-cards pro-cards"><span class="shan-card-face back">BIKA</span><span class="shan-card-face back">BIKA</span></div>
+          </div>
+          <div class="table-center-glow"><b id="shanStageText">Waiting Table</b><span id="shanJoinTimer">—</span></div>
+          <div id="shanSeats" class="shan-seat-ring"></div>
+        </div>
+
+        <div class="shan-control-grid pro-controls">
+          <div class="bet-box shan-banker-box"><input id="shanBankerStakeInput" type="number" inputmode="numeric" placeholder="Banker stake" /><button id="shanCreateBtn" class="secondary-btn">CREATE BANKER TABLE</button></div>
+          <div class="bet-box shan-join-box"><input id="shanBet" type="number" inputmode="numeric" placeholder="Player bet" /><button id="shanJoinBtn" class="primary-btn">JOIN TABLE</button></div>
+          <div class="shan-actions"><button id="shanDrawBtn" class="hit-btn" disabled>🃏 DRAW</button><button id="shanStayBtn" class="stand-btn" disabled>✋ STAY</button></div>
         </div>
         <div class="quick-bets"><button data-shan-bet="50">50</button><button data-shan-bet="100">100</button><button data-shan-bet="500">500</button><button data-shan-bet="1000">1K</button><button data-shan-bet="5000">5K</button></div>
-        <div id="shanResult" class="result muted">Web ထဲက CREATE TABLE နှိပ်ပြီး join လုပ်နိုင်ပါတယ်။ Group invite အတွက် <b>.wshan</b> သုံးပါ။</div>
-        <details class="rules-box"><summary>Shan Koe Mee Rules</summary><p>A = 1, 2-9 = face value, 10/J/Q/K = 0. Player and dealer receive 2 cards first. Player can Draw one third card or Stay. Final value is modulo 10. Special hands beat normal points, then higher points and high-card tiebreaker decide.</p></details>
+        <div id="shanResult" class="result muted">Human banker table ဖြစ်ပါတယ်။ Banker reserve ကို 3x lock လုပ်ပြီး player bets ပြည့်ရင် TIN 3 ကြိမ်ခေါ်ပြီး စပါမယ်။</div>
+        <details class="rules-box"><summary>Shan Koe Mee Pro Rules</summary><p>Human banker mode: table creator is banker. Players bet against banker. Each player receives 2 private cards, then active turn moves one-by-one. Player can Draw one third card or Stay. Banker cards reveal after all players finish. When total bets reach 3x banker stake, the table auto-calls TIN 1/3, TIN 2/3, TIN 3/3 and starts dealing.</p></details>
         <div class="history-card"><div class="history-head"><b>Today Shan History</b><button data-refresh-history="shan">Refresh</button></div><div id="shanHistory" class="history-list"><div class="history-empty">ဒီနေ့ history မရှိသေးပါ။</div></div></div>
       </div>
     </section>
@@ -234,6 +242,6 @@
   </main>
 
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="/miniapp/assets/app.js?v=premium-v14-shan-room"></script>
+  <script src="/miniapp/assets/app.js?v=premium-v15-shan-pro"></script>
 </body>
 </html>

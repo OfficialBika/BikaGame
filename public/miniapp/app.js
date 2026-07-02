@@ -57,13 +57,13 @@ const AudioFX = (() => {
     ctx = new AC();
     master = ctx.createGain(); master.gain.value = 0.85; master.connect(ctx.destination);
     musicGain = ctx.createGain(); sfxGain = ctx.createGain();
-    musicGain.gain.value = musicVolume * 0.10; sfxGain.gain.value = sfxVolume * 0.34;
+    musicGain.gain.value = musicVolume * 0.16; sfxGain.gain.value = sfxVolume * 0.58;
     musicGain.connect(master); sfxGain.connect(master);
     return ctx;
   }
   function now() { return setup()?.currentTime || 0; }
   function safeResume() { const c = setup(); if (c && c.state === 'suspended') c.resume().catch(() => null); }
-  function setGain() { if (musicGain) musicGain.gain.setTargetAtTime(musicVolume * 0.10, now(), 0.04); if (sfxGain) sfxGain.gain.setTargetAtTime(sfxVolume * 0.34, now(), 0.03); }
+  function setGain() { if (musicGain) musicGain.gain.setTargetAtTime(musicVolume * 0.16, now(), 0.04); if (sfxGain) sfxGain.gain.setTargetAtTime(sfxVolume * 0.58, now(), 0.03); }
   function tone(freq, dur = 0.12, type = 'sine', gain = 0.18, delay = 0, dest = sfxGain) {
     const c = setup(); if (!c || !dest) return;
     const t = c.currentTime + delay;
@@ -138,7 +138,12 @@ const AudioFX = (() => {
       case 'wheelSpin': sweep(260,920,.72,'triangle',.11); noise(.42,.045,2600); break;
       case 'wheelStop': arp([784,659,523],0,.09,'triangle',.12); break;
       case 'dailySpin': sweep(330,1320,.9,'triangle',.12); arp([659,784,988],.14,.09,'sine',.08); break;
-      case 'cardDeal': noise(.055,.06,1900); tone(440,.045,'triangle',.08,.015); break;
+      case 'cardDeal': noise(.075,.09,2200); tone(440,.05,'triangle',.13,.012); break;
+      case 'cardSlide': noise(.11,.075,1700); sweep(720,420,.14,'triangle',.07); break;
+      case 'turn': arp([440,587,740],0,.07,'triangle',.12); break;
+      case 'tin': noise(.16,.11,700); tone(260,.11,'square',.14); tone(520,.10,'triangle',.10,.08); break;
+      case 'reveal': arp([392,523,659,784],0,.08,'triangle',.14); break;
+      case 'tableOpen': noise(.22,.07,450); arp([220,330,440,660],.02,.08,'triangle',.12); break;
       case 'mineGem': arp([600,760],0,.065,'triangle',.12); break;
       case 'mineBoom': noise(.44,.18,160); sweep(190,60,.42,'sawtooth',.12); break;
       case 'error': tone(130,.16,'sawtooth',.14); break;
@@ -178,7 +183,7 @@ async function loadConfig() {
   const res = await fetch('/api/mini/config', { cache: 'no-store' });
   config = await res.json();
   setText('slotRange', `${fmt(config.slot.minBet)} - ${fmt(config.slot.maxBet)} ${coin()}`);
-  [['crashBet', config.crash.minBet], ['slotBet', config.slot.minBet], ['bjBet', config.blackjack?.minBet || 50], ['shanBet', config.shan?.minBet || 50], ['plinkoBet', config.plinko.minBet], ['wheelBet', config.wheel.minBet], ['minesBet', config.mines.minBet]].forEach(([id, value]) => { const el = $(id); if (el) el.value = value; });
+  [['crashBet', config.crash.minBet], ['slotBet', config.slot.minBet], ['bjBet', config.blackjack?.minBet || 50], ['shanBet', config.shan?.minBet || 50], ['shanBankerStakeInput', config.shan?.minBankerStake || 1000], ['plinkoBet', config.plinko.minBet], ['wheelBet', config.wheel.minBet], ['minesBet', config.mines.minBet]].forEach(([id, value]) => { const el = $(id); if (el) el.value = value; });
   renderPlinkoPins();
   renderPlinkoBuckets();
   renderMinesBoard(null);
@@ -200,6 +205,7 @@ function openPanel(id) {
   if (game) loadHistory(game).catch(() => null);
   if (id === 'wheel') loadWheelDailyStatus().catch(() => null);
   if (id === 'blackjack') startBjPolling();
+  if (id === 'shan') { if (currentShanRoomId) { loadShanStatus().catch(() => null); startShanPolling(); } }
 }
 
 
@@ -626,8 +632,13 @@ async function standBlackjack() {
 }
 
 
+
+let lastShanState = '';
+let lastShanTinStep = 0;
+let lastShanActiveId = null;
+
 function shanCardHtml(card, delay = 0) {
-  if (!card || card.hidden) return '<span class="shan-card-face back">BIKA</span>';
+  if (!card || card.hidden) return `<span class="shan-card-face back" style="--deal-delay:${delay}ms">BIKA</span>`;
   const red = card.red ? ' red' : '';
   return `<span class="shan-card-face${red}" style="--deal-delay:${delay}ms"><b>${escapeHtml(card.rank)}</b><em>${escapeHtml(card.suit)}</em></span>`;
 }
@@ -636,69 +647,104 @@ function shanInfoText(info) {
   return `${escapeHtml(info.short || info.name || '?')} • ${Number(info.points || 0)} pts`;
 }
 function shanStateText(state) {
-  const map = { lobby:'JOINING', playing:'ACTION', dealer:'REVEAL', finished:'DONE', expired:'EXPIRED' };
+  const map = { lobby:'BETTING', tin:'TIN CALL', playing:'PLAYER TURN', banker:'BANKER', finished:'SETTLED', expired:'EXPIRED', refunded:'REFUNDED' };
   return map[state] || 'TABLE';
 }
+function shanStageMessage(room) {
+  if (!room) return 'No Table';
+  if (room.state === 'lobby') return `Waiting bets • ${room.joinSecondsLeft || 0}s`;
+  if (room.state === 'tin') return `TIN ${room.tinStep || 1} / 3`;
+  if (room.state === 'playing') {
+    const active = (room.players || []).find((p) => Number(p.userId) === Number(room.activeUserId));
+    return active ? `${active.me ? 'Your' : active.name + "'s"} turn • ${room.actionSecondsLeft || 0}s` : 'Player turns';
+  }
+  if (room.state === 'banker') return 'Banker reveal';
+  if (room.state === 'finished') return 'Round settled';
+  return shanStateText(room.state);
+}
 function resetShanCards() {
-  setHTML('shanDealerCards', '<span class="shan-card-face back">BIKA</span><span class="shan-card-face back">BIKA</span>');
-  setHTML('shanPlayerCards', '<span class="shan-card-face empty">?</span><span class="shan-card-face empty">?</span><span class="shan-card-face empty">?</span>');
-  setText('shanDealerInfo', 'Hidden');
-  setText('shanPlayerInfo', 'Waiting');
+  setHTML('shanBankerCards', '<span class="shan-card-face back">BIKA</span><span class="shan-card-face back">BIKA</span>');
+  setText('shanBankerInfo', 'Hidden');
+  setHTML('shanSeats', '<div class="shan-empty-seat">Create or join a table.</div>');
 }
 function renderShanRoom(data = {}) {
   if (data.balance != null) setBalance(data.balance);
   const room = data.room || null;
-  if (!room) return;
+  if (!room) { resetShanCards(); return; }
   currentShanRoomId = room.id || currentShanRoomId;
-  setText('shanTableTitle', room.title || 'Shan Koe Mee Table');
+
+  if (room.state !== lastShanState) {
+    if (room.state === 'tin') AudioFX.sfx('tin');
+    else if (room.state === 'playing') AudioFX.sfx('cardDeal');
+    else if (room.state === 'finished') AudioFX.sfx('reveal');
+    lastShanState = room.state;
+  }
+  if (room.state === 'tin' && room.tinStep && room.tinStep !== lastShanTinStep) { AudioFX.sfx('tin'); lastShanTinStep = room.tinStep; }
+  if (room.activeUserId && Number(room.activeUserId) !== Number(lastShanActiveId)) { AudioFX.sfx('turn'); lastShanActiveId = room.activeUserId; }
+
+  setText('shanTableTitle', room.title || 'Bika Shan Pro Table');
   setText('shanRoomState', shanStateText(room.state));
   setText('shanRoomCount', `${room.playerCount || 0}/${room.maxPlayers || config?.shan?.maxPlayers || 6}`);
-  setText('shanJoinTimer', room.state === 'lobby' ? `${room.joinSecondsLeft || 0}s` : '—');
+  setText('shanBankerStake', `${fmt(room.banker?.stake || 0)} ${coin()}`);
+  setText('shanTotalBet', `${fmt(room.totalBet || 0)} ${coin()}`);
+  setText('shanBetLimit', `${fmt(room.betLimit || room.banker?.betLimit || 0)} ${coin()}`);
+  setText('shanJoinTimer', room.state === 'lobby' ? `${room.joinSecondsLeft || 0}s` : room.state === 'tin' ? `TIN ${room.tinStep || 1}/3` : shanStageMessage(room));
   setText('shanActionTimer', room.state === 'playing' ? `${room.actionSecondsLeft || 0}s` : '—');
+  setText('shanStageText', shanStageMessage(room));
+  const tin = $('shanTinBanner');
+  if (tin) { tin.textContent = room.state === 'tin' ? `TIN ${room.tinStep || 1} / 3` : 'TIN 3x AUTO'; tin.classList.toggle('active', room.state === 'tin'); }
 
-  const dealerCards = room.dealer?.cards || [];
-  setHTML('shanDealerCards', dealerCards.length ? dealerCards.map((c, i) => shanCardHtml(c, i * 120)).join('') : '<span class="shan-card-face back">BIKA</span><span class="shan-card-face back">BIKA</span>');
-  setText('shanDealerInfo', room.dealer?.reveal ? shanInfoText(room.dealer.info) : 'Hidden');
-
-  const me = room.me || null;
-  setHTML('shanPlayerCards', me?.cards?.length ? me.cards.map((c, i) => shanCardHtml(c, i * 120)).join('') : '<span class="shan-card-face empty">?</span><span class="shan-card-face empty">?</span><span class="shan-card-face empty">?</span>');
-  setText('shanPlayerInfo', me ? shanInfoText(me.info) : 'Not joined');
+  const banker = room.banker || {};
+  setText('shanBankerAvatar', banker.avatar || 'BK');
+  setText('shanBankerName', banker.me ? `${banker.name || 'Banker'} • You` : (banker.name || 'Banker'));
+  setText('shanBankerInfo', banker.info ? shanInfoText(banker.info) : `Reserve ${fmt(banker.reserveLocked || 0)} ${coin()}`);
+  const bankerCards = banker.cards || [];
+  setHTML('shanBankerCards', bankerCards.length ? bankerCards.map((c, i) => shanCardHtml(c, i * 90)).join('') : '<span class="shan-card-face back">BIKA</span><span class="shan-card-face back">BIKA</span>');
 
   const seats = $('shanSeats');
   if (seats) {
     const players = room.players || [];
-    seats.innerHTML = players.length ? players.map((p) => {
-      const cls = p.me ? 'me' : '';
-      const status = p.result ? p.result : p.status;
-      const cards = (p.cards || []).map((c, i) => shanCardHtml(c, i * 70)).join('');
-      const net = p.result ? `<b class="${Number(p.net || 0) >= 0 ? 'pos' : 'neg'}">${Number(p.net || 0) >= 0 ? '+' : ''}${fmt(p.net)} ${coin()}</b>` : `<b>${escapeHtml(status || 'waiting')}</b>`;
-      return `<div class="shan-seat ${cls}"><div class="avatar">${escapeHtml(p.avatar || 'SK')}</div><div class="seat-main"><strong>${escapeHtml(p.me ? `${p.name} • You` : p.name)}</strong><span>Bet ${fmt(p.bet)} ${coin()} • ${escapeHtml(status || 'waiting')}</span><div class="mini-hand">${cards}</div></div>${net}</div>`;
-    }).join('') : '<div class="history-empty">No players yet. Join the table.</div>';
+    seats.innerHTML = players.length ? players.map((p, index) => {
+      const cls = [p.me ? 'me' : '', p.active ? 'active-turn' : '', p.result ? String(p.result).toLowerCase() : ''].filter(Boolean).join(' ');
+      const cards = (p.cards || [{hidden:true},{hidden:true}]).map((c, i) => shanCardHtml(c, i * 70)).join('');
+      const status = p.active ? 'YOUR TURN' : (p.result || p.status || 'waiting');
+      const net = p.result ? `<strong class="${Number(p.net || 0) >= 0 ? 'pos' : 'neg'}">${Number(p.net || 0) >= 0 ? '+' : ''}${fmt(p.net)} ${coin()}</strong>` : `<strong>${escapeHtml(status)}</strong>`;
+      return `<div class="shan-player-seat seat-${index + 1} ${cls}">
+        <div class="seat-avatar">${escapeHtml(p.avatar || 'SK')}</div>
+        <div class="seat-info"><b>${escapeHtml(p.me ? `${p.name} • You` : p.name)}</b><span>Bet ${fmt(p.bet)} ${coin()} • ${escapeHtml(status)}</span></div>
+        <div class="seat-hand">${cards}</div>${net}</div>`;
+    }).join('') : '<div class="shan-empty-seat">No players yet. Players join and bet against the banker.</div>';
   }
 
-  const joined = !!me;
-  const canJoin = room.state === 'lobby' && !joined;
-  const canAct = room.state === 'playing' && me && me.status === 'playing';
+  const me = room.me || null;
+  const isBanker = !!room.banker?.me;
+  const canJoin = room.state === 'lobby' && !me && !isBanker;
+  const canCreate = !currentShanRoomId || ['finished','expired','refunded'].includes(room.state);
+  const canAct = room.state === 'playing' && me && me.status === 'playing' && Number(room.activeUserId) === Number(me.userId);
   if ($('shanJoinBtn')) $('shanJoinBtn').disabled = !canJoin;
+  if ($('shanCreateBtn')) $('shanCreateBtn').disabled = false;
   if ($('shanDrawBtn')) $('shanDrawBtn').disabled = !canAct || (me?.cards?.length || 0) >= 3;
   if ($('shanStayBtn')) $('shanStayBtn').disabled = !canAct;
-  if ($('shanCreateBtn')) $('shanCreateBtn').disabled = false;
 
-  if (room.state === 'lobby') setHTML('shanResult', `🎴 Table is open. Join closes in <b>${room.joinSecondsLeft || 0}s</b>.`);
-  else if (room.state === 'playing') setHTML('shanResult', `🃏 Choose <b>DRAW</b> or <b>STAY</b>. Action time: <b>${room.actionSecondsLeft || 0}s</b>.`);
-  else if (room.state === 'finished' && me) {
-    const win = me.result === 'WIN'; const push = me.result === 'PUSH';
-    setClass('shanResult', `result ${win ? 'win' : push ? '' : 'lose'}`);
-    setHTML('shanResult', `${win ? '🏆' : push ? '🤝' : '💨'} <b>${escapeHtml(me.result)}</b> • You: <b>${shanInfoText(me.info)}</b> • Dealer: <b>${shanInfoText(room.dealer?.info)}</b><br>Payout: <b>${fmt(me.payout)} ${coin()}</b> • Net: <b>${fmt(me.net)} ${coin()}</b>`);
+  setClass('shanResult', 'result muted');
+  if (room.state === 'lobby') setHTML('shanResult', `🎴 Banker table is open. Total bets: <b>${fmt(room.totalBet)} / ${fmt(room.betLimit)} ${coin()}</b>. 3x ပြည့်ရင် TIN x3 auto ခေါ်ပြီးစပါမယ်။`);
+  else if (room.state === 'tin') setHTML('shanResult', `🔔 <b>TIN ${room.tinStep || 1} / 3</b> — dealing will start soon.`);
+  else if (room.state === 'playing') setHTML('shanResult', canAct ? '🃏 <b>Your turn.</b> Draw one card or Stay.' : `⏳ ${escapeHtml(shanStageMessage(room))}`);
+  else if (room.state === 'finished') {
+    if (isBanker) {
+      const win = Number(room.banker.net || 0) >= 0; setClass('shanResult', `result ${win ? 'win' : 'lose'}`); setHTML('shanResult', `${win ? '🏆' : '💨'} Banker result • Net: <b>${Number(room.banker.net || 0) >= 0 ? '+' : ''}${fmt(room.banker.net)} ${coin()}</b>`);
+    } else if (me) {
+      const win = me.result === 'WIN'; const push = me.result === 'PUSH'; setClass('shanResult', `result ${win ? 'win' : push ? '' : 'lose'}`); setHTML('shanResult', `${win ? '🏆' : push ? '🤝' : '💨'} <b>${escapeHtml(me.result)}</b> • You: <b>${shanInfoText(me.info)}</b> • Banker: <b>${shanInfoText(room.banker?.info)}</b><br>Payout: <b>${fmt(me.payout)} ${coin()}</b> • Net: <b>${fmt(me.net)} ${coin()}</b>`);
+    }
   }
 }
 async function createShanTable() {
   const btn = $('shanCreateBtn'); setBusy(btn, true, 'CREATING...');
   try {
-    const data = await api('/api/mini/shan/create', { title: 'Bika Shan Koe Mee Table' });
-    renderShanRoom(data); AudioFX.sfx('open'); startShanPolling();
-    setClass('shanResult','result muted'); setHTML('shanResult', '✅ New Shan table created. Enter bet and JOIN TABLE.');
-  } catch (err) { setClass('shanResult','result lose'); setText('shanResult', err.message); }
+    const data = await api('/api/mini/shan/create', { title: 'Bika Shan Koe Mee Pro Table', bankerStake: $('shanBankerStakeInput')?.value });
+    renderShanRoom(data); AudioFX.sfx('tableOpen'); startShanPolling();
+    setClass('shanResult','result muted'); setHTML('shanResult', '✅ Banker table created. Share from group with <b>.wshan stake</b> or let players join from this room.');
+  } catch (err) { setClass('shanResult','result lose'); setText('shanResult', err.message); AudioFX.sfx('error'); }
   finally { setBusy(btn, false); }
 }
 async function loadShanStatus() {
@@ -713,34 +759,33 @@ function startShanPolling() {
   shanPollTimer = setInterval(() => {
     if (!document.getElementById('shan')?.classList.contains('active')) return;
     loadShanStatus().catch(() => null);
-  }, 1500);
+  }, 900);
 }
 async function joinShan() {
   const btn = $('shanJoinBtn');
-  if (!currentShanRoomId) await createShanTable();
-  if (!currentShanRoomId) return;
+  if (!currentShanRoomId) { setClass('shanResult','result lose'); setText('shanResult', 'Table မရှိသေးပါ။ Banker က CREATE BANKER TABLE နှိပ်ပါ။'); return; }
   setBusy(btn, true, 'JOINING...');
   try {
     const data = await api('/api/mini/shan/join', { roomId: currentShanRoomId, bet: $('shanBet')?.value });
     renderShanRoom(data); AudioFX.sfx('bet'); startShanPolling();
     tg?.HapticFeedback?.notificationOccurred?.('success');
-  } catch (err) { setClass('shanResult','result lose'); setText('shanResult', err.message); tg?.HapticFeedback?.notificationOccurred?.('error'); }
+  } catch (err) { setClass('shanResult','result lose'); setText('shanResult', err.message); AudioFX.sfx('error'); tg?.HapticFeedback?.notificationOccurred?.('error'); }
   finally { if (btn) { btn.textContent = btn.dataset.oldText || btn.textContent; delete btn.dataset.oldText; } loadShanStatus().catch(() => null); }
 }
 async function drawShan() {
   const btn = $('shanDrawBtn'); setBusy(btn, true, 'DRAW...');
   try {
     const data = await api('/api/mini/shan/draw', { roomId: currentShanRoomId });
-    renderShanRoom(data); AudioFX.sfx('cardDeal'); if (data.room?.state === 'finished') { AudioFX.sfx('win'); loadHistory('shan').catch(() => null); }
-  } catch (err) { setClass('shanResult','result lose'); setText('shanResult', err.message); }
+    renderShanRoom(data); AudioFX.sfx('cardSlide'); if (data.room?.state === 'finished') { AudioFX.sfx('reveal'); loadHistory('shan').catch(() => null); }
+  } catch (err) { setClass('shanResult','result lose'); setText('shanResult', err.message); AudioFX.sfx('error'); }
   finally { if (btn) { btn.textContent = btn.dataset.oldText || btn.textContent; delete btn.dataset.oldText; } loadShanStatus().catch(() => null); }
 }
 async function stayShan() {
   const btn = $('shanStayBtn'); setBusy(btn, true, 'STAY...');
   try {
     const data = await api('/api/mini/shan/stay', { roomId: currentShanRoomId });
-    renderShanRoom(data); AudioFX.sfx('cardDeal'); if (data.room?.state === 'finished') { AudioFX.sfx('win'); loadHistory('shan').catch(() => null); }
-  } catch (err) { setClass('shanResult','result lose'); setText('shanResult', err.message); }
+    renderShanRoom(data); AudioFX.sfx('turn'); if (data.room?.state === 'finished') { AudioFX.sfx('reveal'); loadHistory('shan').catch(() => null); }
+  } catch (err) { setClass('shanResult','result lose'); setText('shanResult', err.message); AudioFX.sfx('error'); }
   finally { if (btn) { btn.textContent = btn.dataset.oldText || btn.textContent; delete btn.dataset.oldText; } loadShanStatus().catch(() => null); }
 }
 
