@@ -23,6 +23,7 @@ function normalizeGame(game) {
   if (['wheel', 'lucky_wheel', 'web_wheel'].includes(key)) return 'wheel';
   if (['mines', 'web_mines'].includes(key)) return 'mines';
   if (['blackjack', 'bj', 'web_bj', 'web_blackjack'].includes(key)) return 'blackjack';
+  if (['shan', 'shankoe', 'shankoemee', 'koemee', 'web_shan', 'skm'].includes(key)) return 'shan';
   return key || 'unknown';
 }
 

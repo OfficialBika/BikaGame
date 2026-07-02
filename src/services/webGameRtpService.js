@@ -10,6 +10,7 @@ const DEFAULT_RTPS = Object.freeze({
   wheel: Number(process.env.WEB_WHEEL_RTP || 70),
   mines: Number(process.env.WEB_MINES_RTP || 68),
   blackjack: Number(process.env.WEB_BLACKJACK_RTP || process.env.WEB_BJ_RTP || 68),
+  shan: Number(process.env.WEB_SHAN_RTP || 68),
 });
 
 const GAME_LABELS = Object.freeze({
@@ -18,6 +19,7 @@ const GAME_LABELS = Object.freeze({
   wheel: 'Lucky Wheel',
   mines: 'Web Mines',
   blackjack: 'Web Blackjack',
+  shan: 'Shan Koe Mee',
 });
 
 function cleanGameKey(value) {
@@ -27,6 +29,7 @@ function cleanGameKey(value) {
   if (key === 'wheel' || key === 'luckywheel' || key === 'spin') return 'wheel';
   if (key === 'mines' || key === 'mine' || key === 'webmines') return 'mines';
   if (key === 'blackjack' || key === 'bj' || key === 'webbj' || key === 'webblackjack') return 'blackjack';
+  if (key === 'shan' || key === 'shankoe mee' || key === 'shankoemee' || key === 'koemee' || key === 'webshan' || key === 'skm') return 'shan';
   return key;
 }
 
