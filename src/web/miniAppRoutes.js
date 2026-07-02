@@ -11,6 +11,7 @@ const { playWebPlinko, BUCKETS: PLINKO_BUCKETS, MIN_BET: PLINKO_MIN_BET, MAX_BET
 const { spinWebWheel, spinDailyWebWheel, getDailyWheelStatus, SEGMENTS: WHEEL_SEGMENTS, MIN_BET: WHEEL_MIN_BET, MAX_BET: WHEEL_MAX_BET, DAILY_BASE_REWARD: WHEEL_DAILY_BASE_REWARD } = require('../services/webWheelService');
 const { startWebMines, getWebMinesStatus, openWebMinesTile, cashoutWebMines, MIN_BET: MINES_MIN_BET, MAX_BET: MINES_MAX_BET, DEFAULT_MINES, MIN_CASHOUT_SAFE } = require('../services/webMinesService');
 const { joinWebBlackjack, getWebBlackjackStatus, hitWebBlackjack, standWebBlackjack, MIN_BET: BJ_MIN_BET, MAX_BET: BJ_MAX_BET, MAX_PLAYERS: BJ_MAX_PLAYERS, JOIN_SECONDS: BJ_JOIN_SECONDS, ACTION_SECONDS: BJ_ACTION_SECONDS } = require('../services/webBlackjackService');
+const { playWebShan, MIN_BET: SHAN_MIN_BET, MAX_BET: SHAN_MAX_BET } = require('../services/webShanService');
 const { getAllWebGameRtps } = require('../services/webGameRtpService');
 const { getWebGameHistory } = require('../services/webBetHistoryService');
 const { verifyTelegramMiniAppInitData, getInitDataFromRequest } = require('./telegramMiniAuth');
@@ -57,6 +58,7 @@ function sendError(res, err) {
     BJ_NOT_JOINED: [400, 'ဒီ Blackjack table ထဲ မဝင်ထားပါ။'],
     BJ_NOT_PLAYING: [400, 'အခု action time မဟုတ်ပါ။'],
     BJ_ACTION_DONE: [400, 'ဒီ hand အတွက် action လုပ်ပြီးသားပါ။'],
+    SHAN_DEAL_RUNNING: [429, 'Shan deal လက်ရှိ run နေပါတယ်။'],
   };
   const [status, message] = map[code] || [500, 'Server error ဖြစ်နေပါတယ်။'];
 
@@ -119,6 +121,7 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
         { key: 'rocket', title: 'Rocket Crash', badge: 'LIVE', hot: true },
         { key: 'slot', title: 'Premium Slot', badge: 'HOT', hot: true },
         { key: 'blackjack', title: 'Web Blackjack', badge: 'LIVE', hot: true },
+        { key: 'shan', title: 'Shan Koe Mee', badge: 'NEW', hot: true },
         { key: 'plinko', title: 'Plinko', badge: 'NEW', hot: false },
         { key: 'wheel', title: 'Lucky Wheel', badge: 'DAILY', hot: false },
         { key: 'mines', title: 'Web Mines', badge: 'NEW', hot: false },
@@ -143,6 +146,11 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
         maxPlayers: BJ_MAX_PLAYERS,
         joinSeconds: BJ_JOIN_SECONDS,
         actionSeconds: BJ_ACTION_SECONDS,
+      },
+      shan: {
+        minBet: SHAN_MIN_BET,
+        maxBet: SHAN_MAX_BET,
+        rules: { cards: 3, pointModulo: 10, facePoint: 0, acePoint: 1 },
       },
       plinko: {
         minBet: PLINKO_MIN_BET,
@@ -281,6 +289,18 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
   app.post('/api/mini/blackjack/stand', authMiddleware, async (req, res) => {
     try {
       const result = await standWebBlackjack({ roomId: req.body?.roomId, userId: req.telegramUser.id });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+
+
+  app.post('/api/mini/shan/deal', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await playWebShan({ userId: req.telegramUser.id, bet: req.body?.bet });
       return res.json(result);
     } catch (err) {
       return sendError(res, err);
