@@ -1,6 +1,7 @@
 /* BIKA GAME — Premium Flow v19
  * Game-by-game lifecycle rail. UI-only; preserves existing handlers/API contracts.
- * v19.1 hardens phase detection to avoid matching static panel titles/labels.
+ * v19.2 hardens mutation observation so the rail cannot observe its own UI
+ * updates and create a mutation/render feedback loop that freezes the Mini App.
  */
 (function premiumFlowV19(){
   'use strict';
@@ -15,6 +16,7 @@
     mines: { label:'Web Mines', steps:['Bet','Open','Gem/Mine','Cashout','Result'] }
   };
 
+  const GAME_IDS = Object.keys(GAMES);
   const norm = s => String(s || '').replace(/\s+/g,' ').trim().toLowerCase();
   const contentText = panel => {
     if (!panel) return '';
@@ -105,7 +107,7 @@
     const phase = GAMES[id].steps[idx] || GAMES[id].steps[0];
     rail.dataset.activeStep = String(idx);
     const phaseEl = rail.querySelector('.v19-flow-phase');
-    if (phaseEl) phaseEl.textContent = phase.toUpperCase();
+    if (phaseEl && phaseEl.textContent !== phase.toUpperCase()) phaseEl.textContent = phase.toUpperCase();
     rail.querySelectorAll('[data-step]').forEach((el,i)=>{
       el.classList.toggle('is-done', i < idx);
       el.classList.toggle('is-active', i === idx);
@@ -113,7 +115,7 @@
     });
   }
 
-  function syncAll(){ Object.keys(GAMES).forEach(id=>sync(id)); }
+  function syncAll(){ GAME_IDS.forEach(id=>sync(id)); }
 
   function loadV20(){
     if (document.querySelector('script[data-bika-flow-v20]')) return;
@@ -123,13 +125,20 @@
 
   function bind(){
     syncAll();
+    let scheduled = false;
+    const scheduleSync = () => {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => { scheduled = false; syncAll(); });
+    };
     const observer = new MutationObserver(mutations=>{
-      let relevant=false;
       for(const m of mutations){
-        const el=m.target instanceof Element ? m.target : m.target.parentElement;
-        if(el && Object.keys(GAMES).some(id=>el.closest?.(`#${id}`))) { relevant=true; break; }
+        const target = m.target instanceof Element ? m.target : m.target?.parentElement;
+        if (!target || target.closest?.('.v19-flow-rail')) continue;
+        if (!target.closest?.('#crash,#slot,#blackjack,#shan,#plinko,#wheel,#mines')) continue;
+        scheduleSync();
+        break;
       }
-      if(relevant) syncAll();
     });
     observer.observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['disabled','class','value']});
     setInterval(syncAll,1200);
