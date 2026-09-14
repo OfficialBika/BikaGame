@@ -1,0 +1,14 @@
+/* BIKA GAME — Premium Flow v20 */
+#v20-feedback{position:fixed;left:50%;top:max(12px,env(safe-area-inset-top));z-index:10020;display:flex;align-items:center;gap:7px;max-width:min(88vw,420px);padding:8px 11px;border:1px solid rgba(255,255,255,.1);border-radius:999px;background:rgba(7,10,20,.88);backdrop-filter:blur(18px);box-shadow:0 12px 35px rgba(0,0,0,.28);color:#dce4fa;transform:translate(-50%,-14px);opacity:0;pointer-events:none;transition:opacity .18s ease,transform .18s ease}
+#v20-feedback.is-visible{opacity:1;transform:translate(-50%,0)}
+#v20-feedback .v20-dot{width:7px;height:7px;border-radius:50%;background:#8b9cff;box-shadow:0 0 12px rgba(139,156,255,.55);flex:none}
+#v20-feedback .v20-title{font-size:9px;letter-spacing:.08em;font-weight:950;white-space:nowrap}
+#v20-feedback .v20-detail{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#8995ae;font-size:9px}
+#v20-feedback.is-success .v20-dot{background:#70e5b2;box-shadow:0 0 12px rgba(112,229,178,.5)}
+#v20-feedback.is-error .v20-dot{background:#ff7586;box-shadow:0 0 12px rgba(255,117,134,.5)}
+#v20-feedback.is-error{border-color:rgba(255,117,134,.18)}
+#v20-feedback.is-busy .v20-dot{animation:v20Pulse .8s ease-in-out infinite}
+.v20-pressed{transform:scale(.985)!important}
+@keyframes v20Pulse{50%{opacity:.35;transform:scale(.72)}}
+@media(max-width:390px){#v20-feedback{max-width:90vw;padding:7px 9px}.v20-detail{max-width:48vw}}
+@media(prefers-reduced-motion:reduce){#v20-feedback{transition:none}.v20-pressed{transform:none!important}#v20-feedback.is-busy .v20-dot{animation:none}}
