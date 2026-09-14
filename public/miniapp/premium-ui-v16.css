@@ -1,0 +1,64 @@
+/* Bika Game Mini App — Premium UI v16
+   Visual-only layer. Existing game logic, DOM ids and API contracts remain untouched. */
+:root{
+  --ui-bg:#050713;--ui-surface:rgba(13,18,40,.88);--ui-surface-2:rgba(20,27,57,.82);
+  --ui-border:rgba(255,255,255,.10);--ui-border-hi:rgba(96,231,255,.28);
+  --ui-text:#f7fbff;--ui-muted:#93a3c7;--ui-cyan:#42e8ff;--ui-purple:#8b5cf6;
+  --ui-pink:#ff4fa3;--ui-green:#38e39a;--ui-gold:#ffd76a;
+  --ui-shadow:0 24px 70px rgba(0,0,0,.42);--ui-radius:24px;
+}
+html{background:var(--ui-bg);scroll-behavior:smooth}
+body{min-height:100dvh;background:radial-gradient(900px 520px at 50% -10%,rgba(48,92,190,.20),transparent 65%),radial-gradient(600px 500px at 100% 35%,rgba(168,55,150,.10),transparent 70%),linear-gradient(180deg,#070a18,#03050c 78%);-webkit-font-smoothing:antialiased}
+button,input{-webkit-tap-highlight-color:transparent}button{touch-action:manipulation}
+.app-shell{width:min(1040px,100%);padding:10px 12px calc(116px + env(safe-area-inset-bottom));}
+/* Ambient layer: softer and less distracting than the legacy glow */
+.bg-orb{opacity:.28;filter:blur(90px)}.orb-a{background:#18d8ff}.orb-b{background:#e73c9a}.bg-grid{opacity:.42;background-size:42px 42px}
+/* Header */
+.topbar{top:6px;margin:0 0 10px;padding:8px 10px;border-radius:20px;border-color:rgba(255,255,255,.09);background:rgba(5,8,21,.82);box-shadow:0 12px 42px rgba(0,0,0,.30);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px)}
+.avatar{width:38px;height:38px;border-radius:13px;box-shadow:0 8px 25px rgba(46,233,255,.20)}
+.top-user span,.wallet-pill span{font-size:9px;letter-spacing:.14em}.top-user b,.wallet-pill b{font-size:12px}.online-pill{padding:8px 12px;border-radius:999px}
+.wallet-pill b{color:#e8fbff}
+/* Audio dock */
+.sound-dock{top:68px;margin:-2px 0 10px;border-radius:16px;background:rgba(6,9,24,.68);border-color:rgba(255,255,255,.07);box-shadow:0 10px 30px rgba(0,0,0,.20)}
+/* Home hero */
+.hero-premium{min-height:132px;padding:22px 22px;border-radius:28px;border-color:rgba(96,231,255,.14);background:radial-gradient(circle at 82% 15%,rgba(66,232,255,.17),transparent 28%),radial-gradient(circle at 100% 100%,rgba(255,79,163,.11),transparent 32%),linear-gradient(135deg,rgba(18,28,66,.94),rgba(11,14,34,.92));box-shadow:var(--ui-shadow)}
+.hero-premium:before{opacity:.22}.hero-premium h1{font-size:32px;letter-spacing:-.035em}.hero-premium p{font-size:12px;color:#aebbd8;max-width:640px}.hero-wallet{min-width:168px;padding:16px 17px;border-radius:20px;background:rgba(0,0,0,.24);border-color:rgba(255,255,255,.10)}.hero-wallet strong{font-size:21px;color:#e9fdff}
+/* Game launcher */
+.game-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px}.game-card{min-height:145px;padding:15px;border-radius:22px;background:linear-gradient(145deg,rgba(18,24,52,.92),rgba(8,11,27,.96));border-color:rgba(255,255,255,.085);box-shadow:0 16px 46px rgba(0,0,0,.30);transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.game-card:hover{transform:translateY(-3px);border-color:var(--ui-border-hi);box-shadow:0 20px 55px rgba(0,0,0,.36),0 0 28px rgba(66,232,255,.07)}
+.game-card:active{transform:scale(.985)}.game-card:before{opacity:.55}.game-icon{font-size:32px;margin-top:17px;filter:drop-shadow(0 8px 18px rgba(0,0,0,.30))}.game-card h2{font-size:17px;letter-spacing:-.02em}.game-card p{font-size:11px;color:#8e9dbe}.game-card span:last-child{font-size:10px;bottom:12px;left:15px;padding:5px 9px;color:#bdf8ff;background:rgba(66,232,255,.07);border:1px solid rgba(66,232,255,.12)}
+.badge{top:11px;right:11px;padding:5px 8px;font-size:8px;letter-spacing:.13em}
+.rocket-card{background:radial-gradient(circle at 85% 15%,rgba(66,232,255,.15),transparent 35%),linear-gradient(145deg,rgba(12,54,64,.72),rgba(8,15,34,.97))}.slot-home-card{background:radial-gradient(circle at 85% 15%,rgba(255,215,106,.15),transparent 35%),linear-gradient(145deg,rgba(64,32,55,.70),rgba(12,12,31,.97))}.blackjack-home-card{background:radial-gradient(circle at 85% 15%,rgba(96,165,250,.15),transparent 35%),linear-gradient(145deg,rgba(19,38,69,.70),rgba(10,12,31,.97))}.shan-home-card{background:radial-gradient(circle at 85% 15%,rgba(255,215,106,.13),transparent 35%),linear-gradient(145deg,rgba(62,31,45,.70),rgba(12,11,30,.97))}
+/* Navigation: eight compact destinations still fit, but become an elevated app dock */
+.nav-tabs{grid-template-columns:repeat(8,1fr)!important;width:min(1000px,calc(100% - 18px));bottom:calc(7px + env(safe-area-inset-bottom));gap:4px;padding:6px;border-radius:22px;background:rgba(4,7,18,.88);border-color:rgba(255,255,255,.10);box-shadow:0 18px 55px rgba(0,0,0,.48),0 0 0 1px rgba(66,232,255,.035);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px)}
+.tab{min-width:0;padding:9px 3px;border-radius:16px;color:#8291b4;font-size:10px!important;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tab.active{color:#fff;background:linear-gradient(135deg,rgba(66,232,255,.94),rgba(139,92,246,.94));box-shadow:0 7px 20px rgba(66,232,255,.15),inset 0 1px rgba(255,255,255,.22)}
+/* Game pages */
+.game-panel{animation:uiPageIn .24s ease both}.game-toolbar{top:60px;margin:2px 0 10px;padding:7px 8px;border-radius:17px;border-color:rgba(255,255,255,.075);background:rgba(7,10,25,.72);box-shadow:0 8px 26px rgba(0,0,0,.20)}.game-toolbar h2{font-size:20px;letter-spacing:-.025em}.back-home{padding:8px 11px;border-radius:12px;background:rgba(255,255,255,.065);border-color:rgba(255,255,255,.08)}
+.premium-card{border-radius:26px;border-color:rgba(255,255,255,.085);box-shadow:var(--ui-shadow)}
+/* Shared controls */
+.bet-box{gap:8px}.bet-box input{min-height:48px;border-radius:15px;padding:12px 13px;background:rgba(3,7,18,.62);border-color:rgba(255,255,255,.10);box-shadow:inset 0 1px rgba(255,255,255,.035);font-size:15px}.bet-box input:focus{border-color:rgba(66,232,255,.55);box-shadow:0 0 0 3px rgba(66,232,255,.08),inset 0 1px rgba(255,255,255,.06)}
+.primary-btn,.cashout-btn,.hit-btn,.stand-btn,.secondary-btn{min-height:48px;border-radius:15px;font-size:12px;letter-spacing:.02em;transition:transform .14s ease,filter .14s ease,box-shadow .14s ease}.primary-btn{background:linear-gradient(135deg,#20dff6,#7c4dff);box-shadow:0 9px 28px rgba(66,232,255,.14),inset 0 1px rgba(255,255,255,.20)}.cashout-btn{background:linear-gradient(135deg,#36e09a,#139a65);box-shadow:0 9px 28px rgba(56,227,154,.12)}.primary-btn:not(:disabled):active,.cashout-btn:not(:disabled):active,.hit-btn:not(:disabled):active,.stand-btn:not(:disabled):active,.secondary-btn:not(:disabled):active{transform:scale(.97);filter:brightness(.96)}
+.quick-bets{gap:6px}.quick-bets button{min-width:52px;padding:9px 10px;border-radius:12px;background:rgba(255,255,255,.055);border-color:rgba(255,255,255,.09);font-size:11px;transition:.14s ease}.quick-bets button:active{transform:scale(.95);background:rgba(66,232,255,.10);border-color:rgba(66,232,255,.25)}
+.result{border-radius:15px;background:rgba(255,255,255,.045);border-color:rgba(255,255,255,.08);font-size:13px}.history-card{border-radius:17px;background:rgba(255,255,255,.035);border-color:rgba(255,255,255,.075)}.history-head b{font-size:12px}.history-head button{font-size:10px}
+/* Rocket */
+.rocket-compact-grid{grid-template-columns:minmax(0,1.35fr) minmax(280px,.65fr);gap:10px}.rocket-stage{padding:10px}.rocket-scene{height:330px;border-radius:22px}.rocket-multiplier{font-size:54px;top:78px}.rocket-state{top:142px}.compact-bet{grid-template-columns:1fr 1fr 1fr}.players-list{max-height:235px}
+/* Slot */
+.slot-card,.plinko-card,.wheel-card,.mines-card{max-width:760px;padding:14px}.slot-machine{min-height:300px;border-radius:25px}.slot-reel{border-radius:17px}.slot-brand{font-size:12px}.slot-payline{box-shadow:0 0 22px rgba(255,61,139,.65)}
+/* Blackjack */
+.blackjack-card{padding:14px}.bj-hero{border-radius:19px}.bj-table{border-radius:21px}.bj-seat{border-radius:16px}.hit-btn,.stand-btn{min-height:50px}
+/* Shan */
+.shan-pro-card{padding:12px}.shan-pro-table{border-radius:26px}.shan-player-seat{border-radius:16px}
+/* Accessibility / motion */
+:focus-visible{outline:2px solid rgba(66,232,255,.78);outline-offset:2px}@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
+@keyframes uiPageIn{from{opacity:.72;transform:translateY(5px)}to{opacity:1;transform:none}}
+/* Mobile */
+@media(max-width:760px){
+  .app-shell{padding:7px 7px calc(112px + env(safe-area-inset-bottom))}.topbar{top:4px;margin-bottom:8px}.avatar{width:34px;height:34px}.online-pill{padding:7px 9px}.sound-dock{top:62px}.hero-premium{min-height:82px;padding:13px 14px;border-radius:21px}.hero-premium h1{font-size:22px}.hero-premium p{display:none}
+  .game-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.game-card{min-height:104px;padding:10px 10px 30px;border-radius:18px}.game-icon{font-size:23px;margin-top:7px}.game-card h2{font-size:14px;margin:5px 0 2px}.game-card p{display:none}.game-card span:last-child{font-size:9px;left:9px;bottom:8px;padding:4px 7px}.badge{top:8px;right:8px;font-size:7px;padding:4px 6px}
+  .nav-tabs{width:calc(100% - 8px);padding:5px;gap:2px;border-radius:19px}.tab{font-size:8px!important;padding:8px 1px;border-radius:14px}.game-toolbar{top:56px}.game-toolbar h2{font-size:18px}.back-home{font-size:13px;padding:7px 9px}
+  .rocket-compact-grid{grid-template-columns:1fr}.rocket-scene{height:255px}.rocket-multiplier{font-size:40px;top:62px}.rocket-state{top:112px}.compact-bet{grid-template-columns:1fr 1fr}.compact-bet input{grid-column:1/-1}.players-list{max-height:120px}
+  .slot-card,.plinko-card,.wheel-card,.mines-card{padding:10px;border-radius:21px}.slot-machine{min-height:250px}.slot-reel{height:82px;font-size:30px}.plinko-board{height:355px}.wheel-wrap{max-width:290px;max-height:290px}
+  .bj-hero{padding:9px}.bj-hero h3{font-size:17px}.bj-table{padding:8px}.bj-seat{min-height:82px}.shan-pro-table{min-height:420px}
+}
+@media(max-width:390px){.topbar{grid-template-columns:1fr auto 1fr}.online-pill{padding:7px}.online-pill b{font-size:12px}.game-card{min-height:98px}.game-card h2{font-size:13px}.tab{font-size:7px!important}.hero-premium h1{font-size:20px}}
+@media(min-width:761px){.home-panel .game-card:first-child{grid-column:span 2}.home-panel .game-card:first-child{min-height:170px}.home-panel .game-card:first-child .game-icon{font-size:40px}.home-panel .game-card:first-child h2{font-size:21px}.home-panel .game-card:last-child{grid-column:span 2}}
