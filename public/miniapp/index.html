@@ -23,7 +23,22 @@
     .v163-list{display:grid;gap:10px}.v163-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid rgba(255,255,255,.07)}
     .v163-row:last-child{border-bottom:0}.v163-row b{color:#fff}.v163-row span{color:#7f8ba5;font-size:12px}
     .v163-chip{display:inline-flex;align-items:center;padding:6px 9px;border-radius:999px;background:rgba(90,120,255,.12);color:#aebcff;font-size:10px;font-weight:800}
-    @media(max-width:420px){.v163-grid{grid-template-columns:1fr}.v163-nav{width:calc(100vw - 14px);bottom:5px}.v163-nav .tab{font-size:10px}}
+
+    /* v16.4 — premium home dashboard layer */
+    .v164-homebar{display:grid;grid-template-columns:1.25fr .75fr;gap:10px;margin:12px 0 14px}
+    .v164-wallet,.v164-feature{position:relative;overflow:hidden;min-height:108px;padding:15px;border:1px solid rgba(255,255,255,.09);border-radius:20px;background:linear-gradient(145deg,rgba(20,26,46,.94),rgba(9,13,24,.94));box-shadow:0 12px 35px rgba(0,0,0,.22)}
+    .v164-wallet:after,.v164-feature:after{content:"";position:absolute;width:120px;height:120px;right:-55px;top:-65px;border-radius:50%;background:rgba(85,232,255,.12);filter:blur(2px)}
+    .v164-kicker{margin:0 0 6px;color:#8793ad;font-size:9px;font-weight:900;letter-spacing:.14em}
+    .v164-wallet strong{display:block;font-size:24px;line-height:1.1;color:#fff}.v164-wallet small{display:block;margin-top:7px;color:#8793ad;font-size:10px}
+    .v164-feature button{position:relative;z-index:1;margin-top:8px;border:0;border-radius:11px;padding:8px 10px;background:rgba(85,232,255,.12);color:#bdf7ff;font-size:10px;font-weight:900;cursor:pointer}
+    .v164-feature b{display:block;color:#fff;font-size:14px}.v164-feature span{display:block;margin-top:4px;color:#8793ad;font-size:10px}
+    .v164-section-head{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:16px 2px 8px}.v164-section-head h3{margin:0;color:#fff;font-size:14px}.v164-section-head span{color:#737f98;font-size:9px}
+    .v164-quick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+    .v164-quick button{min-height:58px;border:1px solid rgba(255,255,255,.08);border-radius:15px;background:rgba(255,255,255,.035);color:#fff;font-size:10px;font-weight:800;cursor:pointer}.v164-quick button:active{transform:scale(.97);background:rgba(85,232,255,.09)}.v164-quick i{display:block;font-style:normal;font-size:18px;margin-bottom:3px}
+    .v164-activity{display:grid;gap:8px}.v164-activity .v164-empty{padding:14px;border:1px dashed rgba(255,255,255,.08);border-radius:14px;color:#6f7a92;text-align:center;font-size:10px;background:rgba(255,255,255,.018)}
+    .v164-note{margin-top:10px;color:#69758e;font-size:9px;line-height:1.45}
+    @media(max-width:520px){.v164-homebar{grid-template-columns:1fr 1fr}.v164-quick{grid-template-columns:repeat(4,1fr)}.v164-quick button{font-size:9px}.v164-wallet strong{font-size:20px}}
+    @media(max-width:380px){.v164-homebar{grid-template-columns:1fr}.v164-quick button{min-height:54px}}
   </style>
 </head>
 <body>
@@ -60,6 +75,35 @@
     const tgScript=document.createElement('script');tgScript.src='https://telegram.org/js/telegram-web-app.js';document.body.appendChild(tgScript);await new Promise(r=>{tgScript.onload=r;tgScript.onerror=r});
     const appScript=document.createElement('script');appScript.src='/miniapp/assets/app.js?v=premium-v15-shan-pro';document.body.appendChild(appScript);
     await new Promise(r=>{appScript.onload=r;appScript.onerror=r});
+
+    // v16.4: enrich the existing live Home panel without replacing legacy game markup or APIs.
+    const home=document.getElementById('home');
+    if(home){
+      const grid=home.querySelector('.game-grid');
+      if(grid){
+        const dashboard=document.createElement('div');
+        dashboard.className='v164-dashboard';
+        dashboard.innerHTML=`
+          <div class="v164-homebar">
+            <div class="v164-wallet"><p class="v164-kicker">AVAILABLE WALLET</p><strong id="v164WalletValue">—</strong><small>Live balance from your Telegram session</small></div>
+            <div class="v164-feature"><p class="v164-kicker">FEATURED</p><b>🚀 Rocket Crash</b><span>Fast rounds • live table</span><button data-open="crash" type="button">PLAY NOW ›</button></div>
+          </div>
+          <div class="v164-section-head"><h3>Quick Launch</h3><span>7 games</span></div>
+          <div class="v164-quick">
+            <button data-open="crash" type="button"><i>🚀</i>Rocket</button>
+            <button data-open="slot" type="button"><i>🎰</i>Slot</button>
+            <button data-open="blackjack" type="button"><i>🃏</i>Blackjack</button>
+            <button data-open="shan" type="button"><i>🎴</i>Shan</button>
+          </div>
+          <div class="v164-section-head"><h3>Recent Activity</h3><span>Verified only</span></div>
+          <div class="v164-activity"><div class="v164-empty">Your recent game activity will appear here when the backend exposes verified activity data.</div></div>
+          <p class="v164-note">No fake balance, ranking, online-player or activity numbers are generated by this dashboard.</p>`;
+        home.insertBefore(dashboard,grid);
+        const wallet=()=>{const src=document.getElementById('balanceText');const out=document.getElementById('v164WalletValue');if(src&&out)out.textContent=src.textContent||'—'};
+        wallet();setInterval(wallet,1200);
+      }
+    }
+
     const syncProfile=()=>{const n=document.getElementById('playerNameText'),b=document.getElementById('balanceText');if(n)document.getElementById('v163ProfileName').textContent=n.textContent||'Bika Player';if(b)document.getElementById('v163ProfileBalance').textContent=b.textContent||'—'};
     syncProfile();setInterval(syncProfile,1500);
   })().catch(err=>{document.getElementById('legacyRoot').innerHTML=`<section class="panel active" style="display:block;padding:24px"><div class="v163-card"><h2>Mini App failed to load</h2><p>${String(err.message||err).replace(/[<>&]/g,'')}</p></div></section>`});
