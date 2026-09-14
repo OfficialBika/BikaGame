@@ -1,5 +1,6 @@
 /* BIKA GAME — Premium Flow v20
- * Transaction/result feedback rail. UI-only; observes existing fetch calls without changing API payloads.
+ * Transaction/result feedback rail. UI-only; observes existing game mutation fetch calls.
+ * Passive polling/status/history/config requests are intentionally ignored.
  */
 (function premiumFlowV20(){
   'use strict';
@@ -7,6 +8,15 @@
   window.__bikaFlowV20 = true;
 
   const API_PREFIX = '/api/mini/';
+  const MUTATION_PATHS = [
+    '/slot/spin',
+    '/crash/start', '/crash/bet', '/crash/cashout',
+    '/blackjack/join', '/blackjack/hit', '/blackjack/stand',
+    '/shan/create', '/shan/join', '/shan/draw', '/shan/stay', '/shan/deal',
+    '/plinko/drop',
+    '/wheel/daily-spin', '/wheel/spin',
+    '/mines/start', '/mines/open', '/mines/cashout'
+  ];
   const state = { active: 0, timer: null };
   const fmt = n => Number(n || 0).toLocaleString('en-US');
   const balanceKeys = ['balance','wallet','credits','coins','newBalance','new_balance'];
@@ -20,6 +30,11 @@
       else if (kind === 'success') h.notificationOccurred?.('success');
       else h.impactOccurred?.('light');
     } catch (_) {}
+  }
+
+  function isMutationPath(path){
+    const p = String(path || '').split('?')[0].toLowerCase();
+    return p.startsWith(API_PREFIX) && MUTATION_PATHS.some(s => p.endsWith(s));
   }
 
   function ensure(){
@@ -46,18 +61,18 @@
 
   function gameFromPath(path){
     const p = String(path || '').toLowerCase();
-    if (p.includes('blackjack') || p.includes('/bj')) return 'BLACKJACK';
-    if (p.includes('shan') || p.includes('skm')) return 'SHAN';
-    if (p.includes('crash') || p.includes('rocket')) return 'ROCKET';
-    if (p.includes('slot')) return 'SLOT';
-    if (p.includes('plinko')) return 'PLINKO';
-    if (p.includes('wheel')) return 'WHEEL';
-    if (p.includes('mine')) return 'MINES';
+    if (p.includes('blackjack')) return 'BLACKJACK';
+    if (p.includes('/shan/')) return 'SHAN';
+    if (p.includes('/crash/')) return 'ROCKET';
+    if (p.includes('/slot/')) return 'SLOT';
+    if (p.includes('/plinko/')) return 'PLINKO';
+    if (p.includes('/wheel/')) return 'WHEEL';
+    if (p.includes('/mines/')) return 'MINES';
     return 'GAME';
   }
 
   function findBalance(value, depth = 0){
-    if (!value || depth > 2 || typeof value !== 'object') return null;
+    if (!value || depth > 3 || typeof value !== 'object') return null;
     for (const k of balanceKeys) {
       if (Object.prototype.hasOwnProperty.call(value,k) && Number.isFinite(Number(value[k]))) return Number(value[k]);
     }
@@ -84,7 +99,7 @@
   }
 
   async function inspectResponse(response, path, started){
-    if (!response || !String(path).includes(API_PREFIX)) return response;
+    if (!response || !isMutationPath(path)) return response;
     const elapsed = Math.max(0, Math.round(performance.now() - started));
     let data = null;
     try { data = await response.clone().json(); } catch (_) {}
@@ -108,25 +123,25 @@
     const original = window.fetch.bind(window);
     window.fetch = async function(input, init){
       const path = typeof input === 'string' ? input : input?.url || '';
-      const isApi = String(path).includes(API_PREFIX);
+      const isMutation = isMutationPath(path);
       const started = performance.now();
-      if (isApi) {
+      if (isMutation) {
         state.active += 1;
         show('PROCESSING', `${gameFromPath(path)} • please wait`, 'busy', 0);
       }
       try {
         const response = await original(input, init);
-        if (isApi) inspectResponse(response, path, started).catch(()=>null);
+        if (isMutation) inspectResponse(response, path, started).catch(()=>null);
         return response;
       } catch (err) {
-        if (isApi) {
+        if (isMutation) {
           show('NETWORK ERROR', `${gameFromPath(path)} • connection failed`, 'error', 2600);
           haptic('error');
           window.dispatchEvent(new CustomEvent('bika:api-result',{detail:{path,ok:false,error:err}}));
         }
         throw err;
       } finally {
-        if (isApi) state.active = Math.max(0, state.active - 1);
+        if (isMutation) state.active = Math.max(0, state.active - 1);
       }
     };
     window.__bikaFetchV20Wrapped = true;
