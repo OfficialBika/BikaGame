@@ -110,7 +110,6 @@ function loadAllModules(targetBot) {
   loadHandlers(targetBot);
 }
 
-
 function registerRuntimeCommands(targetBot) {
   const modulePath = './src/commands/admin/promoRtp';
 
@@ -197,7 +196,23 @@ function createApp() {
       res.setHeader('Expires', '0');
     },
   }));
+
   registerMiniAppRoutes(app, { bot, publicDir: miniAppPublicDir });
+
+  // The premium shell and its legacy source live directly under public/miniapp.
+  // Keep /miniapp/assets compatibility above, while explicitly serving the
+  // root-level HTML/CSS/JS files used by the premium wrapper.
+  app.use('/miniapp', express.static(miniAppPublicDir, {
+    index: false,
+    maxAge: 0,
+    etag: false,
+    lastModified: false,
+    setHeaders(res) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    },
+  }));
 
   app.get('/', (req, res) => {
     return res.status(200).send('BIKA Bot OK');
