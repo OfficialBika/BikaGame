@@ -1,0 +1,2 @@
+/* Compatibility bridge for the legacy /miniapp/assets/style.css URL. */
+@import url('/miniapp/style.css?v=premium-v15-shan-pro');
