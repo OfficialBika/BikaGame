@@ -73,15 +73,14 @@
   function syncBalance(data){
     const value = findBalance(data);
     if (value === null) return;
-    const text = `${fmt(value)} ${window.__bikaCoin || '$'}`;
-    const a = document.getElementById('balanceText');
-    const b = document.getElementById('stickyBalanceText');
-    if (a) a.textContent = text;
-    if (b) b.textContent = text;
-    const c = document.getElementById('v164WalletValue');
-    if (c) c.textContent = text;
-    const d = document.getElementById('v163ProfileBalance');
-    if (d) d.textContent = text;
+    const existing = document.getElementById('balanceText')?.textContent || '';
+    const match = existing.match(/\s([^\d\s][^\d]*)$/);
+    const suffix = match ? ` ${match[1].trim()}` : '';
+    const text = `${fmt(value)}${suffix}`;
+    ['balanceText','stickyBalanceText','v164WalletValue','v163ProfileBalance'].forEach(id=>{
+      const el=document.getElementById(id);
+      if (el) el.textContent=text;
+    });
   }
 
   async function inspectResponse(response, path, started){
@@ -97,8 +96,7 @@
       haptic('error');
     } else {
       syncBalance(data);
-      const detail = `${game} • ${elapsed}ms`;
-      show('ACTION COMPLETE', detail, 'success', 1300);
+      show('ACTION COMPLETE', `${game} • ${elapsed}ms`, 'success', 1300);
       haptic('success');
     }
     window.dispatchEvent(new CustomEvent('bika:api-result',{detail:{path,ok:!failed,data,elapsed}}));
