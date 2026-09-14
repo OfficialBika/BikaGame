@@ -37,6 +37,16 @@
     return p.startsWith(API_PREFIX) && MUTATION_PATHS.some(s => p.endsWith(s));
   }
 
+  function requestMethod(input, init){
+    const explicit = init?.method || input?.method || 'GET';
+    return String(explicit).toUpperCase();
+  }
+
+  function isMutationRequest(input, init){
+    const path = typeof input === 'string' ? input : input?.url || '';
+    return requestMethod(input, init) === 'POST' && isMutationPath(path);
+  }
+
   function ensure(){
     let el = document.getElementById('v20-feedback');
     if (el) return el;
@@ -98,6 +108,24 @@
     });
   }
 
+  function resultDetail(data){
+    if (!data || typeof data !== 'object') return '';
+    const result = data.result ?? data.outcome ?? data.status;
+    const payout = Number.isFinite(Number(data.payout)) ? Number(data.payout) : null;
+    const net = Number.isFinite(Number(data.net)) ? Number(data.net) : null;
+    const multiplier = Number.isFinite(Number(data.multiplier)) ? Number(data.multiplier) : null;
+    const reward = Number.isFinite(Number(data.reward)) ? Number(data.reward) : null;
+    const bucket = data.bucket?.label || data.label || '';
+    const parts = [];
+    if (result && typeof result !== 'object') parts.push(String(result));
+    if (bucket) parts.push(String(bucket));
+    if (multiplier !== null) parts.push(`${multiplier}x`);
+    if (payout !== null) parts.push(`payout ${fmt(payout)}`);
+    else if (reward !== null) parts.push(`reward ${fmt(reward)}`);
+    if (net !== null) parts.push(`net ${net >= 0 ? '+' : ''}${fmt(net)}`);
+    return parts.slice(0, 4).join(' • ');
+  }
+
   async function inspectResponse(response, path, started){
     if (!response || !isMutationPath(path)) return response;
     const elapsed = Math.max(0, Math.round(performance.now() - started));
@@ -111,7 +139,8 @@
       haptic('error');
     } else {
       syncBalance(data);
-      show('ACTION COMPLETE', `${game} • ${elapsed}ms`, 'success', 1300);
+      const detail = resultDetail(data);
+      show('ACTION COMPLETE', `${game} • ${detail || `${elapsed}ms`}`, 'success', 1500);
       haptic('success');
     }
     window.dispatchEvent(new CustomEvent('bika:api-result',{detail:{path,ok:!failed,data,elapsed}}));
@@ -123,7 +152,7 @@
     const original = window.fetch.bind(window);
     window.fetch = async function(input, init){
       const path = typeof input === 'string' ? input : input?.url || '';
-      const isMutation = isMutationPath(path);
+      const isMutation = isMutationRequest(input, init);
       const started = performance.now();
       if (isMutation) {
         state.active += 1;
