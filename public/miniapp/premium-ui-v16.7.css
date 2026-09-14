@@ -2,6 +2,8 @@
    Interaction polish layer. No game logic or API changes.
 */
 
+@import url('/miniapp/premium-ui-v16.8.css?v=1');
+
 /* ===== v16.7 TOUCH + FEEDBACK ===== */
 button,
 input,
