@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="/miniapp/assets/style.css?v=premium-v15-shan-pro" />
   <link rel="stylesheet" href="/miniapp/premium-ui-v16.css?v=1" />
   <link rel="stylesheet" href="/miniapp/premium-ui-v16.7.css?v=1" />
+  <link rel="stylesheet" href="/miniapp/premium-ux-v17.css?v=1" />
   <style>
     html,body{margin:0;min-height:100%;background:#050812}
     #legacyRoot{min-height:100vh}
@@ -77,11 +78,12 @@
     const appScript=document.createElement('script');appScript.src='/miniapp/assets/app.js?v=premium-v15-shan-pro';document.body.appendChild(appScript);
     await new Promise(r=>{appScript.onload=r;appScript.onerror=r});
 
-    // v16.9: coordinate the existing AudioFX controls after the game engine is ready.
     const audioScript=document.createElement('script');audioScript.src='/miniapp/premium-audio-v16.9.js?v=1';document.body.appendChild(audioScript);
     await new Promise(r=>{audioScript.onload=r;audioScript.onerror=r});
 
-    // v16.4: enrich the existing live Home panel without replacing legacy game markup or APIs.
+    const uxScript=document.createElement('script');uxScript.src='/miniapp/premium-ux-v17.js?v=1';document.body.appendChild(uxScript);
+    await new Promise(r=>{uxScript.onload=r;uxScript.onerror=r});
+
     const home=document.getElementById('home');
     if(home){
       const grid=home.querySelector('.game-grid');
