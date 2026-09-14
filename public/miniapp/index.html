@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/miniapp/premium-ui-v16.7.css?v=1" />
   <link rel="stylesheet" href="/miniapp/premium-ux-v17.css?v=1" />
   <link rel="stylesheet" href="/miniapp/premium-flow-v18.css?v=1" />
+  <link rel="stylesheet" href="/miniapp/premium-flow-v19.css?v=1" />
   <style>
     html,body{margin:0;min-height:100%;background:#050812}
     #legacyRoot{min-height:100vh}
@@ -85,6 +86,10 @@
 
     const flowScript=document.createElement('script');flowScript.src='/miniapp/premium-flow-v18.js?v=1';document.body.appendChild(flowScript);
     await new Promise(r=>{flowScript.onload=r;flowScript.onerror=r});
+
+    const flow19Style=document.createElement('link');flow19Style.rel='stylesheet';flow19Style.href='/miniapp/premium-flow-v19.css?v=1';document.head.appendChild(flow19Style);
+    const flow19Script=document.createElement('script');flow19Script.src='/miniapp/premium-flow-v19.js?v=1';document.body.appendChild(flow19Script);
+    await new Promise(r=>{flow19Script.onload=r;flow19Script.onerror=r});
 
     const home=document.getElementById('home');
     if(home){
