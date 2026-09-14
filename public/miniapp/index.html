@@ -3,107 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+  <meta http-equiv="Pragma" content="no-cache" />
   <title>Bika Game App</title>
-  <link rel="stylesheet" href="/miniapp/assets/style.css?v=premium-v15-shan-pro" />
-  <link rel="stylesheet" href="/miniapp/premium-ui-v16.css?v=1" />
-  <link rel="stylesheet" href="/miniapp/premium-ui-v16.7.css?v=1" />
-  <link rel="stylesheet" href="/miniapp/premium-ux-v17.css?v=1" />
-  <link rel="stylesheet" href="/miniapp/premium-flow-v18.css?v=1" />
-  <link rel="stylesheet" href="/miniapp/premium-flow-v19.css?v=1" />
-  <style>
-    html,body{margin:0;min-height:100%;background:#050812}
-    #legacyRoot{min-height:100vh}
-    #legacyRoot>.nav-tabs{display:none!important}
-    .v163-nav{position:fixed;z-index:9999;left:50%;bottom:max(10px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(96vw,560px);display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:7px;border:1px solid rgba(255,255,255,.1);border-radius:22px;background:rgba(7,10,20,.88);backdrop-filter:blur(22px);box-shadow:0 18px 55px rgba(0,0,0,.42)}
-    .v163-nav .tab{min-height:48px;border:0;border-radius:16px;background:transparent;color:#8f9bb5;font-weight:800;font-size:11px;letter-spacing:.01em;cursor:pointer}
-    .v163-nav .tab.active{color:#fff;background:linear-gradient(135deg,rgba(71,111,255,.28),rgba(173,74,255,.2));box-shadow:inset 0 0 0 1px rgba(122,151,255,.18)}
-    .v163-panel{display:none!important;padding-bottom:100px}
-    .v163-panel.active{display:block!important}
-    .v163-card{padding:18px;border:1px solid rgba(255,255,255,.09);border-radius:24px;background:linear-gradient(145deg,rgba(16,22,38,.9),rgba(8,12,23,.88));box-shadow:0 16px 45px rgba(0,0,0,.24)}
-    .v163-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-    .v163-action{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-height:104px;padding:16px;border:1px solid rgba(255,255,255,.08);border-radius:20px;background:rgba(255,255,255,.035);color:#fff;text-align:left;font:inherit;cursor:pointer}
-    .v163-action b{font-size:15px}.v163-action span{font-size:11px;color:#8f9bb5}
-    .v163-title{margin:0 0 6px;color:#fff;font-size:24px}.v163-sub{margin:0 0 16px;color:#8f9bb5;font-size:13px;line-height:1.5}
-    .v163-list{display:grid;gap:10px}.v163-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid rgba(255,255,255,.07)}
-    .v163-row:last-child{border-bottom:0}.v163-row b{color:#fff}.v163-row span{color:#7f8ba5;font-size:12px}
-    .v163-chip{display:inline-flex;align-items:center;padding:6px 9px;border-radius:999px;background:rgba(90,120,255,.12);color:#aebcff;font-size:10px;font-weight:800}
-    .v164-homebar{display:grid;grid-template-columns:1.25fr .75fr;gap:10px;margin:12px 0 14px}
-    .v164-wallet,.v164-feature{position:relative;overflow:hidden;min-height:108px;padding:15px;border:1px solid rgba(255,255,255,.09);border-radius:20px;background:linear-gradient(145deg,rgba(20,26,46,.94),rgba(9,13,24,.94));box-shadow:0 12px 35px rgba(0,0,0,.22)}
-    .v164-wallet:after,.v164-feature:after{content:"";position:absolute;width:120px;height:120px;right:-55px;top:-65px;border-radius:50%;background:rgba(85,232,255,.12);filter:blur(2px)}
-    .v164-kicker{margin:0 0 6px;color:#8793ad;font-size:9px;font-weight:900;letter-spacing:.14em}
-    .v164-wallet strong{display:block;font-size:24px;line-height:1.1;color:#fff}.v164-wallet small{display:block;margin-top:7px;color:#8793ad;font-size:10px}
-    .v164-feature button{position:relative;z-index:1;margin-top:8px;border:0;border-radius:11px;padding:8px 10px;background:rgba(85,232,255,.12);color:#bdf7ff;font-size:10px;font-weight:900;cursor:pointer}
-    .v164-feature b{display:block;color:#fff;font-size:14px}.v164-feature span{display:block;margin-top:4px;color:#8793ad;font-size:10px}
-    .v164-section-head{display:flex;align-items:end;justify-content:space-between;gap:12px;margin:16px 2px 8px}.v164-section-head h3{margin:0;color:#fff;font-size:14px}.v164-section-head span{color:#737f98;font-size:9px}
-    .v164-quick{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-    .v164-quick button{min-height:58px;border:1px solid rgba(255,255,255,.08);border-radius:15px;background:rgba(255,255,255,.035);color:#fff;font-size:10px;font-weight:800;cursor:pointer}.v164-quick button:active{transform:scale(.97);background:rgba(85,232,255,.09)}.v164-quick i{display:block;font-style:normal;font-size:18px;margin-bottom:3px}
-    .v164-activity{display:grid;gap:8px}.v164-activity .v164-empty{padding:14px;border:1px dashed rgba(255,255,255,.08);border-radius:14px;color:#6f7a92;text-align:center;font-size:10px;background:rgba(255,255,255,.018)}
-    .v164-note{margin-top:10px;color:#69758e;font-size:9px;line-height:1.45}
-    @media(max-width:520px){.v164-homebar{grid-template-columns:1fr 1fr}.v164-quick{grid-template-columns:repeat(4,1fr)}.v164-quick button{font-size:9px}.v164-wallet strong{font-size:20px}}
-    @media(max-width:380px){.v164-homebar{grid-template-columns:1fr}.v164-quick button{min-height:54px}}
-  </style>
+  <script>
+    // Stable runtime entry: the canonical legacy page owns the DOM and game handlers.
+    // Premium wrapper layers are intentionally bypassed until interaction is verified.
+    window.location.replace('/miniapp/index.legacy.html?stable=1&v=20260914');
+  </script>
 </head>
 <body>
-  <div id="legacyRoot"></div>
-
-  <nav class="v163-nav" aria-label="Primary navigation">
-    <button class="tab active" data-open="home" type="button">⌂<br>Home</button>
-    <button class="tab" data-open="games" type="button">◈<br>Games</button>
-    <button class="tab" data-open="history" type="button">◷<br>History</button>
-    <button class="tab" data-open="ranking" type="button">★<br>Ranking</button>
-    <button class="tab" data-open="profile" type="button">●<br>Profile</button>
-  </nav>
-
-  <script>
-  (async function bootPremiumV163(){
-    const root=document.getElementById('legacyRoot');
-    const source=await fetch('/miniapp/index.legacy.html?v=1',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('Legacy Mini App unavailable');return r.text()});
-    const doc=new DOMParser().parseFromString(source,'text/html');
-    document.title=doc.title||'Bika Game App';
-    const legacyStyles=[...doc.head.querySelectorAll('link[rel="stylesheet"]')];
-    legacyStyles.forEach(link=>{if(![...document.querySelectorAll('link[rel="stylesheet"]')].some(x=>x.href===new URL(link.getAttribute('href'),location.href).href)){document.head.appendChild(link.cloneNode(true))}});
-    [...doc.body.children].forEach(el=>{if(el.tagName!=='SCRIPT')root.appendChild(el.cloneNode(true))});
-
-    const makePanel=(id,title,sub,inner)=>{const s=document.createElement('section');s.id=id;s.className='panel v163-panel';s.innerHTML=`<div class="v163-card"><h1 class="v163-title">${title}</h1><p class="v163-sub">${sub}</p>${inner}</div>`;root.appendChild(s);return s};
-    makePanel('games','Game Center','All Bika games in one clean launcher.','<div class="v163-grid">'+[
-      ['🚀','Rocket Crash','crash','Live multiplayer rounds'],['🎰','Premium Slot','slot','Neon reels & jackpot'],['🃏','Blackjack','blackjack','Private 5-player table'],['🎴','Shan Koe Mee','shan','Human banker table'],['🟡','Plinko','plinko','Multiplier lane drop'],['🎡','Lucky Wheel','wheel','Daily bonus spin'],['💣','Web Mines','mines','Open gems, avoid mines']
-    ].map(x=>`<button class="v163-action" data-open="${x[2]}" type="button"><b>${x[0]} ${x[1]}</b><span>${x[3]}</span></button>`).join('')+'</div>');
-    makePanel('history','History Center','Choose a game to view its existing verified history. No fake numbers are shown.','<div class="v163-list">'+[
-      ['🚀','Rocket History','crash'],['🎰','Slot History','slot'],['🃏','Blackjack History','blackjack'],['🎴','Shan History','shan'],['🟡','Plinko History','plinko'],['🎡','Wheel History','wheel'],['💣','Mines History','mines']
-    ].map(x=>`<button class="v163-action" style="min-height:auto;flex-direction:row;align-items:center;justify-content:space-between" data-open="${x[2]}" type="button"><b>${x[0]} ${x[1]}</b><span>Open ›</span></button>`).join('')+'</div>');
-    makePanel('ranking','Ranking','Leaderboard shell is ready for real backend data. Until a ranking API is exposed, no fabricated scores are displayed.','<div class="v163-list"><div class="v163-row"><div><b>Leaderboard</b><br><span>Waiting for verified ranking data</span></div><span class="v163-chip">DATA SAFE</span></div><div class="v163-row"><div><b>Daily / Weekly</b><br><span>Can be wired without changing game APIs</span></div><span class="v163-chip">READY</span></div></div>');
-    makePanel('profile','Profile','Your Telegram player identity and wallet are shown from the existing live session.','<div class="v163-list"><div class="v163-row"><div><span>PLAYER</span><br><b id="v163ProfileName">Loading...</b></div><span class="v163-chip">ACCOUNT</span></div><div class="v163-row"><div><span>BALANCE</span><br><b id="v163ProfileBalance">—</b></div><span class="v163-chip">WALLET</span></div></div>');
-
-    const tgScript=document.createElement('script');tgScript.src='https://telegram.org/js/telegram-web-app.js';document.body.appendChild(tgScript);await new Promise(r=>{tgScript.onload=r;tgScript.onerror=r});
-    const appScript=document.createElement('script');appScript.src='/miniapp/app.js?v=premium-v15-shan-pro';document.body.appendChild(appScript);
-    await new Promise(r=>{appScript.onload=r;appScript.onerror=r});
-
-    const audioScript=document.createElement('script');audioScript.src='/miniapp/premium-audio-v16.9.js?v=1';document.body.appendChild(audioScript);
-    await new Promise(r=>{audioScript.onload=r;audioScript.onerror=r});
-
-    const uxScript=document.createElement('script');uxScript.src='/miniapp/premium-ux-v17.js?v=1';document.body.appendChild(uxScript);
-    await new Promise(r=>{uxScript.onload=r;uxScript.onerror=r});
-
-    const flowScript=document.createElement('script');flowScript.src='/miniapp/premium-flow-v18.js?v=1';document.body.appendChild(flowScript);
-    await new Promise(r=>{flowScript.onload=r;flowScript.onerror=r});
-
-    const flow19Style=document.createElement('link');flow19Style.rel='stylesheet';flow19Style.href='/miniapp/premium-flow-v19.css?v=1';document.head.appendChild(flow19Style);
-    const flow19Script=document.createElement('script');flow19Script.src='/miniapp/premium-flow-v19.js?v=1';document.body.appendChild(flow19Script);
-    await new Promise(r=>{flow19Script.onload=r;flow19Script.onerror=r});
-
-    const home=document.getElementById('home');
-    if(home){
-      const grid=home.querySelector('.game-grid');
-      if(grid){
-        const dashboard=document.createElement('div');
-        dashboard.className='v164-dashboard';
-        dashboard.innerHTML=`<div class="v164-homebar"><div class="v164-wallet"><p class="v164-kicker">AVAILABLE WALLET</p><strong id="v164WalletValue">—</strong><small>Live balance from your Telegram session</small></div><div class="v164-feature"><p class="v164-kicker">FEATURED</p><b>🚀 Rocket Crash</b><span>Fast rounds • live table</span><button data-open="crash" type="button">PLAY NOW ›</button></div></div><div class="v164-section-head"><h3>Quick Launch</h3><span>7 games</span></div><div class="v164-quick"><button data-open="crash" type="button"><i>🚀</i>Rocket</button><button data-open="slot" type="button"><i>🎰</i>Slot</button><button data-open="blackjack" type="button"><i>🃏</i>Blackjack</button><button data-open="shan" type="button"><i>🎴</i>Shan</button></div><div class="v164-section-head"><h3>Recent Activity</h3><span>Verified only</span></div><div class="v164-activity"><div class="v164-empty">Your recent game activity will appear here when the backend exposes verified activity data.</div></div><p class="v164-note">No fake balance, ranking, online-player or activity numbers are generated by this dashboard.</p>`;
-        home.insertBefore(dashboard,grid);
-        const wallet=()=>{const src=document.getElementById('balanceText'),out=document.getElementById('v164WalletValue');if(src&&out)out.textContent=src.textContent||'—'};wallet();setInterval(wallet,1200);
-      }
-    }
-    const syncProfile=()=>{const n=document.getElementById('playerNameText'),b=document.getElementById('balanceText');if(n)document.getElementById('v163ProfileName').textContent=n.textContent||'Bika Player';if(b)document.getElementById('v163ProfileBalance').textContent=b.textContent||'—'};syncProfile();setInterval(syncProfile,1500);
-  })().catch(err=>{document.getElementById('legacyRoot').innerHTML=`<section class="panel active" style="display:block;padding:24px"><div class="v163-card"><h2>Mini App failed to load</h2><p>${String(err.message||err).replace(/[<>&]/g,'')}</p></div></section>`});
-  </script>
+  <noscript>Please enable JavaScript to use Bika Game.</noscript>
 </body>
 </html>
