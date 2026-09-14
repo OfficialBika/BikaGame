@@ -1,0 +1,13 @@
+/* BIKA GAME — Premium Mini App UI v16.8
+ * Interaction feedback layer. Existing layout/game contracts stay intact.
+ */
+button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.v168-selected{border-color:rgba(85,232,255,.55)!important;background:rgba(85,232,255,.13)!important;color:#d9fbff!important;box-shadow:inset 0 0 0 1px rgba(85,232,255,.16),0 6px 18px rgba(85,232,255,.08)!important;transform:translateY(-1px)}
+.v168-result-pulse{animation:v168ResultPulse .34s ease both}
+.v168-balance-flash{animation:v168BalanceFlash .55s ease both}
+button:focus-visible,input:focus-visible{outline:2px solid rgba(85,232,255,.78);outline-offset:2px}
+button:disabled{filter:saturate(.55)}
+@keyframes v168ResultPulse{0%{opacity:.55;transform:translateY(4px) scale(.99)}100%{opacity:1;transform:none}}
+@keyframes v168BalanceFlash{0%{filter:brightness(1);transform:scale(1)}35%{filter:brightness(1.45);transform:scale(1.035)}100%{filter:brightness(1);transform:scale(1)}}
+@media(max-width:520px){.v168-selected{transform:none}.result{scroll-margin-bottom:118px}}
+@media(prefers-reduced-motion:reduce){.v168-result-pulse,.v168-balance-flash{animation:none}}
