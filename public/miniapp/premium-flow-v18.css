@@ -1,0 +1,74 @@
+/* BIKA GAME — Premium Flow v18 */
+
+/* Action lifecycle */
+button.flow-ready,
+[role="button"].flow-ready { position: relative; }
+
+button.flow-busy,
+[role="button"].flow-busy {
+  opacity: .78;
+  cursor: wait;
+  filter: saturate(.82);
+}
+
+button.flow-busy::after,
+[role="button"].flow-busy::after {
+  content: '';
+  display: inline-block;
+  width: .72em;
+  height: .72em;
+  margin-left: .5em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -.08em;
+  animation: bika-flow-spin .72s linear infinite;
+}
+
+button.flow-pressed,
+[role="button"].flow-pressed {
+  filter: brightness(1.08);
+}
+
+/* Result lifecycle */
+.flow-has-result {
+  animation: bika-flow-result .22s ease-out;
+}
+
+.flow-success {
+  box-shadow: 0 0 0 1px rgba(87, 255, 174, .22), 0 10px 28px rgba(87, 255, 174, .08);
+}
+
+.flow-error {
+  box-shadow: 0 0 0 1px rgba(255, 93, 115, .24), 0 10px 28px rgba(255, 93, 115, .08);
+}
+
+/* Make live state transitions easier to scan */
+.rocket-scene.running .cashout-btn,
+#cashoutBtn:not(:disabled) {
+  animation: bika-flow-pulse 1.35s ease-in-out infinite;
+}
+
+#cashoutBtn:disabled { animation: none; }
+
+/* Result/history readability */
+.history-item.flow-success strong { font-weight: 900; }
+.history-item.flow-error strong { font-weight: 900; }
+
+@keyframes bika-flow-spin { to { transform: rotate(360deg); } }
+@keyframes bika-flow-result {
+  from { opacity: .65; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes bika-flow-pulse {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button.flow-busy::after,
+  [role="button"].flow-busy::after,
+  .flow-has-result,
+  .rocket-scene.running .cashout-btn,
+  #cashoutBtn:not(:disabled) { animation: none !important; }
+}
