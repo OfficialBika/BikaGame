@@ -77,6 +77,10 @@
     const appScript=document.createElement('script');appScript.src='/miniapp/assets/app.js?v=premium-v15-shan-pro';document.body.appendChild(appScript);
     await new Promise(r=>{appScript.onload=r;appScript.onerror=r});
 
+    // v16.9: coordinate the existing AudioFX controls after the game engine is ready.
+    const audioScript=document.createElement('script');audioScript.src='/miniapp/premium-audio-v16.9.js?v=1';document.body.appendChild(audioScript);
+    await new Promise(r=>{audioScript.onload=r;audioScript.onerror=r});
+
     // v16.4: enrich the existing live Home panel without replacing legacy game markup or APIs.
     const home=document.getElementById('home');
     if(home){
@@ -108,7 +112,6 @@
     const syncProfile=()=>{const n=document.getElementById('playerNameText'),b=document.getElementById('balanceText');if(n)document.getElementById('v163ProfileName').textContent=n.textContent||'Bika Player';if(b)document.getElementById('v163ProfileBalance').textContent=b.textContent||'—'};
     syncProfile();setInterval(syncProfile,1500);
   })().catch(err=>{document.getElementById('legacyRoot').innerHTML=`<section class="panel active" style="display:block;padding:24px"><div class="v163-card"><h2>Mini App failed to load</h2><p>${String(err.message||err).replace(/[<>&]/g,'')}</p></div></section>`});
-  })();
   </script>
 </body>
 </html>
