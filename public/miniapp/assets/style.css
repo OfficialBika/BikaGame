@@ -1,2 +1,27 @@
-/* Compatibility bridge for the legacy /miniapp/assets/style.css URL. */
+/* BIKA GAME — compatibility stylesheet + 3D Rocket presentation */
 @import url('/miniapp/style.css?v=premium-v15-shan-pro');
+
+/* 3D ROCKET — restrained, premium, hardware-like presentation */
+.rocket-scene{perspective:1100px!important;isolation:isolate!important;background:radial-gradient(circle at 68% 22%,rgba(83,151,190,.18),transparent 22%),radial-gradient(circle at 28% 78%,rgba(22,110,91,.12),transparent 30%),linear-gradient(180deg,#07131b 0%,#05090d 70%,#030506 100%)!important}
+.rocket-scene:before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(125deg,transparent 0 48%,rgba(255,255,255,.025) 50%,transparent 53%),radial-gradient(circle at 50% 105%,rgba(70,150,180,.08),transparent 35%);z-index:0}
+.rocket-scene .ship{width:58px!important;height:112px!important;transform-style:preserve-3d!important;transform:rotate(38deg) rotateY(-18deg) rotateX(10deg)!important;filter:drop-shadow(10px 16px 12px rgba(0,0,0,.5))!important;z-index:5!important}
+.rocket-scene .ship-body{inset:0!important;border:1px solid rgba(255,255,255,.72)!important;border-radius:48% 48% 22% 22%!important;background:linear-gradient(90deg,#39454d 0%,#aebbc2 19%,#f6f7f3 45%,#89979f 69%,#28343b 100%)!important;box-shadow:inset 8px 0 10px rgba(255,255,255,.18),inset -9px 0 13px rgba(0,0,0,.34),0 4px 9px rgba(0,0,0,.45)!important;transform:translateZ(8px)!important}
+.rocket-scene .ship-body:after{content:"";position:absolute;left:7px;right:7px;bottom:20px;height:25px;border-radius:50%;background:linear-gradient(90deg,#202c33,#64757d,#1c272d);border:1px solid rgba(255,255,255,.18);box-shadow:inset 0 4px 5px rgba(255,255,255,.14)}
+.rocket-scene .ship-body:before{top:12px!important;width:27px!important;height:27px!important;background:radial-gradient(circle at 35% 30%,#b9f3ff 0 9%,#3d91b1 20%,#0b2430 57%,#050c11 100%)!important;border:4px solid #8e9ba1!important;box-shadow:inset 0 0 7px rgba(120,225,255,.5),0 2px 5px rgba(0,0,0,.4)!important}
+.rocket-scene .ship-body span:before,.rocket-scene .ship-body span:after{bottom:13px!important;width:22px!important;height:38px!important;background:linear-gradient(180deg,#65747b,#202b31)!important;border:1px solid rgba(255,255,255,.2)!important;box-shadow:inset 3px 0 4px rgba(255,255,255,.12)!important}
+.rocket-scene .ship-body span:before{left:-15px!important;transform:skewY(-28deg) rotateY(-18deg)!important}.rocket-scene .ship-body span:after{right:-15px!important;transform:skewY(28deg) rotateY(18deg)!important}
+.rocket-scene .flame{bottom:-48px!important;width:30px!important;height:62px!important;background:radial-gradient(ellipse at 50% 0,#ffffff 0 8%,#b9efff 12%,#4db8df 30%,#176f91 52%,transparent 72%)!important;filter:drop-shadow(0 0 15px rgba(57,188,232,.55))!important;animation:rocketFlame3d .09s infinite alternate!important;transform:translateX(-50%) translateZ(4px)!important}
+@keyframes rocketFlame3d{from{height:45px;opacity:.72;transform:translateX(-50%) scaleX(.82)}to{height:68px;opacity:1;transform:translateX(-50%) scaleX(1.12)}}
+.rocket-scene .flight-path path{stroke:rgba(102,205,220,.24)!important;stroke-width:2!important;stroke-dasharray:4 12!important}
+.rocket-scene .planet{width:78px!important;height:78px!important;background:radial-gradient(circle at 30% 28%,#667983 0 7%,#34464f 30%,#16242b 66%,#081116 100%)!important;box-shadow:0 0 38px rgba(65,156,187,.15),inset -10px -8px 15px rgba(0,0,0,.45)!important}
+.rocket-scene .planet:after{content:"";position:absolute;inset:18px 8px auto 16px;height:10px;border-radius:50%;background:rgba(255,255,255,.06);transform:rotate(-22deg);filter:blur(2px)}
+.rocket-scene .rocket-multiplier{z-index:6!important;color:#f5f4ef!important;text-shadow:0 4px 18px rgba(0,0,0,.7)!important;font-variant-numeric:tabular-nums!important;letter-spacing:-.055em!important}
+.rocket-scene .rocket-state{z-index:6!important;text-shadow:0 2px 8px #000!important}
+.rocket-scene .countdown-bubble{z-index:7!important;background:rgba(7,13,17,.88)!important;backdrop-filter:blur(8px)!important}
+.rocket-scene.crashed .ship{filter:grayscale(.3) drop-shadow(10px 16px 12px rgba(0,0,0,.55))!important}
+
+/* Wheel — make the wheel itself the visual hero */
+.wheel-card{overflow:hidden!important}.wheel-stage,.wheel-machine{position:relative!important;display:grid!important;place-items:center!important;min-height:390px!important;padding:24px!important;background:radial-gradient(circle at 50% 45%,rgba(200,164,90,.09),transparent 34%),#070b0d!important}
+.wheel-stage canvas,.wheel-machine canvas{max-width:min(82vw,360px)!important;max-height:min(82vw,360px)!important;filter:drop-shadow(0 18px 28px rgba(0,0,0,.45))!important}
+.wheel-stage:before,.wheel-machine:before{content:""!important;position:absolute!important;inset:18px!important;border:1px solid rgba(200,164,90,.12)!important;border-radius:20px!important;pointer-events:none!important}
+@media(max-width:600px){.rocket-scene{height:350px!important}.rocket-scene .ship{width:52px!important;height:100px!important}.wheel-stage,.wheel-machine{min-height:330px!important;padding:14px!important}}
