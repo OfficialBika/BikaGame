@@ -11,6 +11,7 @@
   try {
     loadSync('/miniapp/app.js?v=premium-v15-shan-pro');
     loadSync('/miniapp/assets/bj-enhance.js?v=20260915');
+    loadSync('/miniapp/assets/wallet-history.js?v=20260915');
   } catch (err) {
     console.error('[BikaGame] Mini App compatibility/enhancement load failed', err);
     throw err;
