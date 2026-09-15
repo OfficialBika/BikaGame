@@ -25,7 +25,7 @@ module.exports = {
     payoutDamping: Number(process.env.MINES_PAYOUT_DAMPING || 0.85),
   },
   CRASH: {
-    betSeconds: Number(process.env.CRASH_BET_TIME_SECONDS || 15),
+    betSeconds: Number(process.env.CRASH_BET_TIME_SECONDS || 8),
     minBet: Number(process.env.CRASH_MIN_BET || 50),
     maxBet: Number(process.env.CRASH_MAX_BET || 10000),
     editIntervalMs: Number(process.env.CRASH_EDIT_INTERVAL_MS || 900),
