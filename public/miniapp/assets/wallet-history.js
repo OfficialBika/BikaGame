@@ -11,13 +11,21 @@
     async function load(){try{const d=await api('/api/mini/wallet/transfers',{limit:100}),items=d.items||[];list.innerHTML=items.map(x=>{const sent=x.direction==='sent',amt=Number(x.amount||0),date=x.createdAt?new Date(x.createdAt).toLocaleString(undefined,{year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';return '<div class="transfer-history-row"><div class="transfer-history-icon '+(sent?'sent':'received')+'">'+(sent?'↑':'↓')+'</div><div class="transfer-history-main"><b>'+(sent?'Sent Balance':'Received Balance')+'</b><span>'+esc(date)+'</span><small>Wallet: '+esc(x.otherUserId||'—')+'</small></div><strong class="transfer-history-amount '+(sent?'sent':'received')+'">'+(sent?'-':'+')+amt.toLocaleString()+'</strong></div>'}).join('')||'<div class="bnp-empty">No transfer history yet.</div>'}catch(e){list.innerHTML='<div class="bnp-empty">Unable to load transfer history.</div>'}}
     document.getElementById('transferHistoryRefresh').onclick=load;load();
   }
+  function addButton(id,host,smallText){
+    if(document.getElementById(id))return;
+    const btn=document.createElement('button');btn.id=id;btn.className='wallet-history-btn';btn.innerHTML='<span>↕</span><div><b>Transfer History</b><small>'+smallText+'</small></div><strong>›</strong>';host.parentNode.insertBefore(btn,host);btn.onclick=renderHistory;
+  }
   function install(){
     const page=document.getElementById('bikaNavPage'),content=document.getElementById('bnpContent');
     if(!page||!content)return;
     const title=String(document.getElementById('bnpTitle')?.textContent||'');
-    if(title!=='Wallet'||document.getElementById('walletTransferHistory'))return;
-    const btn=document.createElement('button');btn.id='walletTransferHistory';btn.className='wallet-history-btn';btn.innerHTML='<span>↕</span><div><b>Transfer History</b><small>View sent and received balance transfers</small></div><strong>›</strong>';
-    const stats=content.querySelector('.bnp-stat-grid');if(stats)stats.parentNode.insertBefore(btn,stats);else content.appendChild(btn);btn.onclick=renderHistory;
+    if(title==='Wallet'){
+      const stats=content.querySelector('.bnp-stat-grid');
+      if(stats)addButton('walletTransferHistory',stats,'View sent and received balance transfers');
+    }else if(title==='Transfer Balance'){
+      const status=content.querySelector('#transferStatus');
+      if(status)addButton('transferPageHistory',status,'Open your transfer records');
+    }
   }
   new MutationObserver(install).observe(document.documentElement,{subtree:true,childList:true});
   setTimeout(install,300);setTimeout(install,1200);
