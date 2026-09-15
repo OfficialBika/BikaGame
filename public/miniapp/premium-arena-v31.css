@@ -16,7 +16,11 @@
 @media(max-width:620px){.home-panel .hero-premium{min-height:245px!important;padding:22px!important}.home-panel .hero-premium:after{right:-190px;top:-155px;width:390px;height:390px}.home-panel .hero-premium h1{font-size:clamp(29px,9vw,42px)!important}}
 @media(prefers-reduced-motion:reduce){.home-panel .hero-premium:before,.home-panel .hero-premium:after,.home-panel .hero-premium h1,.home-panel .hero-premium .hero-wallet strong,.home-panel .hero-premium .eyebrow,.home-panel .hero-premium>div:first-child:after,.home-panel .hero-premium .hero-wallet:before{animation:none!important}}
 
-/* Rocket: premium emoji flight v34. The rocket is intentionally the native 🚀 emoji. */
+/* Rocket round-state animation v35.
+   The previous animation was attached to .ship itself, so it ran once when the
+   Mini App loaded and never restarted. The game state now owns the animation:
+   betting = reset at launch pad, running = one launch per round, crashed = hold.
+   Native Telegram/device emoji 🚀 is used for the rocket body. */
 html body .app-shell .rocket-scene .ship{
   position:relative!important;
   width:78px!important;
@@ -30,7 +34,7 @@ html body .app-shell .rocket-scene .ship{
   box-shadow:none!important;
   transform-origin:50% 50%!important;
   translate:0 0;
-  animation:bikaRocketEmojiFlightV34 8s cubic-bezier(.18,.72,.22,1) both!important;
+  animation:none!important;
   will-change:transform,translate;
   z-index:3;
 }
@@ -54,17 +58,34 @@ html body .app-shell .rocket-scene .ship::after{
   border-radius:50%;
   background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(53,233,255,.75) 30%,rgba(255,49,91,.65) 65%,transparent);
   filter:blur(3px);
-  opacity:.9;
-  animation:rocketFlameV34 .22s ease-in-out infinite alternate;
+  opacity:0;
   pointer-events:none;
 }
-@keyframes bikaRocketEmojiFlightV34{
-  0%{translate:0 32px;transform:rotate(-7deg) scale(.94)}
-  14%{translate:2px 10px;transform:rotate(-4deg) scale(.98)}
-  34%{translate:-2px -28px;transform:rotate(-7deg) scale(1)}
-  56%{translate:3px -78px;transform:rotate(-3deg) scale(1.02)}
-  78%{translate:-2px -128px;transform:rotate(-6deg) scale(1.04)}
-  100%{translate:2px -178px;transform:rotate(-4deg) scale(1.06)}
+html body .app-shell .rocket-scene.betting .ship{
+  translate:0 34px;
+  transform:rotate(-7deg) scale(.94);
+  animation:none!important;
 }
-@keyframes rocketFlameV34{from{height:34px;opacity:.65}to{height:48px;opacity:1}}
-@media(prefers-reduced-motion:reduce){html body .app-shell .rocket-scene .ship{animation:none!important;translate:0 -24px!important}.rocket-scene .ship::after{animation:none!important}}
+html body .app-shell .rocket-scene.betting .ship::after{opacity:.35;animation:rocketFlameV35 .22s ease-in-out infinite alternate}
+html body .app-shell .rocket-scene.running .ship{
+  animation:rocketRoundFlightV35 2.35s cubic-bezier(.18,.72,.22,1) forwards!important;
+}
+html body .app-shell .rocket-scene.running .ship::after{
+  opacity:.95;
+  animation:rocketFlameV35 .20s ease-in-out infinite alternate;
+}
+html body .app-shell .rocket-scene.crashed .ship{
+  translate:0 -150px;
+  transform:rotate(-4deg) scale(1.04);
+  animation:none!important;
+}
+html body .app-shell .rocket-scene.crashed .ship::after{opacity:0;animation:none!important}
+@keyframes rocketRoundFlightV35{
+  0%{translate:0 34px;transform:rotate(-7deg) scale(.94)}
+  18%{translate:2px 12px;transform:rotate(-4deg) scale(.98)}
+  42%{translate:-2px -32px;transform:rotate(-6deg) scale(1)}
+  68%{translate:3px -88px;transform:rotate(-3deg) scale(1.03)}
+  100%{translate:1px -150px;transform:rotate(-4deg) scale(1.04)}
+}
+@keyframes rocketFlameV35{from{height:30px;opacity:.55}to{height:48px;opacity:1}}
+@media(prefers-reduced-motion:reduce){html body .app-shell .rocket-scene .ship{animation:none!important;translate:0 -80px!important}.rocket-scene .ship::after{animation:none!important;opacity:0!important}}
