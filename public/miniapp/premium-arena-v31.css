@@ -1,4 +1,4 @@
-/* BIKA PREMIUM ARENA v31 — scoped to Home hero only. */
+/* BIKA PREMIUM ARENA v31 — Home hero only. Rocket styles live exclusively in rocket-pro-v2.css. */
 .home-panel .hero-premium{position:relative;isolation:isolate;min-height:270px!important;border:1px solid rgba(255,49,91,.34)!important;background:radial-gradient(circle at 12% 15%,rgba(255,49,91,.20),transparent 25%),radial-gradient(circle at 88% 18%,rgba(53,233,255,.20),transparent 28%),linear-gradient(135deg,#100914 0%,#090e1c 48%,#06151c 100%)!important;box-shadow:0 24px 70px rgba(0,0,0,.48),0 0 55px rgba(255,49,91,.08),0 0 70px rgba(53,233,255,.08),inset 0 1px rgba(255,255,255,.09)!important}
 .home-panel .hero-premium:before{content:"";position:absolute;inset:-45%;z-index:-1;background:conic-gradient(from 0deg,transparent 0 18%,rgba(255,49,91,.16) 22%,transparent 27% 43%,rgba(53,233,255,.16) 48%,transparent 53% 100%);animation:arenaSpin 14s linear infinite;pointer-events:none}
 .home-panel .hero-premium:after{content:"";position:absolute;right:-125px;top:-170px;width:440px;height:440px;border-radius:50%;z-index:-1;border:1px solid rgba(53,233,255,.28);box-shadow:0 0 0 18px rgba(255,49,91,.035),0 0 0 44px rgba(53,233,255,.028),0 0 90px rgba(53,233,255,.14),inset 0 0 80px rgba(255,49,91,.08);animation:arenaOrbit 9s ease-in-out infinite alternate;pointer-events:none}
@@ -15,82 +15,3 @@
 @keyframes arenaShine{0%{transform:translateX(-70%) rotate(12deg)}55%,100%{transform:translateX(70%) rotate(12deg)}}
 @media(max-width:620px){.home-panel .hero-premium{min-height:245px!important;padding:22px!important}.home-panel .hero-premium:after{right:-190px;top:-155px;width:390px;height:390px}.home-panel .hero-premium h1{font-size:clamp(29px,9vw,42px)!important}}
 @media(prefers-reduced-motion:reduce){.home-panel .hero-premium:before,.home-panel .hero-premium:after,.home-panel .hero-premium h1,.home-panel .hero-premium .hero-wallet strong,.home-panel .hero-premium .eyebrow,.home-panel .hero-premium>div:first-child:after,.home-panel .hero-premium .hero-wallet:before{animation:none!important}}
-
-/* Rocket round-state animation v36 — rocket starts at the bottom of the live frame.
-   Betting = launch pad at bottom. Running = gradual upward flight. Crashed = hold at top.
-   The ship is absolutely positioned so inherited flex/grid alignment cannot place it at the top. */
-html body .app-shell .rocket-scene{position:relative!important;overflow:hidden!important}
-html body .app-shell .rocket-scene .ship{
-  position:absolute!important;
-  left:12%!important;
-  bottom:18px!important;
-  width:78px!important;
-  height:78px!important;
-  margin:0!important;
-  display:grid!important;
-  place-items:center!important;
-  font-size:0!important;
-  line-height:1!important;
-  background:none!important;
-  border:0!important;
-  box-shadow:none!important;
-  transform-origin:50% 50%!important;
-  transform:rotate(-7deg) scale(.94)!important;
-  translate:0 0;
-  animation:none!important;
-  will-change:transform,translate;
-  z-index:3;
-}
-html body .app-shell .rocket-scene .ship::before{
-  content:"🚀";
-  display:block;
-  font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif;
-  font-size:64px;
-  line-height:1;
-  transform:rotate(-4deg);
-  filter:drop-shadow(0 7px 10px rgba(0,0,0,.38));
-}
-html body .app-shell .rocket-scene .ship::after{
-  content:"";
-  position:absolute;
-  left:50%;
-  bottom:-10px;
-  width:14px;
-  height:42px;
-  transform:translateX(-50%);
-  border-radius:50%;
-  background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(53,233,255,.75) 30%,rgba(255,49,91,.65) 65%,transparent);
-  filter:blur(3px);
-  opacity:0;
-  pointer-events:none;
-}
-html body .app-shell .rocket-scene.betting .ship{
-  bottom:18px!important;
-  translate:0 0!important;
-  transform:rotate(-7deg) scale(.94)!important;
-  animation:none!important;
-}
-html body .app-shell .rocket-scene.betting .ship::after{opacity:.35;animation:rocketFlameV36 .22s ease-in-out infinite alternate}
-html body .app-shell .rocket-scene.running .ship{
-  animation:rocketRoundFlightV36 2.35s cubic-bezier(.18,.72,.22,1) forwards!important;
-}
-html body .app-shell .rocket-scene.running .ship::after{
-  opacity:.95;
-  animation:rocketFlameV36 .20s ease-in-out infinite alternate;
-}
-html body .app-shell .rocket-scene.crashed .ship{
-  bottom:168px!important;
-  translate:0 0!important;
-  transform:rotate(-4deg) scale(1.04)!important;
-  animation:none!important;
-}
-html body .app-shell .rocket-scene.crashed .ship::after{opacity:0;animation:none!important}
-@keyframes rocketRoundFlightV36{
-  0%{translate:0 0;transform:rotate(-7deg) scale(.94)}
-  18%{translate:2px -22px;transform:rotate(-4deg) scale(.98)}
-  42%{translate:-2px -58px;transform:rotate(-6deg) scale(1)}
-  68%{translate:3px -114px;transform:rotate(-3deg) scale(1.03)}
-  100%{translate:1px -150px;transform:rotate(-4deg) scale(1.04)}
-}
-@keyframes rocketFlameV36{from{height:30px;opacity:.55}to{height:48px;opacity:1}}
-@media(prefers-reduced-motion:reduce){html body .app-shell .rocket-scene .ship{animation:none!important;bottom:90px!important;translate:0 0!important}.rocket-scene .ship::after{animation:none!important;opacity:0!important}}
