@@ -1,7 +1,7 @@
 'use strict';
 
 /*
- * Keeps the Rocket room alive even when a betting window receives zero bets.
+ * Keeps Rocket rounds alive even when a betting window receives zero bets.
  * The canonical crash service remains the source of truth for balances,
  * cashouts and round math; this adapter only changes the empty-round lifecycle.
  */
@@ -9,21 +9,24 @@ const crash = require('./webCrashService');
 const { getTreasury } = require('./treasuryService');
 
 const rooms = crash._private?.rooms;
-const ensureTimers = new Map();
-const BET_TICK_MS = Math.max(100, Number(process.env.WEB_CRASH_EMPTY_ROUND_TICK_MS || 250));
+const roomWatchers = new Map();
+const scheduledRounds = new WeakSet();
+const WATCH_MS = Math.max(50, Number(process.env.WEB_CRASH_EMPTY_ROUND_WATCH_MS || 100));
+const PRE_CLOSE_MS = 35;
 
 function clearRoomTimers(room) {
   for (const timer of room?.timers || []) clearTimeout(timer);
   if (room?.timers) room.timers.clear();
 }
 
-async function promoteEmptyBettingRound(room) {
+async function promoteEmptyBettingRound(room, expectedRound) {
   const round = room?.round;
-  if (!round || round.state !== 'betting' || Date.now() < Number(round.bettingEndsAtMs || 0)) return false;
+  if (!round || round !== expectedRound || round.state !== 'betting') return false;
+  if (Date.now() < Number(round.bettingEndsAtMs || 0)) return false;
 
   clearRoomTimers(room);
   const treasury = await getTreasury().catch(() => null);
-  const rocketRtp = await crash.getRocketRtp().catch(() => null);
+  const rocketRtp = await crash.getRocketRtp().catch(() => 76);
   const target = crash._private.generateCrashPoint(
     round,
     Number(treasury?.ownerBalance || 0),
@@ -42,25 +45,34 @@ async function promoteEmptyBettingRound(room) {
   return true;
 }
 
-function startTicker(roomId) {
-  const key = String(roomId || 'global');
-  if (ensureTimers.has(key)) return;
-  const timer = setInterval(async () => {
-    try {
-      const room = rooms?.get(key);
-      if (!room?.round) return;
-      if (room.round.state === 'betting') await promoteEmptyBettingRound(room);
-    } catch (err) {
+function armRound(room) {
+  const round = room?.round;
+  if (!round || round.state !== 'betting' || scheduledRounds.has(round)) return;
+  scheduledRounds.add(round);
+
+  const remaining = Math.max(0, Number(round.bettingEndsAtMs || 0) - Date.now() - PRE_CLOSE_MS);
+  setTimeout(() => {
+    promoteEmptyBettingRound(room, round).catch((err) => {
       console.error('WEB_CRASH_EMPTY_ROUND_PATCH:', err?.stack || err?.message || err);
-    }
-  }, BET_TICK_MS);
-  ensureTimers.set(key, timer);
+    });
+  }, remaining);
+}
+
+function startWatcher(roomId) {
+  const key = String(roomId || 'global');
+  if (roomWatchers.has(key)) return;
+  const timer = setInterval(() => {
+    const room = rooms?.get(key);
+    if (room?.round?.state === 'betting') armRound(room);
+  }, WATCH_MS);
+  roomWatchers.set(key, timer);
 }
 
 const originalStart = crash.startWebCrashLoop;
 crash.startWebCrashLoop = function patchedStartWebCrashLoop(roomId = 'global') {
   const room = originalStart(roomId);
-  startTicker(roomId);
+  startWatcher(roomId);
+  armRound(room);
   return room;
 };
 
