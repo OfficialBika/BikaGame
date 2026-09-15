@@ -15,3 +15,21 @@
 @keyframes arenaShine{0%{transform:translateX(-70%) rotate(12deg)}55%,100%{transform:translateX(70%) rotate(12deg)}}
 @media(max-width:620px){.home-panel .hero-premium{min-height:245px!important;padding:22px!important}.home-panel .hero-premium:after{right:-190px;top:-155px;width:390px;height:390px}.home-panel .hero-premium h1{font-size:clamp(29px,9vw,42px)!important}}
 @media(prefers-reduced-motion:reduce){.home-panel .hero-premium:before,.home-panel .hero-premium:after,.home-panel .hero-premium h1,.home-panel .hero-premium .hero-wallet strong,.home-panel .hero-premium .eyebrow,.home-panel .hero-premium>div:first-child:after,.home-panel .hero-premium .hero-wallet:before{animation:none!important}}
+
+/* Rocket visual flight repair v33.
+   The core renderer owns `transform`; this layer uses the independent CSS
+   `translate` property so movement cannot be frozen by orientation rules. */
+html body .app-shell .rocket-scene .ship{
+  translate:0 0;
+  animation: bikaRocketFlightV33 8s cubic-bezier(.18,.72,.22,1) both;
+  will-change:transform,translate;
+}
+@keyframes bikaRocketFlightV33{
+  0%{translate:0 0}
+  12%{translate:1px -12px}
+  30%{translate:-2px -42px}
+  52%{translate:3px -82px}
+  74%{translate:-2px -128px}
+  100%{translate:2px -185px}
+}
+@media(prefers-reduced-motion:reduce){html body .app-shell .rocket-scene .ship{animation:none!important;translate:0 -18px}}
