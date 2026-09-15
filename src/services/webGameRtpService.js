@@ -3,8 +3,8 @@
 const { getDb } = require('../config/database');
 
 const GAME_RTP_KEY_PREFIX = 'web_game_rtp_';
+const LEGACY_ROCKET_KEY = 'web_rocket_rtp_percent';
 
-// Target RTP per Web/Mini App game. This is global per game, never per player.
 const DEFAULT_RTPS = Object.freeze({
   rocket: Number(process.env.WEB_ROCKET_RTP || 76),
   slot: Number(process.env.WEB_SLOT_RTP || 65),
@@ -31,14 +31,12 @@ function cleanGameKey(value) {
   if (key === 'shan' || key === 'shankoemee' || key === 'koemee' || key === 'webshan' || key === 'skm') return 'shan';
   return key;
 }
-
 function clampRtp(value, fallback = 70) {
   const raw = String(value ?? '').replace('%', '').trim();
   const n = Number(raw);
   if (!Number.isFinite(n)) return Math.max(40, Math.min(95, Number(fallback) || 70));
   return Math.max(40, Math.min(95, Math.floor(n)));
 }
-
 function configCollection() { return getDb().collection('config'); }
 function configKey(gameKey) { return `${GAME_RTP_KEY_PREFIX}${cleanGameKey(gameKey)}`; }
 function defaultRtp(gameKey) { return clampRtp(DEFAULT_RTPS[cleanGameKey(gameKey)], 70); }
@@ -48,8 +46,15 @@ async function getWebGameRtp(gameKey) {
   if (!GAME_LABELS[key]) throw new Error('WEB_GAME_UNKNOWN');
   const fallback = defaultRtp(key);
   try {
-    const doc = await configCollection().findOne({ key: configKey(key) });
-    return clampRtp(doc?.value, fallback);
+    const col = configCollection();
+    const doc = await col.findOne({ key: configKey(key) });
+    if (doc?.value != null) return clampRtp(doc.value, fallback);
+    // Rocket previously used a separate key; read it during migration.
+    if (key === 'rocket') {
+      const legacy = await col.findOne({ key: LEGACY_ROCKET_KEY });
+      if (legacy?.value != null) return clampRtp(legacy.value, fallback);
+    }
+    return fallback;
   } catch (_) { return fallback; }
 }
 
@@ -57,20 +62,22 @@ async function setWebGameRtp(gameKey, value, updatedBy = null) {
   const key = cleanGameKey(gameKey);
   if (!GAME_LABELS[key]) throw new Error('WEB_GAME_UNKNOWN');
   const rtp = clampRtp(value, defaultRtp(key));
-  await configCollection().updateOne(
+  const col = configCollection();
+  await col.updateOne(
     { key: configKey(key) },
     {$set:{key:configKey(key),game:key,value:rtp,updatedBy:updatedBy||null,updatedAt:new Date()},$setOnInsert:{createdAt:new Date()}},
     { upsert:true }
   );
+  // Keep the existing Rocket service in sync until its local legacy reader is retired.
+  if (key === 'rocket') {
+    await col.updateOne(
+      { key: LEGACY_ROCKET_KEY },
+      {$set:{key:LEGACY_ROCKET_KEY,value:rtp,updatedBy:updatedBy||null,updatedAt:new Date()},$setOnInsert:{createdAt:new Date()}},
+      { upsert:true }
+    );
+  }
   return rtp;
 }
-
-async function getAllWebGameRtps() {
-  const result = {};
-  for (const key of Object.keys(GAME_LABELS)) result[key] = await getWebGameRtp(key);
-  return result;
-}
-
+async function getAllWebGameRtps() { const result={}; for(const key of Object.keys(GAME_LABELS)) result[key]=await getWebGameRtp(key); return result; }
 function gameLabel(gameKey) { return GAME_LABELS[cleanGameKey(gameKey)] || String(gameKey || 'Game'); }
-
-module.exports = { cleanGameKey, clampRtp, getWebGameRtp, setWebGameRtp, getAllWebGameRtps, gameLabel, defaultRtp, GAME_LABELS };
+module.exports={cleanGameKey,clampRtp,getWebGameRtp,setWebGameRtp,getAllWebGameRtps,gameLabel,defaultRtp,GAME_LABELS};
