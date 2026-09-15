@@ -1,0 +1,234 @@
+/* BIKA GAME — Premium Mini App UI v16.7
+   Interaction polish layer. No game logic or API changes.
+*/
+
+@import url('/miniapp/premium-ui-v16.8.css?v=1');
+
+/* ===== v16.7 TOUCH + FEEDBACK ===== */
+button,
+input,
+select,
+textarea,
+a {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+button,
+[data-open],
+[data-refresh-history],
+[data-crash-bet],
+[data-slot-bet],
+[data-bj-bet],
+[data-shan-bet],
+[data-plinko-bet],
+[data-wheel-bet],
+[data-mines-bet] {
+  transition: transform .14s ease, filter .14s ease, background-color .14s ease,
+    border-color .14s ease, box-shadow .14s ease, opacity .14s ease;
+}
+
+button:not(:disabled):active,
+[data-open]:not(:disabled):active {
+  transform: translateY(1px) scale(.985);
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 2px solid rgba(85,232,255,.9);
+  outline-offset: 2px;
+}
+
+/* ===== BET SHORTCUTS ===== */
+.quick-bets,
+.bet-quick,
+[class*="quick-bet"] {
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.quick-bets::-webkit-scrollbar,
+.bet-quick::-webkit-scrollbar,
+[class*="quick-bet"]::-webkit-scrollbar {
+  display: none;
+}
+
+.quick-bets button,
+.bet-box .quick-bet,
+[data-crash-bet],
+[data-slot-bet],
+[data-bj-bet],
+[data-shan-bet],
+[data-plinko-bet],
+[data-wheel-bet],
+[data-mines-bet] {
+  min-height: 40px;
+  min-width: 48px;
+  padding-inline: 12px;
+  font-weight: 800;
+}
+
+.quick-bets button:not(:disabled):active,
+[data-crash-bet]:active,
+[data-slot-bet]:active,
+[data-bj-bet]:active,
+[data-shan-bet]:active,
+[data-plinko-bet]:active,
+[data-wheel-bet]:active,
+[data-mines-bet]:active {
+  border-color: rgba(85,232,255,.55);
+  background: rgba(85,232,255,.12);
+  box-shadow: 0 0 0 1px rgba(85,232,255,.08), 0 8px 22px rgba(0,0,0,.18);
+}
+
+.bet-box input[type="number"],
+.bet-box input[inputmode="decimal"] {
+  min-height: 46px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== ROCKET — CLEAR ACTION PRIORITY ===== */
+#crashStartBtn,
+#cashoutBtn {
+  min-height: 52px;
+  touch-action: manipulation;
+}
+
+#cashoutBtn:not(:disabled) {
+  box-shadow: 0 0 0 1px rgba(255,190,82,.14), 0 10px 28px rgba(255,146,40,.12);
+}
+
+#cashoutBtn:not(:disabled):active {
+  transform: scale(.975);
+}
+
+#crashStartBtn:disabled,
+#cashoutBtn:disabled {
+  opacity: .48;
+  filter: saturate(.55);
+}
+
+/* ===== SLOT — PROTECT THE SPIN CTA ===== */
+#spinBtn {
+  min-height: 54px;
+  touch-action: manipulation;
+}
+
+#spinBtn:disabled {
+  opacity: .58;
+}
+
+#slotMachine.spinning {
+  will-change: transform, filter;
+}
+
+/* ===== TABLE GAMES ===== */
+#bjHitBtn,
+#bjStandBtn,
+#shanDrawBtn,
+#shanStayBtn,
+#shanJoinBtn,
+#shanCreateBtn {
+  min-height: 50px;
+  touch-action: manipulation;
+}
+
+.bj-actions,
+.shan-actions {
+  gap: 10px;
+}
+
+/* ===== MINES ===== */
+.mine-tile {
+  min-width: 0;
+  min-height: 52px;
+  aspect-ratio: 1;
+  touch-action: manipulation;
+}
+
+.mine-tile:not(:disabled):active {
+  transform: scale(.94);
+}
+
+/* ===== WHEEL / PLINKO ===== */
+#wheelBtn,
+#dailyWheelBtn,
+#plinkoBtn,
+#minesStartBtn,
+#minesCashoutBtn {
+  min-height: 50px;
+  touch-action: manipulation;
+}
+
+/* ===== MOBILE BOTTOM-NAV CLEARANCE ===== */
+@media (max-width: 700px) {
+  .panel {
+    padding-bottom: 112px !important;
+  }
+
+  .v163-panel {
+    padding-bottom: 118px !important;
+  }
+
+  .game-toolbar,
+  .game-actions,
+  .bj-actions,
+  .shan-actions {
+    gap: 9px;
+  }
+
+  .primary-btn,
+  .cashout-btn,
+  .hit-btn,
+  .stand-btn {
+    min-height: 50px;
+  }
+
+  .quick-bets {
+    display: flex;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    gap: 7px;
+    padding-bottom: 3px;
+  }
+
+  .quick-bets > * {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 390px) {
+  #crashStartBtn,
+  #cashoutBtn,
+  #spinBtn,
+  #bjHitBtn,
+  #bjStandBtn,
+  #shanDrawBtn,
+  #shanStayBtn,
+  #shanJoinBtn,
+  #shanCreateBtn,
+  #wheelBtn,
+  #dailyWheelBtn,
+  #plinkoBtn,
+  #minesStartBtn,
+  #minesCashoutBtn {
+    min-height: 48px;
+  }
+}
+
+/* ===== REDUCED MOTION ===== */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}

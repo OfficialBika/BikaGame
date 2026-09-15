@@ -1,0 +1,33 @@
+/* BikaGame Premium UX v17 */
+button,
+[role="button"]{
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+
+.v17-pressed{
+  transform:translateY(1px) scale(.985)!important;
+  filter:brightness(1.12);
+  transition:transform .08s ease,filter .08s ease;
+}
+
+#soundDock{
+  --v17-audio-accent:rgba(85,232,255,.22);
+}
+
+#soundDock.sound-on{
+  box-shadow:0 10px 34px rgba(0,0,0,.24),0 0 0 1px var(--v17-audio-accent);
+}
+
+#musicVolume,#sfxVolume{
+  accent-color:#55e8ff;
+  min-height:18px;
+}
+
+@media (max-width:520px){
+  #soundDock input[type="range"]{min-width:110px;min-height:22px}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .v17-pressed{transition:none}
+}

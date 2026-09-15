@@ -1,0 +1,58 @@
+/* BIKA GAME — Premium Mini App UI v16.8
+ * Game-state readability layer. Existing game logic, IDs and API contracts stay intact.
+ */
+
+/* ===== RESULT STATES ===== */
+.result{position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.06);box-shadow:0 8px 24px rgba(0,0,0,.12)}
+.result.win{border-color:rgba(85,240,160,.24);background:linear-gradient(135deg,rgba(85,240,160,.09),rgba(255,255,255,.025));color:#d8ffe9}
+.result.lose{border-color:rgba(255,91,120,.22);background:linear-gradient(135deg,rgba(255,91,120,.08),rgba(255,255,255,.025));color:#ffd9e0}
+.result.muted{background:rgba(255,255,255,.028)}
+.result b{color:inherit}
+
+/* ===== ROCKET STATE HIERARCHY ===== */
+#crashMultiplier{font-variant-numeric:tabular-nums;letter-spacing:-.045em;text-shadow:0 0 24px rgba(85,232,255,.18)}
+#crashState{min-height:22px;display:flex;align-items:center;justify-content:center;text-align:center}
+#roundCountdown{font-variant-numeric:tabular-nums}
+#cashoutBtn:not(:disabled){animation:v168CashoutReady 1.25s ease-in-out infinite}
+@keyframes v168CashoutReady{0%,100%{filter:brightness(1);box-shadow:0 0 0 1px rgba(85,240,160,.16),0 10px 28px rgba(85,240,160,.12)}50%{filter:brightness(1.07);box-shadow:0 0 0 1px rgba(85,240,160,.3),0 12px 34px rgba(85,240,160,.2)}}
+
+/* ===== SLOT STATE ===== */
+#slotResult{min-height:48px;display:flex;align-items:center;justify-content:center;text-align:center}
+#slotMachine.spinning{filter:saturate(1.12) brightness(1.04);box-shadow:0 0 34px rgba(255,91,214,.12)}
+#slotMachine.slot-win-glow{box-shadow:0 0 0 1px rgba(255,215,106,.18),0 0 42px rgba(255,215,106,.13)}
+.slot-reel.reel-stop{animation:v168ReelStop .38s ease both}
+@keyframes v168ReelStop{0%{transform:translateY(-8px);filter:brightness(1.5)}100%{transform:none;filter:brightness(1)}}
+
+/* ===== BLACKJACK / SHAN TABLE STATE ===== */
+#bjHitBtn:not(:disabled),#bjStandBtn:not(:disabled),#shanDrawBtn:not(:disabled),#shanStayBtn:not(:disabled){box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.bj-room-chip,.phase-chip,.shan-rules-chip{white-space:nowrap}
+.bj-seats>*{transition:transform .18s ease,background-color .18s ease,box-shadow .18s ease}
+.bj-seats>*:active{transform:scale(.97)}
+.shan-player-seat.active-turn{box-shadow:0 0 0 1px rgba(255,215,106,.25),0 0 24px rgba(255,215,106,.08)}
+.shan-player-seat.me{border-color:rgba(85,232,255,.2)}
+
+/* ===== PLINKO / WHEEL / MINES ===== */
+#plinkoResult,#wheelResult,#minesResult{min-height:48px}
+#plinkoBoard.dropping{filter:brightness(1.05)}
+#plinkoBall.settled{filter:drop-shadow(0 0 12px rgba(85,232,255,.45))}
+#wheelDisk.wheel-spinning{will-change:transform;filter:drop-shadow(0 0 20px rgba(141,124,255,.22))}
+.mine-tile.safe{box-shadow:inset 0 0 0 1px rgba(85,240,160,.18),0 0 14px rgba(85,240,160,.08)}
+.mine-tile.boom{animation:v168MineBoom .42s ease both}
+@keyframes v168MineBoom{0%{transform:scale(.92);filter:brightness(1)}45%{transform:scale(1.06);filter:brightness(1.55)}100%{transform:scale(1);filter:brightness(1)}}
+
+/* ===== LIVE CONTROL STATES ===== */
+.primary-btn:not(:disabled),.cashout-btn:not(:disabled),.hit-btn:not(:disabled),.stand-btn:not(:disabled){transition:transform .14s ease,filter .14s ease,box-shadow .14s ease}
+.primary-btn:not(:disabled):hover,.cashout-btn:not(:disabled):hover,.hit-btn:not(:disabled):hover,.stand-btn:not(:disabled):hover{filter:brightness(1.06)}
+.primary-btn:disabled,.cashout-btn:disabled,.hit-btn:disabled,.stand-btn:disabled{box-shadow:none!important;animation:none!important}
+
+/* ===== MOBILE ===== */
+@media(max-width:700px){
+  #crashMultiplier{font-size:clamp(42px,15vw,78px)}
+  #cashoutBtn:not(:disabled){animation-duration:1.05s}
+  #slotResult,#plinkoResult,#wheelResult,#minesResult{scroll-margin-bottom:118px}
+}
+
+@media(prefers-reduced-motion:reduce){
+  #cashoutBtn:not(:disabled),.slot-reel.reel-stop,.mine-tile.boom{animation:none!important}
+  *,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important}
+}

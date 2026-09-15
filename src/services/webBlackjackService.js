@@ -1,467 +1,54 @@
 'use strict';
-
 const { BLACKJACK = {} } = require('../config/constants');
-const { getDb } = require('../config/database');
 const { getUser, userPayToTreasury, treasuryPayToUser } = require('./economyService');
 const { getWebGameRtp, setWebGameRtp } = require('./webGameRtpService');
 const { recordWebGameHistory } = require('./webBetHistoryService');
-
-const MIN_BET = Math.max(1, Number(process.env.WEB_BJ_MIN_BET || BLACKJACK.minBet || 50));
-const MAX_BET = Math.max(MIN_BET, Number(process.env.WEB_BJ_MAX_BET || BLACKJACK.maxBet || 10000));
-const MAX_PLAYERS = Math.max(2, Math.min(5, Number(process.env.WEB_BJ_MAX_PLAYERS || 5)));
-const JOIN_SECONDS = Math.max(15, Number(process.env.WEB_BJ_JOIN_SECONDS || 45));
-const ACTION_SECONDS = Math.max(30, Number(process.env.WEB_BJ_ACTION_SECONDS || 90));
-const ROOM_TTL_MS = Math.max(5 * 60_000, Number(process.env.WEB_BJ_ROOM_TTL_MS || 15 * 60_000));
-const RTP_GAME_KEY = 'blackjack';
-
-const RANKS = Object.freeze(['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K']);
-const SUITS = Object.freeze(['♠', '♥', '♦', '♣']);
-const rooms = new Map();
-
-function nowMs() {
-  return Date.now();
-}
-
-function makeRoomId() {
-  return `wbj_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function cleanRoomId(value) {
-  return String(value || '').trim().replace(/[^A-Za-z0-9_-]/g, '').slice(0, 48);
-}
-
-function safeBet(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? Math.floor(n) : 0;
-}
-
-function playerName(user = {}) {
-  return [user.first_name || user.firstName, user.last_name || user.lastName].filter(Boolean).join(' ').trim() || user.username || `Player ${String(user.id || '').slice(-4)}`;
-}
-
-function avatarText(name) {
-  return String(name || 'BJ').replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || 'BJ';
-}
-
-function createDeck() {
-  const deck = [];
-  for (const suit of SUITS) {
-    for (const rank of RANKS) deck.push({ rank, suit });
-  }
-  for (let i = deck.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
-  }
-  return deck;
-}
-
-function draw(room) {
-  if (!room.deck?.length) room.deck = createDeck();
-  return room.deck.pop();
-}
-
-function makeCard(rank, suit = '♠') {
-  return { rank: String(rank), suit };
-}
-
-function cardValue(card) {
-  if (card.rank === 'A') return 11;
-  if (['K', 'Q', 'J'].includes(card.rank)) return 10;
-  return Number(card.rank) || 0;
-}
-
-function handValue(cards = []) {
-  let total = 0;
-  let aces = 0;
-  for (const card of cards) {
-    total += cardValue(card);
-    if (card.rank === 'A') aces += 1;
-  }
-  while (total > 21 && aces > 0) {
-    total -= 10;
-    aces -= 1;
-  }
-  return total;
-}
-
-function isNatural(cards = []) {
-  return cards.length === 2 && handValue(cards) === 21;
-}
-
-function handForTotal(total) {
-  const value = Math.max(17, Math.min(21, Math.floor(Number(total) || 17)));
-  if (value === 21) return [makeCard('A', '♠'), makeCard('K', '♥')];
-  if (value === 20) return [makeCard('K', '♠'), makeCard('Q', '♥')];
-  if (value === 19) return [makeCard('10', '♠'), makeCard('9', '♥')];
-  if (value === 18) return [makeCard('10', '♠'), makeCard('8', '♥')];
-  return [makeCard('10', '♠'), makeCard('7', '♥')];
-}
-
-function bustHand() {
-  return [makeCard('K', '♠'), makeCard('8', '♥'), makeCard('6', '♦')];
-}
-
-function decideResult(player, dealer) {
-  const pv = handValue(player.hand);
-  const dv = handValue(dealer);
-  const pn = isNatural(player.hand);
-  const dn = isNatural(dealer);
-  if (pn && dn) return 'PUSH';
-  if (pn) return 'BLACKJACK';
-  if (dn) return 'LOSE';
-  if (pv > 21) return 'LOSE';
-  if (dv > 21) return 'WIN';
-  if (pv > dv) return 'WIN';
-  if (pv < dv) return 'LOSE';
-  return 'PUSH';
-}
-
-function payoutFor(result, bet) {
-  if (result === 'BLACKJACK') return Math.floor(bet * 2.5);
-  if (result === 'WIN') return bet * 2;
-  if (result === 'PUSH') return bet;
-  return 0;
-}
-
-function finalActionDone(player) {
-  return ['stand', 'bust', 'blackjack', 'settled'].includes(player.status);
-}
-
-function cleanupRooms() {
-  const cutoff = nowMs() - ROOM_TTL_MS;
-  for (const [id, room] of rooms) {
-    if (room.finishedAtMs && room.finishedAtMs < cutoff) rooms.delete(id);
-    else if (room.createdAtMs < cutoff && ['lobby', 'expired'].includes(room.state)) rooms.delete(id);
-  }
-}
-
-function getRoomOrThrow(roomId) {
-  cleanupRooms();
-  const id = cleanRoomId(roomId);
-  const room = rooms.get(id);
-  if (!room) throw new Error('BJ_ROOM_NOT_FOUND');
-  return room;
-}
-
-async function getWebBlackjackRtp() {
-  return getWebGameRtp(RTP_GAME_KEY);
-}
-
-async function setWebBlackjackRtp(value, updatedBy = null) {
-  return setWebGameRtp(RTP_GAME_KEY, value, updatedBy);
-}
-
-async function createWebBlackjackRoom({ chatId, title = '', createdBy = null } = {}) {
-  cleanupRooms();
-  const room = {
-    id: makeRoomId(),
-    chatId: chatId || null,
-    title: String(title || 'Bika Blackjack Table').slice(0, 80),
-    createdBy,
-    createdAtMs: nowMs(),
-    joinDeadlineMs: nowMs() + JOIN_SECONDS * 1000,
-    actionDeadlineMs: null,
-    state: 'lobby',
-    deck: [],
-    dealer: [],
-    players: new Map(),
-    rtp: await getWebBlackjackRtp(),
-    settled: false,
-  };
-  rooms.set(room.id, room);
-  return publicRoom(room, createdBy);
-}
-
-function maybeAutoStartOrExpire(room) {
-  if (room.state === 'lobby' && nowMs() >= room.joinDeadlineMs) {
-    if (room.players.size > 0) startRound(room);
-    else {
-      room.state = 'expired';
-      room.finishedAtMs = nowMs();
-    }
-  }
-  if (room.state === 'playing' && room.actionDeadlineMs && nowMs() >= room.actionDeadlineMs) {
-    for (const player of room.players.values()) {
-      if (player.status === 'playing') player.status = 'stand';
-    }
-    return finishDealer(room).catch((err) => console.error('WEB_BJ_AUTO_FINISH_FAILED:', err?.message || err));
-  }
-  return null;
-}
-
-function startRound(room) {
-  if (room.state !== 'lobby') return room;
-  if (!room.players.size) {
-    room.state = 'expired';
-    room.finishedAtMs = nowMs();
-    return room;
-  }
-  room.deck = createDeck();
-  room.dealer = [];
-  for (const player of room.players.values()) {
-    player.hand = [];
-    player.result = null;
-    player.payout = 0;
-    player.net = -player.bet;
-    player.status = 'playing';
-  }
-  for (let i = 0; i < 2; i += 1) {
-    for (const player of room.players.values()) player.hand.push(draw(room));
-    room.dealer.push(draw(room));
-  }
-  for (const player of room.players.values()) {
-    if (isNatural(player.hand)) player.status = 'blackjack';
-  }
-  room.state = 'playing';
-  room.actionDeadlineMs = nowMs() + ACTION_SECONDS * 1000;
-  if ([...room.players.values()].every(finalActionDone)) {
-    finishDealer(room).catch((err) => console.error('WEB_BJ_NATURAL_FINISH_FAILED:', err?.message || err));
-  }
-  return room;
-}
-
-function shapeDealerForTable(room) {
-  const activeTotals = [...room.players.values()]
-    .map((player) => handValue(player.hand))
-    .filter((value) => value <= 21);
-
-  if (!activeTotals.length) return handForTotal(18);
-
-  const rtp = Math.max(40, Math.min(95, Number(room.rtp || 65)));
-  const friendly = Math.random() * 100 < rtp;
-
-  if (friendly) {
-    // Make the reveal exciting: most RTP-friendly rounds let the dealer bust.
-    if (Math.random() < 0.72) return bustHand();
-    const minTotal = Math.min(...activeTotals);
-    return handForTotal(Math.max(17, Math.min(20, minTotal - 1)));
-  }
-
-  const maxTotal = Math.max(...activeTotals);
-  return handForTotal(Math.max(17, Math.min(21, maxTotal + 1)));
-}
-
-async function finishDealer(room) {
-  if (!room || room.settled || !['playing', 'dealer'].includes(room.state)) return room;
-  room.state = 'dealer';
-
-  room.dealer = shapeDealerForTable(room);
-  while (handValue(room.dealer) < 17) room.dealer.push(draw(room));
-
-  for (const player of room.players.values()) {
-    const result = decideResult(player, room.dealer);
-    const payout = payoutFor(result, player.bet);
-    player.result = result;
-    player.payout = payout;
-    player.net = payout - player.bet;
-    player.status = 'settled';
-
-    if (payout > 0) {
-      try {
-        await treasuryPayToUser(player.userId, payout, {
-          type: 'web_blackjack_payout',
-          bet: player.bet,
-          payout,
-          result,
-          roomId: room.id,
-          rtp: room.rtp,
-        });
-      } catch (err) {
-        console.error('WEB_BJ_PAYOUT_FAILED:', err?.message || err);
-        player.result = 'PAYOUT_ERROR';
-        player.payout = 0;
-        player.net = -player.bet;
-      }
-    }
-
-    await recordWebGameHistory({
-      userId: player.userId,
-      game: 'blackjack',
-      title: 'Web Blackjack',
-      outcome: player.result,
-      bet: player.bet,
-      payout: player.payout,
-      net: player.net,
-      label: player.result === 'BLACKJACK' ? 'Blackjack' : player.result,
-      meta: {
-        roomId: room.id,
-        playerTotal: handValue(player.hand),
-        dealerTotal: handValue(room.dealer),
-        players: room.players.size,
-      },
-    });
-  }
-
-  room.state = 'finished';
-  room.settled = true;
-  room.finishedAtMs = nowMs();
-  return room;
-}
-
-async function joinWebBlackjack({ roomId, userId, user = {}, bet } = {}) {
-  const room = getRoomOrThrow(roomId);
-  maybeAutoStartOrExpire(room);
-
-  if (room.state !== 'lobby') {
-    if (room.players.has(Number(userId))) return publicRoom(room, userId);
-    throw new Error(room.state === 'expired' ? 'BJ_ROOM_EXPIRED' : 'BJ_ALREADY_STARTED');
-  }
-
-  const finalUserId = Number(userId);
-  if (!Number.isFinite(finalUserId) || finalUserId <= 0) throw new Error('INVALID_USER');
-  if (room.players.has(finalUserId)) return publicRoom(room, finalUserId);
-  if (room.players.size >= MAX_PLAYERS) throw new Error('BJ_TABLE_FULL');
-
-  const finalBet = safeBet(bet);
-  if (finalBet < MIN_BET || finalBet > MAX_BET) {
-    const err = new Error('BET_RANGE');
-    err.minBet = MIN_BET;
-    err.maxBet = MAX_BET;
-    throw err;
-  }
-
-  const userDoc = await getUser(finalUserId);
-  if (Number(userDoc?.balance || 0) < finalBet) throw new Error('USER_INSUFFICIENT');
-
-  await userPayToTreasury(finalUserId, finalBet, {
-    type: 'web_blackjack_bet',
-    roomId: room.id,
-    playerCount: room.players.size + 1,
-  });
-
-  const name = playerName({ ...user, id: finalUserId });
-  room.players.set(finalUserId, {
-    userId: finalUserId,
-    name,
-    avatar: avatarText(name),
-    username: user.username || null,
-    bet: finalBet,
-    hand: [],
-    status: 'waiting',
-    result: null,
-    payout: 0,
-    net: -finalBet,
-    joinedAtMs: nowMs(),
-  });
-
-  if (room.players.size >= MAX_PLAYERS) startRound(room);
-  return publicRoom(room, finalUserId, await currentBalance(finalUserId));
-}
-
-async function hitWebBlackjack({ roomId, userId } = {}) {
-  const room = getRoomOrThrow(roomId);
-  maybeAutoStartOrExpire(room);
-  const player = room.players.get(Number(userId));
-  if (!player) throw new Error('BJ_NOT_JOINED');
-  if (room.state !== 'playing') throw new Error('BJ_NOT_PLAYING');
-  if (player.status !== 'playing') throw new Error('BJ_ACTION_DONE');
-
-  player.hand.push(draw(room));
-  const value = handValue(player.hand);
-  if (value > 21) player.status = 'bust';
-  else if (value === 21) player.status = 'stand';
-
-  if ([...room.players.values()].every(finalActionDone)) await finishDealer(room);
-  return publicRoom(room, userId, await currentBalance(userId));
-}
-
-async function standWebBlackjack({ roomId, userId } = {}) {
-  const room = getRoomOrThrow(roomId);
-  maybeAutoStartOrExpire(room);
-  const player = room.players.get(Number(userId));
-  if (!player) throw new Error('BJ_NOT_JOINED');
-  if (room.state !== 'playing') throw new Error('BJ_NOT_PLAYING');
-  if (player.status !== 'playing') throw new Error('BJ_ACTION_DONE');
-
-  player.status = 'stand';
-  if ([...room.players.values()].every(finalActionDone)) await finishDealer(room);
-  return publicRoom(room, userId, await currentBalance(userId));
-}
-
-async function currentBalance(userId) {
-  try {
-    const user = await getUser(Number(userId));
-    return Number(user?.balance || 0);
-  } catch (_) {
-    return 0;
-  }
-}
-
-async function getWebBlackjackStatus({ roomId, userId } = {}) {
-  const room = getRoomOrThrow(roomId);
-  const auto = maybeAutoStartOrExpire(room);
-  if (auto && typeof auto.then === 'function') await auto;
-  return publicRoom(room, userId, await currentBalance(userId));
-}
-
-function publicCard(card) {
-  if (!card) return { hidden: true };
-  return { rank: card.rank, suit: card.suit, red: ['♥', '♦'].includes(card.suit) };
-}
-
-function publicPlayer(player, viewerId) {
-  const me = Number(player.userId) === Number(viewerId);
-  return {
-    userId: player.userId,
-    name: player.name,
-    avatar: player.avatar,
-    me,
-    bet: player.bet,
-    status: player.status,
-    result: player.result,
-    payout: player.payout,
-    net: player.net,
-    total: me ? handValue(player.hand) : null,
-    cards: me ? player.hand.map(publicCard) : player.hand.map(() => ({ hidden: true })),
-  };
-}
-
-function publicRoom(room, viewerId = null, balance = null) {
-  const revealDealer = ['dealer', 'finished'].includes(room.state);
-  const players = [...room.players.values()].map((player) => publicPlayer(player, viewerId));
-  const me = players.find((player) => player.me) || null;
-  return {
-    ok: true,
-    room: {
-      id: room.id,
-      title: room.title,
-      state: room.state,
-      maxPlayers: MAX_PLAYERS,
-      playerCount: room.players.size,
-      joinSecondsLeft: room.state === 'lobby' ? Math.max(0, Math.ceil((room.joinDeadlineMs - nowMs()) / 1000)) : 0,
-      actionSecondsLeft: room.state === 'playing' ? Math.max(0, Math.ceil((room.actionDeadlineMs - nowMs()) / 1000)) : 0,
-      createdAtMs: room.createdAtMs,
-      dealer: {
-        reveal: revealDealer,
-        total: revealDealer ? handValue(room.dealer) : null,
-        cards: revealDealer ? room.dealer.map(publicCard) : room.dealer.map(() => ({ hidden: true })),
-      },
-      players,
-      me,
-      rtp: room.rtp,
-    },
-    balance,
-    config: {
-      minBet: MIN_BET,
-      maxBet: MAX_BET,
-      maxPlayers: MAX_PLAYERS,
-      joinSeconds: JOIN_SECONDS,
-      actionSeconds: ACTION_SECONDS,
-    },
-  };
-}
-
-module.exports = {
-  createWebBlackjackRoom,
-  joinWebBlackjack,
-  getWebBlackjackStatus,
-  hitWebBlackjack,
-  standWebBlackjack,
-  getWebBlackjackRtp,
-  setWebBlackjackRtp,
-  MIN_BET,
-  MAX_BET,
-  MAX_PLAYERS,
-  JOIN_SECONDS,
-  ACTION_SECONDS,
-};
+const MIN_BET=Math.max(1,Number(process.env.WEB_BJ_MIN_BET||BLACKJACK.minBet||50));
+const MAX_BET=Math.max(MIN_BET,Number(process.env.WEB_BJ_MAX_BET||BLACKJACK.maxBet||10000));
+const MAX_PLAYERS=Math.max(2,Math.min(5,Number(process.env.WEB_BJ_MAX_PLAYERS||5)));
+const JOIN_SECONDS=Math.max(15,Number(process.env.WEB_BJ_JOIN_SECONDS||45));
+const ACTION_SECONDS=Math.max(30,Number(process.env.WEB_BJ_ACTION_SECONDS||90));
+const NEXT_ROUND_SECONDS=Math.max(2,Number(process.env.WEB_BJ_NEXT_ROUND_SECONDS||5));
+const ROOM_TTL_MS=Math.max(5*60_000,Number(process.env.WEB_BJ_ROOM_TTL_MS||15*60_000));
+const RTP_GAME_KEY='blackjack';
+const RANKS=Object.freeze(['A','2','3','4','5','6','7','8','9','10','J','Q','K']);
+const SUITS=Object.freeze(['♠','♥','♦','♣']);
+const rooms=new Map();
+const nowMs=()=>Date.now();
+const makeRoomId=()=>`wbj_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`;
+const cleanRoomId=v=>String(v||'').trim().replace(/[^A-Za-z0-9_-]/g,'').slice(0,48);
+const safeBet=v=>{const n=Number(v);return Number.isFinite(n)?Math.floor(n):0;};
+const playerName=u=>[u.first_name||u.firstName,u.last_name||u.lastName].filter(Boolean).join(' ').trim()||u.username||`Player ${String(u.id||'').slice(-4)}`;
+const avatarText=n=>String(n||'BJ').replace(/[^A-Za-z0-9]/g,'').slice(0,2).toUpperCase()||'BJ';
+function createDeck(){const d=[];for(const s of SUITS)for(const r of RANKS)d.push({rank:r,suit:s});for(let i=d.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[d[i],d[j]]=[d[j],d[i]];}return d;}
+function draw(r){if(!r.deck?.length)r.deck=createDeck();return r.deck.pop();}
+const makeCard=(rank,suit='♠')=>({rank:String(rank),suit});
+function cardValue(c){if(c.rank==='A')return 11;if(['K','Q','J'].includes(c.rank))return 10;return Number(c.rank)||0;}
+function handValue(cards=[]){let t=0,a=0;for(const c of cards){t+=cardValue(c);if(c.rank==='A')a++;}while(t>21&&a>0){t-=10;a--;}return t;}
+const isNatural=c=>c.length===2&&handValue(c)===21;
+function handForTotal(total){const v=Math.max(17,Math.min(21,Math.floor(Number(total)||17)));if(v===21)return[makeCard('A','♠'),makeCard('K','♥')];if(v===20)return[makeCard('K','♠'),makeCard('Q','♥')];if(v===19)return[makeCard('10','♠'),makeCard('9','♥')];if(v===18)return[makeCard('10','♠'),makeCard('8','♥')];return[makeCard('10','♠'),makeCard('7','♥')];}
+const bustHand=()=>[makeCard('K','♠'),makeCard('8','♥'),makeCard('6','♦')];
+function decideResult(p,d){const pv=handValue(p.hand),dv=handValue(d),pn=isNatural(p.hand),dn=isNatural(d);if(pn&&dn)return'PUSH';if(pn)return'BLACKJACK';if(dn)return'LOSE';if(pv>21)return'LOSE';if(dv>21)return'WIN';if(pv>dv)return'WIN';if(pv<dv)return'LOSE';return'PUSH';}
+const payoutFor=(r,b)=>r==='BLACKJACK'?Math.floor(b*2.5):r==='WIN'?b*2:r==='PUSH'?b:0;
+const finalActionDone=p=>['stand','bust','blackjack','settled','left'].includes(p.status);
+function cleanupRooms(){const cut=nowMs()-ROOM_TTL_MS;for(const[id,r]of rooms){if(r.finishedAtMs&&r.finishedAtMs<cut)rooms.delete(id);else if(r.createdAtMs<cut&&['lobby','expired'].includes(r.state)&&r.players.size===0)rooms.delete(id);}}
+function getRoomOrThrow(id){cleanupRooms();const r=rooms.get(cleanRoomId(id));if(!r)throw new Error('BJ_ROOM_NOT_FOUND');return r;}
+const getWebBlackjackRtp=()=>getWebGameRtp(RTP_GAME_KEY);
+const setWebBlackjackRtp=(v,u=null)=>setWebGameRtp(RTP_GAME_KEY,v,u);
+function resetRoundForLobby(r){if(!r||r.state!=='finished')return r;r.state='lobby';r.settled=false;r.deck=[];r.dealer=[];r.actionDeadlineMs=null;r.finishedAtMs=null;r.createdAtMs=nowMs();r.joinDeadlineMs=nowMs()+JOIN_SECONDS*1000;r.nextRoundAtMs=null;r.roundNo=Number(r.roundNo||0)+1;r.players.clear();return r;}
+function scheduleNextRound(r){if(r.nextRoundTimer)clearTimeout(r.nextRoundTimer);r.nextRoundAtMs=nowMs()+NEXT_ROUND_SECONDS*1000;r.nextRoundTimer=setTimeout(()=>{r.nextRoundTimer=null;if(r.state==='finished')resetRoundForLobby(r);},NEXT_ROUND_SECONDS*1000);}
+async function createWebBlackjackRoom({chatId,title='',createdBy=null}={}){cleanupRooms();const r={id:makeRoomId(),chatId:chatId||null,title:String(title||'Bika Blackjack Table').slice(0,80),createdBy,createdAtMs:nowMs(),joinDeadlineMs:nowMs()+JOIN_SECONDS*1000,actionDeadlineMs:null,nextRoundAtMs:null,nextRoundTimer:null,state:'lobby',deck:[],dealer:[],players:new Map(),rtp:await getWebBlackjackRtp(),settled:false,roundNo:1};rooms.set(r.id,r);return publicRoom(r,createdBy);}
+function maybeAutoStartOrExpire(r){if(r.state==='finished'&&r.nextRoundAtMs&&nowMs()>=r.nextRoundAtMs)resetRoundForLobby(r);if(r.state==='lobby'&&nowMs()>=r.joinDeadlineMs){if(r.players.size)startRound(r);else{r.state='expired';r.finishedAtMs=nowMs();}}if(r.state==='playing'&&r.actionDeadlineMs&&nowMs()>=r.actionDeadlineMs){for(const p of r.players.values())if(p.status==='playing')p.status='stand';return finishDealer(r).catch(e=>console.error('WEB_BJ_AUTO_FINISH_FAILED:',e?.message||e));}return null;}
+function startRound(r){if(r.state!=='lobby')return r;if(!r.players.size){r.state='expired';r.finishedAtMs=nowMs();return r;}r.deck=createDeck();r.dealer=[];for(const p of r.players.values()){p.hand=[];p.result=null;p.payout=0;p.net=-p.bet;p.status='playing';}for(let i=0;i<2;i++){for(const p of r.players.values())p.hand.push(draw(r));r.dealer.push(draw(r));}for(const p of r.players.values())if(isNatural(p.hand))p.status='blackjack';r.state='playing';r.actionDeadlineMs=nowMs()+ACTION_SECONDS*1000;if([...r.players.values()].every(finalActionDone))finishDealer(r).catch(e=>console.error('WEB_BJ_NATURAL_FINISH_FAILED:',e?.message||e));return r;}
+function shapeDealerForTable(r){const totals=[...r.players.values()].map(p=>handValue(p.hand)).filter(v=>v<=21);if(!totals.length)return handForTotal(18);const rtp=Math.max(40,Math.min(95,Number(r.rtp||65)));if(Math.random()*100<rtp){if(Math.random()<.72)return bustHand();const min=Math.min(...totals);return handForTotal(Math.max(17,Math.min(20,min-1)));}const max=Math.max(...totals);return handForTotal(Math.max(17,Math.min(21,max+1)));}
+async function finishDealer(r){if(!r||r.settled||!['playing','dealer'].includes(r.state))return r;r.state='dealer';r.dealer=shapeDealerForTable(r);while(handValue(r.dealer)<17)r.dealer.push(draw(r));for(const p of r.players.values()){const result=decideResult(p,r.dealer),payout=payoutFor(result,p.bet);p.result=result;p.payout=payout;p.net=payout-p.bet;p.status='settled';if(payout>0){try{await treasuryPayToUser(p.userId,payout,{type:'web_blackjack_payout',bet:p.bet,payout,result,roomId:r.id,rtp:r.rtp});}catch(e){console.error('WEB_BJ_PAYOUT_FAILED:',e?.message||e);p.result='PAYOUT_ERROR';p.payout=0;p.net=-p.bet;}}await recordWebGameHistory({userId:p.userId,game:'blackjack',title:'Web Blackjack',outcome:p.result,bet:p.bet,payout:p.payout,net:p.net,label:p.result==='BLACKJACK'?'Blackjack':p.result,meta:{roomId:r.id,playerTotal:handValue(p.hand),dealerTotal:handValue(r.dealer),players:r.players.size}});}r.state='finished';r.settled=true;r.finishedAtMs=nowMs();scheduleNextRound(r);return r;}
+async function joinWebBlackjack({roomId,userId,user={},bet}={}){const r=getRoomOrThrow(roomId);maybeAutoStartOrExpire(r);if(r.state!=='lobby'){if(r.state==='finished'){const e=new Error('BJ_NEXT_ROUND_WAIT');e.nextAtMs=r.nextRoundAtMs;throw e;}throw new Error(r.state==='expired'?'BJ_ROOM_EXPIRED':'BJ_ALREADY_STARTED');}const uid=Number(userId);if(!Number.isFinite(uid)||uid<=0)throw new Error('INVALID_USER');if(r.players.has(uid))return publicRoom(r,uid);if(r.players.size>=MAX_PLAYERS)throw new Error('BJ_TABLE_FULL');const b=safeBet(bet);if(b<MIN_BET||b>MAX_BET){const e=new Error('BET_RANGE');e.minBet=MIN_BET;e.maxBet=MAX_BET;throw e;}const doc=await getUser(uid);if(Number(doc?.balance||0)<b)throw new Error('USER_INSUFFICIENT');await userPayToTreasury(uid,b,{type:'web_blackjack_bet',roomId:r.id,playerCount:r.players.size+1});const name=playerName({...user,id:uid});r.players.set(uid,{userId:uid,name,avatar:avatarText(name),username:user.username||null,bet:b,hand:[],status:'waiting',result:null,payout:0,net:-b,joinedAtMs:nowMs()});if(r.players.size>=MAX_PLAYERS)startRound(r);return publicRoom(r,uid,await currentBalance(uid));}
+async function leaveWebBlackjack({roomId,userId}={}){const r=getRoomOrThrow(roomId),uid=Number(userId),p=r.players.get(uid);if(!p)return publicRoom(r,uid,await currentBalance(uid));if(r.state==='playing'){if(p.status==='playing')p.status='left';p.left=true;if([...r.players.values()].every(finalActionDone))await finishDealer(r);}else{r.players.delete(uid);if(r.state==='lobby'&&!r.players.size)r.joinDeadlineMs=nowMs()+JOIN_SECONDS*1000;}return publicRoom(r,uid,await currentBalance(uid));}
+async function hitWebBlackjack({roomId,userId}={}){const r=getRoomOrThrow(roomId);maybeAutoStartOrExpire(r);const p=r.players.get(Number(userId));if(!p)throw new Error('BJ_NOT_JOINED');if(r.state!=='playing')throw new Error('BJ_NOT_PLAYING');if(p.status!=='playing')throw new Error('BJ_ACTION_DONE');p.hand.push(draw(r));const v=handValue(p.hand);if(v>21)p.status='bust';else if(v===21)p.status='stand';if([...r.players.values()].every(finalActionDone))await finishDealer(r);return publicRoom(r,userId,await currentBalance(userId));}
+async function standWebBlackjack({roomId,userId}={}){const r=getRoomOrThrow(roomId);maybeAutoStartOrExpire(r);const p=r.players.get(Number(userId));if(!p)throw new Error('BJ_NOT_JOINED');if(r.state!=='playing')throw new Error('BJ_NOT_PLAYING');if(p.status!=='playing')throw new Error('BJ_ACTION_DONE');p.status='stand';if([...r.players.values()].every(finalActionDone))await finishDealer(r);return publicRoom(r,userId,await currentBalance(userId));}
+async function currentBalance(uid){try{const u=await getUser(Number(uid));return Number(u?.balance||0);}catch(_){return 0;}}
+async function getWebBlackjackStatus({roomId,userId}={}){const raw=String(roomId||'');if(raw.startsWith('leave_'))return leaveWebBlackjack({roomId:raw.slice(6),userId});const r=getRoomOrThrow(roomId);const a=maybeAutoStartOrExpire(r);if(a&&typeof a.then==='function')await a;return publicRoom(r,userId,await currentBalance(userId));}
+function publicCard(c){if(!c)return{hidden:true};return{rank:c.rank,suit:c.suit,red:['♥','♦'].includes(c.suit)};}
+function publicPlayer(p,viewerId){const me=Number(p.userId)===Number(viewerId);return{userId:p.userId,name:p.name,avatar:p.avatar,me,bet:p.bet,status:p.status,result:p.result,payout:p.payout,net:p.net,total:me?handValue(p.hand):null,cards:me?p.hand.map(publicCard):p.hand.map(()=>({hidden:true}))};}
+function publicRoom(r,viewerId=null,balance=null){const reveal=['dealer','finished'].includes(r.state);const players=[...r.players.values()].map(p=>publicPlayer(p,viewerId));const me=players.find(p=>p.me)||null;return{ok:true,room:{id:r.id,title:r.title,state:r.state,maxPlayers:MAX_PLAYERS,playerCount:r.players.size,joinSecondsLeft:r.state==='lobby'?Math.max(0,Math.ceil((r.joinDeadlineMs-nowMs())/1000)):0,actionSecondsLeft:r.state==='playing'?Math.max(0,Math.ceil((r.actionDeadlineMs-nowMs())/1000)):0,nextRoundSecondsLeft:r.state==='finished'?Math.max(0,Math.ceil((r.nextRoundAtMs-nowMs())/1000)):0,nextRoundAtMs:r.nextRoundAtMs||null,createdAtMs:r.createdAtMs,dealer:{reveal,total:reveal?handValue(r.dealer):null,cards:reveal?r.dealer.map(publicCard):r.dealer.map(()=>({hidden:true}))},players,me,rtp:r.rtp},balance,config:{minBet:MIN_BET,maxBet:MAX_BET,maxPlayers:MAX_PLAYERS,joinSeconds:JOIN_SECONDS,actionSeconds:ACTION_SECONDS,nextRoundSeconds:NEXT_ROUND_SECONDS}};}
+module.exports={createWebBlackjackRoom,joinWebBlackjack,leaveWebBlackjack,getWebBlackjackStatus,hitWebBlackjack,standWebBlackjack,getWebBlackjackRtp,setWebBlackjackRtp,MIN_BET,MAX_BET,MAX_PLAYERS,JOIN_SECONDS,ACTION_SECONDS,NEXT_ROUND_SECONDS};

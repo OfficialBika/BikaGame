@@ -1,0 +1,35 @@
+/* BIKA PREMIUM ARENA v31 — scoped to Home hero only. */
+.home-panel .hero-premium{position:relative;isolation:isolate;min-height:270px!important;border:1px solid rgba(255,49,91,.34)!important;background:radial-gradient(circle at 12% 15%,rgba(255,49,91,.20),transparent 25%),radial-gradient(circle at 88% 18%,rgba(53,233,255,.20),transparent 28%),linear-gradient(135deg,#100914 0%,#090e1c 48%,#06151c 100%)!important;box-shadow:0 24px 70px rgba(0,0,0,.48),0 0 55px rgba(255,49,91,.08),0 0 70px rgba(53,233,255,.08),inset 0 1px rgba(255,255,255,.09)!important}
+.home-panel .hero-premium:before{content:"";position:absolute;inset:-45%;z-index:-1;background:conic-gradient(from 0deg,transparent 0 18%,rgba(255,49,91,.16) 22%,transparent 27% 43%,rgba(53,233,255,.16) 48%,transparent 53% 100%);animation:arenaSpin 14s linear infinite;pointer-events:none}
+.home-panel .hero-premium:after{content:"";position:absolute;right:-125px;top:-170px;width:440px;height:440px;border-radius:50%;z-index:-1;border:1px solid rgba(53,233,255,.28);box-shadow:0 0 0 18px rgba(255,49,91,.035),0 0 0 44px rgba(53,233,255,.028),0 0 90px rgba(53,233,255,.14),inset 0 0 80px rgba(255,49,91,.08);animation:arenaOrbit 9s ease-in-out infinite alternate;pointer-events:none}
+.home-panel .hero-premium h1{position:relative;background:linear-gradient(100deg,#ff244f 0%,#ff6c83 24%,#ffffff 45%,#56eaff 69%,#2678ff 100%)!important;background-size:300% 100%!important;-webkit-background-clip:text!important;background-clip:text!important;color:transparent!important;animation:arenaTitle 4s ease-in-out infinite!important;filter:drop-shadow(0 0 16px rgba(255,49,91,.14)) drop-shadow(0 0 22px rgba(53,233,255,.12))!important}
+.home-panel .hero-premium>div:first-child:after{content:"";position:absolute;left:-25px;bottom:-55px;width:280px;height:1px;background:linear-gradient(90deg,transparent,#ff315b,#fff,#35e9ff,transparent);box-shadow:0 0 14px rgba(53,233,255,.65),0 0 18px rgba(255,49,91,.45);animation:arenaBeam 3.2s ease-in-out infinite}
+.home-panel .hero-premium .hero-wallet{position:relative;overflow:hidden;border:1px solid rgba(53,233,255,.30)!important;background:linear-gradient(145deg,rgba(14,22,39,.90),rgba(24,7,24,.84))!important;box-shadow:0 0 28px rgba(53,233,255,.10),0 0 24px rgba(255,49,91,.08),inset 0 1px rgba(255,255,255,.07)!important}
+.home-panel .hero-premium .hero-wallet:before{content:"";position:absolute;inset:-80% -20%;background:linear-gradient(100deg,transparent 40%,rgba(255,255,255,.16) 49%,transparent 58%);transform:translateX(-60%) rotate(12deg);animation:arenaShine 4.5s ease-in-out infinite;pointer-events:none}
+.home-panel .hero-premium .hero-wallet strong{background:linear-gradient(90deg,#fff,#65efff,#ff5576,#fff);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent!important;animation:arenaTitle 3.5s ease-in-out infinite}
+.home-panel .hero-premium .eyebrow{background:linear-gradient(90deg,#ff315b,#fff,#35e9ff);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;color:transparent!important;animation:arenaTitle 4s ease-in-out infinite}
+@keyframes arenaSpin{to{transform:rotate(360deg)}}
+@keyframes arenaOrbit{from{transform:rotate(-8deg) scale(.96)}to{transform:rotate(8deg) scale(1.03)}}
+@keyframes arenaTitle{0%,100%{background-position:0 50%}50%{background-position:100% 50%}}
+@keyframes arenaBeam{0%,100%{opacity:.35;transform:translateX(-18px) scaleX(.82)}50%{opacity:1;transform:translateX(18px) scaleX(1)}}
+@keyframes arenaShine{0%{transform:translateX(-70%) rotate(12deg)}55%,100%{transform:translateX(70%) rotate(12deg)}}
+@media(max-width:620px){.home-panel .hero-premium{min-height:245px!important;padding:22px!important}.home-panel .hero-premium:after{right:-190px;top:-155px;width:390px;height:390px}.home-panel .hero-premium h1{font-size:clamp(29px,9vw,42px)!important}}
+@media(prefers-reduced-motion:reduce){.home-panel .hero-premium:before,.home-panel .hero-premium:after,.home-panel .hero-premium h1,.home-panel .hero-premium .hero-wallet strong,.home-panel .hero-premium .eyebrow,.home-panel .hero-premium>div:first-child:after,.home-panel .hero-premium .hero-wallet:before{animation:none!important}}
+
+/* Rocket visual flight repair v33.
+   The core renderer owns `transform`; this layer uses the independent CSS
+   `translate` property so movement cannot be frozen by orientation rules. */
+html body .app-shell .rocket-scene .ship{
+  translate:0 0;
+  animation: bikaRocketFlightV33 8s cubic-bezier(.18,.72,.22,1) both;
+  will-change:transform,translate;
+}
+@keyframes bikaRocketFlightV33{
+  0%{translate:0 0}
+  12%{translate:1px -12px}
+  30%{translate:-2px -42px}
+  52%{translate:3px -82px}
+  74%{translate:-2px -128px}
+  100%{translate:2px -185px}
+}
+@media(prefers-reduced-motion:reduce){html body .app-shell .rocket-scene .ship{animation:none!important;translate:0 -18px}}

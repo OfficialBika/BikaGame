@@ -1,0 +1,14 @@
+/* BIKA GAME — Premium Flow v19 */
+.v19-flow-rail{margin:10px 0 14px;padding:11px 12px;border:1px solid rgba(255,255,255,.08);border-radius:16px;background:linear-gradient(145deg,rgba(255,255,255,.045),rgba(255,255,255,.018));box-shadow:0 10px 28px rgba(0,0,0,.14)}
+.v19-flow-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px}
+.v19-flow-head strong{font-size:10px;letter-spacing:.08em;color:#cbd5ef;text-transform:uppercase}
+.v19-flow-phase{padding:4px 7px;border-radius:999px;background:rgba(90,120,255,.12);color:#b9c6ff;font-size:8px;font-weight:900;letter-spacing:.08em}
+.v19-flow-steps{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}
+.v19-flow-steps span{position:relative;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px;color:#59657e;text-align:center}
+.v19-flow-steps i{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.025);font-style:normal;font-size:8px;font-weight:900}
+.v19-flow-steps b{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:7px;font-weight:800}
+.v19-flow-steps span.is-done{color:#7ee9bf}.v19-flow-steps span.is-done i{background:rgba(87,255,174,.11);border-color:rgba(87,255,174,.25)}
+.v19-flow-steps span.is-active{color:#fff}.v19-flow-steps span.is-active i{background:rgba(95,140,255,.22);border-color:rgba(130,160,255,.42);box-shadow:0 0 0 3px rgba(95,140,255,.06)}
+.v19-flow-steps span.is-upcoming{opacity:.65}
+@media(max-width:390px){.v19-flow-rail{padding:9px}.v19-flow-steps b{font-size:6.5px}.v19-flow-steps i{width:20px;height:20px}}
+@media(prefers-reduced-motion:reduce){.v19-flow-steps span.is-active i{box-shadow:none}}

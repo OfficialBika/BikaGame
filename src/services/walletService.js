@@ -1,0 +1,10 @@
+'use strict';
+const { getUser, transferBalance } = require('./economyService');
+const { toNum } = require('../utils/format');
+function walletIdForUserId(userId){const raw=String(userId||'').trim();if(!/^\d+$/.test(raw))return null;return `BIKA-${BigInt(raw).toString(36).toUpperCase()}`;}
+function userIdFromWalletId(walletId){const value=String(walletId||'').trim().toUpperCase();const m=/^BIKA-([0-9A-Z]+)$/.exec(value);if(!m)return null;try{const id=BigInt(parseInt(m[1],36));return id>0n?id.toString():null;}catch(_){return null;}}
+function maskWalletId(walletId){const v=String(walletId||'');return v.length<=8?'••••••••':`${v.slice(0,5)}••••${v.slice(-3)}`;}
+async function getWallet(userId){const u=await getUser(userId);if(!u)throw new Error('USER_NOT_FOUND');const walletId=walletIdForUserId(u.userId);return {walletId,maskedWalletId:maskWalletId(walletId),balance:Number(u.balance||0),userId:u.userId,firstName:u.firstName||null,lastName:u.lastName||null,username:u.username||null,photoUrl:u.photoUrl||null};}
+async function lookupWallet(walletId){const userId=userIdFromWalletId(walletId);if(!userId)throw new Error('WALLET_INVALID');const u=await getUser(userId);if(!u)throw new Error('WALLET_NOT_FOUND');return {walletId:walletIdForUserId(u.userId),userId:u.userId,firstName:u.firstName||null,lastName:u.lastName||null,username:u.username||null,photoUrl:u.photoUrl||null};}
+async function transferByWallet(fromUserId,recipientWalletId,amount){const amt=Math.floor(toNum(amount));if(!Number.isFinite(amt)||amt<=0)throw new Error('INVALID_TRANSFER_AMOUNT');const toUserId=userIdFromWalletId(recipientWalletId);if(!toUserId)throw new Error('WALLET_INVALID');if(String(fromUserId)===String(toUserId))throw new Error('TRANSFER_SELF');if(!(await getUser(toUserId)))throw new Error('WALLET_NOT_FOUND');await transferBalance(fromUserId,toUserId,amt,{source:'mini_wallet',recipientWalletId:walletIdForUserId(toUserId)});const sender=await getUser(fromUserId);return {amount:amt,walletId:walletIdForUserId(toUserId),senderBalance:Number(sender?.balance||0)};}
+module.exports={walletIdForUserId,userIdFromWalletId,maskWalletId,getWallet,lookupWallet,transferByWallet};
