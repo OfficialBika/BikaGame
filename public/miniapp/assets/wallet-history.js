@@ -12,21 +12,26 @@
     document.getElementById('transferHistoryRefresh').onclick=load;load();
   }
   function addButton(id,host,smallText){
-    if(document.getElementById(id))return;
-    const btn=document.createElement('button');btn.id=id;btn.className='wallet-history-btn';btn.innerHTML='<span>↕</span><div><b>Transfer History</b><small>'+smallText+'</small></div><strong>›</strong>';host.parentNode.insertBefore(btn,host);btn.onclick=renderHistory;
+    if(document.getElementById(id)||!host)return;
+    const btn=document.createElement('button');
+    btn.id=id;btn.type='button';btn.className='wallet-history-btn';btn.innerHTML='<span>↕</span><div><b>Transfer History</b><small>'+smallText+'</small></div><strong>›</strong>';
+    btn.addEventListener('click',renderHistory);
+    host.parentNode.insertBefore(btn,host);
   }
   function install(){
     const page=document.getElementById('bikaNavPage'),content=document.getElementById('bnpContent');
     if(!page||!content)return;
-    const title=String(document.getElementById('bnpTitle')?.textContent||'');
-    if(title==='Wallet'){
+    const title=String(document.getElementById('bnpTitle')?.textContent||'').trim().toLowerCase();
+    if(title==='wallet'){
       const stats=content.querySelector('.bnp-stat-grid');
       if(stats)addButton('walletTransferHistory',stats,'View sent and received balance transfers');
-    }else if(title==='Transfer Balance'){
+    }else if(title==='transfer balance'){
       const status=content.querySelector('#transferStatus');
-      if(status)addButton('transferPageHistory',status,'Open your transfer records');
+      const host=status||content.querySelector('.wallet-card');
+      if(host)addButton('transferPageHistory',host,'Open your transfer records');
     }
   }
-  new MutationObserver(install).observe(document.documentElement,{subtree:true,childList:true});
-  setTimeout(install,300);setTimeout(install,1200);
+  const observer=new MutationObserver(install);
+  observer.observe(document.documentElement,{subtree:true,childList:true});
+  [0,100,300,600,1200,2000,3500].forEach(ms=>setTimeout(install,ms));
 })();
