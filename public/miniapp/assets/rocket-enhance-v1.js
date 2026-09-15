@@ -1,37 +1,28 @@
-/* Bika Rocket visual enhancement v1 — presentation only. Server remains source of truth. */
+/* Bika Rocket visual enhancement v2 — presentation only. Server remains source of truth. */
 (function(){
   'use strict';
-  const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
   function install(){
-    const scene=document.getElementById('rocketScene');
-    if(!scene) return false;
-    scene.style.setProperty('--rocket-flight-ready','1');
+    if(document.getElementById('bikaRocketFlightV2')) return true;
+    const style=document.createElement('style');
+    style.id='bikaRocketFlightV2';
+    style.textContent=`
+      html body .app-shell .rocket-scene .ship{
+        animation:none!important;
+        transition:transform .16s linear,translate .16s linear,bottom .16s linear!important;
+        bottom:18px!important;
+        translate:0 0!important;
+        transform:translate3d(0,calc(-150px * var(--rocket-progress,0)),0) rotate(-4deg) scale(calc(.94 + .10 * var(--rocket-progress,0)))!important;
+      }
+      html body .app-shell .rocket-scene.betting .ship{
+        transform:translate3d(0,0,0) rotate(-7deg) scale(.94)!important;
+      }
+      html body .app-shell .rocket-scene.crashed .ship{
+        transform:translate3d(0,calc(-150px * var(--rocket-progress,0)),0) rotate(-8deg) scale(1.04)!important;
+      }
+    `;
+    document.head.appendChild(style);
     return true;
   }
-  function sync(){
-    const scene=document.getElementById('rocketScene');
-    if(!scene) return;
-    const round=window.__bikaLiveRound || null;
-    if(!round) return;
-    const state=String(round.state||'');
-    if(state==='betting'){
-      scene.style.setProperty('--rocket-progress','0');
-      scene.dataset.rocketPhase='betting';
-      return;
-    }
-    if(state==='running'){
-      const m=Math.max(1,Number(round.multiplier||1));
-      const max=Math.max(2,Number(window.__bikaRocketVisualMax||6));
-      const p=clamp(Math.log(m)/Math.log(max),0,.92);
-      scene.style.setProperty('--rocket-progress',String(p));
-      scene.dataset.rocketPhase='running';
-      return;
-    }
-    if(state==='crashed'){
-      scene.dataset.rocketPhase='crashed';
-    }
-  }
   install();
-  window.setInterval(function(){ install(); sync(); },120);
-  window.addEventListener('bika:rocket-state',sync);
+  window.setInterval(install,500);
 })();
