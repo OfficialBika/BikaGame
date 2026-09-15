@@ -1,0 +1,36 @@
+/* BIKA ROCKET CRASH — dedicated Pro visual layer */
+#crash .rocket-compact-grid{display:grid!important;grid-template-columns:minmax(0,1.65fr) minmax(280px,.85fr)!important;gap:14px!important;align-items:stretch!important}
+#crash .rocket-stage{padding:0!important;background:#050812!important;border:1px solid rgba(91,180,255,.16)!important;border-radius:22px!important;overflow:hidden!important;box-shadow:0 18px 55px rgba(0,0,0,.38)!important}
+#crash .rocket-scene{height:330px!important;min-height:330px!important;border-radius:21px 21px 0 0!important;overflow:hidden!important;position:relative!important;background:radial-gradient(circle at 78% 18%,rgba(35,183,255,.16),transparent 20%),radial-gradient(circle at 12% 85%,rgba(255,40,80,.11),transparent 28%),linear-gradient(180deg,#030711 0%,#07101d 58%,#02050b 100%)!important;border:0!important}
+#crash .rocket-scene:before{content:""!important;position:absolute!important;inset:0!important;background:linear-gradient(115deg,transparent 0 42%,rgba(75,190,255,.035) 50%,transparent 58%),radial-gradient(circle at 50% 105%,rgba(41,191,255,.10),transparent 40%)!important;pointer-events:none!important;z-index:1!important}
+#crash .rocket-scene .stars{opacity:.9!important;z-index:1!important}
+#crash .rocket-scene .planet{opacity:.28!important;z-index:1!important}
+#crash .rocket-scene .launch-pad{opacity:.9!important;z-index:2!important}
+#crash .rocket-scene .flight-path{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;z-index:3!important;opacity:.46!important;overflow:visible!important;filter:drop-shadow(0 0 8px rgba(48,210,255,.65))!important}
+#crash .rocket-scene .flight-path path{fill:none!important;stroke:rgba(71,216,255,.92)!important;stroke-width:2.2!important;stroke-linecap:round!important;stroke-dasharray:2 9!important}
+#crash .rocket-scene .rocket-multiplier{position:absolute!important;left:50%!important;top:48%!important;transform:translate(-50%,-50%)!important;z-index:6!important;font-size:clamp(42px,8vw,72px)!important;line-height:1!important;font-weight:950!important;letter-spacing:-3px!important;color:#fff!important;text-shadow:0 0 28px rgba(70,210,255,.18),0 7px 30px rgba(0,0,0,.72)!important}
+#crash .rocket-scene .rocket-state{position:absolute!important;left:50%!important;top:calc(48% + 48px)!important;transform:translateX(-50%)!important;z-index:6!important;white-space:nowrap!important;font-size:12px!important;color:#8da8bd!important;letter-spacing:.05em!important}
+#crash .rocket-scene .countdown-bubble{z-index:8!important;top:15px!important;right:15px!important;left:auto!important;width:52px!important;height:52px!important;display:grid!important;place-items:center!important;border-radius:50%!important;background:rgba(3,8,16,.82)!important;border:1px solid rgba(75,210,255,.25)!important;color:#fff!important;font-size:18px!important;font-weight:900!important;box-shadow:0 0 24px rgba(44,202,255,.13)!important}
+#crash .rocket-pro-status{left:15px!important;top:15px!important;z-index:9!important}
+#crash .rocket-scene .ship{z-index:7!important;width:92px!important;height:92px!important}
+#crash .rocket-scene .ship .ship-body{width:58px!important;height:38px!important;left:17px!important;top:23px!important;background:linear-gradient(145deg,#f8fbff 0%,#cbd9e5 32%,#6d859c 66%,#182637 100%)!important;box-shadow:inset -7px -6px 12px rgba(0,0,0,.35),0 7px 22px rgba(0,0,0,.5),0 0 24px rgba(40,210,255,.22)!important}
+#crash .rocket-scene .ship .ship-body:before{width:13px!important;height:13px!important;right:9px!important;top:8px!important}
+#crash .rocket-scene .ship .ship-body:after{left:-21px!important;width:26px!important;height:16px!important}
+#crash .rocket-scene .ship .ship-body span{left:8px!important;bottom:-15px!important;width:25px!important;height:29px!important}
+#crash .rocket-scene .explosion{z-index:8!important;font-size:54px!important;filter:drop-shadow(0 0 16px rgba(255,55,75,.8))!important}
+#crash .rocket-bet-ribbon{margin:0!important;border-radius:0!important;border-left:0!important;border-right:0!important;border-top:1px solid rgba(255,255,255,.06)!important;background:#070d17!important;padding:9px 14px!important}
+#crash .compact-bet{margin:0!important;padding:12px 14px 8px!important;background:#060b14!important}
+#crash .quick-bets{padding:0 14px 14px!important;background:#060b14!important}
+#crash .players-card{height:100%!important;min-height:330px!important;background:linear-gradient(180deg,#08101b,#050a12)!important;border:1px solid rgba(91,180,255,.13)!important;border-radius:22px!important}
+#crash .players-card .history-card{display:none!important}
+#crash .players-card .players-head{padding-bottom:12px!important;border-bottom:1px solid rgba(255,255,255,.06)!important}
+#crash .players-list{max-height:250px!important;overflow:auto!important}
+#crash .player-row{background:rgba(255,255,255,.025)!important;border:1px solid rgba(255,255,255,.045)!important;border-radius:11px!important;margin:6px 0!important;padding:9px 10px!important}
+#crash .rocket-player-bet{display:block!important;color:#71869a!important;font-size:10px!important;margin-top:2px!important}
+#crash .rocket-player-total{font-variant-numeric:tabular-nums!important}
+#crash .rocket-scene.running .rocket-multiplier{animation:rocketLivePulse 1.25s ease-in-out infinite!important}
+#crash .rocket-scene.crashed{animation:rocketCrashShake .32s ease-out!important}
+#crash .rocket-scene.crashed .rocket-multiplier{color:#ff4d68!important;text-shadow:0 0 30px rgba(255,45,78,.42)!important}
+@keyframes rocketLivePulse{0%,100%{transform:translate(-50%,-50%) scale(1)}50%{transform:translate(-50%,-50%) scale(1.025)}}
+@keyframes rocketCrashShake{0%{transform:translateX(0)}20%{transform:translateX(-3px)}40%{transform:translateX(3px)}60%{transform:translateX(-2px)}100%{transform:translateX(0)}}
+@media(max-width:760px){#crash .rocket-compact-grid{grid-template-columns:1fr!important}#crash .players-card{min-height:0!important}#crash .rocket-scene{height:310px!important;min-height:310px!important}}
