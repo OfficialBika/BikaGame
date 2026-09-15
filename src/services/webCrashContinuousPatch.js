@@ -12,7 +12,6 @@ const rooms = crash._private?.rooms;
 const roomWatchers = new Map();
 const scheduledRounds = new WeakSet();
 const WATCH_MS = Math.max(50, Number(process.env.WEB_CRASH_EMPTY_ROUND_WATCH_MS || 100));
-const PRE_CLOSE_MS = 35;
 
 function clearRoomTimers(room) {
   for (const timer of room?.timers || []) clearTimeout(timer);
@@ -50,12 +49,16 @@ function armRound(room) {
   if (!round || round.state !== 'betting' || scheduledRounds.has(round)) return;
   scheduledRounds.add(round);
 
-  const remaining = Math.max(0, Number(round.bettingEndsAtMs || 0) - Date.now() - PRE_CLOSE_MS);
-  setTimeout(() => {
+  // The canonical service has its own empty-round timer. Replace that timer
+  // for this betting round so it cannot convert a zero-bet round to no_bets.
+  clearRoomTimers(room);
+  const remaining = Math.max(0, Number(round.bettingEndsAtMs || 0) - Date.now());
+  const timer = setTimeout(() => {
     promoteEmptyBettingRound(room, round).catch((err) => {
       console.error('WEB_CRASH_EMPTY_ROUND_PATCH:', err?.stack || err?.message || err);
     });
   }, remaining);
+  room.timers.add(timer);
 }
 
 function startWatcher(roomId) {
