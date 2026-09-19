@@ -19,7 +19,7 @@ function parseSetEvent(text) {
   const odds = lines[1].split('|').map(s => Number(String(s).replace(/[×xX]/g, '').trim()));
   const aliases = lines[2].split('|').map(normalizeAlias);
   const teams = title.split(/\s+(?:vs\.?|v\.?|versus)\s+/i).map(s => s.trim());
-  if (teams.length !== 2 || teams.some(Boolean) === false) return null;
+  if (teams.length !== 2 || teams.some(t => !t)) return null;
   if (odds.length !== 2 || aliases.length !== 2 || odds.some(n => !Number.isFinite(n) || n <= 1)) return null;
   if (!aliases[0] || !aliases[1] || aliases[0] === aliases[1]) return null;
   return { title, teams: [{ name: teams[0], alias: aliases[0], odd: odds[0] }, { name: teams[1], alias: aliases[1], odd: odds[1] }] };
