@@ -5,7 +5,7 @@ const { getBotInfo } = require('../../config/bot');
 const { replyHTML } = require('../../utils/telegram');
 const { mentionHtml } = require('../../utils/helpers');
 const { escHtml } = require('../../utils/format');
-const { bets, rememberThreadMessage, parseSetEvent, parseBet, formatDate, fmt, getReplyRoot, findActiveEventByThread, createEvent, placeBet, stopEvent, settleEvent } = require('../../services/sportsEventService');
+const { events, bets, rememberThreadMessage, parseSetEvent, parseBet, formatDate, fmt, getReplyRoot, findActiveEventByThread, createEvent, placeBet, stopEvent, settleEvent } = require('../../services/sportsEventService');
 const { treasuryPayToUser } = require('../../services/economyService');
 
 const isOwner = ctx => Number(ctx.from?.id) === Number(env.OWNER_ID);
