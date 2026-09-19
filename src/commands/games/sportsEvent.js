@@ -5,7 +5,7 @@ const { getBotInfo } = require('../../config/bot');
 const { replyHTML } = require('../../utils/telegram');
 const { mentionHtml } = require('../../utils/helpers');
 const { escHtml } = require('../../utils/format');
-const { bets, parseSetEvent, parseBet, formatDate, fmt, getReplyRoot, findActiveEventByThread, createEvent, placeBet, stopEvent, settleEvent } = require('../../services/sportsEventService');
+const { bets, rememberThreadMessage, parseSetEvent, parseBet, formatDate, fmt, getReplyRoot, findActiveEventByThread, createEvent, placeBet, stopEvent, settleEvent } = require('../../services/sportsEventService');
 const { treasuryPayToUser } = require('../../services/economyService');
 
 const isOwner = ctx => Number(ctx.from?.id) === Number(env.OWNER_ID);
@@ -34,7 +34,10 @@ function eventCard(e) {
 function getUsage(){ return '❌ <b>Set Event Format မမှန်ပါ။</b>\n━━━━━━━━━━━━━━━━\n<code>/setevent Team A Vs Team B\n2× | 1.5×\nvan | pan</code>'; }
 async function eventFromComment(ctx) {
   const root = getReplyRoot(ctx.message);
-  return root?.message_id ? findActiveEventByThread(ctx.chat?.id, root.message_id) : null;
+  if (!root?.message_id) return null;
+  const event = await findActiveEventByThread(ctx.chat?.id, root.message_id);
+  if (event && ctx.message?.message_id) await rememberThreadMessage(event._id, ctx.message.message_id);
+  return event;
 }
 async function removeIncoming(ctx) { try { await ctx.telegram.deleteMessage(ctx.chat.id, ctx.message.message_id); } catch (_) {} }
 function betComplete(bet, ctx, no) {
