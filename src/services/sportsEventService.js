@@ -42,7 +42,7 @@ function getReplyRoot(message) {
 }
 
 async function findActiveEventByThread(chatId, rootMessageId) {
-  return events().findOne({ commentChatId: String(chatId), threadRootMessageId: Number(rootMessageId), status: { $in: ['open', 'stopped'] } });
+  return events().findOne({ commentChatId: String(chatId), $or: [{ threadRootMessageId: Number(rootMessageId) }, { announcementMessageId: Number(rootMessageId) }], status: { $in: ['open', 'stopped'] } });
 }
 
 async function createEvent(data) {
@@ -101,12 +101,14 @@ async function settleEvent(event, winnerAlias, payoutFn) {
   const allBets = await bets().find({ eventId: event._id }).sort({ potentialWin: -1, createdAt: 1 }).toArray();
   const winners = allBets.filter(b => b.alias === winnerAlias);
   const losers = allBets.filter(b => b.alias !== winnerAlias);
+  const totalWinBal = winners.reduce((s, b) => s + b.potentialWin, 0);
+  const treasury = await col('config').findOne({ key: 'treasury' });
+  if (Number(treasury?.ownerBalance || 0) < totalWinBal) throw new Error('TREASURY_INSUFFICIENT_FOR_SETTLEMENT');
   for (const bet of winners) {
     await payoutFn(bet.userId, bet.potentialWin, { type: 'sports_win', eventId: String(event._id), betId: String(bet._id), odd: bet.odd });
     await bets().updateOne({ _id: bet._id }, { $set: { status: 'won', settledAt: new Date(), payout: bet.potentialWin } });
   }
   if (losers.length) await bets().updateMany({ _id: { $in: losers.map(b => b._id) } }, { $set: { status: 'lost', settledAt: new Date(), payout: 0 } });
-  const totalWinBal = winners.reduce((s, b) => s + b.potentialWin, 0);
   await events().updateOne({ _id: event._id }, { $set: { status: 'settled', winnerAlias, winnerTeam: winner.name, settledAt: new Date(), totalWinBal, updatedAt: new Date() } });
   return { winner, winners, losers, allBets };
 }
