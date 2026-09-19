@@ -98,6 +98,7 @@ async function connectMongo() {
   await safeCreateIndex(collections.shop_settings, { key: 1 }, { unique: true });
 
   await safeCreateIndex(db.collection('sports_events'), { commentChatId: 1, threadRootMessageId: 1, status: 1 });
+  await safeCreateIndex(db.collection('sports_events'), { commentChatId: 1, threadMessageIds: 1, status: 1 });
   await safeCreateIndex(db.collection('sports_events'), { status: 1, createdAt: -1 });
   await safeCreateIndex(db.collection('sports_bets'), { eventId: 1, userId: 1 }, { unique: true });
   await safeCreateIndex(db.collection('sports_bets'), { eventId: 1, potentialWin: -1 });
