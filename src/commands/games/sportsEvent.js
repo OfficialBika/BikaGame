@@ -28,13 +28,7 @@ function isBotTaggedPost(root) {
   ).replace(/^@/, '').toLowerCase();
 
   const text = String(root.text || root.caption || '');
-  const escaped = username.replace(/[-\\/\\^$*+?.()|[\\]{}]/g, '\\function isBotTaggedPost(root) {
-  const username = String(getBotInfo()?.username || process.env.BOT_USERNAME || '').replace(/^@/, '').toLowerCase();
-  if (!username) return false;
-  const text = String(root?.text || root?.caption || '');
-  const escaped = username.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-  return new RegExp('@' + escaped + '\\b', 'i').test(text);
-}');
+  const escaped = username.replace(/[-\\/\\^$*+?.()|[\\]{}]/g, '\\$&');
   const hasBotMention = !!username && new RegExp('@' + escaped + '\\b', 'i').test(text);
 
   // Prefer the explicit @BikaGameBot mention when it is available.
