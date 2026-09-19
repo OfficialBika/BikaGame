@@ -97,6 +97,12 @@ async function connectMongo() {
 
   await safeCreateIndex(collections.shop_settings, { key: 1 }, { unique: true });
 
+  await safeCreateIndex(db.collection('sports_events'), { commentChatId: 1, threadRootMessageId: 1, status: 1 });
+  await safeCreateIndex(db.collection('sports_events'), { status: 1, createdAt: -1 });
+  await safeCreateIndex(db.collection('sports_bets'), { eventId: 1, userId: 1 }, { unique: true });
+  await safeCreateIndex(db.collection('sports_bets'), { eventId: 1, potentialWin: -1 });
+  await safeCreateIndex(db.collection('sports_bets'), { userId: 1, createdAt: -1 });
+
   logger.info('Mongo connected');
 }
 function getDb() { if (!db) throw new Error('DB_NOT_CONNECTED'); return db; }
