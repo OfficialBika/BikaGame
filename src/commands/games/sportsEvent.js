@@ -70,7 +70,9 @@ module.exports = (bot) => {
     if(!parsed) return replyHTML(ctx,getUsage(),replyOpts(ctx));
     if(await findActiveEventByThread(ctx.chat.id,root.message_id)) return replyHTML(ctx,'⚠️ <b>ဒီ Post မှာ Event တစ်ခု ရှိပြီးသားပါ။</b>',replyOpts(ctx));
     const event=await createEvent({postChatId:String(root.chat?.id||ctx.chat.id),postMessageId:Number(root.message_id),commentChatId:String(ctx.chat.id),threadRootMessageId:Number(root.message_id),sourcePostText:String(root.text||root.caption||'').slice(0,4000),title:parsed.title,teams:parsed.teams});
-    return replyHTML(ctx,eventCard(event),replyOpts(ctx));
+    const sent=await replyHTML(ctx,eventCard(event),replyOpts(ctx));
+    if(sent?.message_id) await events().updateOne({_id:event._id},{$set:{announcementMessageId:Number(sent.message_id),updatedAt:new Date()}});
+    return sent;
   });
 
   bot.hears(/^\.stopbet\s*$/i, async ctx => {
@@ -102,7 +104,7 @@ module.exports = (bot) => {
       const existing=await bets().findOne({eventId:event._id,userId:Number(ctx.from.id)});
       if(existing){ await removeIncoming(ctx); return replyHTML(ctx,'⚠️ <b>သင် ထိုးကြေးတင်ပြီးပါပြီ။</b>\nပွဲပြီးအောင် စောင့်ပေးပါ။',replyOpts(ctx)); }
       const bet=await placeBet(event,ctx,parsed.alias,parsed.amount);
-      const no=Number(event.totalBet||0)+1;
+      const no=(await bets().countDocuments({eventId:event._id}));
       return replyHTML(ctx,betComplete(bet,ctx,no),replyOpts(ctx));
     } catch(err) {
       const m=String(err?.message||err);
