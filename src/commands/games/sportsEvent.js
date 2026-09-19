@@ -12,11 +12,34 @@ const isOwner = ctx => Number(ctx.from?.id) === Number(env.OWNER_ID);
 const replyOpts = ctx => ctx.message?.message_id ? { reply_to_message_id: ctx.message.message_id, allow_sending_without_reply: true } : {};
 
 function isBotTaggedPost(root) {
+  if (!root) return false;
+
+  // A channel comment is a thread in the linked discussion group.
+  // Telegram marks the channel-post copy with is_automatic_forward.
+  // Some Bot API updates do not expose the original post text/entities
+  // consistently, so the forward marker is the reliable thread signal.
+  const isChannelPost =
+    root.is_automatic_forward === true ||
+    root.forward_origin?.type === 'channel' ||
+    root.sender_chat?.type === 'channel';
+
+  const username = String(
+    getBotInfo()?.username || process.env.BOT_USERNAME || 'BikaGameBot'
+  ).replace(/^@/, '').toLowerCase();
+
+  const text = String(root.text || root.caption || '');
+  const escaped = username.replace(/[-\\/\\^$*+?.()|[\\]{}]/g, '\\function isBotTaggedPost(root) {
   const username = String(getBotInfo()?.username || process.env.BOT_USERNAME || '').replace(/^@/, '').toLowerCase();
   if (!username) return false;
   const text = String(root?.text || root?.caption || '');
   const escaped = username.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
   return new RegExp('@' + escaped + '\\b', 'i').test(text);
+}');
+  const hasBotMention = !!username && new RegExp('@' + escaped + '\\b', 'i').test(text);
+
+  // Prefer the explicit @BikaGameBot mention when it is available.
+  // Fallback to Telegram's channel-post marker for discussion comments.
+  return hasBotMention || isChannelPost;
 }
 function eventCard(e) {
   return [
