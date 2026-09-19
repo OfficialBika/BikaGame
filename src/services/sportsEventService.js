@@ -42,12 +42,12 @@ function getReplyRoot(message) {
 }
 
 async function findActiveEventByThread(chatId, rootMessageId) {
-  return events().findOne({ commentChatId: String(chatId), $or: [{ threadRootMessageId: Number(rootMessageId) }, { announcementMessageId: Number(rootMessageId) }], status: { $in: ['open', 'stopped'] } });
+  return events().findOne({ commentChatId: String(chatId), $or: [{ threadRootMessageId: Number(rootMessageId) }, { announcementMessageId: Number(rootMessageId) }, { threadMessageIds: Number(rootMessageId) }], status: { $in: ['open', 'stopped'] } });
 }
 
 async function createEvent(data) {
   const now = new Date();
-  const doc = { ...data, status: 'open', totalBet: 0, totalBetBal: 0, totalWinBal: 0, createdAt: now, updatedAt: now, createdBy: Number(env.OWNER_ID) };
+  const doc = { ...data, threadMessageIds: [Number(data.threadRootMessageId)], status: 'open', totalBet: 0, totalBetBal: 0, totalWinBal: 0, createdAt: now, updatedAt: now, createdBy: Number(env.OWNER_ID) };
   const result = await events().insertOne(doc);
   return { ...doc, _id: result.insertedId };
 }
@@ -113,4 +113,6 @@ async function settleEvent(event, winnerAlias, payoutFn) {
   return { winner, winners, losers, allBets };
 }
 
-module.exports = { events, bets, normalizeAlias, parseSetEvent, parseBet, formatDate, fmt, getReplyRoot, findActiveEventByThread, createEvent, placeBet, stopEvent, settleEvent };
+async function rememberThreadMessage(eventId, messageId) { if (!eventId || !messageId) return; await events().updateOne({ _id: eventId }, { $addToSet: { threadMessageIds: Number(messageId) }, $set: { updatedAt: new Date() } }); }
+
+module.exports = { events, bets, rememberThreadMessage, normalizeAlias, parseSetEvent, parseBet, formatDate, fmt, getReplyRoot, findActiveEventByThread, createEvent, placeBet, stopEvent, settleEvent };
