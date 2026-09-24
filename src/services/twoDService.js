@@ -21,7 +21,9 @@ const events = () => col('two_d_events');
 const bets = () => col('two_d_bets');
 const positions = () => col('two_d_positions');
 const offdates = () => col('two_d_offdates');
-const treasury = () => col('treasury');
+// The bot's real treasury/bank document is stored in the config collection via treasuryService.
+// Keep 2D settlement on the same ownerBalance used by /treasury and economyService.
+const treasury = () => col('config');
 
 const USER_SETTLEMENT_KEYS = 'twoDSettlementKeys';
 function settlementKey(eventId, userId) { return String(eventId) + ':' + String(userId); }
@@ -199,11 +201,24 @@ async function addBet(ctx, e, parsed) {
         appliedLines.push(line);
       }
       await bets().insertOne({ eventId: e.eventId, userId: userId, sourceChatId: sourceChatId, sourceMessageId: sourceMessageId, username: ctx.from.username ? String(ctx.from.username).toLowerCase() : null, firstName: ctx.from.first_name || null, lastName: ctx.from.last_name || null, lines: parsed.lines, total: parsed.total, createdAt: now }, session ? { session: session } : {});
+
+      // The player's stake has already been deducted above. Move the same amount
+      // into the actual Bot Bank (the same treasury used by /treasury and economyService)
+      // so 2D payouts have a real, auditable funding source.
+      const treasury0 = await treasury().findOneAndUpdate(
+        { key: 'treasury' },
+        { $inc: { ownerBalance: parsed.total }, $set: { updatedAt: now } },
+        Object.assign({ returnDocument: 'after' }, session ? { session: session } : {})
+      );
+      const treasuryDoc = treasury0 && treasury0.value !== undefined ? treasury0.value : treasury0;
+      if (!treasuryDoc) throw new Error('TREASURY_NOT_READY');
+
       await logTx({ type: '2d_bet', fromUserId: userId, toUserId: 'TREASURY', amount: parsed.total, meta: { eventId: e.eventId, lines: parsed.lines } }, session ? { session: session } : {});
       return { balance: Number(u.balance) - parsed.total };
     } catch (err) {
       if (!session && debited) {
         await userModel.collection().updateOne({ userId: userId }, { $inc: { balance: parsed.total, totalLost: -parsed.total }, $set: { updatedAt: new Date() } });
+        await treasury().updateOne({ key: 'treasury' }, { $inc: { ownerBalance: -parsed.total }, $set: { updatedAt: new Date() } });
         for (const line of appliedLines) await positions().updateOne({ eventId: e.eventId, userId: userId, number: line.number }, { $inc: { totalAmount: -line.amount } });
       }
       throw err;
