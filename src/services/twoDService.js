@@ -404,20 +404,58 @@ async function publishResult(bot, e, number) {
 async function setManual(ctx, bot) {
   if (!owner(ctx)) return ctx.reply('⛔ Owner only.');
   if (!env.TWO_D_CHANNEL_ID) return ctx.reply('⚠️ TWO_D_CHANNEL_ID ကို env မှာ သတ်မှတ်ပေးပါ။');
-  const raw = String(ctx.message.text || '').replace(/^\/set2d(?:@\w+)?\s*/i, '').trim();
-  const a = raw.split(/\s+/).filter(Boolean);
-  let dateArg = a[0], openArg = a[1], closeArg = null;
-  for (let i = 2; i < a.length; i++) {
-    if (/^\/?offbet$/i.test(a[i])) { closeArg = a[i + 1]; break; }
-    if (a[i] === '/' && /^offbet$/i.test(a[i + 1] || '')) { closeArg = a[i + 2]; break; }
+
+  // Supported:
+  // /set2d 24/9/2026 7:31PM /offbet 7:35PM
+  // /set2d 24/9/2026 7:31PM / offbet 7:35PM
+  // /set2d@BikaGameBot 24/9/2026 7:31PM offbet 7:35PM
+  const text = String(ctx.message?.text || '').trim();
+  const m = text.match(/^\/set2d(?:@\w+)?\s+(\d{1,2}[\/.-]\d{1,2}[\/.-]\d{4})\s+(\d{1,2}(?::\d{2})?\s*(?:AM|PM))\s*(?:\/\s*)?offbet\s+(\d{1,2}(?::\d{2})?\s*(?:AM|PM))\s*$/i);
+
+  if (!m) {
+    return ctx.reply('အသုံးပြုပုံ: <code>/set2d 24/9/2026 7:31PM /offbet 7:35PM</code>', { parse_mode: 'HTML' });
   }
-  if (!dateArg || !openArg || !closeArg) return ctx.reply('အသုံးပြုပုံ: <code>/set2d 24/9/2026 6:30PM / offbet 6:35PM</code>', { parse_mode: 'HTML' });
-  const dk = parseDateInput(dateArg), open = parseTimeInput(openArg), close = parseTimeInput(closeArg);
-  if (!dk || !open || !close) return ctx.reply('⚠️ Date/Time ပုံစံမှားနေပါတယ်။');
-  const oa = yangonDateAt(dk, open), ca = yangonDateAt(dk, close);
-  if (oa <= new Date() || ca <= oa) return ctx.reply('⚠️ Open/close time ကို မှန်ကန်တဲ့ အနာဂတ်အချိန်အဖြစ် သတ်မှတ်ပေးပါ။');
-  const e = await createEvent('manual-' + dk + '-' + open + '-' + Date.now(), dk, open, close, true);
-  return ctx.reply('✅ <b>2D Test Post Scheduled</b>\n\n📅 ' + escHtml(dateTime(e.openAt)) + '\n🔒 ' + escHtml(displayTime(e.closeAt)) + ' မှာ ပိတ်ပါမယ်။', { parse_mode: 'HTML' });
+
+  const dk = parseDateInput(m[1]);
+  const open = parseTimeInput(m[2]);
+  const close = parseTimeInput(m[3]);
+  if (!dk || !open || !close) {
+    return ctx.reply('⚠️ Date/Time ပုံစံမှားနေပါတယ်။', { parse_mode: 'HTML' });
+  }
+
+  const oa = yangonDateAt(dk, open);
+  const ca = yangonDateAt(dk, close);
+  const now = new Date();
+
+  if (ca <= oa) return ctx.reply('⚠️ Offbet time က Open time ထက် နောက်ကျရပါမယ်။');
+  if (ca <= now) return ctx.reply('⚠️ သတ်မှတ်ထားတဲ့ Offbet အချိန်က လက်ရှိအချိန်ထက် ကျော်လွန်နေပါပြီ။');
+
+  try {
+    const e = await createEvent('manual-' + dk + '-' + open + '-' + Date.now(), dk, open, close, true);
+
+    // When /set2d is sent after the requested open time but before offbet,
+    // publish immediately instead of waiting for the scheduler.
+    let published = false;
+    if (now >= oa && now < ca) {
+      const p = await publishOpen(bot, e);
+      published = !!p;
+    }
+
+    return ctx.reply(
+      '✅ <b>2D Manual Post ' + (published ? 'ဖွင့်ပြီးပါပြီ' : 'Scheduled လုပ်ပြီးပါပြီ') + '</b>\n\n' +
+      '📅 <b>' + escHtml(dateTime(e.openAt)) + '</b>\n' +
+      '🔒 <b>' + escHtml(displayTime(e.closeAt)) + '</b> မှာ Bet ပိတ်ပါမယ်။\n' +
+      '📢 Channel ID: <code>' + escHtml(String(env.TWO_D_CHANNEL_ID)) + '</code>',
+      { parse_mode: 'HTML' }
+    );
+  } catch (err) {
+    logger.error('2D manual set failed', err);
+    return ctx.reply(
+      '⚠️ <b>2D Manual Post သတ်မှတ်ရာမှာ အမှားဖြစ်သွားပါတယ်။</b>\n<code>' +
+      escHtml(String(err.message || err)) + '</code>',
+      { parse_mode: 'HTML' }
+    );
+  }
 }
 function register(bot) {
   bot.hears(/^\.mybet\s*$/i, async function (ctx) { try { await myBet(ctx); } catch (e) { logger.error('2D mybet', e); } });
