@@ -510,7 +510,6 @@ async function init(bot) {
   await bets().createIndex({ eventId: 1, sourceChatId: 1, sourceMessageId: 1 }, { unique: true, name: 'two_d_bets_source_unique' });
   await positions().createIndex({ eventId: 1, userId: 1, number: 1 }, { unique: true, name: 'two_d_positions_unique' });
   await positions().createIndex({ eventId: 1, number: 1, totalAmount: -1 }, { name: 'two_d_positions_number' });
-  await treasury().createIndex({ key: 1 }, { unique: true, name: 'treasury_key_unique' });
   await offdates().createIndex({ dateKey: 1 }, { unique: true, name: 'two_d_offdates_unique' });
   if (!env.TWO_D_CHANNEL_ID) { logger.warn('2D scheduler disabled: TWO_D_CHANNEL_ID is not configured'); return function () {}; }
   let busy = false;
