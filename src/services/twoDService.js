@@ -75,17 +75,19 @@ function parse2dCommand(text) {
   const amount = Number(m[2].replaceAll(',', ''));
   if (!Number.isInteger(amount) || amount < MIN_BET || amount > MAX_PER_NUMBER) return { error: 'တစ်ကြိမ်ထိုးကြေးကို ' + fmt(MIN_BET) + ' မှ ' + fmt(MAX_PER_NUMBER) + ' အတွင်းထားပါ။' };
   const map = new Map();
+  const display = [];
   const tokens = m[1].split(/[.\s,]+/).filter(Boolean);
   for (const raw of tokens) {
     const token = raw.toUpperCase(); let nums = [];
     if (/^\d{2}$/.test(token)) nums = [token];
     else if (/^\d{2}R$/.test(token)) { const n = token.slice(0, 2), r = n[1] + n[0]; nums = r === n ? [n] : [n, r]; }
     else return { error: '<code>' + escHtml(raw) + '</code> က 00-99 သို့မဟုတ် 00R ပုံစံမဟုတ်ပါ။' };
+    display.push({ label: token, amount: amount, multiplier: nums.length });
     nums.forEach(function (n) { map.set(n, (map.get(n) || 0) + amount); });
   }
   const lines = Array.from(map, function (x) { return { number: x[0], amount: x[1] }; });
   if (!lines.length) return { error: 'ထိုးမည့်ဂဏန်းမတွေ့ပါ။' };
-  return { lines: lines, total: lines.reduce(function (s, x) { return s + x.amount; }, 0) };
+  return { lines: lines, display: display, total: lines.reduce(function (s, x) { return s + x.amount; }, 0) };
 }
 function owner(ctx) { return Number(ctx.from && ctx.from.id) === Number(env.OWNER_ID); }
 function weekend(key) { const a = key.split('-').map(Number); const d = new Date(Date.UTC(a[0], a[1] - 1, a[2])).getUTCDay(); return d === 0 || d === 6; }
@@ -198,10 +200,12 @@ async function addBet(ctx, e, parsed) {
       throw err;
     }
   });
-  return { duplicate: false, lines: parsed.lines, total: parsed.total, balance: out.balance };
+  return { duplicate: false, lines: parsed.lines, display: parsed.display, total: parsed.total, balance: out.balance };
 }
 function betComplete(e, r) {
-  const list = r.lines.map(function (x) { return '<code>' + x.number + '</code> - <b>' + fmt(x.amount) + '</b>'; }).join('\n');
+  const list = (r.display || r.lines.map(function (x) { return { label: x.number, amount: x.amount, multiplier: 1 }; })).map(function (x) {
+    return '<code>' + x.label + '</code> - <b>' + fmt(x.amount) + '</b>×' + x.multiplier;
+  }).join('\n');
   return emoji('BET', '🎯') + ' <b>BET COMPLETE</b>\n━━━━━━━━━━━━━━━━━━\n' +
     '📅 ' + escHtml(dateTime(e.openAt)) + '\n' +
     '<b>TOTAL BET LIST</b>\n\n' + list + '\n\n' +
@@ -283,8 +287,13 @@ async function setManual(ctx, bot) {
   if (!env.TWO_D_CHANNEL_ID) return ctx.reply('⚠️ TWO_D_CHANNEL_ID ကို env မှာ သတ်မှတ်ပေးပါ။');
   const raw = String(ctx.message.text || '').replace(/^\/set2d(?:@\w+)?\s*/i, '').trim();
   const a = raw.split(/\s+/).filter(Boolean);
-  if (a.length < 4 || !/^\/?offbet$/i.test(a[2])) return ctx.reply('အသုံးပြုပုံ: <code>/set2d 24/9/2026 6:30PM /offbet 6:35PM</code>', { parse_mode: 'HTML' });
-  const dk = parseDateInput(a[0]), open = parseTimeInput(a[1]), close = parseTimeInput(a[3]);
+  let dateArg = a[0], openArg = a[1], closeArg = null;
+  for (let i = 2; i < a.length; i++) {
+    if (/^\/?offbet$/i.test(a[i])) { closeArg = a[i + 1]; break; }
+    if (a[i] === '/' && /^offbet$/i.test(a[i + 1] || '')) { closeArg = a[i + 2]; break; }
+  }
+  if (!dateArg || !openArg || !closeArg) return ctx.reply('အသုံးပြုပုံ: <code>/set2d 24/9/2026 6:30PM / offbet 6:35PM</code>', { parse_mode: 'HTML' });
+  const dk = parseDateInput(dateArg), open = parseTimeInput(openArg), close = parseTimeInput(closeArg);
   if (!dk || !open || !close) return ctx.reply('⚠️ Date/Time ပုံစံမှားနေပါတယ်။');
   const oa = yangonDateAt(dk, open), ca = yangonDateAt(dk, close);
   if (oa <= new Date() || ca <= oa) return ctx.reply('⚠️ Open/close time ကို မှန်ကန်တဲ့ အနာဂတ်အချိန်အဖြစ် သတ်မှတ်ပေးပါ။');
@@ -343,7 +352,7 @@ async function init(bot) {
       if (!weekend(today) && !(await offDate(today))) {
         for (const s of SCHEDULE) {
           const oa = yangonDateAt(today, s.open), ca = yangonDateAt(today, s.close), id = 'auto-' + today + '-' + s.key;
-          if (now >= oa && now < ca && !(await getEvent(id))) { const e = await createEvent(id, today, s.open, s.close, false); await publishOpen(bot, e); }
+          if (now >= oa && now < ca && now.getTime() - oa.getTime() <= 90000 && !(await getEvent(id))) { const e = await createEvent(id, today, s.open, s.close, false); await publishOpen(bot, e); }
         }
       }
     } catch (err) { logger.error('2D scheduler tick failed', err); } finally { busy = false; }
