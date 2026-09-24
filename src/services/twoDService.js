@@ -152,15 +152,18 @@ async function closeEvent(bot, e) {
   if (!closed) return null;
   try {
     const d = closed.discussionChatId ? Number(closed.discussionChatId) : await discussionId(bot);
-    if (d && closed.discussionRootMessageId) {
+    if (d && closed.openMessageId) {
       await safeTelegram(function () {
         return bot.telegram.sendMessage(d, closeText(closed), {
           parse_mode: 'HTML',
-          reply_to_message_id: Number(closed.discussionRootMessageId),
+          reply_parameters: {
+            message_id: Number(closed.openMessageId),
+            chat_id: env.TWO_D_CHANNEL_ID,
+          },
         });
       });
     } else {
-      logger.warn('2D close comment skipped: discussion thread is not available for ' + closed.eventId);
+      logger.warn('2D close comment skipped: linked discussion or open post is unavailable for ' + closed.eventId);
     }
   } catch (err) { logger.error('2D close comment failed', err); }
   try {
@@ -420,26 +423,24 @@ async function publishResult(bot, e, number) {
   const updated = await getEvent(e.eventId);
   const sent = await safeTelegram(function () { return bot.telegram.sendMessage(env.TWO_D_CHANNEL_ID, resultText(updated), { parse_mode: 'HTML', disable_web_page_preview: true }); });
   await events().updateOne({ eventId: e.eventId }, { $set: { resultMessageId: sent.message_id, updatedAt: new Date() } });
-  if (updated.discussionChatId) {
-    // The channel result post gets its own automatic-forwarded discussion message.
-    // Telegram does not expose that discussion message id from sendMessage(), so
-    // reply to the result post using the same linked-discussion reply mechanism;
-    // if Telegram cannot resolve it, keep the result published and log the failure.
-    try {
+  try {
+    const d = updated.discussionChatId ? Number(updated.discussionChatId) : await discussionId(bot);
+    if (d && sent && sent.message_id) {
       await safeTelegram(function () {
-        return bot.telegram.sendMessage(updated.discussionChatId, winnerText(settled.rows), {
+        return bot.telegram.sendMessage(d, winnerText(settled.rows), {
           parse_mode: 'HTML',
           disable_web_page_preview: true,
           reply_parameters: {
-            message_id: sent.message_id,
+            message_id: Number(sent.message_id),
             chat_id: env.TWO_D_CHANNEL_ID,
-            allow_sending_without_reply: true,
           },
         });
       });
-    } catch (err) {
-      logger.error('2D winner comment failed', err);
+    } else {
+      logger.warn('2D winner comment skipped: linked discussion or result post is unavailable for ' + updated.eventId);
     }
+  } catch (err) {
+    logger.error('2D winner comment failed', err);
   }
   return { event: updated, winners: settled.rows, totalPayout: settled.total };
 }
