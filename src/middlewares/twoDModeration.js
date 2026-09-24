@@ -9,7 +9,7 @@ module.exports = function (bot) {
       const handled = await twoD.handleComment(ctx, bot);
       if (handled) return;
     } catch (err) {
-      logger.error('2D message moderation error', err);
+      logger.error('2D betting moderation error', err);
     }
     return next();
   });

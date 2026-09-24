@@ -35,6 +35,7 @@ const COMMAND_MODULES = [
   './src/commands/games/dice',
   './src/commands/games/shan',
   './src/commands/games/blackjack',
+  './src/commands/games/twoD',
   './src/commands/shop/shop',
 ];
 
@@ -278,6 +279,8 @@ async function main() {
   await initBotInfo();
 
   loadAllModules(bot);
+  const twoDService = require('./src/services/twoDService');
+  await twoDService.init(bot);
   registerRuntimeCommands(bot);
 
   const app = createApp();
