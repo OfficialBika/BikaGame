@@ -74,6 +74,7 @@ async function connectMongo() {
   collections.two_d_bets = db.collection('two_d_bets');
   collections.two_d_positions = db.collection('two_d_positions');
   collections.two_d_offdates = db.collection('two_d_offdates');
+  collections.treasury = db.collection('treasury');
 
   await safeCreateIndex(collections.users, { userId: 1 }, { unique: true });
   await safeCreateIndex(collections.users, { username: 1 }, { sparse: true });
@@ -81,6 +82,7 @@ async function connectMongo() {
 
   await safeCreateIndex(collections.transactions, { createdAt: -1 });
   await safeCreateIndex(collections.transactions, { userId: 1, createdAt: -1 });
+  await safeCreateIndex(collections.transactions, { type: 1, 'meta.eventId': 1, toUserId: 1 });
 
   await safeCreateIndex(collections.orders, { status: 1, createdAt: -1 });
   await safeCreateIndex(collections.orders, { userId: 1, createdAt: -1 });
