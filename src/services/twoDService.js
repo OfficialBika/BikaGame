@@ -380,8 +380,7 @@ async function cleanupDay(key) {
   // Remove only the short-lived idempotency markers created for this day's 2D settlements.
   await userModel.collection().updateMany(
     { [USER_SETTLEMENT_KEYS]: { $exists: true } },
-    { $pull: { [USER_SETTLEMENT_KEYS]: { $regex: '^(?:' + eventIds.map(function (x) { return x.replace(/[.*+?^\\\\{}()|[\\]\\\\]/g, '\\\\
-async function publishResult'); }).join('|') + '):' } } }
+    { $pull: { [USER_SETTLEMENT_KEYS]: { $regex: '^(?:' + eventIds.join('|') + '):' } } }
   );
   await treasury().updateOne(
     { key: 'treasury' },
