@@ -480,47 +480,59 @@ async function handleComment(ctx, bot) {
 }
 async function myBet(ctx) {
   const userId = Number(ctx.from && ctx.from.id);
-  const e = await openEvent() || await events().findOne({ channelId: env.TWO_D_CHANNEL_ID, status: { $in: ['closed', 'result'] } }, { sort: { openAt: -1 } });
+  const replyTo = ctx.message && ctx.message.message_id;
+  const e = await openEvent() || await events().findOne(
+    { channelId: env.TWO_D_CHANNEL_ID, status: { $in: ['closed', 'result'] } },
+    { sort: { openAt: -1 } }
+  );
+
   if (!e) {
     return ctx.reply(
-      '📋 <b>MY BET</b>\\n━━━━━━━━━━━━━━━━━━\\n⚠️ လက်ရှိ 2D Event မရှိသေးပါဘူးရှင့်။',
-      { parse_mode: 'HTML', reply_to_message_id: ctx.message && ctx.message.message_id }
+      emoji('BET', '🎯', true) + ' <b>MY BET</b>\\n━━━━━━━━━━━━━━━━━━\\n' +
+      '⚠️ လက်ရှိ 2D Event မရှိသေးပါဘူးရှင့်။',
+      { parse_mode: 'HTML', disable_web_page_preview: true, reply_to_message_id: replyTo }
     );
   }
 
   const rows = await positions().find({ eventId: e.eventId, userId: userId }).sort({ number: 1 }).toArray();
-  const replyTo = ctx.message && ctx.message.message_id;
-
   if (!rows.length) {
     return ctx.reply(
-      '📋 <b>MY BET</b>\\n━━━━━━━━━━━━━━━━━━\\n' +
-      '📅 <b>' + escHtml(dateTime(e.openAt)) + '</b>\\n\\n' +
-      '🎟️ ဒီ Event မှာ သင်ထိုးထားတဲ့ Bet မရှိသေးပါဘူးရှင့်။',
-      { parse_mode: 'HTML', reply_to_message_id: replyTo }
+      emoji('BET', '🎯', true) + ' <b>MY BET</b>\\n━━━━━━━━━━━━━━━━━━\\n' +
+      emoji('DATE', '📅', true) + ' <b>' + escHtml(dateTime(e.openAt)) + '</b>\\n\\n' +
+      '🎟️ ဒီ Event မှာ သင်ထိုးထားတဲ့ Bet မရှိသေးပါဘူးရှင့်။\\n\\n' +
+      emoji('LUCKY', '🍀', true) + ' ကံကောင်းပါစေရှင့် ' + emoji('LUCKY', '🍀', true),
+      { parse_mode: 'HTML', disable_web_page_preview: true, reply_to_message_id: replyTo }
     );
   }
 
   const total = rows.reduce(function (s, x) { return s + Number(x.totalAmount); }, 0);
-  const balanceDoc = await userModel.collection().findOne({ userId: userId }, { projection: { balance: 1 } });
+  const balanceDoc = await userModel.collection().findOne(
+    { userId: userId },
+    { projection: { balance: 1 } }
+  );
   const balance = balanceDoc ? Number(balanceDoc.balance || 0) : 0;
-  const maxPayout = rows.reduce(function (s, x) { return s + Number(x.totalAmount) * PAYOUT; }, 0);
+  const maxPayout = rows.reduce(function (s, x) {
+    return s + Number(x.totalAmount) * PAYOUT;
+  }, 0);
 
   const lines = rows.map(function (x) {
-    return '🎯 <code>' + escHtml(String(x.number).padStart(2, '0')) + '</code>  <b>' + fmt(x.totalAmount) + '</b>';
+    return emoji('NUMBER', '🎯', true) + ' <code>' +
+      escHtml(String(x.number).padStart(2, '0')) +
+      '</code>  <b>' + fmt(x.totalAmount) + '</b>';
   }).join('\\n');
 
   const text =
-    '📋 <b>MY BET</b>\\n' +
+    emoji('BET', '🎯', true) + ' <b>MY BET</b>\\n' +
     '━━━━━━━━━━━━━━━━━━\\n' +
-    '📅 <b>' + escHtml(dateTime(e.openAt)) + '</b>\\n' +
-    '⏰ Bet ပိတ်ချိန် — <b>' + escHtml(displayTime(e.closeAt)) + '</b>\\n\\n' +
-    '<b>🎯 YOUR BET LIST</b>\\n' +
+    emoji('DATE', '📅', true) + ' <b>' + escHtml(dateTime(e.openAt)) + '</b>\\n' +
+    emoji('TIME', '⏳', true) + ' <b>' + escHtml(displayTime(e.closeAt)) + '</b> မှာ ပိတ်ပါမယ်\\n\\n' +
+    '<b>🎟️ BET LIST</b>\\n' +
     lines + '\\n\\n' +
     '━━━━━━━━━━━━━━━━━━\\n' +
-    '💰 TOTAL BET  <b>' + fmt(total) + '</b>\\n' +
-    '🏆 WIN POTENTIAL  <b>' + fmt(maxPayout) + '</b>\\n' +
-    '💳 BALANCE  <b>' + fmt(balance) + '</b>\\n\\n' +
-    '🍀 <b>ကံကောင်းပါစေရှင့်</b> 🍀';
+    emoji('MONEY', '💰', true) + ' <b>TOTAL BET</b>  ' + fmt(total) + '\\n' +
+    emoji('WIN', '🏆', true) + ' <b>WIN POTENTIAL</b>  ' + fmt(maxPayout) + '\\n' +
+    '💳 <b>BALANCE</b>  ' + fmt(balance) + '\\n\\n' +
+    emoji('LUCKY', '🍀', true) + ' ကံကောင်းပါစေရှင့် ' + emoji('LUCKY', '🍀', true);
 
   return ctx.reply(text, {
     parse_mode: 'HTML',
