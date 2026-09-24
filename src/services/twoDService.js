@@ -177,6 +177,7 @@ async function addBet(ctx, e, parsed) {
   if (old) return { duplicate: true, lines: old.lines, total: old.total, balance: null };
   if (!(await userModel.collection().findOne({ userId: userId }))) throw new Error('USER_NOT_STARTED');
   let debited = false;
+  const appliedLines = [];
   const out = await withMaybeTx(async function (session) {
     const opt = session ? { session: session, returnDocument: 'after' } : { returnDocument: 'after' };
     const u0 = await userModel.collection().findOneAndUpdate({ userId: userId, balance: { $gte: parsed.total } }, { $inc: { balance: -parsed.total, totalLost: parsed.total }, $set: { updatedAt: now } }, opt);
@@ -188,6 +189,7 @@ async function addBet(ctx, e, parsed) {
         const p0 = await positions().findOneAndUpdate({ eventId: e.eventId, userId: userId, number: line.number, totalAmount: { $lte: MAX_PER_NUMBER - line.amount } }, { $inc: { totalAmount: line.amount }, $set: { updatedAt: now }, $setOnInsert: { eventId: e.eventId, userId: userId, number: line.number, createdAt: now } }, Object.assign({ upsert: true, returnDocument: 'after' }, session ? { session: session } : {}));
         const p = p0 && p0.value !== undefined ? p0.value : p0;
         if (!p || Number(p.totalAmount) > MAX_PER_NUMBER) throw new Error('LIMIT_' + line.number);
+        appliedLines.push(line);
       }
       await bets().insertOne({ eventId: e.eventId, userId: userId, sourceChatId: sourceChatId, sourceMessageId: sourceMessageId, username: ctx.from.username ? String(ctx.from.username).toLowerCase() : null, firstName: ctx.from.first_name || null, lastName: ctx.from.last_name || null, lines: parsed.lines, total: parsed.total, createdAt: now }, session ? { session: session } : {});
       await logTx({ type: '2d_bet', fromUserId: userId, toUserId: 'TREASURY', amount: parsed.total, meta: { eventId: e.eventId, lines: parsed.lines } }, session ? { session: session } : {});
@@ -195,7 +197,7 @@ async function addBet(ctx, e, parsed) {
     } catch (err) {
       if (!session && debited) {
         await userModel.collection().updateOne({ userId: userId }, { $inc: { balance: parsed.total, totalLost: -parsed.total }, $set: { updatedAt: new Date() } });
-        for (const line of parsed.lines) await positions().updateOne({ eventId: e.eventId, userId: userId, number: line.number }, { $inc: { totalAmount: -line.amount } });
+        for (const line of appliedLines) await positions().updateOne({ eventId: e.eventId, userId: userId, number: line.number }, { $inc: { totalAmount: -line.amount } });
       }
       throw err;
     }
