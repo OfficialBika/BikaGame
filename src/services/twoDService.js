@@ -54,9 +54,38 @@ function displayTime(date) {
   return h + ':' + String(p.minute).padStart(2, '0') + ' ' + ap;
 }
 function dateTime(date) { return displayDate(date) + ' ' + displayTime(date); }
+const VALID_CUSTOM_EMOJI_IDS = new Set();
+
 function emoji(kind, fallback) {
   const id = process.env['TWO_D_EMOJI_' + String(kind).toUpperCase()];
-  return id ? '<tg-emoji emoji-id="' + escHtml(id) + '">' + fallback + '</tg-emoji>' : fallback;
+  if (!id || !VALID_CUSTOM_EMOJI_IDS.has(String(id))) return fallback;
+  return '<tg-emoji emoji-id="' + escHtml(String(id)) + '">' + fallback + '</tg-emoji>';
+}
+
+async function validateCustomEmojis(bot) {
+  VALID_CUSTOM_EMOJI_IDS.clear();
+  const ids = Array.from(new Set(
+    Object.keys(process.env)
+      .filter(function (key) { return key.indexOf('TWO_D_EMOJI_') === 0; })
+      .map(function (key) { return String(process.env[key] || '').trim(); })
+      .filter(Boolean)
+  ));
+  if (!ids.length) return;
+  try {
+    const stickers = await bot.telegram.getCustomEmojiStickers(ids);
+    const valid = new Set(
+      (stickers || [])
+        .filter(function (x) { return x && x.type === 'custom_emoji' && x.custom_emoji_id; })
+        .map(function (x) { return String(x.custom_emoji_id); })
+    );
+    ids.forEach(function (id) {
+      if (valid.has(id)) VALID_CUSTOM_EMOJI_IDS.add(id);
+      else logger.warn('2D custom emoji id is invalid/unavailable: ' + id);
+    });
+    logger.info('2D custom emojis loaded: ' + VALID_CUSTOM_EMOJI_IDS.size + '/' + ids.length);
+  } catch (err) {
+    logger.warn('2D custom emoji validation failed; using fallback emoji: ' + (err && err.message ? err.message : err));
+  }
 }
 function mention(user) {
   const name = escHtml(user.firstName || user.first_name || user.username || 'Player');
@@ -110,6 +139,31 @@ async function discussionId(bot) {
   const c = await safeTelegram(function () { return bot.telegram.getChat(env.TWO_D_CHANNEL_ID); });
   return c && c.linked_chat_id ? Number(c.linked_chat_id) : null;
 }
+async function sendDiscussionReply(bot, discussionChatId, channelMessageId, text, rootMessageId) {
+  if (!discussionChatId || !channelMessageId) throw new Error('DISCUSSION_REPLY_TARGET_MISSING');
+  try {
+    return await safeTelegram(function () {
+      return bot.telegram.sendMessage(discussionChatId, text, {
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        reply_parameters: {
+          message_id: Number(channelMessageId),
+          chat_id: env.TWO_D_CHANNEL_ID,
+        },
+      });
+    });
+  } catch (err) {
+    if (!rootMessageId) throw err;
+    logger.warn('2D cross-chat comment failed; retrying on stored discussion thread: ' + (err && err.message ? err.message : err));
+    return safeTelegram(function () {
+      return bot.telegram.sendMessage(discussionChatId, text, {
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        reply_to_message_id: Number(rootMessageId),
+      });
+    });
+  }
+}
 function openText(e) {
   const test = e.manual ? '\n\n⚠️ <b>Owner စမ်းသပ်တဲ့ Post ပါ</b>\nကြေးအများကြီး မထိုးကြပါနဲ့။ အစစ်မဟုတ်ပါ။' : '';
   return emoji('BET', '🎯') + ' <b>BIKA 2D ထိုးကြေးဖွင့်ပါပြီရှင့်</b>\n' +
@@ -142,7 +196,19 @@ async function createEvent(id, key, open, close, manual) {
 }
 async function publishOpen(bot, e) {
   const d = await discussionId(bot);
-  const sent = await safeTelegram(function () { return bot.telegram.sendMessage(env.TWO_D_CHANNEL_ID, openText(e), { parse_mode: 'HTML', disable_web_page_preview: true }); });
+  let sent;
+  try {
+    sent = await safeTelegram(function () {
+      return bot.telegram.sendMessage(env.TWO_D_CHANNEL_ID, openText(e), { parse_mode: 'HTML', disable_web_page_preview: true });
+    });
+  } catch (err) {
+    if (!VALID_CUSTOM_EMOJI_IDS.size) throw err;
+    logger.warn('2D channel custom emoji send failed; retrying with normal emoji: ' + (err && err.message ? err.message : err));
+    VALID_CUSTOM_EMOJI_IDS.clear();
+    sent = await safeTelegram(function () {
+      return bot.telegram.sendMessage(env.TWO_D_CHANNEL_ID, openText(e), { parse_mode: 'HTML', disable_web_page_preview: true });
+    });
+  }
   await events().updateOne({ eventId: e.eventId, status: 'scheduled' }, { $set: { status: 'open', openMessageId: sent.message_id, discussionChatId: d, updatedAt: new Date() } });
   return getEvent(e.eventId);
 }
@@ -153,15 +219,13 @@ async function closeEvent(bot, e) {
   try {
     const d = closed.discussionChatId ? Number(closed.discussionChatId) : await discussionId(bot);
     if (d && closed.openMessageId) {
-      await safeTelegram(function () {
-        return bot.telegram.sendMessage(d, closeText(closed), {
-          parse_mode: 'HTML',
-          reply_parameters: {
-            message_id: Number(closed.openMessageId),
-            chat_id: env.TWO_D_CHANNEL_ID,
-          },
-        });
-      });
+      await sendDiscussionReply(
+        bot,
+        d,
+        Number(closed.openMessageId),
+        closeText(closed),
+        Number(closed.discussionRootMessageId || 0)
+      );
     } else {
       logger.warn('2D close comment skipped: linked discussion or open post is unavailable for ' + closed.eventId);
     }
@@ -174,18 +238,45 @@ async function closeEvent(bot, e) {
 async function isEventMessage(message, e) {
   if (!message || !e || e.status !== 'open') return false;
   if (Number(message.chat && message.chat.id) !== Number(e.discussionChatId)) return false;
-  if (e.discussionRootMessageId && Number(message.message_thread_id) === Number(e.discussionRootMessageId)) return true;
+
+  const threadId = Number(message.message_thread_id || 0);
+  if (e.discussionRootMessageId && threadId === Number(e.discussionRootMessageId)) return true;
+
+  // Telegram uses external_reply for replies that point across chats.
+  // Older updates may expose the automatically forwarded channel post
+  // through reply_to_message, so support both shapes.
   const r = message.reply_to_message || {};
-  const originChat = r.forward_origin && r.forward_origin.chat ? r.forward_origin.chat.id : (r.sender_chat && r.sender_chat.id);
-  const originMessage = r.forward_origin && r.forward_origin.message_id ? r.forward_origin.message_id : r.message_id;
+  const x = message.external_reply || {};
+  const origin = r.forward_origin || x.origin || {};
+  const originChat =
+    (origin.type === 'channel' && origin.chat && origin.chat.id) ||
+    (r.sender_chat && r.sender_chat.id) ||
+    (x.chat && x.chat.id);
+  const originMessage =
+    (origin.type === 'channel' && origin.message_id) ||
+    x.message_id ||
+    (r.forward_origin && r.forward_origin.message_id) ||
+    r.message_id;
+
   if (Number(originChat) === Number(e.channelId) && Number(originMessage) === Number(e.openMessageId)) {
-    const root = Number(message.message_thread_id || r.message_id);
-    if (root) await events().updateOne({ eventId: e.eventId, discussionRootMessageId: null }, { $set: { discussionRootMessageId: root, updatedAt: new Date() } });
+    const root = threadId || Number(r.message_id || 0) || Number(x.message_id || 0);
+    if (root) {
+      await events().updateOne(
+        { eventId: e.eventId, discussionRootMessageId: null },
+        { $set: { discussionRootMessageId: root, updatedAt: new Date() } }
+      );
+    }
     return true;
   }
+
   if (r.is_automatic_forward && Number(r.sender_chat && r.sender_chat.id) === Number(e.channelId)) {
-    const root = Number(message.message_thread_id || r.message_id);
-    if (root) await events().updateOne({ eventId: e.eventId, discussionRootMessageId: null }, { $set: { discussionRootMessageId: root, updatedAt: new Date() } });
+    const root = threadId || Number(r.message_id || 0);
+    if (root) {
+      await events().updateOne(
+        { eventId: e.eventId, discussionRootMessageId: null },
+        { $set: { discussionRootMessageId: root, updatedAt: new Date() } }
+      );
+    }
     return true;
   }
   return false;
@@ -421,21 +512,30 @@ async function cleanupDay(key) {
 async function publishResult(bot, e, number) {
   const settled = await settle(e, number);
   const updated = await getEvent(e.eventId);
-  const sent = await safeTelegram(function () { return bot.telegram.sendMessage(env.TWO_D_CHANNEL_ID, resultText(updated), { parse_mode: 'HTML', disable_web_page_preview: true }); });
+  let sent;
+  try {
+    sent = await safeTelegram(function () {
+      return bot.telegram.sendMessage(env.TWO_D_CHANNEL_ID, resultText(updated), { parse_mode: 'HTML', disable_web_page_preview: true });
+    });
+  } catch (err) {
+    if (!VALID_CUSTOM_EMOJI_IDS.size) throw err;
+    logger.warn('2D result custom emoji send failed; retrying with normal emoji: ' + (err && err.message ? err.message : err));
+    VALID_CUSTOM_EMOJI_IDS.clear();
+    sent = await safeTelegram(function () {
+      return bot.telegram.sendMessage(env.TWO_D_CHANNEL_ID, resultText(updated), { parse_mode: 'HTML', disable_web_page_preview: true });
+    });
+  }
   await events().updateOne({ eventId: e.eventId }, { $set: { resultMessageId: sent.message_id, updatedAt: new Date() } });
   try {
     const d = updated.discussionChatId ? Number(updated.discussionChatId) : await discussionId(bot);
     if (d && sent && sent.message_id) {
-      await safeTelegram(function () {
-        return bot.telegram.sendMessage(d, winnerText(settled.rows), {
-          parse_mode: 'HTML',
-          disable_web_page_preview: true,
-          reply_parameters: {
-            message_id: Number(sent.message_id),
-            chat_id: env.TWO_D_CHANNEL_ID,
-          },
-        });
-      });
+      await sendDiscussionReply(
+        bot,
+        d,
+        Number(sent.message_id),
+        winnerText(settled.rows),
+        Number(updated.discussionRootMessageId || 0)
+      );
     } else {
       logger.warn('2D winner comment skipped: linked discussion or result post is unavailable for ' + updated.eventId);
     }
@@ -531,6 +631,7 @@ function register(bot) {
   });
 }
 async function init(bot) {
+  await validateCustomEmojis(bot);
   await events().createIndex({ eventId: 1 }, { unique: true, name: 'two_d_events_event_unique' });
   await events().createIndex({ channelId: 1, status: 1, openAt: -1 }, { name: 'two_d_events_channel_status' });
   await events().createIndex({ status: 1, closeAt: 1 }, { name: 'two_d_events_close' });
