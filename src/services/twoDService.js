@@ -186,7 +186,7 @@ async function addBet(ctx, e, parsed) {
     debited = true;
     try {
       for (const line of parsed.lines) {
-        const p0 = await positions().findOneAndUpdate({ eventId: e.eventId, userId: userId, number: line.number, totalAmount: { $lte: MAX_PER_NUMBER - line.amount } }, { $inc: { totalAmount: line.amount }, $set: { updatedAt: now }, $setOnInsert: { eventId: e.eventId, userId: userId, number: line.number, createdAt: now } }, Object.assign({ upsert: true, returnDocument: 'after' }, session ? { session: session } : {}));
+        const p0 = await positions().findOneAndUpdate({ eventId: e.eventId, userId: userId, number: line.number, totalAmount: { $lte: MAX_PER_NUMBER - line.amount } }, { $inc: { totalAmount: line.amount }, $set: { updatedAt: now }, $setOnInsert: { eventId: e.eventId, userId: userId, number: line.number, createdAt: now, username: ctx.from.username ? String(ctx.from.username).toLowerCase() : null, firstName: ctx.from.first_name || null } }, Object.assign({ upsert: true, returnDocument: 'after' }, session ? { session: session } : {}));
         const p = p0 && p0.value !== undefined ? p0.value : p0;
         if (!p || Number(p.totalAmount) > MAX_PER_NUMBER) throw new Error('LIMIT_' + line.number);
         appliedLines.push(line);
@@ -206,7 +206,7 @@ async function addBet(ctx, e, parsed) {
 }
 function betComplete(e, r) {
   const list = (r.display || r.lines.map(function (x) { return { label: x.number, amount: x.amount, multiplier: 1 }; })).map(function (x) {
-    return '<code>' + x.label + '</code> - <b>' + fmt(x.amount) + '</b>×' + x.multiplier;
+    return '<code>' + x.label + '</code> - <b>' + fmt(x.amount) + '</b>' + (x.multiplier > 1 ? '×' + x.multiplier : '');
   }).join('\n');
   return emoji('BET', '🎯') + ' <b>BET COMPLETE</b>\n━━━━━━━━━━━━━━━━━━\n' +
     '📅 ' + escHtml(dateTime(e.openAt)) + '\n' +
@@ -247,12 +247,12 @@ async function myBet(ctx) {
 }
 async function winners(e, number) {
   const rows = await positions().find({ eventId: e.eventId, number: number }).sort({ totalAmount: -1, userId: 1 }).toArray();
-  return rows.map(function (x) { return { userId: x.userId, amount: Number(x.totalAmount), payout: Number(x.totalAmount) * PAYOUT }; });
+  return rows.map(function (x) { return { userId: x.userId, name: x.firstName || x.username || 'Player', amount: Number(x.totalAmount), payout: Number(x.totalAmount) * PAYOUT }; });
 }
 function winnerText(rows) {
   if (!rows.length) return emoji('WIN', '🏆') + ' <b>ကံထူးရှင်များ</b>\n━━━━━━━━━━━━━━━━━━\nဒီအကြိမ်မှာ ကံထူးရှင် တစ်ယောက်မှ မရှိပါဘူးရှင့်။';
   const top = rows.slice(0, 10);
-  const lines = top.map(function (x, i) { return (i + 1) + '. <a href="tg://user?id=' + x.userId + '">Player</a> — <b>' + fmt(x.amount) + '</b> × ' + PAYOUT + ' = <b>' + fmt(x.payout) + '</b>'; });
+  const lines = top.map(function (x, i) { return (i + 1) + '. <a href="tg://user?id=' + x.userId + '">' + escHtml(x.name) + '</a> — <b>' + fmt(x.amount) + '</b> × ' + PAYOUT + ' = <b>' + fmt(x.payout) + '</b>'; });
   if (rows.length > 10) lines.push('', '➕ <b>And More ' + (rows.length - 10) + '+....</b>');
   return emoji('WIN', '🏆') + ' <b>BIKA 2D ကံထူးရှင်များ</b>\n━━━━━━━━━━━━━━━━━━\n' + lines.join('\n') + '\n\n' + emoji('LUCKY', '🍀') + ' ကံထူးရှင်အားလုံး ဂုဏ်ယူပါတယ်';
 }
