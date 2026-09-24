@@ -56,9 +56,9 @@ function displayTime(date) {
 function dateTime(date) { return displayDate(date) + ' ' + displayTime(date); }
 const VALID_CUSTOM_EMOJI_IDS = new Set();
 
-function emoji(kind, fallback) {
+function emoji(kind, fallback, useCustom) {
   const id = process.env['TWO_D_EMOJI_' + String(kind).toUpperCase()];
-  if (!id || !VALID_CUSTOM_EMOJI_IDS.has(String(id))) return fallback;
+  if (useCustom === false || !id || !VALID_CUSTOM_EMOJI_IDS.has(String(id))) return fallback;
   return '<tg-emoji emoji-id="' + escHtml(String(id)) + '">' + fallback + '</tg-emoji>';
 }
 
@@ -165,87 +165,85 @@ async function sendDiscussionReply(bot, discussionChatId, channelMessageId, text
   if (!discussionChatId || !channelMessageId) throw new Error('DISCUSSION_REPLY_TARGET_MISSING');
   let lastError = null;
 
-  // Primary route: Telegram Bot API Replies 2.0 maps the channel post to its
-  // automatically-forwarded discussion thread.
-  try {
-    return await safeTelegram(function () {
-      return bot.telegram.sendMessage(discussionChatId, text, {
+  const send = function (params) {
+    if (bot.telegram && typeof bot.telegram.callApi === 'function') {
+      return bot.telegram.callApi('sendMessage', params);
+    }
+    return bot.telegram.sendMessage(params.chat_id, params.text, {
+      parse_mode: params.parse_mode,
+      disable_web_page_preview: params.disable_web_page_preview,
+      reply_parameters: params.reply_parameters,
+    });
+  };
+
+  // Telegram may need a short moment to create the automatic-forward root
+  // message in the linked discussion group after the channel post is published.
+  // Retry the official cross-chat ReplyParameters route before falling back.
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      if (attempt) await new Promise(function (resolve) { setTimeout(resolve, attempt * 1200); });
+      return await send({
+        chat_id: String(discussionChatId),
+        text: text,
         parse_mode: 'HTML',
         disable_web_page_preview: true,
         reply_parameters: {
           message_id: Number(channelMessageId),
-          chat_id: env.TWO_D_CHANNEL_ID,
+          chat_id: String(env.TWO_D_CHANNEL_ID),
           allow_sending_without_reply: false,
         },
       });
-    });
-  } catch (err) {
-    lastError = err;
-    logger.warn('2D cross-chat comment failed: ' + (err && err.message ? err.message : err));
-  }
-
-  // Secondary route: if an actual discussion-thread root was observed from an
-  // incoming comment, reply directly inside that linked discussion thread.
-  if (rootMessageId) {
-    try {
-      return await safeTelegram(function () {
-        return bot.telegram.sendMessage(discussionChatId, text, {
-          parse_mode: 'HTML',
-          disable_web_page_preview: true,
-          reply_parameters: {
-            message_id: Number(rootMessageId),
-          },
-        });
-      });
     } catch (err) {
       lastError = err;
-      logger.warn('2D local discussion-thread reply failed: ' + (err && err.message ? err.message : err));
+      logger.warn('2D cross-chat discussion reply attempt ' + (attempt + 1) + '/4 failed: ' + (err && err.message ? err.message : err));
     }
   }
 
-  // Compatibility route: some linked discussion configurations expose the
-  // forwarded root with the same message id as the channel post.
-  try {
-    return await safeTelegram(function () {
-      return bot.telegram.sendMessage(discussionChatId, text, {
+  if (rootMessageId) {
+    try {
+      return await send({
+        chat_id: String(discussionChatId),
+        text: text,
         parse_mode: 'HTML',
         disable_web_page_preview: true,
         reply_parameters: {
-          message_id: Number(channelMessageId),
+          message_id: Number(rootMessageId),
+          allow_sending_without_reply: false,
         },
       });
-    });
-  } catch (err) {
-    lastError = err;
+    } catch (err) {
+      lastError = err;
+      logger.warn('2D stored discussion-root reply failed: ' + (err && err.message ? err.message : err));
+    }
   }
 
   throw lastError || new Error('DISCUSSION_REPLY_FAILED');
 }
-function openText(e) {
+function openText(e, useCustom) {
   const test = e.manual ? '\n\n⚠️ <b>Owner စမ်းသပ်တဲ့ Post ပါ</b>\nကြေးအများကြီး မထိုးကြပါနဲ့။ အစစ်မဟုတ်ပါ။' : '';
-  return emoji('BET', '🎯') + ' <b>BIKA 2D ထိုးကြေးဖွင့်ပါပြီရှင့်</b>\n' +
+  return emoji('BET', '🎯', useCustom) + ' <b>BIKA 2D ထိုးကြေးဖွင့်ပါပြီရှင့်</b>\n' +
     '━━━━━━━━━━━━━━━━━━\n' +
-    emoji('DATE', '📅') + ' <b>' + escHtml(dateTime(e.openAt)) + '</b>\n\n' +
-    emoji('TIME', '⏳') + ' <b>' + escHtml(displayTime(e.closeAt)) + '</b> မှာ ထိုးကြေးပိတ်ပါမယ်\n\n' +
-    emoji('MONEY', '💰') + ' ပေါက်ကြေး <b>' + PAYOUT + ' ဆ</b>\n' +
-    emoji('TICKET', '🎟️') + ' ထိုးကြေးကန့်သတ်ချက် <b>' + fmt(MIN_BET) + ' → ' + fmt(MAX_PER_NUMBER) + '</b>\n\n' +
-    emoji('USERS', '👥') + ' <b>Bika Game Bot ရဲ့ player အပေါင်းတို့က</b>\n\n' +
+    emoji('DATE', '📅', useCustom) + ' <b>' + escHtml(dateTime(e.openAt)) + '</b>\n\n' +
+    emoji('TIME', '⏳', useCustom) + ' <b>' + escHtml(displayTime(e.closeAt)) + '</b> မှာ ထိုးကြေးပိတ်ပါမယ်\n\n' +
+    emoji('MONEY', '💰', useCustom) + ' ပေါက်ကြေး <b>' + PAYOUT + ' ဆ</b>\n' +
+    emoji('TICKET', '🎟️', useCustom) + ' ထိုးကြေးကန့်သတ်ချက် <b>' + fmt(MIN_BET) + ' → ' + fmt(MAX_PER_NUMBER) + '</b>\n\n' +
+    emoji('USERS', '👥', useCustom) + ' <b>Bika Game Bot ရဲ့ player အပေါင်းတို့က</b>\n\n' +
     'ယခု Post ရဲ့ Comments မှာ\nအောက်ကလို လောင်းကြေးတင်နိုင်ပါပြီ\n\n' +
     '👉 <code>.2d 00.33.66 5000</code>\n' +
-    '👉 <code>.2d 45R 5000</code>\n\n' + emoji('LUCKY', '🍀') + ' <b>ကံကောင်းပါစေရှင့်</b> ' + emoji('LUCKY', '🍀') + test;
+    '👉 <code>.2d 45R 5000</code>\n\n' + emoji('LUCKY', '🍀', useCustom) + ' <b>ကံကောင်းပါစေရှင့်</b> ' + emoji('LUCKY', '🍀', useCustom) + test;
 }
-function closeText(e) {
-  return emoji('LOCK', '🔒') + ' <b>Bet ပိတ်လိုက်ပါပြီရှင့်</b>\n━━━━━━━━━━━━━━━━━━\n' +
-    emoji('DATE', '📅') + ' ' + escHtml(dateTime(e.closeAt)) + '\n\n' +
-    emoji('WAIT', '🎯') + ' ပေါက်ဂဏန်းထွက်ရန် အချိန်ကို စောင့်နေပါသည်။\n\n' +
-    emoji('LUCKY', '🍀') + ' အားလုံး ကံကောင်းကြပါစေရှင့် ' + emoji('LUCKY', '🍀');
+function closeText(e, useCustom) {
+  return emoji('LOCK', '🔒', useCustom) + ' <b>Bet ပိတ်လိုက်ပါပြီရှင့်</b>\n━━━━━━━━━━━━━━━━━━\n' +
+    emoji('DATE', '📅', useCustom) + ' ' + escHtml(dateTime(e.closeAt)) + '\n\n' +
+    emoji('WAIT', '🎯', useCustom) + ' ပေါက်ဂဏန်းထွက်ရန် အချိန်ကို စောင့်နေပါသည်။\n\n' +
+    emoji('LUCKY', '🍀', useCustom) + ' အားလုံး ကံကောင်းကြပါစေရှင့် ' + emoji('LUCKY', '🍀', useCustom);
 }
-function resultText(e) {
-  return emoji('WIN', '🏆') + ' <b>BIKA 2D ပေါက်ဂဏန်းထွက်ပါပြီ</b>\n━━━━━━━━━━━━━━━━━━\n' +
-    emoji('DATE', '📅') + ' <b>' + escHtml(dateTime(e.resultAt)) + '</b>\n\n' +
-    emoji('NUMBER', '🎯') + ' ပေါက်ဂဏန်း <b>' + e.winningNumber + '</b>\n\n' +
-    emoji('COMMENT', '🎉') + ' ကံထူးရှင်များစာရင်းကို Comment မှာ ဝင်ကြည့်နိုင်ပါတယ်ရှင့်\n\n' +
-    emoji('LUCKY', '🍀') + ' ကံထူးရှင်အားလုံး ဂုဏ်ယူပါတယ် ' + emoji('LUCKY', '🍀');
+function resultText(e, useCustom) {
+  return emoji('WIN', '🏆', useCustom) + ' <b>BIKA 2D ပေါက်ဂဏန်းထွက်ပါပြီ</b>\n━━━━━━━━━━━━━━━━━━\n' +
+    emoji('DATE', '📅', useCustom) + ' <b>' + escHtml(dateTime(e.resultAt)) + '</b>\n\n' +
+    emoji('NUMBER', '🎯', useCustom) + ' ပေါက်ဂဏန်း <b>' + e.winningNumber + '</b>\n\n' +
+    emoji('COMMENT', '🎉', useCustom) + ' ကံထူးရှင်များစာရင်းကို Comment မှာ ဝင်ကြည့်နိုင်ပါတယ်ရှင့်\n\n' +
+    emoji('LUCKY', '🍀', useCustom) + ' ကံထူးရှင်အားလုံး ဂုဏ်ယူပါတယ် ' + emoji('LUCKY', '🍀', useCustom);
 }
 async function createEvent(id, key, open, close, manual) {
   const doc = { eventId: id, dateKey: key, openAt: yangonDateAt(key, open), closeAt: yangonDateAt(key, close), status: 'scheduled', manual: !!manual, channelId: env.TWO_D_CHANNEL_ID, discussionChatId: null, discussionRootMessageId: null, openMessageId: null, closeMessageId: null, resultMessageId: null, winningNumber: null, resultAt: null, createdAt: new Date(), updatedAt: new Date() };
@@ -256,14 +254,14 @@ async function publishOpen(bot, e) {
   let sent;
   try {
     sent = await safeTelegram(function () {
-      return bot.telegram.sendMessage(env.TWO_D_CHANNEL_ID, openText(e), { parse_mode: 'HTML', disable_web_page_preview: true });
+      return bot.telegram.sendMessage(env.TWO_D_CHANNEL_ID, openText(e, false), { parse_mode: 'HTML', disable_web_page_preview: true });
     });
   } catch (err) {
     if (!VALID_CUSTOM_EMOJI_IDS.size) throw err;
     logger.warn('2D channel custom emoji send failed; retrying with normal emoji: ' + (err && err.message ? err.message : err));
     VALID_CUSTOM_EMOJI_IDS.clear();
     sent = await safeTelegram(function () {
-      return bot.telegram.sendMessage(env.TWO_D_CHANNEL_ID, openText(e), { parse_mode: 'HTML', disable_web_page_preview: true });
+      return bot.telegram.sendMessage(env.TWO_D_CHANNEL_ID, openText(e, false), { parse_mode: 'HTML', disable_web_page_preview: true });
     });
   }
   await events().updateOne({ eventId: e.eventId, status: 'scheduled' }, { $set: { status: 'open', openMessageId: sent.message_id, discussionChatId: d, updatedAt: new Date() } });
@@ -274,13 +272,13 @@ async function closeEvent(bot, e) {
   const closed = claim && claim.value !== undefined ? claim.value : claim;
   if (!closed) return null;
   try {
-    const d = closed.discussionChatId ? Number(closed.discussionChatId) : await discussionId(bot);
+    const d = closed.discussionChatId ? String(closed.discussionChatId) : await discussionId(bot);
     if (d && closed.openMessageId) {
       await sendDiscussionReply(
         bot,
         d,
         Number(closed.openMessageId),
-        closeText(closed),
+        closeText(closed, true),
         Number(closed.discussionRootMessageId || 0)
       );
     } else {
@@ -390,12 +388,12 @@ function betComplete(e, r) {
   const list = (r.display || r.lines.map(function (x) { return { label: x.number, amount: x.amount, multiplier: 1 }; })).map(function (x) {
     return '<code>' + x.label + '</code> - <b>' + fmt(x.amount) + '</b>' + (x.multiplier > 1 ? '×' + x.multiplier : '');
   }).join('\n');
-  return emoji('BET', '🎯') + ' <b>BET COMPLETE</b>\n━━━━━━━━━━━━━━━━━━\n' +
+  return emoji('BET', '🎯', useCustom) + ' <b>BET COMPLETE</b>\n━━━━━━━━━━━━━━━━━━\n' +
     '📅 ' + escHtml(dateTime(e.openAt)) + '\n' +
     '<b>TOTAL BET LIST</b>\n\n' + list + '\n\n' +
     '💰 <b>TOTAL BET = ' + fmt(r.total) + '</b>\n' +
     '💳 Balance = <b>' + fmt(r.balance) + '</b>\n\n' +
-    emoji('LUCKY', '🍀') + 'ကံကောင်းပါစေရှင့် ' + emoji('LUCKY', '🍀');
+    emoji('LUCKY', '🍀', useCustom) + 'ကံကောင်းပါစေရှင့် ' + emoji('LUCKY', '🍀', useCustom);
 }
 async function handleBet(ctx, e, parsed) {
   const r = await addBet(ctx, e, parsed);
@@ -432,11 +430,11 @@ async function winners(e, number) {
   return rows.map(function (x) { return { userId: x.userId, name: x.firstName || x.username || 'Player', amount: Number(x.totalAmount), payout: Number(x.totalAmount) * PAYOUT }; });
 }
 function winnerText(rows) {
-  if (!rows.length) return emoji('WIN', '🏆') + ' <b>ကံထူးရှင်များ</b>\n━━━━━━━━━━━━━━━━━━\nဒီအကြိမ်မှာ ကံထူးရှင် တစ်ယောက်မှ မရှိပါဘူးရှင့်။';
+  if (!rows.length) return emoji('WIN', '🏆', true) + ' <b>ကံထူးရှင်များ</b>\n━━━━━━━━━━━━━━━━━━\nဒီအကြိမ်မှာ ကံထူးရှင် တစ်ယောက်မှ မရှိပါဘူးရှင့်။';
   const top = rows.slice(0, 10);
   const lines = top.map(function (x, i) { return (i + 1) + '. <a href="tg://user?id=' + x.userId + '">' + escHtml(x.name) + '</a> — <b>' + fmt(x.amount) + '</b> × ' + PAYOUT + ' = <b>' + fmt(x.payout) + '</b>'; });
   if (rows.length > 10) lines.push('', '➕ <b>And More ' + (rows.length - 10) + '+....</b>');
-  return emoji('WIN', '🏆') + ' <b>BIKA 2D ကံထူးရှင်များ</b>\n━━━━━━━━━━━━━━━━━━\n' + lines.join('\n') + '\n\n' + emoji('LUCKY', '🍀') + ' ကံထူးရှင်အားလုံး ဂုဏ်ယူပါတယ်';
+  return emoji('WIN', '🏆', true) + ' <b>BIKA 2D ကံထူးရှင်များ</b>\n━━━━━━━━━━━━━━━━━━\n' + lines.join('\n') + '\n\n' + emoji('LUCKY', '🍀', true) + ' ကံထူးရှင်အားလုံး ဂုဏ်ယူပါတယ်';
 }
 async function settle(e, number) {
   const current = await getEvent(e.eventId);
@@ -572,19 +570,19 @@ async function publishResult(bot, e, number) {
   let sent;
   try {
     sent = await safeTelegram(function () {
-      return bot.telegram.sendMessage(env.TWO_D_CHANNEL_ID, resultText(updated), { parse_mode: 'HTML', disable_web_page_preview: true });
+      return bot.telegram.sendMessage(env.TWO_D_CHANNEL_ID, resultText(updated, false), { parse_mode: 'HTML', disable_web_page_preview: true });
     });
   } catch (err) {
     if (!VALID_CUSTOM_EMOJI_IDS.size) throw err;
     logger.warn('2D result custom emoji send failed; retrying with normal emoji: ' + (err && err.message ? err.message : err));
     VALID_CUSTOM_EMOJI_IDS.clear();
     sent = await safeTelegram(function () {
-      return bot.telegram.sendMessage(env.TWO_D_CHANNEL_ID, resultText(updated), { parse_mode: 'HTML', disable_web_page_preview: true });
+      return bot.telegram.sendMessage(env.TWO_D_CHANNEL_ID, resultText(updated, false), { parse_mode: 'HTML', disable_web_page_preview: true });
     });
   }
   await events().updateOne({ eventId: e.eventId }, { $set: { resultMessageId: sent.message_id, updatedAt: new Date() } });
   try {
-    const d = updated.discussionChatId ? Number(updated.discussionChatId) : await discussionId(bot);
+    const d = updated.discussionChatId ? String(updated.discussionChatId) : await discussionId(bot);
     if (d && sent && sent.message_id) {
       await sendDiscussionReply(
         bot,
