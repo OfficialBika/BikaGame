@@ -114,26 +114,26 @@ function openText(e) {
   const test = e.manual ? '\n\n⚠️ <b>Owner စမ်းသပ်တဲ့ Post ပါ</b>\nကြေးအများကြီး မထိုးကြပါနဲ့။ အစစ်မဟုတ်ပါ။' : '';
   return emoji('BET', '🎯') + ' <b>BIKA 2D ထိုးကြေးဖွင့်ပါပြီရှင့်</b>\n' +
     '━━━━━━━━━━━━━━━━━━\n' +
-    '📅 <b>' + escHtml(dateTime(e.openAt)) + '</b>\n\n' +
-    '⏳ <b>' + escHtml(displayTime(e.closeAt)) + '</b> မှာ ထိုးကြေးပိတ်ပါမယ်\n\n' +
-    '💰 ပေါက်ကြေး <b>' + PAYOUT + ' ဆ</b>\n' +
-    '🎟️ ထိုးကြေးကန့်သတ်ချက် <b>' + fmt(MIN_BET) + ' → ' + fmt(MAX_PER_NUMBER) + '</b>\n\n' +
-    '👥 <b>Bika Game Bot ရဲ့ player အပေါင်းတို့က</b>\n\n' +
+    emoji('DATE', '📅') + ' <b>' + escHtml(dateTime(e.openAt)) + '</b>\n\n' +
+    emoji('TIME', '⏳') + ' <b>' + escHtml(displayTime(e.closeAt)) + '</b> မှာ ထိုးကြေးပိတ်ပါမယ်\n\n' +
+    emoji('MONEY', '💰') + ' ပေါက်ကြေး <b>' + PAYOUT + ' ဆ</b>\n' +
+    emoji('TICKET', '🎟️') + ' ထိုးကြေးကန့်သတ်ချက် <b>' + fmt(MIN_BET) + ' → ' + fmt(MAX_PER_NUMBER) + '</b>\n\n' +
+    emoji('USERS', '👥') + ' <b>Bika Game Bot ရဲ့ player အပေါင်းတို့က</b>\n\n' +
     'ယခု Post ရဲ့ Comments မှာ\nအောက်ကလို လောင်းကြေးတင်နိုင်ပါပြီ\n\n' +
     '👉 <code>.2d 00.33.66 5000</code>\n' +
     '👉 <code>.2d 45R 5000</code>\n\n' + emoji('LUCKY', '🍀') + ' <b>ကံကောင်းပါစေရှင့်</b> ' + emoji('LUCKY', '🍀') + test;
 }
 function closeText(e) {
   return emoji('LOCK', '🔒') + ' <b>Bet ပိတ်လိုက်ပါပြီရှင့်</b>\n━━━━━━━━━━━━━━━━━━\n' +
-    '📅 ' + escHtml(dateTime(e.closeAt)) + '\n\n' +
-    '🎯 ပေါက်ဂဏန်းထွက်ရန် Owner ၏ <code>/2dwin 45</code> ကို စောင့်နေပါသည်။\n\n' +
+    emoji('DATE', '📅') + ' ' + escHtml(dateTime(e.closeAt)) + '\n\n' +
+    emoji('WAIT', '🎯') + ' ပေါက်ဂဏန်းထွက်ရန် အချိန်ကို စောင့်နေပါသည်။\n\n' +
     emoji('LUCKY', '🍀') + ' အားလုံး ကံကောင်းကြပါစေရှင့် ' + emoji('LUCKY', '🍀');
 }
 function resultText(e) {
   return emoji('WIN', '🏆') + ' <b>BIKA 2D ပေါက်ဂဏန်းထွက်ပါပြီ</b>\n━━━━━━━━━━━━━━━━━━\n' +
-    '📅 <b>' + escHtml(dateTime(e.resultAt)) + '</b>\n\n' +
-    '🎯 ပေါက်ဂဏန်း <b>' + e.winningNumber + '</b>\n\n' +
-    '🎉 ကံထူးရှင်များစာရင်းကို Comment မှာ ဝင်ကြည့်နိုင်ပါတယ်ရှင့်\n\n' +
+    emoji('DATE', '📅') + ' <b>' + escHtml(dateTime(e.resultAt)) + '</b>\n\n' +
+    emoji('NUMBER', '🎯') + ' ပေါက်ဂဏန်း <b>' + e.winningNumber + '</b>\n\n' +
+    emoji('COMMENT', '🎉') + ' ကံထူးရှင်များစာရင်းကို Comment မှာ ဝင်ကြည့်နိုင်ပါတယ်ရှင့်\n\n'
     emoji('LUCKY', '🍀') + ' ကံထူးရှင်အားလုံး ဂုဏ်ယူပါတယ် ' + emoji('LUCKY', '🍀');
 }
 async function createEvent(id, key, open, close, manual) {
