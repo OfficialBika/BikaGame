@@ -70,6 +70,11 @@ async function connectMongo() {
   collections.groups = db.collection('groups');
   collections.shop_cards = db.collection('shop_cards');
   collections.shop_settings = db.collection('shop_settings');
+  collections.two_d_events = db.collection('two_d_events');
+  collections.two_d_bets = db.collection('two_d_bets');
+  collections.two_d_positions = db.collection('two_d_positions');
+  collections.two_d_offdates = db.collection('two_d_offdates');
+  collections.treasury = db.collection('treasury');
   collections.sports_events = db.collection('sports_events');
   collections.sports_bets = db.collection('sports_bets');
 
@@ -79,6 +84,7 @@ async function connectMongo() {
 
   await safeCreateIndex(collections.transactions, { createdAt: -1 });
   await safeCreateIndex(collections.transactions, { userId: 1, createdAt: -1 });
+  await safeCreateIndex(collections.transactions, { type: 1, 'meta.eventId': 1, toUserId: 1 });
 
   await safeCreateIndex(collections.orders, { status: 1, createdAt: -1 });
   await safeCreateIndex(collections.orders, { userId: 1, createdAt: -1 });
