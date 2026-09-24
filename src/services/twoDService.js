@@ -151,9 +151,21 @@ async function closeEvent(bot, e) {
   const closed = claim && claim.value !== undefined ? claim.value : claim;
   if (!closed) return null;
   try {
-    const sent = await safeTelegram(function () { return bot.telegram.sendMessage(env.TWO_D_CHANNEL_ID, closeText(closed), { parse_mode: 'HTML' }); });
-    await events().updateOne({ eventId: e.eventId }, { $set: { closeMessageId: sent.message_id, updatedAt: new Date() } });
-  } catch (err) { logger.error('2D close post failed', err); }
+    const d = closed.discussionChatId ? Number(closed.discussionChatId) : await discussionId(bot);
+    if (d && closed.openMessageId) {
+      await safeTelegram(function () {
+        return bot.telegram.sendMessage(d, closeText(closed), {
+          parse_mode: 'HTML',
+          reply_parameters: {
+            message_id: Number(closed.openMessageId),
+            chat_id: env.TWO_D_CHANNEL_ID,
+          },
+        });
+      });
+    } else {
+      logger.warn('2D close comment skipped: linked discussion or open post is unavailable for ' + closed.eventId);
+    }
+  } catch (err) { logger.error('2D close comment failed', err); }
   try {
     await safeTelegram(function () { return bot.telegram.sendMessage(env.OWNER_ID, '🔔 <b>Bet ပိတ်ပြီးပါပြီ</b>\n\n📅 ' + escHtml(dateTime(closed.openAt)) + '\n⏰ ' + escHtml(displayTime(closed.closeAt)) + '\n\nပေါက်ဂဏန်းထွက်ပြီးရင် <code>/2dwin 45</code> လိုမျိုး သတ်မှတ်ပေးပါရှင့်။', { parse_mode: 'HTML' }); });
   } catch (err) { logger.error('2D owner DM failed', err); }
@@ -411,8 +423,24 @@ async function publishResult(bot, e, number) {
   const updated = await getEvent(e.eventId);
   const sent = await safeTelegram(function () { return bot.telegram.sendMessage(env.TWO_D_CHANNEL_ID, resultText(updated), { parse_mode: 'HTML', disable_web_page_preview: true }); });
   await events().updateOne({ eventId: e.eventId }, { $set: { resultMessageId: sent.message_id, updatedAt: new Date() } });
-  if (updated.discussionChatId) {
-    await safeTelegram(function () { return bot.telegram.sendMessage(updated.discussionChatId, winnerText(settled.rows), { parse_mode: 'HTML', disable_web_page_preview: true, reply_parameters: { message_id: sent.message_id, chat_id: env.TWO_D_CHANNEL_ID, allow_sending_without_reply: true } }); }).catch(async function () { await safeTelegram(function () { return bot.telegram.sendMessage(updated.discussionChatId, winnerText(settled.rows), { parse_mode: 'HTML' }); }).catch(function () {}); });
+  try {
+    const d = updated.discussionChatId ? Number(updated.discussionChatId) : await discussionId(bot);
+    if (d && sent && sent.message_id) {
+      await safeTelegram(function () {
+        return bot.telegram.sendMessage(d, winnerText(settled.rows), {
+          parse_mode: 'HTML',
+          disable_web_page_preview: true,
+          reply_parameters: {
+            message_id: Number(sent.message_id),
+            chat_id: env.TWO_D_CHANNEL_ID,
+          },
+        });
+      });
+    } else {
+      logger.warn('2D winner comment skipped: linked discussion or result post is unavailable for ' + updated.eventId);
+    }
+  } catch (err) {
+    logger.error('2D winner comment failed', err);
   }
   return { event: updated, winners: settled.rows, totalPayout: settled.total };
 }
