@@ -444,7 +444,7 @@ async function addBet(ctx, e, parsed) {
   });
   return { duplicate: false, lines: parsed.lines, display: parsed.display, total: parsed.total, balance: out.balance };
 }
-function betComplete(e, r) {
+function betComplete(e, r, useCustom) {
   const list = (r.display || r.lines.map(function (x) { return { label: x.number, amount: x.amount, multiplier: 1 }; })).map(function (x) {
     return '<code>' + x.label + '</code> - <b>' + fmt(x.amount) + '</b>' + (x.multiplier > 1 ? '×' + x.multiplier : '');
   }).join('\n');
@@ -458,7 +458,7 @@ function betComplete(e, r) {
 async function handleBet(ctx, e, parsed) {
   const r = await addBet(ctx, e, parsed);
   if (r.duplicate) return ctx.reply('⚠️ ဒီ message ကို အရင်က လက်ခံပြီးသားပါ။', { reply_to_message_id: ctx.message.message_id });
-  return safeTelegram(function () { return ctx.reply(betComplete(e, r), { parse_mode: 'HTML', disable_web_page_preview: true, reply_to_message_id: ctx.message.message_id }); });
+  return safeTelegram(function () { return ctx.reply(betComplete(e, r, true), { parse_mode: 'HTML', disable_web_page_preview: true, reply_to_message_id: ctx.message.message_id }); });
 }
 async function handleComment(ctx, bot) {
   try { await captureDiscussionRoot(ctx.message); } catch (err) { logger.warn('2D discussion root capture failed: ' + (err && err.message ? err.message : err)); }
