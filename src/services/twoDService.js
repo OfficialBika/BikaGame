@@ -488,7 +488,7 @@ async function myBet(ctx) {
 
   if (!e) {
     return ctx.reply(
-      emoji('BET', '🎯', true) + ' <b>MY BET</b>\\n━━━━━━━━━━━━━━━━━━\\n' +
+      emoji('BET', '🎯', true) + ' <b>MY BET</b>\n━━━━━━━━━━━━━━━━━━\n' +
       '⚠️ လက်ရှိ 2D Event မရှိသေးပါဘူးရှင့်။',
       { parse_mode: 'HTML', disable_web_page_preview: true, reply_to_message_id: replyTo }
     );
@@ -497,9 +497,9 @@ async function myBet(ctx) {
   const rows = await positions().find({ eventId: e.eventId, userId: userId }).sort({ number: 1 }).toArray();
   if (!rows.length) {
     return ctx.reply(
-      emoji('BET', '🎯', true) + ' <b>MY BET</b>\\n━━━━━━━━━━━━━━━━━━\\n' +
-      emoji('DATE', '📅', true) + ' <b>' + escHtml(dateTime(e.openAt)) + '</b>\\n\\n' +
-      '🎟️ ဒီ Event မှာ သင်ထိုးထားတဲ့ Bet မရှိသေးပါဘူးရှင့်။\\n\\n' +
+      emoji('BET', '🎯', true) + ' <b>MY BET</b>\n━━━━━━━━━━━━━━━━━━\n' +
+      emoji('DATE', '📅', true) + ' <b>' + escHtml(dateTime(e.openAt)) + '</b>\n\n' +
+      '🎟️ ဒီ Event မှာ သင်ထိုးထားတဲ့ Bet မရှိသေးပါဘူးရှင့်။\n\n' +
       emoji('LUCKY', '🍀', true) + ' ကံကောင်းပါစေရှင့် ' + emoji('LUCKY', '🍀', true),
       { parse_mode: 'HTML', disable_web_page_preview: true, reply_to_message_id: replyTo }
     );
@@ -519,19 +519,19 @@ async function myBet(ctx) {
     return emoji('NUMBER', '🎯', true) + ' <code>' +
       escHtml(String(x.number).padStart(2, '0')) +
       '</code>  <b>' + fmt(x.totalAmount) + '</b>';
-  }).join('\\n');
+  }).join('\n');
 
   const text =
-    emoji('BET', '🎯', true) + ' <b>MY BET</b>\\n' +
-    '━━━━━━━━━━━━━━━━━━\\n' +
-    emoji('DATE', '📅', true) + ' <b>' + escHtml(dateTime(e.openAt)) + '</b>\\n' +
-    emoji('TIME', '⏳', true) + ' <b>' + escHtml(displayTime(e.closeAt)) + '</b> မှာ ပိတ်ပါမယ်\\n\\n' +
-    '<b>🎟️ BET LIST</b>\\n' +
-    lines + '\\n\\n' +
-    '━━━━━━━━━━━━━━━━━━\\n' +
-    emoji('MONEY', '💰', true) + ' <b>TOTAL BET</b>  ' + fmt(total) + '\\n' +
-    emoji('WIN', '🏆', true) + ' <b>WIN POTENTIAL</b>  ' + fmt(maxPayout) + '\\n' +
-    '💳 <b>BALANCE</b>  ' + fmt(balance) + '\\n\\n' +
+    emoji('BET', '🎯', true) + ' <b>MY BET</b>\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
+    emoji('DATE', '📅', true) + ' <b>' + escHtml(dateTime(e.openAt)) + '</b>\n' +
+    emoji('TIME', '⏳', true) + ' <b>' + escHtml(displayTime(e.closeAt)) + '</b> မှာ ပိတ်ပါမယ်\n\n' +
+    '<b>🎟️ BET LIST</b>\n' +
+    lines + '\n\n' +
+    '━━━━━━━━━━━━━━━━━━\n' +
+    emoji('MONEY', '💰', true) + ' <b>TOTAL BET</b>  ' + fmt(total) + '\n' +
+    emoji('WIN', '🏆', true) + ' <b>WIN POTENTIAL</b>  ' + fmt(maxPayout) + '\n' +
+    '💳 <b>BALANCE</b>  ' + fmt(balance) + '\n\n' +
     emoji('LUCKY', '🍀', true) + ' ကံကောင်းပါစေရှင့် ' + emoji('LUCKY', '🍀', true);
 
   return ctx.reply(text, {
