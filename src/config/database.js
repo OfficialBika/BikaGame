@@ -70,6 +70,10 @@ async function connectMongo() {
   collections.groups = db.collection('groups');
   collections.shop_cards = db.collection('shop_cards');
   collections.shop_settings = db.collection('shop_settings');
+  collections.two_d_events = db.collection('two_d_events');
+  collections.two_d_bets = db.collection('two_d_bets');
+  collections.two_d_positions = db.collection('two_d_positions');
+  collections.two_d_offdates = db.collection('two_d_offdates');
 
   await safeCreateIndex(collections.users, { userId: 1 }, { unique: true });
   await safeCreateIndex(collections.users, { username: 1 }, { sparse: true });
