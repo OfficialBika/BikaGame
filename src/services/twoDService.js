@@ -21,6 +21,11 @@ const events = () => col('two_d_events');
 const bets = () => col('two_d_bets');
 const positions = () => col('two_d_positions');
 const offdates = () => col('two_d_offdates');
+const treasury = () => col('treasury');
+
+const USER_SETTLEMENT_KEYS = 'twoDSettlementKeys';
+function settlementKey(eventId, userId) { return String(eventId) + ':' + String(userId); }
+function treasurySettlementKey(eventId) { return '2d:' + String(eventId); }
 
 function yangonParts(date) {
   const p = new Intl.DateTimeFormat('en-US', {
@@ -94,7 +99,9 @@ function weekend(key) { const a = key.split('-').map(Number); const d = new Date
 async function offDate(key) { return !!(await offdates().findOne({ dateKey: key })); }
 async function getEvent(id) { return events().findOne({ eventId: id }); }
 async function openEvent() { return events().findOne({ channelId: env.TWO_D_CHANNEL_ID, status: 'open', closeAt: { $gt: new Date() } }, { sort: { openAt: -1 } }); }
-async function pendingResult() { return events().findOne({ channelId: env.TWO_D_CHANNEL_ID, status: 'closed', resultAt: null, closeAt: { $lte: new Date() } }, { sort: { closeAt: -1 } }); }
+async function pendingResult() {
+  return events().findOne({ channelId: env.TWO_D_CHANNEL_ID, status: { $in: ['closed', 'settling'] }, resultAt: null, closeAt: { $lte: new Date() } }, { sort: { closeAt: -1 } });
+}
 async function discussionId(bot) {
   if (env.TWO_D_DISCUSSION_CHAT_ID) return Number(env.TWO_D_DISCUSSION_CHAT_ID);
   if (!env.TWO_D_CHANNEL_ID) return null;
@@ -257,23 +264,134 @@ function winnerText(rows) {
   return emoji('WIN', '🏆') + ' <b>BIKA 2D ကံထူးရှင်များ</b>\n━━━━━━━━━━━━━━━━━━\n' + lines.join('\n') + '\n\n' + emoji('LUCKY', '🍀') + ' ကံထူးရှင်အားလုံး ဂုဏ်ယူပါတယ်';
 }
 async function settle(e, number) {
-  const rows = await winners(e, number);
+  const current = await getEvent(e.eventId);
+  if (!current || !['closed', 'settling'].includes(current.status) || current.resultAt) {
+    throw new Error('RESULT_ALREADY_SETTLED');
+  }
+  if (current.status === 'settling' && current.winningNumber && current.winningNumber !== number) {
+    throw new Error('SETTLEMENT_IN_PROGRESS');
+  }
+
+  // Atomically claim the event. If another request already claimed it, resume that same settlement.
+  if (current.status === 'closed') {
+    const claim0 = await events().findOneAndUpdate(
+      { eventId: e.eventId, status: 'closed', resultAt: null },
+      { $set: { status: 'settling', winningNumber: number, settlementStartedAt: new Date(), updatedAt: new Date() } },
+      { returnDocument: 'after' }
+    );
+    const claim = claim0 && claim0.value !== undefined ? claim0.value : claim0;
+    if (!claim) {
+      const locked = await getEvent(e.eventId);
+      if (!locked || locked.status !== 'settling' || locked.winningNumber !== number) throw new Error('SETTLEMENT_IN_PROGRESS');
+    }
+  }
+
+  const lockedEvent = await getEvent(e.eventId);
+  const rows = await winners(lockedEvent, number);
   const total = rows.reduce(function (s, x) { return s + x.payout; }, 0);
   const now = new Date();
+  const treasuryKey = treasurySettlementKey(lockedEvent.eventId);
+
   await withMaybeTx(async function (session) {
-    const opt = session ? { session: session, returnDocument: 'after' } : { returnDocument: 'after' };
+    const opt = session ? { session: session } : {};
+
+    // Treasury debit is itself idempotent. In fallback mode, the same event can safely resume.
     if (total) {
-      const t0 = await col('treasury').findOneAndUpdate({ key: 'treasury', ownerBalance: { $gte: total } }, { $inc: { ownerBalance: -total }, $set: { updatedAt: now } }, opt);
-      const t = t0 && t0.value !== undefined ? t0.value : t0; if (!t) throw new Error('TREASURY_INSUFFICIENT');
+      const t = await treasury().findOneAndUpdate(
+        { key: 'treasury', ownerBalance: { $gte: total }, twoDSettlementKeys: { $ne: treasuryKey } },
+        { $inc: { ownerBalance: -total }, $addToSet: { twoDSettlementKeys: treasuryKey }, $set: { updatedAt: now } },
+        Object.assign({ returnDocument: 'after' }, opt)
+      );
+      const treasuryDoc = t && t.value !== undefined ? t.value : t;
+      if (!treasuryDoc) {
+        const already = await treasury().findOne({ key: 'treasury', twoDSettlementKeys: treasuryKey });
+        if (!already) throw new Error('TREASURY_INSUFFICIENT');
+      }
     }
+
     for (const x of rows) {
-      await userModel.collection().updateOne({ userId: x.userId }, { $inc: { balance: x.payout, totalWon: x.payout }, $set: { updatedAt: now } }, session ? { session: session } : {});
-      await logTx({ type: '2d_win', fromUserId: 'TREASURY', toUserId: x.userId, amount: x.payout, meta: { eventId: e.eventId, winningNumber: number } }, session ? { session: session } : {});
+      const key = settlementKey(lockedEvent.eventId, x.userId);
+      const u = await userModel.collection().updateOne(
+        { userId: x.userId, [USER_SETTLEMENT_KEYS]: { $ne: key } },
+        { $inc: { balance: x.payout, totalWon: x.payout }, $addToSet: { [USER_SETTLEMENT_KEYS]: key }, $set: { updatedAt: now } },
+        opt
+      );
+
+      // If the marker was already present, the balance was credited in an earlier attempt.
+      // Only the transaction-log repair remains.
+      const txFilter = { type: '2d_win', fromUserId: 'TREASURY', toUserId: x.userId, 'meta.eventId': lockedEvent.eventId, 'meta.winningNumber': number };
+      if (u.modifiedCount === 0) {
+        const existingTx = await col('transactions').findOne(txFilter, opt);
+        if (!existingTx) {
+          await logTx({ type: '2d_win', fromUserId: 'TREASURY', toUserId: x.userId, amount: x.payout, meta: { eventId: lockedEvent.eventId, winningNumber: number } }, opt);
+        }
+      } else {
+        const existingTx = await col('transactions').findOne(txFilter, opt);
+        if (!existingTx) {
+          await logTx({ type: '2d_win', fromUserId: 'TREASURY', toUserId: x.userId, amount: x.payout, meta: { eventId: lockedEvent.eventId, winningNumber: number } }, opt);
+        }
+      }
     }
-    await events().updateOne({ eventId: e.eventId, status: 'closed', resultAt: null }, { $set: { status: 'result', winningNumber: number, resultAt: now, winnerCount: rows.length, totalPayout: total, updatedAt: now } }, session ? { session: session } : {});
+
+    await events().updateOne(
+      { eventId: lockedEvent.eventId, status: 'settling', winningNumber: number, resultAt: null },
+      { $set: { status: 'result', resultAt: now, winnerCount: rows.length, totalPayout: total, settlementCompletedAt: now, updatedAt: now } },
+      opt
+    );
   });
+
   return { rows: rows, total: total, resultAt: now };
 }
+async function verifyDailySettlement(event) {
+  if (!event || event.status !== 'result' || !event.resultAt) return false;
+  const winnerCount = Number(event.winnerCount || 0);
+  const totalPayout = Number(event.totalPayout || 0);
+  const txAgg = await col('transactions').aggregate([
+    { $match: { type: '2d_win', 'meta.eventId': event.eventId } },
+    { $group: { _id: null, count: { $sum: 1 }, total: { $sum: '$amount' } } }
+  ]).toArray();
+  const tx = txAgg[0] || { count: 0, total: 0 };
+  return Number(tx.count) === winnerCount && Number(tx.total) === totalPayout;
+}
+
+async function cleanupDay(key) {
+  if (!env.TWO_D_CHANNEL_ID || weekend(key) || await offDate(key)) return false;
+
+  const ids = ['auto-' + key + '-am', 'auto-' + key + '-pm'];
+  const dayEvents = await events().find({ eventId: { $in: ids }, manual: false }).toArray();
+  if (dayEvents.length !== 2) return false;
+  if (!dayEvents.every(function (x) { return x.status === 'result' && x.resultAt; })) return false;
+
+  for (const e of dayEvents) {
+    if (!(await verifyDailySettlement(e))) {
+      logger.warn('2D daily cleanup blocked: settlement verification failed for ' + e.eventId);
+      return false;
+    }
+  }
+
+  const eventIds = dayEvents.map(function (x) { return x.eventId; });
+  const cleanupFilter = { eventId: { $in: eventIds } };
+
+  // Remove only temporary 2D runtime data. User balances and the permanent transaction ledger stay intact.
+  await bets().deleteMany(cleanupFilter);
+  await positions().deleteMany(cleanupFilter);
+  await events().deleteMany({ eventId: { $in: eventIds }, status: 'result' });
+
+  // Remove only the short-lived idempotency markers created for this day's 2D settlements.
+  await userModel.collection().updateMany(
+    { [USER_SETTLEMENT_KEYS]: { $exists: true } },
+    { $pull: { [USER_SETTLEMENT_KEYS]: { $regex: '^(?:' + eventIds.map(function (x) { return x.replace(/[.*+?^\\\\{}()|[\\]\\\\]/g, '\\\\
+async function publishResult'); }).join('|') + '):' } } }
+  );
+  await treasury().updateOne(
+    { key: 'treasury' },
+    { $pull: { twoDSettlementKeys: { $in: eventIds.map(treasurySettlementKey) } }, $set: { updatedAt: new Date() } }
+  );
+
+  logger.info('2D daily cleanup completed: ' + key + ' (AM + PM)');
+  return true;
+}
+
 async function publishResult(bot, e, number) {
   const settled = await settle(e, number);
   const updated = await getEvent(e.eventId);
@@ -323,7 +441,7 @@ function register(bot) {
     const number = raw.padStart(2, '0'); if (+number > 99) return ctx.reply('⚠️ 00 မှ 99 အတွင်းပဲ သတ်မှတ်နိုင်ပါတယ်။');
     const e = await pendingResult(); if (!e) return ctx.reply('⏳ ပိတ်ပြီးသား 2D Event မရှိသေးပါ။');
     try { const r = await publishResult(bot, e, number); return ctx.reply('✅ <b>2D Result Published</b>\n\n🎯 Winning Number: <b>' + number + '</b>\n🏆 Winners: <b>' + r.winners.length + '</b>\n💰 Total Payout: <b>' + fmt(r.totalPayout) + '</b>', { parse_mode: 'HTML' }); }
-    catch (err) { logger.error('2D win failed', err); return ctx.reply(String(err.message || err) === 'TREASURY_INSUFFICIENT' ? '⚠️ Winner payout အတွက် Treasury balance မလုံလောက်ပါ။ Result မထုတ်သေးပါ။' : '⚠️ 2D Result ထုတ်ရာမှာ အမှားဖြစ်သွားပါတယ်။'); }
+    catch (err) { logger.error('2D win failed', err); const code = String(err.message || err); return ctx.reply(code === 'TREASURY_INSUFFICIENT' ? '⚠️ Winner payout အတွက် Treasury balance မလုံလောက်ပါ။ Result မထုတ်သေးပါ။' : code === 'SETTLEMENT_IN_PROGRESS' ? '⏳ 2D Result settlement လုပ်နေဆဲပါ။ ခဏစောင့်ပြီး ထပ်စမ်းပါ။' : code === 'RESULT_ALREADY_SETTLED' ? 'ℹ️ ဒီ 2D Result ကို အရင်က settle လုပ်ပြီးသားပါ။' : '⚠️ 2D Result ထုတ်ရာမှာ အမှားဖြစ်သွားပါတယ်။'); }
   });
   bot.hears(/^\.2d(?:\s|$)/i, async function (ctx, next) {
     const e = await openEvent(); if (!e || !(await isEventMessage(ctx.message, e))) return next();
@@ -340,6 +458,7 @@ async function init(bot) {
   await bets().createIndex({ eventId: 1, sourceChatId: 1, sourceMessageId: 1 }, { unique: true, name: 'two_d_bets_source_unique' });
   await positions().createIndex({ eventId: 1, userId: 1, number: 1 }, { unique: true, name: 'two_d_positions_unique' });
   await positions().createIndex({ eventId: 1, number: 1, totalAmount: -1 }, { name: 'two_d_positions_number' });
+  await treasury().createIndex({ key: 1 }, { unique: true, name: 'treasury_key_unique' });
   await offdates().createIndex({ dateKey: 1 }, { unique: true, name: 'two_d_offdates_unique' });
   if (!env.TWO_D_CHANNEL_ID) { logger.warn('2D scheduler disabled: TWO_D_CHANNEL_ID is not configured'); return function () {}; }
   let busy = false;
@@ -351,6 +470,10 @@ async function init(bot) {
       for (const e of scheduled) await publishOpen(bot, e);
       const closing = await events().find({ channelId: env.TWO_D_CHANNEL_ID, status: 'open', closeAt: { $lte: now } }).limit(10).toArray();
       for (const e of closing) await closeEvent(bot, e);
+      // Retry yesterday as well, so a restart after the previous day's PM result cannot leave stale 2D data behind.
+      const yesterday = new Date(now.getTime() - 86400000);
+      await cleanupDay(dateKey(yesterday));
+      await cleanupDay(today);
       if (!weekend(today) && !(await offDate(today))) {
         for (const s of SCHEDULE) {
           const oa = yangonDateAt(today, s.open), ca = yangonDateAt(today, s.close), id = 'auto-' + today + '-' + s.key;
