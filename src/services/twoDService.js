@@ -133,7 +133,7 @@ function resultText(e) {
   return emoji('WIN', '🏆') + ' <b>BIKA 2D ပေါက်ဂဏန်းထွက်ပါပြီ</b>\n━━━━━━━━━━━━━━━━━━\n' +
     emoji('DATE', '📅') + ' <b>' + escHtml(dateTime(e.resultAt)) + '</b>\n\n' +
     emoji('NUMBER', '🎯') + ' ပေါက်ဂဏန်း <b>' + e.winningNumber + '</b>\n\n' +
-    emoji('COMMENT', '🎉') + ' ကံထူးရှင်များစာရင်းကို Comment မှာ ဝင်ကြည့်နိုင်ပါတယ်ရှင့်\n\n'
+    emoji('COMMENT', '🎉') + ' ကံထူးရှင်များစာရင်းကို Comment မှာ ဝင်ကြည့်နိုင်ပါတယ်ရှင့်\n\n' +
     emoji('LUCKY', '🍀') + ' ကံထူးရှင်အားလုံး ဂုဏ်ယူပါတယ် ' + emoji('LUCKY', '🍀');
 }
 async function createEvent(id, key, open, close, manual) {
