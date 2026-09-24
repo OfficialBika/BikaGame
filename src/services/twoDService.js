@@ -246,7 +246,7 @@ function resultText(e, useCustom) {
     emoji('LUCKY', '🍀', useCustom) + ' ကံထူးရှင်အားလုံး ဂုဏ်ယူပါတယ် ' + emoji('LUCKY', '🍀', useCustom);
 }
 async function createEvent(id, key, open, close, manual) {
-  const doc = { eventId: id, dateKey: key, openAt: yangonDateAt(key, open), closeAt: yangonDateAt(key, close), status: 'scheduled', manual: !!manual, channelId: env.TWO_D_CHANNEL_ID, discussionChatId: null, discussionRootMessageId: null, openMessageId: null, closeMessageId: null, resultMessageId: null, winningNumber: null, resultAt: null, createdAt: new Date(), updatedAt: new Date() };
+  const doc = { eventId: id, dateKey: key, openAt: yangonDateAt(key, open), closeAt: yangonDateAt(key, close), status: 'scheduled', manual: !!manual, channelId: env.TWO_D_CHANNEL_ID, discussionChatId: null, discussionRootMessageId: null, resultDiscussionRootMessageId: null, openMessageId: null, closeMessageId: null, resultMessageId: null, winningNumber: null, resultAt: null, createdAt: new Date(), updatedAt: new Date() };
   try { await events().insertOne(doc); return doc; } catch (e) { if (e && e.code === 11000) return getEvent(id); throw e; }
 }
 async function publishOpen(bot, e) {
@@ -272,17 +272,22 @@ async function closeEvent(bot, e) {
   const closed = claim && claim.value !== undefined ? claim.value : claim;
   if (!closed) return null;
   try {
-    const d = closed.discussionChatId ? String(closed.discussionChatId) : await discussionId(bot);
+    let rootInfo = closed.discussionRootMessageId
+      ? { event: closed, rootMessageId: Number(closed.discussionRootMessageId), discussionChatId: closed.discussionChatId }
+      : await waitForDiscussionRoot(closed.eventId, 'open', 15000);
+    const d = rootInfo && rootInfo.discussionChatId
+      ? String(rootInfo.discussionChatId)
+      : (closed.discussionChatId ? String(closed.discussionChatId) : await discussionId(bot));
     if (d && closed.openMessageId) {
       await sendDiscussionReply(
         bot,
         d,
         Number(closed.openMessageId),
         closeText(closed, true),
-        Number(closed.discussionRootMessageId || 0)
+        Number(rootInfo && rootInfo.rootMessageId ? rootInfo.rootMessageId : 0)
       );
     } else {
-      logger.warn('2D close comment skipped: linked discussion or open post is unavailable for ' + closed.eventId);
+      logger.warn('2D close comment skipped: linked discussion/root unavailable for ' + closed.eventId);
     }
   } catch (err) { logger.error('2D close comment failed', err); }
   try {
@@ -290,6 +295,61 @@ async function closeEvent(bot, e) {
   } catch (err) { logger.error('2D owner DM failed', err); }
   return getEvent(e.eventId);
 }
+async function captureDiscussionRoot(message) {
+  if (!message || !message.chat || !message.chat.id) return false;
+  if (!message.is_automatic_forward) return false;
+
+  const discussionChatId = String(message.chat.id);
+  const senderChatId = message.sender_chat && message.sender_chat.id;
+  const forwardOrigin = message.forward_origin || {};
+  const originChatId =
+    (forwardOrigin.type === 'channel' && forwardOrigin.chat && forwardOrigin.chat.id) ||
+    senderChatId ||
+    null;
+  const originMessageId =
+    (forwardOrigin.type === 'channel' && forwardOrigin.message_id) ||
+    0;
+
+  if (!originChatId || String(originChatId) !== String(env.TWO_D_CHANNEL_ID) || !originMessageId) return false;
+
+  const event = await events().findOne({
+    channelId: env.TWO_D_CHANNEL_ID,
+    $or: [
+      { openMessageId: Number(originMessageId) },
+      { resultMessageId: Number(originMessageId) }
+    ],
+  });
+  if (!event) return false;
+
+  const rootId = Number(message.message_id || 0);
+  if (!rootId) return false;
+
+  const update = event.openMessageId === Number(originMessageId)
+    ? { $set: { discussionRootMessageId: rootId, discussionChatId: discussionChatId, updatedAt: new Date() } }
+    : { $set: { resultDiscussionRootMessageId: rootId, discussionChatId: discussionChatId, updatedAt: new Date() } };
+
+  await events().updateOne({ eventId: event.eventId }, update);
+  logger.info(
+    '2D discussion root captured: event=' + event.eventId +
+    ' channel_message=' + originMessageId +
+    ' discussion_root=' + rootId +
+    ' kind=' + (event.openMessageId === Number(originMessageId) ? 'open' : 'result')
+  );
+  return true;
+}
+
+async function waitForDiscussionRoot(eventId, kind, timeoutMs) {
+  const field = kind === 'result' ? 'resultDiscussionRootMessageId' : 'discussionRootMessageId';
+  const deadline = Date.now() + Number(timeoutMs || 15000);
+  while (Date.now() < deadline) {
+    const event = await getEvent(eventId);
+    const root = event && Number(event[field] || 0);
+    if (root) return { event: event, rootMessageId: root, discussionChatId: event.discussionChatId };
+    await new Promise(function (resolve) { setTimeout(resolve, 1000); });
+  }
+  return null;
+}
+
 async function isEventMessage(message, e) {
   if (!message || !e || e.status !== 'open') return false;
   if (String(message.chat && message.chat.id) !== String(e.discussionChatId)) return false;
@@ -401,6 +461,7 @@ async function handleBet(ctx, e, parsed) {
   return safeTelegram(function () { return ctx.reply(betComplete(e, r), { parse_mode: 'HTML', disable_web_page_preview: true, reply_to_message_id: ctx.message.message_id }); });
 }
 async function handleComment(ctx, bot) {
+  try { await captureDiscussionRoot(ctx.message); } catch (err) { logger.warn('2D discussion root capture failed: ' + (err && err.message ? err.message : err)); }
   const e = await openEvent();
   if (!e || !(await isEventMessage(ctx.message, e))) return false;
   if (owner(ctx)) return false;
@@ -582,17 +643,20 @@ async function publishResult(bot, e, number) {
   }
   await events().updateOne({ eventId: e.eventId }, { $set: { resultMessageId: sent.message_id, updatedAt: new Date() } });
   try {
-    const d = updated.discussionChatId ? String(updated.discussionChatId) : await discussionId(bot);
+    const rootInfo = await waitForDiscussionRoot(updated.eventId, 'result', 15000);
+    const d = rootInfo && rootInfo.discussionChatId
+      ? String(rootInfo.discussionChatId)
+      : (updated.discussionChatId ? String(updated.discussionChatId) : await discussionId(bot));
     if (d && sent && sent.message_id) {
       await sendDiscussionReply(
         bot,
         d,
         Number(sent.message_id),
         winnerText(settled.rows),
-        Number(updated.discussionRootMessageId || 0)
+        Number(rootInfo && rootInfo.rootMessageId ? rootInfo.rootMessageId : 0)
       );
     } else {
-      logger.warn('2D winner comment skipped: linked discussion or result post is unavailable for ' + updated.eventId);
+      logger.warn('2D winner comment skipped: linked discussion/result root unavailable for ' + updated.eventId);
     }
   } catch (err) {
     logger.error('2D winner comment failed', err);
