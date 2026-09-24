@@ -66,11 +66,19 @@ async function validateCustomEmojis(bot) {
   VALID_CUSTOM_EMOJI_IDS.clear();
   const ids = Array.from(new Set(
     Object.keys(process.env)
-      .filter(function (key) { return key.indexOf('TWO_D_EMOJI_') === 0; })
+      .filter(function (key) { return /^TWO_D_EMOJI_[A-Z0-9_]+$/.test(key); })
       .map(function (key) { return String(process.env[key] || '').trim(); })
       .filter(Boolean)
   ));
-  if (!ids.length) return;
+  if (!ids.length) {
+    logger.warn('2D custom emojis: no TWO_D_EMOJI_* environment values configured; fallback emojis will be used.');
+    return;
+  }
+  if (typeof bot.telegram.getCustomEmojiStickers !== 'function') {
+    ids.forEach(function (id) { VALID_CUSTOM_EMOJI_IDS.add(id); });
+    logger.warn('2D custom emoji validation API is unavailable; sending configured custom emoji IDs directly.');
+    return;
+  }
   try {
     const stickers = await bot.telegram.getCustomEmojiStickers(ids);
     const valid = new Set(
@@ -84,7 +92,11 @@ async function validateCustomEmojis(bot) {
     });
     logger.info('2D custom emojis loaded: ' + VALID_CUSTOM_EMOJI_IDS.size + '/' + ids.length);
   } catch (err) {
-    logger.warn('2D custom emoji validation failed; using fallback emoji: ' + (err && err.message ? err.message : err));
+    // Do not disable configured custom emojis just because the validation call
+    // failed. The send operation itself is authoritative; publishOpen/publishResult
+    // already retry with normal Unicode emojis if Telegram rejects an ID.
+    ids.forEach(function (id) { VALID_CUSTOM_EMOJI_IDS.add(id); });
+    logger.warn('2D custom emoji validation failed; trying configured IDs directly: ' + (err && err.message ? err.message : err));
   }
 }
 function mention(user) {
@@ -134,13 +146,27 @@ async function pendingResult() {
   return events().findOne({ channelId: env.TWO_D_CHANNEL_ID, status: { $in: ['closed', 'settling'] }, resultAt: null, closeAt: { $lte: new Date() } }, { sort: { closeAt: -1 } });
 }
 async function discussionId(bot) {
-  if (env.TWO_D_DISCUSSION_CHAT_ID) return Number(env.TWO_D_DISCUSSION_CHAT_ID);
   if (!env.TWO_D_CHANNEL_ID) return null;
-  const c = await safeTelegram(function () { return bot.telegram.getChat(env.TWO_D_CHANNEL_ID); });
-  return c && c.linked_chat_id ? Number(c.linked_chat_id) : null;
+  try {
+    const c = await safeTelegram(function () { return bot.telegram.getChat(env.TWO_D_CHANNEL_ID); });
+    if (c && c.linked_chat_id) {
+      const linked = String(c.linked_chat_id);
+      if (env.TWO_D_DISCUSSION_CHAT_ID && String(env.TWO_D_DISCUSSION_CHAT_ID) !== linked) {
+        logger.warn('2D discussion env ID does not match channel linked_chat_id; using the actual linked discussion chat.');
+      }
+      return linked;
+    }
+  } catch (err) {
+    logger.warn('2D channel linked_chat_id lookup failed: ' + (err && err.message ? err.message : err));
+  }
+  return env.TWO_D_DISCUSSION_CHAT_ID ? String(env.TWO_D_DISCUSSION_CHAT_ID) : null;
 }
 async function sendDiscussionReply(bot, discussionChatId, channelMessageId, text, rootMessageId) {
   if (!discussionChatId || !channelMessageId) throw new Error('DISCUSSION_REPLY_TARGET_MISSING');
+  let lastError = null;
+
+  // Primary route: Telegram Bot API Replies 2.0 maps the channel post to its
+  // automatically-forwarded discussion thread.
   try {
     return await safeTelegram(function () {
       return bot.telegram.sendMessage(discussionChatId, text, {
@@ -149,20 +175,51 @@ async function sendDiscussionReply(bot, discussionChatId, channelMessageId, text
         reply_parameters: {
           message_id: Number(channelMessageId),
           chat_id: env.TWO_D_CHANNEL_ID,
+          allow_sending_without_reply: false,
         },
       });
     });
   } catch (err) {
-    if (!rootMessageId) throw err;
-    logger.warn('2D cross-chat comment failed; retrying on stored discussion thread: ' + (err && err.message ? err.message : err));
-    return safeTelegram(function () {
+    lastError = err;
+    logger.warn('2D cross-chat comment failed: ' + (err && err.message ? err.message : err));
+  }
+
+  // Secondary route: if an actual discussion-thread root was observed from an
+  // incoming comment, reply directly inside that linked discussion thread.
+  if (rootMessageId) {
+    try {
+      return await safeTelegram(function () {
+        return bot.telegram.sendMessage(discussionChatId, text, {
+          parse_mode: 'HTML',
+          disable_web_page_preview: true,
+          reply_parameters: {
+            message_id: Number(rootMessageId),
+          },
+        });
+      });
+    } catch (err) {
+      lastError = err;
+      logger.warn('2D local discussion-thread reply failed: ' + (err && err.message ? err.message : err));
+    }
+  }
+
+  // Compatibility route: some linked discussion configurations expose the
+  // forwarded root with the same message id as the channel post.
+  try {
+    return await safeTelegram(function () {
       return bot.telegram.sendMessage(discussionChatId, text, {
         parse_mode: 'HTML',
         disable_web_page_preview: true,
-        reply_to_message_id: Number(rootMessageId),
+        reply_parameters: {
+          message_id: Number(channelMessageId),
+        },
       });
     });
+  } catch (err) {
+    lastError = err;
   }
+
+  throw lastError || new Error('DISCUSSION_REPLY_FAILED');
 }
 function openText(e) {
   const test = e.manual ? '\n\n⚠️ <b>Owner စမ်းသပ်တဲ့ Post ပါ</b>\nကြေးအများကြီး မထိုးကြပါနဲ့။ အစစ်မဟုတ်ပါ။' : '';
@@ -237,14 +294,12 @@ async function closeEvent(bot, e) {
 }
 async function isEventMessage(message, e) {
   if (!message || !e || e.status !== 'open') return false;
-  if (Number(message.chat && message.chat.id) !== Number(e.discussionChatId)) return false;
+  if (String(message.chat && message.chat.id) !== String(e.discussionChatId)) return false;
 
   const threadId = Number(message.message_thread_id || 0);
   if (e.discussionRootMessageId && threadId === Number(e.discussionRootMessageId)) return true;
 
-  // Telegram uses external_reply for replies that point across chats.
-  // Older updates may expose the automatically forwarded channel post
-  // through reply_to_message, so support both shapes.
+  // Replies 2.0 can expose the original channel post through external_reply.
   const r = message.reply_to_message || {};
   const x = message.external_reply || {};
   const origin = r.forward_origin || x.origin || {};
@@ -258,8 +313,10 @@ async function isEventMessage(message, e) {
     (r.forward_origin && r.forward_origin.message_id) ||
     r.message_id;
 
-  if (Number(originChat) === Number(e.channelId) && Number(originMessage) === Number(e.openMessageId)) {
-    const root = threadId || Number(r.message_id || 0) || Number(x.message_id || 0);
+  if (String(originChat) === String(e.channelId) && Number(originMessage) === Number(e.openMessageId)) {
+    // The thread id is the discussion-group root. Do not mistake
+    // external_reply.message_id (the channel post id) for that root.
+    const root = threadId || Number(r.message_id || 0);
     if (root) {
       await events().updateOne(
         { eventId: e.eventId, discussionRootMessageId: null },
@@ -269,7 +326,7 @@ async function isEventMessage(message, e) {
     return true;
   }
 
-  if (r.is_automatic_forward && Number(r.sender_chat && r.sender_chat.id) === Number(e.channelId)) {
+  if (r.is_automatic_forward && String(r.sender_chat && r.sender_chat.id) === String(e.channelId)) {
     const root = threadId || Number(r.message_id || 0);
     if (root) {
       await events().updateOne(
@@ -632,6 +689,17 @@ function register(bot) {
 }
 async function init(bot) {
   await validateCustomEmojis(bot);
+  if (env.TWO_D_CHANNEL_ID) {
+    try {
+      const ch = await bot.telegram.getChat(env.TWO_D_CHANNEL_ID);
+      logger.info('2D channel check: id=' + String(ch.id) + ', linked_chat_id=' + String(ch.linked_chat_id || 'none'));
+      if (!ch.linked_chat_id && !env.TWO_D_DISCUSSION_CHAT_ID) {
+        logger.warn('2D discussion comments disabled: channel has no linked discussion chat.');
+      }
+    } catch (err) {
+      logger.error('2D channel check failed: ' + (err && err.message ? err.message : err));
+    }
+  }
   await events().createIndex({ eventId: 1 }, { unique: true, name: 'two_d_events_event_unique' });
   await events().createIndex({ channelId: 1, status: 1, openAt: -1 }, { name: 'two_d_events_channel_status' });
   await events().createIndex({ status: 1, closeAt: 1 }, { name: 'two_d_events_close' });
