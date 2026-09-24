@@ -432,7 +432,7 @@ async function addBet(ctx, e, parsed) {
       if (!treasuryDoc) throw new Error('TREASURY_NOT_READY');
 
       await logTx({ type: '2d_bet', fromUserId: userId, toUserId: 'TREASURY', amount: parsed.total, meta: { eventId: e.eventId, lines: parsed.lines } }, session ? { session: session } : {});
-      return { balance: Number(u.balance) - parsed.total };
+      return { balance: Number(u.balance) };
     } catch (err) {
       if (!session && debited) {
         await userModel.collection().updateOne({ userId: userId }, { $inc: { balance: parsed.total, totalLost: -parsed.total }, $set: { updatedAt: new Date() } });
@@ -479,12 +479,54 @@ async function handleComment(ctx, bot) {
   return true;
 }
 async function myBet(ctx) {
+  const userId = Number(ctx.from && ctx.from.id);
   const e = await openEvent() || await events().findOne({ channelId: env.TWO_D_CHANNEL_ID, status: { $in: ['closed', 'result'] } }, { sort: { openAt: -1 } });
-  if (!e) return ctx.reply('📋 2D Event မရှိသေးပါဘူး။');
-  const rows = await positions().find({ eventId: e.eventId, userId: Number(ctx.from.id) }).sort({ number: 1 }).toArray();
-  if (!rows.length) return ctx.reply('📋 <b>MY BET</b>\n━━━━━━━━━━━━━━━━━━\nဒီ Event မှာ ထိုးထားတာ မရှိသေးပါဘူး။', { parse_mode: 'HTML' });
+  if (!e) {
+    return ctx.reply(
+      '📋 <b>MY BET</b>\\n━━━━━━━━━━━━━━━━━━\\n⚠️ လက်ရှိ 2D Event မရှိသေးပါဘူးရှင့်။',
+      { parse_mode: 'HTML', reply_to_message_id: ctx.message && ctx.message.message_id }
+    );
+  }
+
+  const rows = await positions().find({ eventId: e.eventId, userId: userId }).sort({ number: 1 }).toArray();
+  const replyTo = ctx.message && ctx.message.message_id;
+
+  if (!rows.length) {
+    return ctx.reply(
+      '📋 <b>MY BET</b>\\n━━━━━━━━━━━━━━━━━━\\n' +
+      '📅 <b>' + escHtml(dateTime(e.openAt)) + '</b>\\n\\n' +
+      '🎟️ ဒီ Event မှာ သင်ထိုးထားတဲ့ Bet မရှိသေးပါဘူးရှင့်။',
+      { parse_mode: 'HTML', reply_to_message_id: replyTo }
+    );
+  }
+
   const total = rows.reduce(function (s, x) { return s + Number(x.totalAmount); }, 0);
-  return ctx.reply('📋 <b>MY BET</b>\n━━━━━━━━━━━━━━━━━━\n📅 ' + escHtml(dateTime(e.openAt)) + '\n\n' + rows.map(function (x) { return '🎯 <code>' + x.number + '</code> — <b>' + fmt(x.totalAmount) + '</b>'; }).join('\n') + '\n\n💰 TOTAL BET = <b>' + fmt(total) + '</b>', { parse_mode: 'HTML' });
+  const balanceDoc = await userModel.collection().findOne({ userId: userId }, { projection: { balance: 1 } });
+  const balance = balanceDoc ? Number(balanceDoc.balance || 0) : 0;
+  const maxPayout = rows.reduce(function (s, x) { return s + Number(x.totalAmount) * PAYOUT; }, 0);
+
+  const lines = rows.map(function (x) {
+    return '🎯 <code>' + escHtml(String(x.number).padStart(2, '0')) + '</code>  <b>' + fmt(x.totalAmount) + '</b>';
+  }).join('\\n');
+
+  const text =
+    '📋 <b>MY BET</b>\\n' +
+    '━━━━━━━━━━━━━━━━━━\\n' +
+    '📅 <b>' + escHtml(dateTime(e.openAt)) + '</b>\\n' +
+    '⏰ Bet ပိတ်ချိန် — <b>' + escHtml(displayTime(e.closeAt)) + '</b>\\n\\n' +
+    '<b>🎯 YOUR BET LIST</b>\\n' +
+    lines + '\\n\\n' +
+    '━━━━━━━━━━━━━━━━━━\\n' +
+    '💰 TOTAL BET  <b>' + fmt(total) + '</b>\\n' +
+    '🏆 WIN POTENTIAL  <b>' + fmt(maxPayout) + '</b>\\n' +
+    '💳 BALANCE  <b>' + fmt(balance) + '</b>\\n\\n' +
+    '🍀 <b>ကံကောင်းပါစေရှင့်</b> 🍀';
+
+  return ctx.reply(text, {
+    parse_mode: 'HTML',
+    disable_web_page_preview: true,
+    reply_to_message_id: replyTo
+  });
 }
 async function winners(e, number) {
   const rows = await positions().find({ eventId: e.eventId, number: number }).sort({ totalAmount: -1, userId: 1 }).toArray();
