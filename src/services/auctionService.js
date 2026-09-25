@@ -115,10 +115,6 @@ function postText(a, finalState) {
     winner;
 }
 
-function auctionKeyboard(a, finalState) {
-  if (finalState) return { inline_keyboard: [] };
-  return { inline_keyboard: [[{ text: '📊 Bid History', callback_data: 'auction:history:' + a.auctionId }]] };
-}
 
 function historyText(rows) {
   if (!rows.length) return emoji('HISTORY', '📊') + ' <b>BID HISTORY</b>\n━━━━━━━━━━━━━━━━━━\n<i>Bid မရှိသေးပါ။</i>';
@@ -137,7 +133,7 @@ async function updateChannelPost(bot, a, finalState) {
         Number(a.channelMessageId),
         undefined,
         postText(a, finalState),
-        { parse_mode: 'HTML', reply_markup: auctionKeyboard(a, finalState) }
+        { parse_mode: 'HTML' }
       ));
     } else {
       await safeTelegram(() => bot.telegram.editMessageText(
@@ -154,7 +150,7 @@ async function updateChannelPost(bot, a, finalState) {
 }
 
 async function sendAuctionMessage(bot, a) {
-  const opts = { parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: auctionKeyboard(a, false) };
+  const opts = { parse_mode: 'HTML', disable_web_page_preview: true };
   if (a.mediaType === 'photo' && a.fileId) {
     return bot.telegram.sendPhoto(env.AUCTION_CHANNEL_ID, a.fileId, { caption: postText(a, false), ...opts });
   }
