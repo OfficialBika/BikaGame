@@ -129,13 +129,23 @@ function historyText(rows) {
 async function updateChannelPost(bot, a, finalState) {
   if (!a.channelMessageId || !env.AUCTION_CHANNEL_ID) return;
   try {
-    await safeTelegram(() => bot.telegram.editMessageText(
-      env.AUCTION_CHANNEL_ID,
-      Number(a.channelMessageId),
-      undefined,
-      postText(a, finalState),
-      { parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: auctionKeyboard(a, finalState) }
-    ));
+    if (a.mediaType === 'photo' || a.mediaType === 'video') {
+      await safeTelegram(() => bot.telegram.editMessageCaption(
+        env.AUCTION_CHANNEL_ID,
+        Number(a.channelMessageId),
+        undefined,
+        postText(a, finalState),
+        { parse_mode: 'HTML', reply_markup: auctionKeyboard(a, finalState) }
+      ));
+    } else {
+      await safeTelegram(() => bot.telegram.editMessageText(
+        env.AUCTION_CHANNEL_ID,
+        Number(a.channelMessageId),
+        undefined,
+        postText(a, finalState),
+        { parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: auctionKeyboard(a, finalState) }
+      ));
+    }
   } catch (err) {
     logger.warn('Auction post update failed: ' + (err?.message || err));
   }
