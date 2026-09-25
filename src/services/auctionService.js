@@ -3,6 +3,7 @@
 const { col, withMaybeTx } = require('../config/database');
 const userModel = require('../models/userModel');
 const { ensureTreasury } = require('./treasuryService');
+const treasuryModel = require('../models/treasuryModel');
 const { env } = require('../config/env');
 const { logTx } = require('./transactionService');
 const { safeTelegram } = require('../utils/telegram');
@@ -141,7 +142,7 @@ async function updateChannelPost(bot, a, finalState) {
         Number(a.channelMessageId),
         undefined,
         postText(a, finalState),
-        { parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: auctionKeyboard(a, finalState) }
+        { parse_mode: 'HTML', disable_web_page_preview: true }
       ));
     }
   } catch (err) {
