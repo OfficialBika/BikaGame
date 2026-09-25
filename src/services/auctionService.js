@@ -18,7 +18,8 @@ const auctionBids = () => col('auction_bids');
 const CUSTOM_IDS = new Set();
 
 function emoji(kind, fallback) {
-  const id = process.env['AUCTION_EMOJI_' + String(kind).toUpperCase()];
+  const key = String(kind).toUpperCase();
+  const id = process.env['AUCTION_EMOJI_' + key] || process.env['TWO_D_EMOJI_' + key];
   if (!id || !CUSTOM_IDS.has(String(id))) return fallback;
   return '<tg-emoji emoji-id="' + escHtml(String(id)) + '">' + fallback + '</tg-emoji>';
 }
@@ -26,7 +27,7 @@ function emoji(kind, fallback) {
 async function validateCustomEmojis(bot) {
   CUSTOM_IDS.clear();
   const ids = Array.from(new Set(Object.keys(process.env)
-    .filter(k => /^AUCTION_EMOJI_[A-Z0-9_]+$/.test(k))
+    .filter(k => /^(?:AUCTION|TWO_D)_EMOJI_[A-Z0-9_]+$/.test(k))
     .map(k => String(process.env[k] || '').trim())
     .filter(Boolean)));
   if (!ids.length) return;
