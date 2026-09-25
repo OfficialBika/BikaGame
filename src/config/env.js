@@ -21,7 +21,9 @@ const env = {
   DAILY_MIN: num('DAILY_MIN', 500),
   DAILY_MAX: num('DAILY_MAX', 2000),
   TWO_D_CHANNEL_ID: process.env.TWO_D_CHANNEL_ID || '',
-  TWO_D_DISCUSSION_CHAT_ID: process.env.TWO_D_DISCUSSION_CHAT_ID || ''
+  TWO_D_DISCUSSION_CHAT_ID: process.env.TWO_D_DISCUSSION_CHAT_ID || '',
+  AUCTION_CHANNEL_ID: process.env.AUCTION_CHANNEL_ID || '',
+  AUCTION_DISCUSSION_CHAT_ID: process.env.AUCTION_DISCUSSION_CHAT_ID || ''
 };
 
 if (!env.BOT_TOKEN) throw new Error('Missing BOT_TOKEN');
