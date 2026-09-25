@@ -14,7 +14,7 @@ const MIN_BET = 200;
 const MAX_PER_NUMBER = 200000;
 const SCHEDULE = [
   { key: 'am', open: '08:00', close: '11:50' },
-  { key: 'pm', open: '13:00', close: '16:29' },
+  { key: 'pm', open: '13:00', close: '15:59' },
 ];
 
 const events = () => col('two_d_events');
