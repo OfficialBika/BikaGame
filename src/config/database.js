@@ -77,6 +77,8 @@ async function connectMongo() {
   collections.treasury = db.collection('treasury');
   collections.sports_events = db.collection('sports_events');
   collections.sports_bets = db.collection('sports_bets');
+  collections.auctions = db.collection('auctions');
+  collections.auction_bids = db.collection('auction_bids');
 
   await safeCreateIndex(collections.users, { userId: 1 }, { unique: true });
   await safeCreateIndex(collections.users, { username: 1 }, { sparse: true });
@@ -111,6 +113,12 @@ async function connectMongo() {
   await safeCreateIndex(db.collection('sports_bets'), { eventId: 1, userId: 1 }, { unique: true });
   await safeCreateIndex(db.collection('sports_bets'), { eventId: 1, potentialWin: -1 });
   await safeCreateIndex(db.collection('sports_bets'), { userId: 1, createdAt: -1 });
+
+  await safeCreateIndex(collections.auctions, { auctionId: 1 }, { unique: true, name: 'auctions_id_unique' });
+  await safeCreateIndex(collections.auctions, { channelId: 1, status: 1, endAt: 1 }, { name: 'auctions_active_end' });
+  await safeCreateIndex(collections.auctions, { channelMessageId: 1 }, { unique: true, sparse: true, name: 'auctions_channel_message_unique' });
+  await safeCreateIndex(collections.auction_bids, { auctionId: 1, createdAt: 1 }, { name: 'auction_bids_time' });
+  await safeCreateIndex(collections.auction_bids, { auctionId: 1, messageId: 1 }, { unique: true, name: 'auction_bids_message_unique' });
 
   logger.info('Mongo connected');
 }
