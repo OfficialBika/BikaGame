@@ -383,7 +383,11 @@ async function showHistory(ctx) {
   if (!a) return ctx.answerCbQuery('Auction မရှိတော့ပါ။');
   const rows = await auctionBids().find({ auctionId: id }).sort({ createdAt: 1 }).limit(50).toArray();
   await ctx.answerCbQuery();
-  return ctx.reply(historyText(rows), { parse_mode: 'HTML' });
+  return ctx.telegram.sendMessage(
+    ctx.from.id,
+    historyText(rows),
+    { parse_mode: 'HTML', disable_web_page_preview: true }
+  );
 }
 
 function register(bot) {
