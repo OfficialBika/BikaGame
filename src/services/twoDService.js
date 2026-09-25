@@ -229,7 +229,11 @@ async function handleBet(ctx, e, parsed) {
 }
 async function handleComment(ctx, bot) {
   const e = await openEvent();
-  if (!e || !(await isEventMessage(ctx.message, e))) return false;
+  // Only moderate messages inside the active 2D betting discussion/thread.
+  // Never delete messages from other posts/chats just because a 2D event is open.
+  if (!e) return false;
+  if (String(ctx.chat.id) !== String(e.discussionChatId || env.TWO_D_DISCUSSION_CHAT_ID || '')) return false;
+  if (!(await isEventMessage(ctx.message, e))) return false;
   if (owner(ctx)) return false;
   const text = String(ctx.message.text || '').trim();
   if (!/^\.2d(?:\s|$)/i.test(text)) { await safeTelegram(function () { return bot.telegram.deleteMessage(ctx.chat.id, ctx.message.message_id); }).catch(function () {}); return true; }
