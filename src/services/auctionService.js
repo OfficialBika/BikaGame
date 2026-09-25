@@ -217,10 +217,19 @@ async function createAuction(bot, ctx) {
     updatedAt: now
   };
 
-  const sent = await sendAuctionMessage(bot, a);
-  a.channelMessageId = Number(sent.message_id);
-  a.discussionChatId = await getDiscussionChatId(bot);
   await auctions().insertOne(a);
+  try {
+    const sent = await sendAuctionMessage(bot, a);
+    a.channelMessageId = Number(sent.message_id);
+    a.discussionChatId = await getDiscussionChatId(bot);
+    await auctions().updateOne(
+      { auctionId: a.auctionId },
+      { $set: { channelMessageId: a.channelMessageId, discussionChatId: a.discussionChatId, updatedAt: new Date() } }
+    );
+  } catch (err) {
+    await auctions().deleteOne({ auctionId: a.auctionId });
+    throw err;
+  }
   return ctx.reply(
     emoji('SUCCESS', '✅') + ' <b>Auction စတင်ပြီးပါပြီ</b>\n\n' +
     emoji('ITEM', '💎') + ' ' + escHtml(title) + '\n' +
