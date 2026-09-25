@@ -88,8 +88,9 @@ function parseBidText(text) {
 
 function postText(a, finalState) {
   const status = finalState ? emoji('ENDED', '🏁') + ' <b>AUCTION ENDED</b>' : emoji('LIVE', '🔥') + ' <b>LIVE AUCTION</b>';
-  const current = Number(a.currentBid || a.startingBid);
-  const next = current + Number(a.minIncrement || 1);
+  const hasBids = Number(a.totalBids || 0) > 0;
+  const current = hasBids ? Number(a.currentBid || 0) : Number(a.startingBid || 0);
+  const next = hasBids ? current + Number(a.minIncrement || 1) : Number(a.startingBid || 0);
   const bidder = a.highestBidderId ? mention({
     userId: a.highestBidderId,
     firstName: a.highestBidderName,
@@ -112,6 +113,11 @@ function postText(a, finalState) {
     winner;
 }
 
+function auctionKeyboard(a, finalState) {
+  if (finalState) return { inline_keyboard: [] };
+  return { inline_keyboard: [[{ text: '📊 Bid History', callback_data: 'auction:history:' + a.auctionId }]] };
+}
+
 function historyText(rows) {
   if (!rows.length) return emoji('HISTORY', '📊') + ' <b>BID HISTORY</b>\n━━━━━━━━━━━━━━━━━━\n<i>Bid မရှိသေးပါ။</i>';
   const lines = rows.slice(-10).reverse().map((x, i) =>
@@ -128,7 +134,7 @@ async function updateChannelPost(bot, a, finalState) {
       Number(a.channelMessageId),
       undefined,
       postText(a, finalState),
-      { parse_mode: 'HTML', disable_web_page_preview: true }
+      { parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: auctionKeyboard(a, finalState) }
     ));
   } catch (err) {
     logger.warn('Auction post update failed: ' + (err?.message || err));
@@ -136,7 +142,7 @@ async function updateChannelPost(bot, a, finalState) {
 }
 
 async function sendAuctionMessage(bot, a) {
-  const opts = { parse_mode: 'HTML', disable_web_page_preview: true };
+  const opts = { parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: auctionKeyboard(a, false) };
   if (a.mediaType === 'photo' && a.fileId) {
     return bot.telegram.sendPhoto(env.AUCTION_CHANNEL_ID, a.fileId, { caption: postText(a, false), ...opts });
   }
@@ -408,8 +414,11 @@ async function closeAuction(bot, a) {
     const winnerId = claim.highestBidderId ? String(claim.highestBidderId) : null;
     const finalAmount = Number(claim.currentBid || 0);
     if (winnerId && finalAmount > 0) {
-      // The highest bid is already held in the user's balance ledger.
-      // Move that held amount into the treasury by keeping the deducted balance.
+      await treasuryModel.collection().updateOne(
+        { key: 'treasury' },
+        { $inc: { ownerBalance: finalAmount }, $set: { updatedAt: now } },
+        opt
+      );
       await logTx({ type: 'auction_win_settlement', fromUserId: winnerId, toUserId: 'TREASURY', amount: finalAmount, meta: { auctionId: claim.auctionId } }, opt);
     }
     await auctions().updateOne(
@@ -439,7 +448,7 @@ async function closeAuction(bot, a) {
     }
   }
 
-  // Keep only the public channel result. Remove temporary bid/auction state.
+  // Keep only the public channel result. Remove all temporary auction state immediately after settlement.
   await auctionBids().deleteMany({ auctionId: closed.auctionId });
   await auctions().deleteOne({ auctionId: closed.auctionId });
   return closed;
