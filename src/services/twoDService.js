@@ -267,8 +267,13 @@ async function publishOpen(bot, e) {
   await events().updateOne({ eventId: e.eventId, status: 'scheduled' }, { $set: { status: 'open', openMessageId: sent.message_id, discussionChatId: d, updatedAt: new Date() } });
   return getEvent(e.eventId);
 }
-async function closeEvent(bot, e) {
-  const claim = await events().findOneAndUpdate({ eventId: e.eventId, status: 'open' }, { $set: { status: 'closed', updatedAt: new Date() } }, { returnDocument: 'after' });
+async function closeEvent(bot, e, meta) {
+  const closeMeta = meta && meta.manual ? {
+    manualClosed: true,
+    manualClosedBy: Number(meta.closedBy || 0) || null,
+    manualClosedAt: meta.requestedAt || new Date(),
+  } : {};
+  const claim = await events().findOneAndUpdate({ eventId: e.eventId, status: 'open' }, { $set: Object.assign({ status: 'closed', updatedAt: new Date() }, closeMeta) }, { returnDocument: 'after' });
   const closed = claim && claim.value !== undefined ? claim.value : claim;
   if (!closed) return null;
   try {
@@ -417,6 +422,113 @@ async function isEventMessage(message, e) {
 
   return false;
 }
+async function findEventForManualClose(message) {
+  if (!message) return null;
+
+  const reply = message.reply_to_message || {};
+  const external = message.external_reply || {};
+  const replyOrigin = reply.forward_origin || {};
+  const externalOrigin = external.origin || {};
+
+  const originChat =
+    (replyOrigin.type === 'channel' && replyOrigin.chat && replyOrigin.chat.id) ||
+    (externalOrigin.type === 'channel' && externalOrigin.chat && externalOrigin.chat.id) ||
+    (external.chat && external.chat.id) ||
+    null;
+
+  const originMessage =
+    (replyOrigin.type === 'channel' && replyOrigin.message_id) ||
+    (externalOrigin.type === 'channel' && externalOrigin.message_id) ||
+    external.message_id ||
+    null;
+
+  // Exact original channel post match.
+  if (
+    originChat &&
+    String(originChat) === String(env.TWO_D_CHANNEL_ID) &&
+    Number(originMessage || 0)
+  ) {
+    return events().findOne({
+      channelId: env.TWO_D_CHANNEL_ID,
+      openMessageId: Number(originMessage),
+      status: 'open',
+    });
+  }
+
+  // Linked discussion representation: the replied message is the root
+  // automatically-forwarded message belonging to one exact open event.
+  const replyMessageId = Number(reply.message_id || 0);
+  if (replyMessageId) {
+    const candidates = await events().find({
+      channelId: env.TWO_D_CHANNEL_ID,
+      status: 'open',
+      discussionRootMessageId: replyMessageId,
+    }).limit(2).toArray();
+
+    if (candidates.length === 1) return candidates[0];
+  }
+
+  // Telegram may expose the discussion root through message_thread_id.
+  const threadId = Number(message.message_thread_id || 0);
+  if (threadId) {
+    const candidates = await events().find({
+      channelId: env.TWO_D_CHANNEL_ID,
+      status: 'open',
+      discussionRootMessageId: threadId,
+    }).limit(2).toArray();
+
+    if (candidates.length === 1) return candidates[0];
+  }
+
+  return null;
+}
+
+async function manualBetClose(ctx, bot) {
+  if (!owner(ctx)) return ctx.reply('⛔ Owner only.');
+
+  const event = await findEventForManualClose(ctx.message);
+
+  if (!event) {
+    return ctx.reply(
+      '⚠️ <b>Bet Open Post ကို reply ထောက်ပြီး</b> <code>/betclose</code> ပို့ပေးပါ။\n\n' +
+      'သက်ဆိုင်ရာ active Bet Open Post တစ်ခုတည်းကိုပဲ ပိတ်ပေးပါတယ်။',
+      { parse_mode: 'HTML' }
+    );
+  }
+
+  try {
+    const closed = await closeEvent(bot, event, {
+      manual: true,
+      closedBy: Number(ctx.from && ctx.from.id),
+      requestedAt: new Date(),
+    });
+
+    if (!closed) {
+      const latest = await getEvent(event.eventId);
+      if (latest && latest.status !== 'open') {
+        return ctx.reply('ℹ️ ဒီ Bet က ပိတ်ပြီးသားပါ။', { parse_mode: 'HTML' });
+      }
+      return ctx.reply('⚠️ Bet ကို ပိတ်လို့မရသေးပါ။ ထပ်စမ်းပေးပါ။', { parse_mode: 'HTML' });
+    }
+
+    return ctx.reply(
+      '✅ <b>Bet ကို Manual Close လုပ်ပြီးပါပြီ</b>\n\n' +
+      '🎯 Open Post ID: <code>' + escHtml(String(closed.openMessageId)) + '</code>\n' +
+      '📅 <b>' + escHtml(dateTime(closed.openAt)) + '</b>\n' +
+      '🔒 <b>အခုချက်ချင်း Bet ပိတ်လိုက်ပါပြီ။</b>',
+      { parse_mode: 'HTML' }
+    );
+  } catch (err) {
+    logger.error('2D manual betclose failed', err);
+    return ctx.reply(
+      '⚠️ <b>Bet Close မအောင်မြင်ပါ။</b>\n<code>' +
+      escHtml(String(err.message || err)) +
+      '</code>',
+      { parse_mode: 'HTML' }
+    );
+  }
+}
+
 async function addBet(ctx, e, parsed) {
   const userId = Number(ctx.from && ctx.from.id);
   if (!userId) throw new Error('USER_REQUIRED');
@@ -797,6 +909,7 @@ async function setManual(ctx, bot) {
 function register(bot) {
   bot.hears(/^\.mybet\s*$/i, async function (ctx) { try { await myBet(ctx); } catch (e) { logger.error('2D mybet', e); } });
   bot.command('set2d', function (ctx) { return setManual(ctx, bot); });
+  bot.command('betclose', function (ctx) { return manualBetClose(ctx, bot); });
   bot.command('offdate', async function (ctx) {
     if (!owner(ctx)) return ctx.reply('⛔ Owner only.');
     const raw = String(ctx.message.text || '').replace(/^\/offdate(?:@\w+)?\s*/i, '').trim();
