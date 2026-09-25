@@ -99,13 +99,13 @@ function postText(a, finalState) {
     firstName: a.highestBidderName,
     username: a.highestBidderUsername
   }) : '<i>— No bids yet —</i>';
-  const winner = finalState && a.highestBidderId ? '\n\n' + emoji('WINNER', '🏆') + ' <b>WINNER</b>\n' + bidder + '\n' + emoji('PRICE', '💰') + ' <b>' + money(current) + ' $</b>' : '';
+  const winner = finalState && a.highestBidderId ? '\n\n' + emoji('WINNER', '🏆') + ' <b>WINNER</b>\n' + bidder + '\n' + emoji('PRICE', '💰') + ' <b>' + money(current) + ' MMK</b>' : '';
   return status + '\n' +
     '━━━━━━━━━━━━━━━━━━\n' +
     emoji('ITEM', '💎') + ' <b>' + escHtml(a.title || 'Auction Item') + '</b>\n\n' +
-    emoji('CURRENT', '💰') + ' <b>CURRENT BID</b>\n      <b>' + money(current) + ' $</b>\n\n' +
+    emoji('CURRENT', '💰') + ' <b>CURRENT BID</b>\n      <b>' + money(current) + ' MMK</b>\n\n' +
     emoji('BIDDER', '👑') + ' <b>HIGHEST BIDDER</b>\n      ' + bidder + '\n\n' +
-    (finalState ? '' : emoji('NEXT', '📈') + ' <b>NEXT MINIMUM</b>\n      <b>' + money(next) + ' $</b>\n\n') +
+    (finalState ? '' : emoji('NEXT', '📈') + ' <b>NEXT MINIMUM</b>\n      <b>' + money(next) + ' MMK</b>\n\n') +
     emoji('BIDS', '👥') + ' <b>TOTAL BIDS</b>  ' + Number(a.totalBids || 0) + '\n' +
     (finalState ? '' : emoji('TIME', '⏳') + ' <b>TIME LEFT</b>  ' + remaining(a.endAt) + '\n') +
     '\n━━━━━━━━━━━━━━━━━━\n' +
@@ -120,7 +120,7 @@ function postText(a, finalState) {
 function historyText(rows) {
   if (!rows.length) return emoji('HISTORY', '📊') + ' <b>BID HISTORY</b>\n━━━━━━━━━━━━━━━━━━\n<i>Bid မရှိသေးပါ။</i>';
   const lines = rows.slice(-10).reverse().map((x, i) =>
-    (i + 1) + '. ' + mention(x) + ' — <b>' + money(x.amount) + ' $</b>'
+    (i + 1) + '. ' + mention(x) + ' — <b>' + money(x.amount) + ' MMK</b>'
   );
   return emoji('HISTORY', '📊') + ' <b>BID HISTORY</b>\n━━━━━━━━━━━━━━━━━━\n' + lines.join('\n');
 }
@@ -231,7 +231,7 @@ async function createAuction(bot, ctx) {
   return ctx.reply(
     emoji('SUCCESS', '✅') + ' <b>Auction စတင်ပြီးပါပြီ</b>\n\n' +
     emoji('ITEM', '💎') + ' ' + escHtml(title) + '\n' +
-    emoji('PRICE', '💰') + ' Start: <b>' + money(startingBid) + ' $</b>\n' +
+    emoji('PRICE', '💰') + ' Start: <b>' + money(startingBid) + ' MMK</b>\n' +
     emoji('TIME', '⏳') + ' Duration: <b>' + minutes + ' minutes</b>',
     { parse_mode: 'HTML' }
   );
@@ -366,10 +366,10 @@ async function bid(ctx, bot, a) {
   return ctx.reply(
     emoji('ACCEPTED', '🔥') + ' <b>BID ACCEPTED</b>\n━━━━━━━━━━━━━━━━━━\n' +
     emoji('BIDDER', '👤') + ' ' + mention({ userId, firstName: ctx.from.first_name, username: ctx.from.username }) + '\n' +
-    emoji('PRICE', '💰') + ' <b>' + money(amount) + ' $</b>\n' +
+    emoji('PRICE', '💰') + ' <b>' + money(amount) + ' MMK</b>\n' +
     emoji('CROWN', '👑') + ' <b>NEW HIGHEST BIDDER</b>\n' +
-    emoji('NEXT', '📈') + ' Next: <b>' + money(amount + Number(result.auction.minIncrement)) + ' $</b>\n' +
-    emoji('BALANCE', '💳') + ' Balance: <b>' + money(balance?.balance) + ' $</b>',
+    emoji('NEXT', '📈') + ' Next: <b>' + money(amount + Number(result.auction.minIncrement)) + ' MMK</b>\n' +
+    emoji('BALANCE', '💳') + ' Balance: <b>' + money(balance?.balance) + ' MMK</b>',
     { parse_mode: 'HTML', reply_to_message_id: ctx.message.message_id }
   );
 }
@@ -456,7 +456,7 @@ async function closeAuction(bot, a) {
   const winnerText = closed.winnerId
     ? emoji('WINNER', '🏆') + ' <b>AUCTION WINNER</b>\n\n' +
       mention({ userId: closed.winnerId, firstName: closed.highestBidderName, username: closed.highestBidderUsername }) +
-      '\n\n' + emoji('PRICE', '💰') + ' Final Bid: <b>' + money(closed.finalAmount) + ' $</b>'
+      '\n\n' + emoji('PRICE', '💰') + ' Final Bid: <b>' + money(closed.finalAmount) + ' MMK</b>'
     : emoji('ENDED', '🏁') + ' <b>Auction ပြီးပါပြီ</b>\n\nBid မရှိခဲ့ပါ။';
 
   if (closed.discussionChatId && closed.discussionRootMessageId) {
@@ -594,13 +594,13 @@ function postText(a, finalState) {
     firstName: a.highestBidderName,
     username: a.highestBidderUsername
   }) : '<i>— No bids yet —</i>';
-  const winner = finalState && a.highestBidderId ? '\n\n' + emoji('WINNER', '🏆') + ' <b>WINNER</b>\n' + bidder + '\n' + emoji('PRICE', '💰') + ' <b>' + money(current) + ' $</b>' : '';
+  const winner = finalState && a.highestBidderId ? '\n\n' + emoji('WINNER', '🏆') + ' <b>WINNER</b>\n' + bidder + '\n' + emoji('PRICE', '💰') + ' <b>' + money(current) + ' MMK</b>' : '';
   return status + '\n' +
     '━━━━━━━━━━━━━━━━━━\n' +
     emoji('ITEM', '💎') + ' <b>' + escHtml(a.title || 'Auction Item') + '</b>\n\n' +
-    emoji('CURRENT', '💰') + ' <b>CURRENT BID</b>\n      <b>' + money(current) + ' $</b>\n\n' +
+    emoji('CURRENT', '💰') + ' <b>CURRENT BID</b>\n      <b>' + money(current) + ' MMK</b>\n\n' +
     emoji('BIDDER', '👑') + ' <b>HIGHEST BIDDER</b>\n      ' + bidder + '\n\n' +
-    (finalState ? '' : emoji('NEXT', '📈') + ' <b>NEXT MINIMUM</b>\n      <b>' + money(next) + ' $</b>\n\n') +
+    (finalState ? '' : emoji('NEXT', '📈') + ' <b>NEXT MINIMUM</b>\n      <b>' + money(next) + ' MMK</b>\n\n') +
     emoji('BIDS', '👥') + ' <b>TOTAL BIDS</b>  ' + Number(a.totalBids || 0) + '\n' +
     (finalState ? '' : emoji('TIME', '⏳') + ' <b>TIME LEFT</b>  ' + remaining(a.endAt) + '\n') +
     '\n━━━━━━━━━━━━━━━━━━\n' +
@@ -615,7 +615,7 @@ function postText(a, finalState) {
 function historyText(rows) {
   if (!rows.length) return emoji('HISTORY', '📊') + ' <b>BID HISTORY</b>\n━━━━━━━━━━━━━━━━━━\n<i>Bid မရှိသေးပါ။</i>';
   const lines = rows.slice(-10).reverse().map((x, i) =>
-    (i + 1) + '. ' + mention(x) + ' — <b>' + money(x.amount) + ' $</b>'
+    (i + 1) + '. ' + mention(x) + ' — <b>' + money(x.amount) + ' MMK</b>'
   );
   return emoji('HISTORY', '📊') + ' <b>BID HISTORY</b>\n━━━━━━━━━━━━━━━━━━\n' + lines.join('\n');
 }
@@ -726,7 +726,7 @@ async function createAuction(bot, ctx) {
   return ctx.reply(
     emoji('SUCCESS', '✅') + ' <b>Auction စတင်ပြီးပါပြီ</b>\n\n' +
     emoji('ITEM', '💎') + ' ' + escHtml(title) + '\n' +
-    emoji('PRICE', '💰') + ' Start: <b>' + money(startingBid) + ' $</b>\n' +
+    emoji('PRICE', '💰') + ' Start: <b>' + money(startingBid) + ' MMK</b>\n' +
     emoji('TIME', '⏳') + ' Duration: <b>' + minutes + ' minutes</b>',
     { parse_mode: 'HTML' }
   );
@@ -861,10 +861,10 @@ async function bid(ctx, bot, a) {
   return ctx.reply(
     emoji('ACCEPTED', '🔥') + ' <b>BID ACCEPTED</b>\n━━━━━━━━━━━━━━━━━━\n' +
     emoji('BIDDER', '👤') + ' ' + mention({ userId, firstName: ctx.from.first_name, username: ctx.from.username }) + '\n' +
-    emoji('PRICE', '💰') + ' <b>' + money(amount) + ' $</b>\n' +
+    emoji('PRICE', '💰') + ' <b>' + money(amount) + ' MMK</b>\n' +
     emoji('CROWN', '👑') + ' <b>NEW HIGHEST BIDDER</b>\n' +
-    emoji('NEXT', '📈') + ' Next: <b>' + money(amount + Number(result.auction.minIncrement)) + ' $</b>\n' +
-    emoji('BALANCE', '💳') + ' Balance: <b>' + money(balance?.balance) + ' $</b>',
+    emoji('NEXT', '📈') + ' Next: <b>' + money(amount + Number(result.auction.minIncrement)) + ' MMK</b>\n' +
+    emoji('BALANCE', '💳') + ' Balance: <b>' + money(balance?.balance) + ' MMK</b>',
     { parse_mode: 'HTML', reply_to_message_id: ctx.message.message_id }
   );
 }
@@ -951,7 +951,7 @@ async function closeAuction(bot, a) {
   const winnerText = closed.winnerId
     ? emoji('WINNER', '🏆') + ' <b>AUCTION WINNER</b>\n\n' +
       mention({ userId: closed.winnerId, firstName: closed.highestBidderName, username: closed.highestBidderUsername }) +
-      '\n\n' + emoji('PRICE', '💰') + ' Final Bid: <b>' + money(closed.finalAmount) + ' $</b>'
+      '\n\n' + emoji('PRICE', '💰') + ' Final Bid: <b>' + money(closed.finalAmount) + ' MMK</b>'
     : emoji('ENDED', '🏁') + ' <b>Auction ပြီးပါပြီ</b>\n\nBid မရှိခဲ့ပါ။';
 
   if (closed.discussionChatId && closed.discussionRootMessageId) {
