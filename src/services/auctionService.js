@@ -2,6 +2,7 @@
 
 const { col, withMaybeTx } = require('../config/database');
 const userModel = require('../models/userModel');
+const { ensureTreasury } = require('./treasuryService');
 const { env } = require('../config/env');
 const { logTx } = require('./transactionService');
 const { safeTelegram } = require('../utils/telegram');
@@ -480,6 +481,7 @@ async function closeAuction(bot, a) {
 
 async function init(bot) {
   await validateCustomEmojis(bot);
+  await ensureTreasury();
   if (!env.AUCTION_CHANNEL_ID) {
     logger.warn('Auction disabled: AUCTION_CHANNEL_ID is not configured');
     return () => {};
