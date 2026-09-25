@@ -354,27 +354,38 @@ async function isEventMessage(message, e) {
   if (!message || !e || e.status !== 'open') return false;
   if (String(message.chat && message.chat.id) !== String(e.discussionChatId)) return false;
 
-  const threadId = Number(message.message_thread_id || 0);
-  if (e.discussionRootMessageId && threadId === Number(e.discussionRootMessageId)) return true;
-
-  // Replies 2.0 can expose the original channel post through external_reply.
+  // IMPORTANT: Only a direct reply to this exact Bet Open Post is an event
+  // message. Never use message_thread_id alone because different channel
+  // posts can share the same discussion thread.
   const r = message.reply_to_message || {};
   const x = message.external_reply || {};
-  const origin = r.forward_origin || x.origin || {};
+  if (!message.reply_to_message && !message.external_reply) return false;
+
+  const rOrigin = r.forward_origin || {};
+  const xOrigin = x.origin || {};
+
   const originChat =
-    (origin.type === 'channel' && origin.chat && origin.chat.id) ||
-    (r.sender_chat && r.sender_chat.id) ||
-    (x.chat && x.chat.id);
+    (rOrigin.type === 'channel' && rOrigin.chat && rOrigin.chat.id) ||
+    (xOrigin.type === 'channel' && xOrigin.chat && xOrigin.chat.id) ||
+    x.chat && x.chat.id ||
+    null;
+
   const originMessage =
-    (origin.type === 'channel' && origin.message_id) ||
+    (rOrigin.type === 'channel' && rOrigin.message_id) ||
+    (xOrigin.type === 'channel' && xOrigin.message_id) ||
     x.message_id ||
-    (r.forward_origin && r.forward_origin.message_id) ||
-    r.message_id;
+    null;
 
-  if (String(originChat) === String(e.channelId) && Number(originMessage) === Number(e.openMessageId)) {
-    // The thread id is the discussion-group root. Do not mistake
-    // external_reply.message_id (the channel post id) for that root.
+  // Replies 2.0 / forward-origin representation: Telegram gives us the
+  // original channel post directly. This is the strongest exact match.
+  const exactExternalOrigin =
+    String(originChat) === String(e.channelId) &&
+    Number(originMessage) === Number(e.openMessageId);
+
+  if (exactExternalOrigin) {
+    const threadId = Number(message.message_thread_id || 0);
     const root = threadId || Number(r.message_id || 0);
+
     if (root) {
       await events().updateOne(
         { eventId: e.eventId, discussionRootMessageId: null },
@@ -384,16 +395,26 @@ async function isEventMessage(message, e) {
     return true;
   }
 
-  if (r.is_automatic_forward && String(r.sender_chat && r.sender_chat.id) === String(e.channelId)) {
-    const root = threadId || Number(r.message_id || 0);
-    if (root) {
-      await events().updateOne(
-        { eventId: e.eventId, discussionRootMessageId: null },
-        { $set: { discussionRootMessageId: root, updatedAt: new Date() } }
-      );
-    }
+  // In the linked discussion chat, a direct reply can expose the
+  // automatically-forwarded channel post as reply_to_message. In that
+  // representation the replied message id is the discussion root, not the
+  // original channel post id. It is safe only when that root was previously
+  // captured from THIS event's exact openMessageId.
+  const repliedSenderChatId = r.sender_chat && r.sender_chat.id;
+  const repliedMessageId = Number(r.message_id || 0);
+  const threadId = Number(message.message_thread_id || 0);
+  const knownRoot = Number(e.discussionRootMessageId || 0);
+
+  if (
+    knownRoot &&
+    r.is_automatic_forward &&
+    String(repliedSenderChatId) === String(e.channelId) &&
+    repliedMessageId === knownRoot &&
+    (!threadId || threadId === knownRoot)
+  ) {
     return true;
   }
+
   return false;
 }
 async function addBet(ctx, e, parsed) {
