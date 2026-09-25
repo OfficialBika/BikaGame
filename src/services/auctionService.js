@@ -491,20 +491,60 @@ async function init(bot) {
   await auctionBids().createIndex({ auctionId: 1, messageId: 1 }, { unique: true, name: 'auction_bids_message_unique' });
 
   let busy = false;
+  const lastCountdownBucket = new Map();
+
   const tick = async () => {
     if (busy) return;
     busy = true;
     try {
-      const expired = await auctions().find({ status: 'open', endAt: { $lte: new Date() } }).limit(10).toArray();
+      const now = new Date();
+      const expired = await auctions().find({ status: 'open', endAt: { $lte: now } }).limit(10).toArray();
       for (const a of expired) {
-        try { await closeAuction(bot, a); } catch (err) { logger.error('Auction close failed', err); }
+        try {
+          lastCountdownBucket.delete(a.auctionId);
+          await closeAuction(bot, a);
+        } catch (err) {
+          logger.error('Auction close failed', err);
+        }
+      }
+
+      // Keep the public channel countdown lightweight:
+      // - More than 10 seconds left: edit once per 10-second bucket.
+      // - 10 seconds or less: edit once per 2-second bucket.
+      // The actual auction deadline always comes from endAt; these edits only
+      // refresh the displayed countdown and never extend/shorten the auction.
+      const active = await auctions()
+        .find({ status: 'open', endAt: { $gt: now } })
+        .limit(20)
+        .toArray();
+
+      for (const a of active) {
+        const remainingSeconds = Math.max(0, Math.floor((new Date(a.endAt).getTime() - now.getTime()) / 1000));
+        const bucket = remainingSeconds <= 10
+          ? Math.floor(remainingSeconds / 2) * 2
+          : Math.floor(remainingSeconds / 10) * 10;
+
+        if (lastCountdownBucket.get(a.auctionId) === bucket) continue;
+        lastCountdownBucket.set(a.auctionId, bucket);
+
+        try {
+          await updateChannelPost(bot, a, false);
+        } catch (err) {
+          logger.warn('Auction countdown update failed: ' + (err?.message || err));
+        }
+      }
+
+      const activeIds = new Set(active.map(x => x.auctionId));
+      for (const id of lastCountdownBucket.keys()) {
+        if (!activeIds.has(id)) lastCountdownBucket.delete(id);
       }
     } finally {
       busy = false;
     }
   };
+
   await tick();
-  const timer = setInterval(tick, 5000);
+  const timer = setInterval(tick, 1000);
   return () => clearInterval(timer);
 }
 
