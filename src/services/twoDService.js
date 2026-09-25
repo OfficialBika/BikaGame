@@ -159,23 +159,35 @@ async function closeEvent(bot, e) {
 }
 async function isEventMessage(message, e) {
   if (!message || !e || e.status !== 'open') return false;
+
+  // 2D moderation is allowed only in the linked discussion chat.
+  // More importantly, the message MUST directly reply to THIS event's channel post.
+  // Do not use message_thread_id alone: that can match replies belonging to other
+  // posts/comments in the same discussion chat.
   if (Number(message.chat && message.chat.id) !== Number(e.discussionChatId)) return false;
-  if (e.discussionRootMessageId && Number(message.message_thread_id) === Number(e.discussionRootMessageId)) return true;
-  const r = message.reply_to_message || {};
-  const originChat = r.forward_origin && r.forward_origin.chat ? r.forward_origin.chat.id : (r.sender_chat && r.sender_chat.id);
-  const originMessage = r.forward_origin && r.forward_origin.message_id ? r.forward_origin.message_id : r.message_id;
-  if (Number(originChat) === Number(e.channelId) && Number(originMessage) === Number(e.openMessageId)) {
-    const root = Number(message.message_thread_id || r.message_id);
-    if (root) await events().updateOne({ eventId: e.eventId, discussionRootMessageId: null }, { $set: { discussionRootMessageId: root, updatedAt: new Date() } });
-    return true;
-  }
-  if (r.is_automatic_forward && Number(r.sender_chat && r.sender_chat.id) === Number(e.channelId)) {
-    const root = Number(message.message_thread_id || r.message_id);
-    if (root) await events().updateOne({ eventId: e.eventId, discussionRootMessageId: null }, { $set: { discussionRootMessageId: root, updatedAt: new Date() } });
-    return true;
-  }
-  return false;
+
+  const r = message.reply_to_message;
+  if (!r) return false;
+
+  const origin = r.forward_origin || {};
+  const originChat = origin.chat && origin.chat.id;
+  const originMessage = origin.message_id;
+
+  const senderChatId = r.sender_chat && r.sender_chat.id;
+  const repliedMessageId = r.message_id;
+
+  const directChannelPostReply =
+    (Number(originChat) === Number(e.channelId) &&
+      Number(originMessage) === Number(e.openMessageId)) ||
+    (Number(senderChatId) === Number(e.channelId) &&
+      Number(repliedMessageId) === Number(e.openMessageId) &&
+      !!r.is_automatic_forward);
+
+  if (!directChannelPostReply) return false;
+
+  return true;
 }
+
 async function addBet(ctx, e, parsed) {
   const userId = Number(ctx.from && ctx.from.id);
   if (!userId) throw new Error('USER_REQUIRED');
