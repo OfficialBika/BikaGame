@@ -156,7 +156,7 @@ function historyText(rows, a) {
 }
 
 async function updateChannelPost(bot, a, finalState) {
-  if (!a.channelMessageId || !env.AUCTION_CHANNEL_ID) return;
+  if (!a?.channelMessageId || !env.AUCTION_CHANNEL_ID) return false;
   try {
     if (a.mediaType === 'photo' || a.mediaType === 'video') {
       await withTimeout(() => safeTelegram(() => bot.telegram.editMessageCaption(
@@ -175,8 +175,10 @@ async function updateChannelPost(bot, a, finalState) {
         { parse_mode: 'HTML', disable_web_page_preview: true }
       )), AUCTION_TELEGRAM_TIMEOUT_MS, 'AUCTION_EDIT_TIMEOUT');
     }
+    return true;
   } catch (err) {
     logger.warn('Auction post update failed: ' + (err?.message || err));
+    return false;
   }
 }
 
@@ -427,40 +429,88 @@ async function showHistory(ctx) {
 
 async function showBidHistoryCommand(ctx) {
   const chatId = String(ctx.chat?.id || '');
-  const replyId = Number(ctx.message?.reply_to_message?.message_id || 0);
+  const reply = ctx.message?.reply_to_message || null;
+  const replyId = Number(reply?.message_id || 0);
   let a = null;
 
-  if (replyId) {
+  // 1) Prefer the exact auction channel post being replied to.
+  // In a linked Discussion, Telegram's automatic-forward message keeps the
+  // original channel post id inside forward_origin.
+  const originId = Number(
+    reply?.forward_origin?.type === 'channel'
+      ? reply.forward_origin.message_id
+      : reply?.sender_chat?.id && String(reply.sender_chat.id) === String(env.AUCTION_CHANNEL_ID)
+        ? reply.message_id
+        : 0
+  );
+
+  if (originId && env.AUCTION_CHANNEL_ID) {
+    a = await auctions().findOne({
+      channelId: String(env.AUCTION_CHANNEL_ID),
+      channelMessageId: originId,
+      status: 'closed'
+    });
+  }
+
+  // 2) Exact Discussion root post.
+  if (!a && replyId) {
     a = await auctions().findOne({
       discussionChatId: chatId,
       discussionRootMessageId: replyId,
       status: 'closed'
     });
-    if (!a) {
-      const bidRow = await auctionBids().findOne({ messageId: replyId });
-      if (bidRow) a = await auctions().findOne({ auctionId: bidRow.auctionId, status: 'closed' });
+  }
+
+  // 3) If replying to a bid, resolve that bid -> its auction.
+  if (!a && replyId) {
+    const bidRow = await auctionBids().findOne({
+      messageId: replyId,
+      auctionId: { $exists: true }
+    });
+    if (bidRow) {
+      a = await auctions().findOne({
+        auctionId: bidRow.auctionId,
+        status: 'closed'
+      });
     }
   }
 
-  if (!a) {
+  // 4) Do not silently switch to another auction when a reply was supplied.
+  // Without a reply, use the most recently closed auction in this Discussion.
+  if (!a && !replyId) {
     a = await auctions().findOne(
       { discussionChatId: chatId, status: 'closed' },
       { sort: { closedAt: -1 } }
     );
-  }
-  if (!a && env.AUCTION_CHANNEL_ID) {
-    a = await auctions().findOne(
-      { channelId: String(env.AUCTION_CHANNEL_ID), status: 'closed' },
-      { sort: { closedAt: -1 } }
-    );
+    if (!a && env.AUCTION_CHANNEL_ID) {
+      a = await auctions().findOne(
+        { channelId: String(env.AUCTION_CHANNEL_ID), status: 'closed' },
+        { sort: { closedAt: -1 } }
+      );
+    }
   }
 
   if (!a) {
-    return ctx.reply(emoji('HISTORY', '📊') + ' <b>BID HISTORY</b>\n\n<i>ပြီးခဲ့တဲ့ 1 ရက်အတွင်း Auction history မတွေ့ပါ။</i>', { parse_mode: 'HTML' });
+    return ctx.reply(
+      emoji('HISTORY', '📊') + ' <b>BID HISTORY</b>\n\n<i>ဒီ Post အတွက် 24 နာရီအတွင်း သိမ်းထားတဲ့ Auction history မတွေ့ပါ။</i>',
+      { parse_mode: 'HTML', reply_to_message_id: ctx.message.message_id }
+    );
   }
 
-  const rows = await auctionBids().find({ auctionId: a.auctionId }).sort({ createdAt: 1 }).limit(50).toArray();
-  return ctx.reply(historyText(rows, a), { parse_mode: 'HTML', disable_web_page_preview: true });
+  const rows = await auctionBids()
+    .find({ auctionId: a.auctionId })
+    .sort({ createdAt: 1 })
+    .limit(50)
+    .toArray();
+
+  return ctx.reply(
+    historyText(rows, a),
+    {
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+      reply_to_message_id: ctx.message.message_id
+    }
+  );
 }
 
 function register(bot) {
@@ -535,8 +585,16 @@ async function closeAuction(bot, a) {
     );
   });
 
-  closed = await auctions().findOne({ auctionId: claim.auctionId });
-  await updateChannelPost(bot, closed, true);
+  closed = await auctions().findOne({ auctionId: claim.auctionId, status: 'closed' });
+  if (closed) {
+    // Final-state edit is important: do not leave the Channel Post showing
+    // LIVE AUCTION after the auction has already settled.
+    let finalUpdated = await updateChannelPost(bot, closed, true);
+    if (!finalUpdated) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      finalUpdated = await updateChannelPost(bot, closed, true);
+    }
+  }
 
   const winnerText = closed.winnerId
     ? emoji('WINNER', '🏆') + ' <b>AUCTION WINNER</b>\n\n' +
