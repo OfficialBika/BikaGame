@@ -629,7 +629,8 @@ async function init(bot) {
 
         // Do not await Telegram edits: a stalled request must never block the scheduler.
         void updateChannelPost(bot, a, false).catch(err => {
-          if (lastCountdownBucket.get(a.auctionId) === bucket) lastCountdownBucket.delete(a.auctionId);
+          // Keep the current bucket marked on failure so a Telegram outage
+          // cannot turn the scheduler into a one-request-per-second retry loop.
           logger.warn('Auction countdown update failed: ' + (err?.message || err));
         });
       }
