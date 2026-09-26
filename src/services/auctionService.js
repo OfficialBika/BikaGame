@@ -358,20 +358,27 @@ async function bid(ctx, bot, a) {
     );
     const updated = update?.value !== undefined ? update.value : update;
     if (!updated) throw new Error('BID_RACE');
-    result = { auction: updated, oldAmount, oldUserId, charge };
+    result = { auction: updated, oldAmount, oldUserId, charge, balanceAfter: Number(chargedUser.balance || 0) };
   });
 
-  await updateChannelPost(bot, result.auction, false);
-  const balance = await userModel.collection().findOne({ userId: { $in: [userId, String(userId)] } });
-  return ctx.reply(
+  // Reply immediately after the bid transaction is committed.
+  // Channel post refresh is intentionally done after the user-facing reply
+  // so Telegram confirmation is not delayed by the channel edit/network round-trip.
+  const accepted = ctx.reply(
     emoji('ACCEPTED', '🔥') + ' <b>BID ACCEPTED</b>\n━━━━━━━━━━━━━━━━━━\n' +
     emoji('BIDDER', '👤') + ' ' + mention({ userId, firstName: ctx.from.first_name, username: ctx.from.username }) + '\n' +
     emoji('PRICE', '💰') + ' <b>' + money(amount) + '</b>\n' +
     emoji('CROWN', '👑') + ' <b>NEW HIGHEST BIDDER</b>\n' +
     emoji('NEXT', '📈') + ' Next: <b>' + money(amount + Number(result.auction.minIncrement)) + '</b>\n' +
-    emoji('BALANCE', '💳') + ' Balance: <b>' + money(balance?.balance) + '</b>',
+    emoji('BALANCE', '💳') + ' Balance: <b>' + money(result.balanceAfter ?? 0) + '</b>',
     { parse_mode: 'HTML', reply_to_message_id: ctx.message.message_id }
   );
+
+  // Non-critical UI refresh must not delay the user-facing confirmation.
+  void updateChannelPost(bot, result.auction, false).catch(err => {
+    logger.warn('Auction channel refresh after bid failed', err);
+  });
+  return accepted;
 }
 
 async function showHistory(ctx) {
