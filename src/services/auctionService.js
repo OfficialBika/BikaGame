@@ -374,11 +374,10 @@ async function bid(ctx, bot, a) {
     { parse_mode: 'HTML', reply_to_message_id: ctx.message.message_id }
   );
 
-  // Non-critical UI refresh happens after the reply has been sent.
-  await Promise.all([
-    accepted,
-    updateChannelPost(bot, result.auction, false)
-  ]);
+  // Non-critical UI refresh must not delay the user-facing confirmation.
+  void updateChannelPost(bot, result.auction, false).catch(err => {
+    logger.warn('Auction channel refresh after bid failed', err);
+  });
   return accepted;
 }
 
