@@ -155,7 +155,7 @@ function historyText(rows, a) {
   return header + '\n' + lines.join('\n');
 }
 
-async function updateChannelPost/(bot, a, finalState) {
+async function updateChannelPost(bot, a, finalState) {
   if (!a.channelMessageId || !env.AUCTION_CHANNEL_ID) return;
   try {
     if (a.mediaType === 'photo' || a.mediaType === 'video') {
@@ -463,7 +463,7 @@ async function showBidHistoryCommand(ctx) {
   return ctx.reply(historyText(rows, a), { parse_mode: 'HTML', disable_web_page_preview: true });
 }
 
-function register/(bot) {
+function register(bot) {
   bot.command('auction', ctx => createAuction(bot, ctx));
 
   bot.action(/^auction:history:/, ctx => showHistory(ctx));
@@ -545,10 +545,10 @@ async function closeAuction(bot, a) {
 
   if (closed.discussionChatId && closed.discussionRootMessageId) {
     try {
-      await bot.telegram.sendMessage(String(closed.discussionChatId), winnerText, {
+      await withTimeout(() => bot.telegram.sendMessage(String(closed.discussionChatId), winnerText, {
         parse_mode: 'HTML',
         reply_to_message_id: Number(closed.discussionRootMessageId)
-      });
+      }), AUCTION_TELEGRAM_TIMEOUT_MS, 'AUCTION_WINNER_TIMEOUT');
     } catch (err) {
       logger.warn('Auction winner comment failed: ' + (err?.message || err));
     }
