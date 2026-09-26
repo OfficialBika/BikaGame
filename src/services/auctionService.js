@@ -533,8 +533,51 @@ async function showBidHistoryCommand(ctx) {
   );
 }
 
+async function endAuctionCommand(ctx, bot) {
+  if (!owner(ctx)) return ctx.reply('⛔ Owner only.');
+  if (ctx.chat?.type !== 'private') {
+    return ctx.reply('⚠️ ဒီ command ကို Bot DM ထဲမှာပဲ အသုံးပြုနိုင်ပါတယ်။');
+  }
+  if (!env.AUCTION_CHANNEL_ID) {
+    return ctx.reply('⚠️ Auction channel မသတ်မှတ်ရသေးပါ။');
+  }
+
+  const now = new Date();
+  const active = await auctions().findOneAndUpdate(
+    {
+      channelId: String(env.AUCTION_CHANNEL_ID),
+      status: 'open',
+      endAt: { $gt: now }
+    },
+    { $set: { endAt: now, updatedAt: now } },
+    { sort: { createdAt: -1 }, returnDocument: 'after' }
+  );
+  const auction = active?.value !== undefined ? active.value : active;
+
+  if (!auction) {
+    return ctx.reply('ℹ️ လက်ရှိ Active Auction မရှိပါ။');
+  }
+
+  try {
+    const closed = await closeAuction(bot, auction);
+    if (!closed) {
+      return ctx.reply('ℹ️ Auction ကို အခြား process က ပိတ်ပြီးသွားပါပြီ။');
+    }
+    return ctx.reply(
+      emoji('ENDED', '🏁') + ' <b>Auction ကို အောင်မြင်စွာ End လုပ်ပြီးပါပြီ။</b>\n\n' +
+      emoji('ITEM', '💎') + ' ' + escHtml(closed.title || 'Auction Item') + '\n' +
+      emoji('PRICE', '💰') + ' Final Bid: <b>' + money(closed.finalAmount) + '</b>',
+      { parse_mode: 'HTML' }
+    );
+  } catch (err) {
+    logger.error('Owner manual auction end failed', err);
+    return ctx.reply('⚠️ Auction End လုပ်ရာမှာ error ဖြစ်သွားပါတယ်။ Auction data ကို မဖျက်ထားပါ။');
+  }
+}
+
 function register(bot) {
   bot.command('auction', ctx => createAuction(bot, ctx));
+  bot.command('endauction', ctx => endAuctionCommand(ctx, bot));
   bot.hears(/^\.bidhistory$/i, ctx => showBidHistoryCommand(ctx));
 
   bot.action(/^auction:history:/, ctx => showHistory(ctx));
