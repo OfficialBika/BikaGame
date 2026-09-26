@@ -20,6 +20,7 @@ const auctions = () => col('auctions');
 const auctionBids = () => col('auction_bids');
 
 const CUSTOM_IDS = new Set();
+const channelUpdateChains = new Map();
 
 function emoji(kind, fallback) {
   const key = String(kind).toUpperCase();
@@ -157,28 +158,47 @@ function historyText(rows, a) {
 
 async function updateChannelPost(bot, a, finalState) {
   if (!a?.channelMessageId || !env.AUCTION_CHANNEL_ID) return false;
-  try {
-    if (a.mediaType === 'photo' || a.mediaType === 'video') {
-      await withTimeout(() => safeTelegram(() => bot.telegram.editMessageCaption(
-        env.AUCTION_CHANNEL_ID,
-        Number(a.channelMessageId),
-        undefined,
-        postText(a, finalState),
-        { parse_mode: 'HTML' }
-      )), AUCTION_TELEGRAM_TIMEOUT_MS, 'AUCTION_EDIT_TIMEOUT');
-    } else {
-      await withTimeout(() => safeTelegram(() => bot.telegram.editMessageText(
-        env.AUCTION_CHANNEL_ID,
-        Number(a.channelMessageId),
-        undefined,
-        postText(a, finalState),
-        { parse_mode: 'HTML', disable_web_page_preview: true }
-      )), AUCTION_TELEGRAM_TIMEOUT_MS, 'AUCTION_EDIT_TIMEOUT');
+
+  // Serialize edits for each auction. Countdown edits are fire-and-forget,
+  // so without a per-auction queue an older LIVE edit can arrive after the
+  // final ENDED edit and overwrite the closed state.
+  const key = String(a.auctionId);
+  const previous = channelUpdateChains.get(key) || Promise.resolve();
+  const current = previous.catch(() => {}).then(async () => {
+    try {
+      if (!finalState) {
+        const latest = await auctions().findOne({ auctionId: key }, { projection: { status: 1 } });
+        if (!latest || latest.status !== 'open') return false;
+      }
+
+      if (a.mediaType === 'photo' || a.mediaType === 'video') {
+        await withTimeout(() => safeTelegram(() => bot.telegram.editMessageCaption(
+          env.AUCTION_CHANNEL_ID,
+          Number(a.channelMessageId),
+          undefined,
+          postText(a, finalState),
+          { parse_mode: 'HTML' }
+        )), AUCTION_TELEGRAM_TIMEOUT_MS, 'AUCTION_EDIT_TIMEOUT');
+      } else {
+        await withTimeout(() => safeTelegram(() => bot.telegram.editMessageText(
+          env.AUCTION_CHANNEL_ID,
+          Number(a.channelMessageId),
+          undefined,
+          postText(a, finalState),
+          { parse_mode: 'HTML', disable_web_page_preview: true }
+        )), AUCTION_TELEGRAM_TIMEOUT_MS, 'AUCTION_EDIT_TIMEOUT');
+      }
+      return true;
+    } catch (err) {
+      logger.warn('Auction post update failed: ' + (err?.message || err));
+      return false;
     }
-    return true;
-  } catch (err) {
-    logger.warn('Auction post update failed: ' + (err?.message || err));
-    return false;
+  });
+  channelUpdateChains.set(key, current);
+  try {
+    return await current;
+  } finally {
+    if (channelUpdateChains.get(key) === current) channelUpdateChains.delete(key);
   }
 }
 
