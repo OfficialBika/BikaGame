@@ -13,6 +13,8 @@ const logger = require('../utils/logger');
 const TZ = 'Asia/Yangon';
 const MIN_AUCTION_BID = 1;
 const AUCTION_TTL_MS = 10 * 60 * 1000;
+const AUCTION_HISTORY_RETENTION_MS = 24 * 60 * 60 * 1000;
+const AUCTION_TELEGRAM_TIMEOUT_MS = 7000;
 
 const auctions = () => col('auctions');
 const auctionBids = () => col('auction_bids');
@@ -83,6 +85,30 @@ function mention(user) {
   return '<a href="tg://user?id=' + id + '">' + name + '</a>';
 }
 
+function withTimeout(task, ms, label) {
+  let timer;
+  return Promise.race([
+    Promise.resolve().then(task),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(label || 'TELEGRAM_TIMEOUT')), ms);
+    })
+  ]).finally(() => clearTimeout(timer));
+}
+
+function countdownIntervalSeconds(remainingSeconds) {
+  if (remainingSeconds <= 10) return 1;
+  if (remainingSeconds < 120) return 20;
+  if (remainingSeconds < 3600) return 30;
+  return 40;
+}
+
+function countdownBar(endAt) {
+  const remainingSeconds = Math.max(0, Math.floor((new Date(endAt).getTime() - Date.now()) / 1000));
+  if (remainingSeconds > 10) return '';
+  const filled = Math.min(10, Math.max(0, 10 - remainingSeconds));
+  return '\n' + emoji('TIME', '⏳') + ' <code>' + '▰'.repeat(filled) + '▱'.repeat(10 - filled) + '</code> <b>' + remainingSeconds + 's</b>\n';
+}
+
 function parseBidText(text) {
   const raw = String(text || '').trim().replace(/^(?:bid|💰)\s*/i, '');
   if (!/^[\d,]+$/.test(raw)) return null;
@@ -107,7 +133,7 @@ function postText(a, finalState) {
     emoji('BIDDER', '👑') + ' <b>HIGHEST BIDDER</b>\n      ' + bidder + '\n\n' +
     (finalState ? '' : emoji('NEXT', '📈') + ' <b>NEXT MINIMUM</b>\n      <b>' + money(next) + '</b>\n\n') +
     emoji('BIDS', '👥') + ' <b>TOTAL BIDS</b>  ' + Number(a.totalBids || 0) + '\n' +
-    (finalState ? '' : emoji('TIME', '⏳') + ' <b>TIME LEFT</b>  ' + remaining(a.endAt) + '\n') +
+    (finalState ? '' : emoji('TIME', '⏳') + ' <b>TIME LEFT</b>  ' + remaining(a.endAt) + countdownBar(a.endAt) + '\n') +
     '\n━━━━━━━━━━━━━━━━━━\n' +
     (finalState
       ? emoji('LOCK', '🔒') + ' <b>Comment Bids ပိတ်သွားပါပြီ</b>'
@@ -117,33 +143,37 @@ function postText(a, finalState) {
 }
 
 
-function historyText(rows) {
-  if (!rows.length) return emoji('HISTORY', '📊') + ' <b>BID HISTORY</b>\n━━━━━━━━━━━━━━━━━━\n<i>Bid မရှိသေးပါ။</i>';
-  const lines = rows.slice(-10).reverse().map((x, i) =>
+function historyText(rows, a) {
+  const title = escHtml(a?.title || 'Auction');
+  const header = emoji('HISTORY', '📊') + ' <b>BID HISTORY</b>\n━━━━━━━━━━━━━━━━━━\n' +
+    emoji('ITEM', '💎') + ' <b>' + title + '</b>\n' +
+    emoji('BIDS', '👥') + ' Total: <b>' + rows.length + '</b>\n';
+  if (!rows.length) return header + '\n<i>Bid မရှိခဲ့ပါ။</i>';
+  const lines = rows.slice(-50).reverse().map((x, i) =>
     (i + 1) + '. ' + mention(x) + ' — <b>' + money(x.amount) + '</b>'
   );
-  return emoji('HISTORY', '📊') + ' <b>BID HISTORY</b>\n━━━━━━━━━━━━━━━━━━\n' + lines.join('\n');
+  return header + '\n' + lines.join('\n');
 }
 
 async function updateChannelPost(bot, a, finalState) {
   if (!a.channelMessageId || !env.AUCTION_CHANNEL_ID) return;
   try {
     if (a.mediaType === 'photo' || a.mediaType === 'video') {
-      await safeTelegram(() => bot.telegram.editMessageCaption(
+      await withTimeout(() => safeTelegram(() => bot.telegram.editMessageCaption(
         env.AUCTION_CHANNEL_ID,
         Number(a.channelMessageId),
         undefined,
         postText(a, finalState),
         { parse_mode: 'HTML' }
-      ));
+      )), AUCTION_TELEGRAM_TIMEOUT_MS, 'AUCTION_EDIT_TIMEOUT');
     } else {
-      await safeTelegram(() => bot.telegram.editMessageText(
+      await withTimeout(() => safeTelegram(() => bot.telegram.editMessageText(
         env.AUCTION_CHANNEL_ID,
         Number(a.channelMessageId),
         undefined,
         postText(a, finalState),
         { parse_mode: 'HTML', disable_web_page_preview: true }
-      ));
+      )), AUCTION_TELEGRAM_TIMEOUT_MS, 'AUCTION_EDIT_TIMEOUT');
     }
   } catch (err) {
     logger.warn('Auction post update failed: ' + (err?.message || err));
@@ -385,18 +415,57 @@ async function showHistory(ctx) {
   const raw = String(ctx.callbackQuery?.data || '');
   const id = raw.replace(/^auction:history:/, '');
   const a = await auctions().findOne({ auctionId: id });
-  if (!a) return ctx.answerCbQuery('Auction မရှိတော့ပါ။');
+  if (!a) return ctx.answerCbQuery('Auction history မရှိတော့ပါ။');
   const rows = await auctionBids().find({ auctionId: id }).sort({ createdAt: 1 }).limit(50).toArray();
   await ctx.answerCbQuery();
   return ctx.telegram.sendMessage(
     ctx.from.id,
-    historyText(rows),
+    historyText(rows, a),
     { parse_mode: 'HTML', disable_web_page_preview: true }
   );
 }
 
+async function showBidHistoryCommand(ctx) {
+  const chatId = String(ctx.chat?.id || '');
+  const replyId = Number(ctx.message?.reply_to_message?.message_id || 0);
+  let a = null;
+
+  if (replyId) {
+    a = await auctions().findOne({
+      discussionChatId: chatId,
+      discussionRootMessageId: replyId,
+      status: 'closed'
+    });
+    if (!a) {
+      const bidRow = await auctionBids().findOne({ messageId: replyId });
+      if (bidRow) a = await auctions().findOne({ auctionId: bidRow.auctionId, status: 'closed' });
+    }
+  }
+
+  if (!a) {
+    a = await auctions().findOne(
+      { discussionChatId: chatId, status: 'closed' },
+      { sort: { closedAt: -1 } }
+    );
+  }
+  if (!a && env.AUCTION_CHANNEL_ID) {
+    a = await auctions().findOne(
+      { channelId: String(env.AUCTION_CHANNEL_ID), status: 'closed' },
+      { sort: { closedAt: -1 } }
+    );
+  }
+
+  if (!a) {
+    return ctx.reply(emoji('HISTORY', '📊') + ' <b>BID HISTORY</b>\n\n<i>ပြီးခဲ့တဲ့ 1 ရက်အတွင်း Auction history မတွေ့ပါ။</i>', { parse_mode: 'HTML' });
+  }
+
+  const rows = await auctionBids().find({ auctionId: a.auctionId }).sort({ createdAt: 1 }).limit(50).toArray();
+  return ctx.reply(historyText(rows, a), { parse_mode: 'HTML', disable_web_page_preview: true });
+}
+
 function register(bot) {
   bot.command('auction', ctx => createAuction(bot, ctx));
+  bot.hears(/^\.bidhistory$/i, ctx => showBidHistoryCommand(ctx));
 
   bot.action(/^auction:history:/, ctx => showHistory(ctx));
 
@@ -428,12 +497,21 @@ function register(bot) {
 }
 
 async function closeAuction(bot, a) {
-  const claim0 = await auctions().findOneAndUpdate(
-    { auctionId: a.auctionId, status: 'open', endAt: { $lte: new Date() } },
-    { $set: { status: 'closing', closedAt: new Date(), updatedAt: new Date() } },
-    { returnDocument: 'after' }
-  );
-  const claim = claim0?.value !== undefined ? claim0.value : claim0;
+  let claim = null;
+  if (a.status === 'closing') {
+    claim = await auctions().findOne({
+      auctionId: a.auctionId,
+      status: 'closing',
+      endAt: { $lte: new Date() }
+    });
+  } else {
+    const claim0 = await auctions().findOneAndUpdate(
+      { auctionId: a.auctionId, status: 'open', endAt: { $lte: new Date() } },
+      { $set: { status: 'closing', closedAt: new Date(), updatedAt: new Date() } },
+      { returnDocument: 'after' }
+    );
+    claim = claim0?.value !== undefined ? claim0.value : claim0;
+  }
   if (!claim) return null;
 
   const now = new Date();
@@ -452,7 +530,7 @@ async function closeAuction(bot, a) {
     }
     await auctions().updateOne(
       { auctionId: claim.auctionId, status: 'closing' },
-      { $set: { status: 'closed', winnerId, finalAmount, settledAt: now, updatedAt: now } },
+      { $set: { status: 'closed', winnerId, finalAmount, settledAt: now, historyExpiresAt: new Date(now.getTime() + AUCTION_HISTORY_RETENTION_MS), updatedAt: now } },
       opt
     );
   });
@@ -468,18 +546,17 @@ async function closeAuction(bot, a) {
 
   if (closed.discussionChatId && closed.discussionRootMessageId) {
     try {
-      await bot.telegram.sendMessage(String(closed.discussionChatId), winnerText, {
+      await withTimeout(() => bot.telegram.sendMessage(String(closed.discussionChatId), winnerText, {
         parse_mode: 'HTML',
         reply_to_message_id: Number(closed.discussionRootMessageId)
-      });
+      }), AUCTION_TELEGRAM_TIMEOUT_MS, 'AUCTION_WINNER_TIMEOUT');
     } catch (err) {
       logger.warn('Auction winner comment failed: ' + (err?.message || err));
     }
   }
 
-  // Keep only the public channel result. Remove all temporary auction state immediately after settlement.
-  await auctionBids().deleteMany({ auctionId: closed.auctionId });
-  await auctions().deleteOne({ auctionId: closed.auctionId });
+  // Keep the closed auction + bid history for 24 hours so .bidhistory can read it.
+  // Cleanup is handled separately by the scheduler after historyExpiresAt.
   return closed;
 }
 
@@ -496,6 +573,7 @@ async function init(bot) {
   await auctions().createIndex({ channelMessageId: 1 }, { unique: true, sparse: true, name: 'auctions_channel_message_unique' });
   await auctionBids().createIndex({ auctionId: 1, createdAt: 1 }, { name: 'auction_bids_time' });
   await auctionBids().createIndex({ auctionId: 1, messageId: 1 }, { unique: true, name: 'auction_bids_message_unique' });
+  await auctions().createIndex({ status: 1, historyExpiresAt: 1 }, { name: 'auctions_history_expiry' });
 
   let busy = false;
   const lastCountdownBucket = new Map();
@@ -505,7 +583,13 @@ async function init(bot) {
     busy = true;
     try {
       const now = new Date();
-      const expired = await auctions().find({ status: 'open', endAt: { $lte: now } }).limit(10).toArray();
+
+      // Close expired auctions first and recover a partial close after restart.
+      const expired = await auctions()
+        .find({ status: { $in: ['open', 'closing'] }, endAt: { $lte: now } })
+        .limit(20)
+        .toArray();
+
       for (const a of expired) {
         try {
           lastCountdownBucket.delete(a.auctionId);
@@ -515,11 +599,21 @@ async function init(bot) {
         }
       }
 
-      // Keep the public channel countdown lightweight:
-      // - More than 10 seconds left: edit once per 10-second bucket.
-      // - 10 seconds or less: edit once per 2-second bucket.
-      // The actual auction deadline always comes from endAt; these edits only
-      // refresh the displayed countdown and never extend/shorten the auction.
+      // Keep settled auction + bids for 24 hours, then clean them up.
+      const expiredHistory = await auctions()
+        .find({ status: 'closed', historyExpiresAt: { $lte: now } })
+        .limit(20)
+        .toArray();
+
+      for (const a of expiredHistory) {
+        try {
+          await auctionBids().deleteMany({ auctionId: a.auctionId });
+          await auctions().deleteOne({ auctionId: a.auctionId, status: 'closed' });
+        } catch (err) {
+          logger.warn('Auction history cleanup failed: ' + (err?.message || err));
+        }
+      }
+
       const active = await auctions()
         .find({ status: 'open', endAt: { $gt: now } })
         .limit(20)
@@ -527,18 +621,18 @@ async function init(bot) {
 
       for (const a of active) {
         const remainingSeconds = Math.max(0, Math.floor((new Date(a.endAt).getTime() - now.getTime()) / 1000));
-        const bucket = remainingSeconds <= 10
-          ? Math.floor(remainingSeconds / 2) * 2
-          : Math.floor(remainingSeconds / 10) * 10;
+        const intervalSeconds = countdownIntervalSeconds(remainingSeconds);
+        const bucket = Math.floor(remainingSeconds / intervalSeconds) * intervalSeconds;
 
         if (lastCountdownBucket.get(a.auctionId) === bucket) continue;
         lastCountdownBucket.set(a.auctionId, bucket);
 
-        try {
-          await updateChannelPost(bot, a, false);
-        } catch (err) {
+        // Do not await Telegram edits: a stalled request must never block the scheduler.
+        void updateChannelPost(bot, a, false).catch(err => {
+          // Keep the current bucket marked on failure so a Telegram outage
+          // cannot turn the scheduler into a one-request-per-second retry loop.
           logger.warn('Auction countdown update failed: ' + (err?.message || err));
-        }
+        });
       }
 
       const activeIds = new Set(active.map(x => x.auctionId));
