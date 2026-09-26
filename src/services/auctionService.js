@@ -465,6 +465,7 @@ async function showBidHistoryCommand(ctx) {
 
 function register(bot) {
   bot.command('auction', ctx => createAuction(bot, ctx));
+  bot.hears(/^\.bidhistory$/i, ctx => showBidHistoryCommand(ctx));
 
   bot.action(/^auction:history:/, ctx => showHistory(ctx));
 
