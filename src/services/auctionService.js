@@ -139,7 +139,7 @@ function postText(a, finalState) {
     (finalState
       ? emoji('LOCK', '🔒') + ' <b>Comment Bids ပိတ်သွားပါပြီ</b>'
       : emoji('COMMENT', '💬') + ' <b>Comment မှာ Bid တင်ပါ</b>\n' +
-        '<code>' + money(next) + '</code> လို့ တိုက်ရိုက်ပို့နိုင်ပါတယ်') +
+        '<code>' + String(Math.floor(Number(next) || 0)) + '</code> လို့ တိုက်ရိုက်ပို့နိုင်ပါတယ်') +
     winner;
 }
 
