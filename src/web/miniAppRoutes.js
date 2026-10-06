@@ -12,7 +12,6 @@ const { spinWebWheel, spinDailyWebWheel, getDailyWheelStatus, SEGMENTS: WHEEL_SE
 const { startWebMines, getWebMinesStatus, openWebMinesTile, cashoutWebMines, MIN_BET: MINES_MIN_BET, MAX_BET: MINES_MAX_BET, DEFAULT_MINES, MIN_CASHOUT_SAFE } = require('../services/webMinesService');
 const { joinWebBlackjack, getWebBlackjackStatus, hitWebBlackjack, standWebBlackjack, MIN_BET: BJ_MIN_BET, MAX_BET: BJ_MAX_BET, MAX_PLAYERS: BJ_MAX_PLAYERS, JOIN_SECONDS: BJ_JOIN_SECONDS, ACTION_SECONDS: BJ_ACTION_SECONDS } = require('../services/webBlackjackService');
 const { createWebShanRoom, joinWebShan, getWebShanStatus, drawWebShan, stayWebShan, playWebShan, MIN_BET: SHAN_MIN_BET, MAX_BET: SHAN_MAX_BET, MAX_PLAYERS: SHAN_MAX_PLAYERS, JOIN_SECONDS: SHAN_JOIN_SECONDS, ACTION_SECONDS: SHAN_ACTION_SECONDS, MIN_BANKER_STAKE: SHAN_MIN_BANKER_STAKE, MAX_BANKER_STAKE: SHAN_MAX_BANKER_STAKE } = require('../services/webShanService');
-const { getAllWebGameRtps } = require('../services/webGameRtpService');
 const { getWebGameHistory } = require('../services/webBetHistoryService');
 const { verifyTelegramMiniAppInitData, getInitDataFromRequest } = require('./telegramMiniAuth');
 
@@ -124,13 +123,11 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
   });
 
   app.get('/api/mini/config', async (req, res) => {
-    const rtps = await getAllWebGameRtps().catch(() => ({}));
     return res.json({
       ok: true,
       appUrl: publicMiniAppUrl(),
       botUsername: getBotInfo()?.username || null,
       coin: COIN,
-      rtps,
       games: [
         { key: 'rocket', title: 'Rocket Crash', badge: 'LIVE', hot: true },
         { key: 'slot', title: 'Premium Slot', badge: 'HOT', hot: true },
