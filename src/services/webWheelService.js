@@ -171,7 +171,7 @@ async function spinDailyWebWheel({ userId }) {
   const dateKey = dailyDateKey(now);
   const user = await getUser(uid);
   if (!user) throw new Error('USER_NOT_FOUND');
-  const rtp = await getWebGameRtp('wheel_daily');
+  const rtp = await getWebGameRtp('wheel');
   const segment = weightedPick(buildWeightedSegments(rtp));
   const rawPayout = Math.floor(DAILY_BASE_REWARD * segment.multiplier);
   const payout = await capDailyPayout(rawPayout);
