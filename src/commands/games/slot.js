@@ -11,7 +11,6 @@ const { checkCooldown } = require('../../services/cooldownService');
 const engine = require('../../games/slotEngine');
 const { replyHTML, editByIds } = require('../../utils/telegram');
 const { fmt } = require('../../utils/format');
-const { isGroupChat } = require('../../utils/helpers');
 
 let getActivePromoRtp = null;
 try {
