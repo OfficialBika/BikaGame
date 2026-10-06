@@ -359,17 +359,20 @@ async function startMines(ctx, bot, parsed) {
 
   let betTaken = false;
   let game = null;
+  const gameId = makeGameId();
 
   try {
     await userPayToTreasury(userId, bet, {
       type: 'mines_bet',
       chatId,
       mines: mineCount,
+      gameId,
+      idempotencyKey: `${gameId}:bet`,
     });
     betTaken = true;
 
     game = {
-      id: makeGameId(),
+      id: gameId,
       userId,
       chatId,
       messageId: null,
@@ -415,6 +418,7 @@ async function startMines(ctx, bot, parsed) {
       try {
         await treasuryPayToUser(userId, bet, {
           type: 'mines_refund',
+          idempotencyKey: `${gameId}:refund`,
           bet,
           reason: 'mines_start_error',
         });
@@ -497,6 +501,7 @@ module.exports = (bot) => {
         try {
           await treasuryPayToUser(game.userId, game.bet, {
             type: 'mines_refund',
+            idempotencyKey: `${game.id}:refund`,
             bet: game.bet,
             reason: game.openedSafe.size > 0 ? 'mines_cancel_before_cashout_unlock' : 'mines_cancel_before_pick',
           });
