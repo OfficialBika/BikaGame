@@ -613,59 +613,86 @@ function register(bot) {
 
 async function closeAuction(bot, a) {
   let claim = null;
-  if (a.status === 'closing') {
-    claim = await auctions().findOne({
-      auctionId: a.auctionId,
-      status: 'closing',
-      endAt: { $lte: new Date() }
-    });
-  } else {
-    const claim0 = await auctions().findOneAndUpdate(
-      { auctionId: a.auctionId, status: 'open', endAt: { $lte: new Date() } },
-      { $set: { status: 'closing', closedAt: new Date(), updatedAt: new Date() } },
-      { returnDocument: 'after' }
-    );
-    claim = claim0?.value !== undefined ? claim0.value : claim0;
-  }
-  if (!claim) return null;
+  let settlementFailed = false;
 
-  const now = new Date();
-  let closed = claim;
   await withRequiredTx(async (session) => {
-    const opt = session ? { session } : {};
+    const opt = { session };
+    if (a.status === 'closing') {
+      claim = await auctions().findOne({
+        auctionId: a.auctionId,
+        status: 'closing',
+        endAt: { $lte: new Date() }
+      }, opt);
+    } else {
+      const claim0 = await auctions().findOneAndUpdate(
+        { auctionId: a.auctionId, status: 'open', endAt: { $lte: new Date() } },
+        { $set: { status: 'closing', closedAt: new Date(), updatedAt: new Date() } },
+        Object.assign({ returnDocument: 'after' }, opt)
+      );
+      claim = claim0?.value !== undefined ? claim0.value : claim0;
+    }
+
+    if (!claim) return;
+
+    const now = new Date();
     const winnerId = claim.highestBidderId ? String(claim.highestBidderId) : null;
     const finalAmount = Number(claim.currentBid || 0);
+
     if (winnerId && finalAmount > 0) {
       await treasuryModel.collection().updateOne(
         { key: 'treasury' },
         { $inc: { ownerBalance: finalAmount }, $set: { updatedAt: now } },
         opt
       );
-      await logTx({ type: 'auction_win_settlement', fromUserId: winnerId, toUserId: 'TREASURY', amount: finalAmount, meta: { auctionId: claim.auctionId } }, opt);
+      await logTx({
+        type: 'auction_win_settlement',
+        fromUserId: winnerId,
+        toUserId: 'TREASURY',
+        amount: finalAmount,
+        meta: { auctionId: claim.auctionId }
+      }, opt);
     }
-    await auctions().updateOne(
+
+    const closed0 = await auctions().findOneAndUpdate(
       { auctionId: claim.auctionId, status: 'closing' },
-      { $set: { status: 'closed', winnerId, finalAmount, settledAt: now, historyExpiresAt: new Date(now.getTime() + AUCTION_HISTORY_RETENTION_MS), updatedAt: now } },
-      opt
+      {
+        $set: {
+          status: 'closed',
+          winnerId,
+          finalAmount,
+          settledAt: now,
+          historyExpiresAt: new Date(now.getTime() + AUCTION_HISTORY_RETENTION_MS),
+          updatedAt: now
+        }
+      },
+      Object.assign({ returnDocument: 'after' }, opt)
     );
+    if (!closed0) {
+      throw new Error('AUCTION_CLOSE_STATE_RACE');
+    }
+  }).catch((err) => {
+    settlementFailed = true;
+    throw err;
   });
 
-  closed = await auctions().findOne({ auctionId: claim.auctionId, status: 'closed' });
-  if (closed) {
-    // Final-state edit is important: do not leave the Channel Post showing
-    // LIVE AUCTION after the auction has already settled.
-    let finalUpdated = await updateChannelPost(bot, closed, true);
-    if (!finalUpdated) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      finalUpdated = await updateChannelPost(bot, closed, true);
-    }
+  if (settlementFailed || !claim) return null;
+
+  const closed = await auctions().findOne({ auctionId: claim.auctionId, status: 'closed' });
+  if (!closed) return null;
+
+  // Final-state edit is important: do not leave the Channel Post showing
+  // LIVE AUCTION after the auction has already settled.
+  let finalUpdated = await updateChannelPost(bot, closed, true);
+  if (!finalUpdated) {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    finalUpdated = await updateChannelPost(bot, closed, true);
   }
 
   const winnerText = closed.winnerId
-    ? emoji('WINNER', '🏆') + ' <b>AUCTION WINNER</b>\n\n' +
+    ? emoji('WINNER', '🏆') + ' <b>AUCTION WINNER</b>\\n\\n' +
       mention({ userId: closed.winnerId, firstName: closed.highestBidderName, username: closed.highestBidderUsername }) +
-      '\n\n' + emoji('PRICE', '💰') + ' Final Bid: <b>' + money(closed.finalAmount) + '</b>'
-    : emoji('ENDED', '🏁') + ' <b>Auction ပြီးပါပြီ</b>\n\nBid မရှိခဲ့ပါ။';
+      '\\n\\n' + emoji('PRICE', '💰') + ' Final Bid: <b>' + money(closed.finalAmount) + '</b>'
+    : emoji('ENDED', '🏁') + ' <b>Auction ပြီးပါပြီ</b>\\n\\nBid မရှိခဲ့ပါ။';
 
   if (closed.discussionChatId && closed.discussionRootMessageId) {
     try {
