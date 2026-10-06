@@ -1253,55 +1253,55 @@ module.exports = (bot) => {
       }
 
       if (action === 'CANCEL') {
-        let refunded = false;
-
         try {
-          await treasuryPayToUser(order.userId, order.price, {
-            type: 'shop_order_refund',
-            orderId: String(order._id),
-            cardId: order.cardId,
-            rarity: order.rarity,
-            reason: 'owner_cancel',
+          const markerId = `__settlement:shop-refund:${String(order._id)}`;
+          await withRequiredTx(async (session) => {
+            const opts = { session };
+            const tx = col('transactions');
+            const existing = await tx.findOne({ _id: markerId }, opts);
+            if (existing) return;
+
+            const refunded = await col('treasury').findOneAndUpdate(
+              { key:'treasury', ownerBalance:{ $gte:Number(order.price||0) } },
+              { $inc:{ ownerBalance:-Number(order.price||0) }, $set:{ updatedAt:new Date() } },
+              { session, returnDocument:'after' }
+            );
+            if (!refunded) throw new Error('TREASURY_INSUFFICIENT_FOR_REFUND');
+            const credited = await col('users').findOneAndUpdate(
+              { userId:{ $in:[String(order.userId),Number(order.userId)] } },
+              { $inc:{ balance:Number(order.price||0) }, $set:{ updatedAt:new Date() } },
+              { session, returnDocument:'after' }
+            );
+            if (!credited) throw new Error('REFUND_USER_NOT_FOUND');
+
+            const cardOr=[{ _id: order.cardObjectId }];
+            if (order.cardId) cardOr.push(order.botKey ? { cardId:order.cardId, botKey:order.botKey } : { cardId:order.cardId });
+            const card=await shopCardModel.collection().findOne({ $and:[{status:'SOLD',soldToUserId:order.userId},{ $or:cardOr }] }, opts);
+            if (card) {
+              const released=await shopCardModel.collection().updateOne({ _id:card._id, status:'SOLD', soldToUserId:order.userId }, { $set:{ status:'AVAILABLE', soldToUserId:null, soldAt:null, updatedAt:new Date() } }, opts);
+              if (released.matchedCount!==1) throw new Error('CARD_RELEASE_CONFLICT');
+            }
+
+            const changed=await orderModel.collection().updateOne(
+              { _id:order._id, status:'PENDING' },
+              { $set:{ status:'CANCELLED', cancelledByUserId:ctx.from.id, cancelledAt:new Date(), refunded:true, updatedAt:new Date() } },
+              opts
+            );
+            if (changed.matchedCount!==1) throw new Error('ORDER_CANCEL_STATE_CONFLICT');
+            await logTx({ type:'shop_order_refund', fromUserId:'TREASURY', toUserId:credited.userId, amount:Number(order.price||0), meta:{ orderId:String(order._id), cardId:order.cardId, reason:'owner_cancel', idempotencyKey:markerId } }, opts);
+            await tx.insertOne({ _id:markerId, type:'shop_refund_settlement', orderId:String(order._id), payout:Number(order.price||0), meta:{idempotencyKey:markerId}, createdAt:new Date() }, opts);
           });
-          refunded = true;
-        } catch (_) {}
-
-        await orderModel.collection().updateOne(
-          { _id: order._id, status: 'PENDING' },
-          {
-            $set: {
-              status: 'CANCELLED',
-              cancelledByUserId: ctx.from.id,
-              cancelledAt: new Date(),
-              refunded,
-              updatedAt: new Date(),
-            },
-          }
-        );
-
-        await shopCardModel.collection().updateOne(
-          { cardId: order.cardId, status: 'SOLD' },
-          {
-            $set: {
-              status: 'AVAILABLE',
-              soldToUserId: null,
-              soldAt: null,
-              updatedAt: new Date(),
-            },
-          }
-        );
+        } catch (err) {
+          try { await ctx.answerCbQuery('Refund မအောင်မြင်သေးပါ — order ကို မပယ်ဖျက်သေးပါ။', { show_alert:true }); } catch (_) {}
+          return;
+        }
 
         const updated = await orderModel.collection().findOne({ _id: order._id });
-
-        try {
-          await bot.telegram.sendMessage(order.userId, buyerCancelledText(updated, refunded), {
-            parse_mode: 'HTML',
-          });
-        } catch (_) {}
-
+        try { await bot.telegram.sendMessage(order.userId, buyerCancelledText(updated, true), { parse_mode:'HTML' }); } catch (_) {}
         try { await ctx.answerCbQuery('Order cancelled.'); } catch (_) {}
         return editHTML(ctx, ownerCompletedText(updated, 'CANCEL'));
       }
+
 
       try {
         await ctx.answerCbQuery('Unknown owner action.', { show_alert: true });
