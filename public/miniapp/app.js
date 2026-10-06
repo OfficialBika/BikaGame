@@ -57,7 +57,7 @@ async function refreshHomeDashboard(){
   }
   if(daily.status==='fulfilled'){
     const d=daily.value||{};
-    setText('homeDailyStatus',d.available?'AVAILABLE':'CLAIMED');
+    setText('homeDailyStatus',d.available?'AVAILABLE':'CLAIMED');setText('sidebarDailyStatus',d.available?'AVAILABLE':'CLAIMED');
     setText('homeDailyReward',fmt(d.baseReward||0)+' '+esc(coin()));
     setText('homeDailyDate',d.dateKey||'—');
     setText('homeDailyInfo',d.available?'Free daily spin is available.':(d.last&&d.last.label?'Claimed: '+d.last.label:'Free spin already claimed today.'));
