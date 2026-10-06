@@ -1,6 +1,6 @@
 'use strict';
 
-const { col, withMaybeTx } = require('../config/database');
+const { col, withRequiredTx } = require('../config/database');
 const userModel = require('../models/userModel');
 const { ensureTreasury } = require('./treasuryService');
 const treasuryModel = require('../models/treasuryModel');
@@ -347,7 +347,7 @@ async function bid(ctx, bot, a) {
   const now = new Date();
   let result = null;
 
-  await withMaybeTx(async (session) => {
+  await withRequiredTx(async (session) => {
     const opt = session ? { session } : {};
     const fresh = await auctions().findOne({ auctionId: a.auctionId, status: 'open', endAt: { $gt: now } }, opt);
     if (!fresh) throw new Error('AUCTION_CLOSED');
@@ -596,7 +596,9 @@ function register(bot) {
               ? emoji('LOCK', '🔒') + ' Auction ပိတ်သွားပါပြီ။'
               : code === 'BID_TOO_LOW'
                 ? emoji('WARNING', '⚠️') + ' <b>အမြင့်ဆုံး Bid ကို ကျော်ရပါမယ်။</b>'
-                : emoji('WARNING', '⚠️') + ' Bid မအောင်မြင်ပါ။ ခဏနေ ပြန်စမ်းပါ။';
+                : code === 'MONGO_TRANSACTIONS_REQUIRED'
+                  ? emoji('WARNING', '⚠️') + ' Auction ငွေကြေးလုံခြုံရေးအတွက် Database transaction support မရှိသေးပါ။ Bid ကို မပြောင်းလဲထားပါ။'
+                  : emoji('WARNING', '⚠️') + ' Bid မအောင်မြင်ပါ။ ခဏနေ ပြန်စမ်းပါ။';
           await ctx.reply(msg, { parse_mode: 'HTML', reply_to_message_id: ctx.message.message_id });
         }
         return;
@@ -629,7 +631,7 @@ async function closeAuction(bot, a) {
 
   const now = new Date();
   let closed = claim;
-  await withMaybeTx(async (session) => {
+  await withRequiredTx(async (session) => {
     const opt = session ? { session } : {};
     const winnerId = claim.highestBidderId ? String(claim.highestBidderId) : null;
     const finalAmount = Number(claim.currentBid || 0);
