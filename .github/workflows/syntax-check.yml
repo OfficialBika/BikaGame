@@ -37,4 +37,4 @@ jobs:
 
       - name: Verify critical middleware/modules load
         run: |
-          BOT_TOKEN=ci-test MONGO_URI=mongodb://127.0.0.1:27017/bika_ci OWNER_ID=1 node -e "require('./src/utils/helpers'); require('./src/middlewares/maintenance'); require('./src/middlewares/groupApproval'); console.log('middleware modules OK')"
+          BOT_TOKEN=ci-test MONGO_URI=mongodb://127.0.0.1:27017/bika_ci OWNER_ID=1 node -e "require('./src/utils/helpers'); require('./src/middlewares/maintenance'); require('./src/middlewares/groupApproval'); require('./src/services/broadcastService'); require('./src/commands/admin/broadcast'); console.log('middleware/broadcast modules OK')"
