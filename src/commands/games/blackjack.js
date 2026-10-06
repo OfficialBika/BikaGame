@@ -450,6 +450,7 @@ async function settleGame(bot, game, result) {
     try {
       await treasuryPayToUser(game.userId, payout, {
         type: 'blackjack_win',
+        idempotencyKey: `${game.id}:win`,
         bet: game.bet,
         payout,
         result,
@@ -584,11 +585,13 @@ module.exports = (bot) => {
 
     let betTaken = false;
     let game = null;
+    const transactionKey = `blackjack:${chatId}:${commandMessageId || Date.now()}`;
 
     try {
       await userPayToTreasury(userId, bet, {
         type: 'blackjack_bet',
         chatId,
+        idempotencyKey: `${transactionKey}:bet`,
       });
 
       betTaken = true;
