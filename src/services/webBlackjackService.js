@@ -59,9 +59,6 @@ async function finishDealer(r) {
         p.settledAtMs=nowMs();
       } catch(e) {
         payoutFailed=true;
-        p.result='PAYOUT_ERROR';
-        p.payout=0;
-        p.net=-p.bet;
         console.error('WEB_BJ_PAYOUT_FAILED:',e?.message||e);
       }
     }
