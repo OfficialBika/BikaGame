@@ -43,12 +43,18 @@ module.exports = async (ctx, next) => {
     return;
   }
 
+  const messageId = ctx.message?.message_id;
+  const replyOptions = messageId
+    ? { reply_to_message_id: messageId }
+    : {};
+
   return replyHTML(
     ctx,
     '🛠️ <b>Bot Maintenance Mode</b>\n' +
       '━━━━━━━━━━━━\n' +
       'လက်ရှိ Bot ကို ပြုပြင်နေပါတယ်။\n' +
       'Owner သာ အသုံးပြုနိုင်ပါတယ်။\n' +
-      'ခဏစောင့်ပြီး ပြန်သုံးပေးပါ။'
+      'ခဏစောင့်ပြီး ပြန်သုံးပေးပါ။',
+    replyOptions
   );
 };
