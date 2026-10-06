@@ -240,6 +240,17 @@ async function approveOrder(orderId, ownerId) {
   const order = await getOrder(orderId);
   if (!order) return { ok: false, reason: 'ORDER_NOT_FOUND', order: null };
   if (order.status === 'APPROVED') return { ok: false, reason: 'ORDER_ALREADY_APPROVED', order };
+  if (order.status === 'APPROVING') {
+    const approvedTx = await col('transactions').findOne({ type: 'sell_card_approved', orderId: String(orderId) });
+    if (approvedTx) {
+      await ordersCol().updateOne(
+        { orderId: String(orderId), status: 'APPROVING' },
+        { $set: { status: 'APPROVED', approvedAt: approvedTx.createdAt || new Date(), approvedBy: approvedTx.approvedBy || Number(ownerId), updatedAt: new Date() } }
+      );
+      return { ok: true, duplicate: true, order: await getOrder(orderId) };
+    }
+    return { ok: false, reason: 'ORDER_ALREADY_APPROVING', order };
+  }
   if (order.status !== 'PENDING') return { ok: false, reason: `ORDER_ALREADY_${order.status}`, order };
 
   const claim = await ordersCol().findOneAndUpdate(
