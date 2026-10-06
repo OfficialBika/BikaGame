@@ -284,6 +284,7 @@ module.exports = (bot) => {
       await transferBalance(gift.fromId, gift.toId, gift.amount, {
         chatId: gift.chatId,
         giftId: id,
+        idempotencyKey: `gift:${id}`,
       });
 
       clearGift(id);
