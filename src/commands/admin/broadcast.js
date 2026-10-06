@@ -1,1 +1,130 @@
-'use strict';\n\nconst { ensureTreasury, isOwner } = require('../../services/treasuryService');\nconst {\n  startBroadcast,\n  stopBroadcast,\n  SEND_CONCURRENCY,\n  FREE_BROADCAST_RATE,\n} = require('../../services/broadcastService');\nconst { replyHTML, editByIds } = require('../../utils/telegram');\n\nfunction getReplySource(ctx) {\n  return ctx.message?.reply_to_message || null;\n}\n\nfunction getCommandText(ctx) {\n  return String(ctx.message?.text || '')\n    .replace(/^\\/broadcast(@\\w+)?\\s*/i, '')\n    .trim();\n}\n\nmodule.exports = (bot) => {\n  bot.command('broadcast', async (ctx) => {\n    const t = await ensureTreasury();\n    if (!isOwner(ctx, t)) return replyHTML(ctx, '⛔ Owner only.');\n\n    const commandText = getCommandText(ctx);\n    const reply = getReplySource(ctx);\n\n    // Reply to any Telegram message with no typed text to copy it exactly.\n    // This preserves media, caption/entities and inline/reply buttons.\n    const copySource = !commandText && reply ? reply : null;\n    const text = commandText || (reply?.text || reply?.caption || '');\n\n    if (!copySource && !text) {\n      return replyHTML(\n        ctx,\n        'Usage: <code>/broadcast message</code>\n' +\n          'or reply to any message with <code>/broadcast</code> to copy it exactly.'\n      );\n    }\n\n    let progress = null;\n\n    try {\n      progress = await replyHTML(\n        ctx,\n        copySource ? '📣 Copy broadcast preparing…' : '📣 Text broadcast preparing…'\n      );\n\n      const result = await startBroadcast(\n        bot,\n        ctx.chat.id,\n        text,\n        async (p) => {\n          if (!progress?.message_id) return;\n\n          await editByIds(\n            bot,\n            ctx.chat.id,\n            progress.message_id,\n            '📣 <b>Broadcast Progress</b>\n' +\n              '━━━━━━━━━━━━━━\n' +\n              'Mode: <b>' + (p.mode === 'copy' ? 'COPY' : 'TEXT') + '</b>\n' +\n              'Users: <b>' + p.userSent + '</b> · Approved Groups: <b>' + p.groupSent + '</b>\n' +\n              'Processed: <b>' + p.processed + '</b>/<b>' + p.total + '</b>\n' +\n              'Sent: <b>' + p.ok + '</b>\n' +\n              'Skipped: <b>' + p.skipped + '</b>\n' +\n              'Failed: <b>' + p.fail + '</b>'\n          );\n        },\n        { copyMessage: copySource }\n      );\n\n      const modeText = result.mode === 'copy' ? 'COPY ✅' : 'TEXT';\n      if (progress?.message_id) {\n        await editByIds(\n          bot,\n          ctx.chat.id,\n          progress.message_id,\n          '✅ <b>Broadcast done</b>\n' +\n            '━━━━━━━━━━━━━━\n' +\n            'Mode: <b>' + modeText + '</b>\n' +\n            'Users sent: <b>' + result.userSent + '</b>\n' +\n            'Approved groups sent: <b>' + result.groupSent + '</b>\n' +\n            'Sent: <b>' + result.ok + '</b>\n' +\n            'Skipped: <b>' + result.skipped + '</b>\n' +\n            'Failed: <b>' + result.fail + '</b>\n' +\n            'Processed: <b>' + result.processed + '</b>/<b>' + result.total + '</b>\n' +\n            'Rate cap: <b>' + FREE_BROADCAST_RATE + '/sec</b> · Workers: <b>' + (result.concurrency || SEND_CONCURRENCY) + '</b>' +\n            (result.cancelled ? '\n🛑 <b>Stopped</b>' : '')\n        );\n      } else {\n        await replyHTML(\n          ctx,\n          '✅ Broadcast done · Mode: <b>' + modeText + '</b> · ' +\n            'Users: <b>' + result.userSent + '</b> · Approved Groups: <b>' + result.groupSent + '</b> · ' +\n            'Sent: <b>' + result.ok + '</b> · Skipped: <b>' + result.skipped + '</b> · Failed: <b>' + result.fail + '</b>'\n        );\n      }\n    } catch (e) {\n      const message =\n        e.message === 'BROADCAST_RUNNING'\n          ? '⚠️ Broadcast တစ်ခု run နေပါတယ်။'\n          : e.message === 'BROADCAST_SOURCE_INVALID'\n            ? '⚠️ Copy source message မမှန်ကန်ပါ။'\n            : '⚠️ Broadcast error';\n\n      if (progress?.message_id) {\n        await editByIds(bot, ctx.chat.id, progress.message_id, message);\n      } else {\n        await replyHTML(ctx, message);\n      }\n    }\n  });\n\n  bot.command('broadcastend', async (ctx) => {\n    const t = await ensureTreasury();\n    if (!isOwner(ctx, t)) return replyHTML(ctx, '⛔ Owner only.');\n\n    return replyHTML(\n      ctx,\n      stopBroadcast()\n        ? '🛑 Broadcast stopping…'\n        : 'ℹ️ Broadcast မရှိပါ။'\n    );\n  });\n};\n
+'use strict';
+
+const { ensureTreasury, isOwner } = require('../../services/treasuryService');
+const {
+  startBroadcast,
+  stopBroadcast,
+  SEND_CONCURRENCY,
+  FREE_BROADCAST_RATE,
+} = require('../../services/broadcastService');
+const { replyHTML, editByIds } = require('../../utils/telegram');
+
+function getReplySource(ctx) {
+  return ctx.message?.reply_to_message || null;
+}
+
+function getCommandText(ctx) {
+  return String(ctx.message?.text || '')
+    .replace(/^\/broadcast(@\w+)?\s*/i, '')
+    .trim();
+}
+
+module.exports = (bot) => {
+  bot.command('broadcast', async (ctx) => {
+    const t = await ensureTreasury();
+    if (!isOwner(ctx, t)) return replyHTML(ctx, '⛔ Owner only.');
+
+    const commandText = getCommandText(ctx);
+    const reply = getReplySource(ctx);
+
+    // Reply to any Telegram message with no typed text to copy it exactly.
+    // This preserves media, caption/entities and inline/reply buttons.
+    const copySource = !commandText && reply ? reply : null;
+    const text = commandText || (reply?.text || reply?.caption || '');
+
+    if (!copySource && !text) {
+      return replyHTML(
+        ctx,
+        'Usage: <code>/broadcast message</code>\n' +
+          'or reply to any message with <code>/broadcast</code> to copy it exactly.'
+      );
+    }
+
+    let progress = null;
+
+    try {
+      progress = await replyHTML(
+        ctx,
+        copySource
+          ? '📣 Copy broadcast preparing…'
+          : '📣 Text broadcast preparing…'
+      );
+
+      const result = await startBroadcast(
+        bot,
+        ctx.chat.id,
+        text,
+        async (p) => {
+          if (!progress?.message_id) return;
+
+          await editByIds(
+            bot,
+            ctx.chat.id,
+            progress.message_id,
+            '📣 <b>Broadcast Progress</b>\n' +
+              '━━━━━━━━━━━━━━\n' +
+              'Mode: <b>' + (p.mode === 'copy' ? 'COPY' : 'TEXT') + '</b>\n' +
+              'Users: <b>' + p.userSent + '</b> · Approved Groups: <b>' + p.groupSent + '</b>\n' +
+              'Processed: <b>' + p.processed + '</b>/<b>' + p.total + '</b>\n' +
+              'Sent: <b>' + p.ok + '</b>\n' +
+              'Skipped: <b>' + p.skipped + '</b>\n' +
+              'Failed: <b>' + p.fail + '</b>'
+          );
+        },
+        { copyMessage: copySource }
+      );
+
+      const modeText = result.mode === 'copy' ? 'COPY ✅' : 'TEXT';
+      if (progress?.message_id) {
+        await editByIds(
+          bot,
+          ctx.chat.id,
+          progress.message_id,
+          '✅ <b>Broadcast done</b>\n' +
+            '━━━━━━━━━━━━━━\n' +
+            'Mode: <b>' + modeText + '</b>\n' +
+            'Users sent: <b>' + result.userSent + '</b>\n' +
+            'Approved groups sent: <b>' + result.groupSent + '</b>\n' +
+            'Sent: <b>' + result.ok + '</b>\n' +
+            'Skipped: <b>' + result.skipped + '</b>\n' +
+            'Failed: <b>' + result.fail + '</b>\n' +
+            'Processed: <b>' + result.processed + '</b>/<b>' + result.total + '</b>\n' +
+            'Rate cap: <b>' + FREE_BROADCAST_RATE + '/sec</b> · Workers: <b>' + (result.concurrency || SEND_CONCURRENCY) + '</b>' +
+            (result.cancelled ? '\n🛑 <b>Stopped</b>' : '')
+        );
+      } else {
+        await replyHTML(
+          ctx,
+          '✅ Broadcast done · Mode: <b>' + modeText + '</b> · ' +
+            'Users: <b>' + result.userSent + '</b> · Approved Groups: <b>' + result.groupSent + '</b> · ' +
+            'Sent: <b>' + result.ok + '</b> · Skipped: <b>' + result.skipped + '</b> · Failed: <b>' + result.fail + '</b>'
+        );
+      }
+    } catch (e) {
+      const message =
+        e.message === 'BROADCAST_RUNNING'
+          ? '⚠️ Broadcast တစ်ခု run နေပါတယ်။'
+          : e.message === 'BROADCAST_SOURCE_INVALID'
+            ? '⚠️ Copy source message မမှန်ကန်ပါ။'
+            : '⚠️ Broadcast error';
+
+      if (progress?.message_id) {
+        await editByIds(bot, ctx.chat.id, progress.message_id, message);
+      } else {
+        await replyHTML(ctx, message);
+      }
+    }
+  });
+
+  bot.command('broadcastend', async (ctx) => {
+    const t = await ensureTreasury();
+    if (!isOwner(ctx, t)) return replyHTML(ctx, '⛔ Owner only.');
+
+    return replyHTML(
+      ctx,
+      stopBroadcast()
+        ? '🛑 Broadcast stopping…'
+        : 'ℹ️ Broadcast မရှိပါ။'
+    );
+  });
+};
