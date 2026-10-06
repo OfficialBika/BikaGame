@@ -1,0 +1,277 @@
+/* BIKA UNIFIED PRODUCT SYSTEM v34
+ * One visual language across every game.
+ * Frontend-only. API/game logic untouched.
+ */
+:root{
+  --bika-surface-0:#05070c;
+  --bika-surface-1:#090d15;
+  --bika-surface-2:#0e1420;
+  --bika-surface-3:#131b29;
+  --bika-border:rgba(255,255,255,.085);
+  --bika-border-hi:rgba(255,255,255,.14);
+  --bika-text:#f5f7fc;
+  --bika-sub:#9aa6b9;
+  --bika-dim:#68758b;
+  --bika-accent:#61e8ff;
+  --bika-accent-2:#738cff;
+  --bika-success:#4ee1ab;
+  --bika-warning:#f2c86c;
+  --bika-danger:#ff5b7b;
+  --bika-radius-xl:30px;
+  --bika-radius-lg:22px;
+  --bika-radius-md:15px;
+  --bika-shadow:0 24px 70px rgba(0,0,0,.38);
+  --bika-inner:inset 0 1px rgba(255,255,255,.055);
+}
+
+/* ---------- Shared page architecture ---------- */
+.game-panel{
+  --game-accent:var(--bika-accent);
+  --game-accent-rgb:97,232,255;
+  --game-glow:rgba(97,232,255,.10);
+  width:100%;
+  max-width:1180px;
+  margin-inline:auto;
+}
+#crash{--game-accent:#62eaff;--game-accent-rgb:98,234,255}
+#slot{--game-accent:#f2ca72;--game-accent-rgb:242,202,114}
+#blackjack{--game-accent:#52e2ac;--game-accent-rgb:82,226,172}
+#shan{--game-accent:#ffcf72;--game-accent-rgb:255,207,114}
+#plinko{--game-accent:#7b9aff;--game-accent-rgb:123,154,255}
+#wheel{--game-accent:#e7bd68;--game-accent-rgb:231,189,104}
+#mines{--game-accent:#72eaff;--game-accent-rgb:114,234,255}
+
+.game-panel{
+  animation:bikaPageIn .22s cubic-bezier(.2,.8,.2,1) both;
+}
+.game-panel .game-toolbar{
+  display:flex !important;
+  align-items:center !important;
+  justify-content:space-between !important;
+  gap:12px !important;
+  min-height:54px !important;
+  padding:5px 2px 13px !important;
+}
+.game-panel .game-toolbar h2{
+  display:flex !important;
+  align-items:center !important;
+  gap:9px !important;
+  margin:0 !important;
+  font-size:18px !important;
+  font-weight:950 !important;
+  letter-spacing:-.035em !important;
+}
+.game-panel .game-toolbar h2:before{
+  content:"";
+  width:7px;
+  height:7px;
+  flex:0 0 7px;
+  border-radius:50%;
+  background:var(--game-accent);
+  box-shadow:0 0 17px rgba(var(--game-accent-rgb),.65);
+}
+.game-panel .game-toolbar .back-home{
+  border:1px solid var(--bika-border) !important;
+  background:rgba(255,255,255,.035) !important;
+  color:#aeb8c8 !important;
+  box-shadow:var(--bika-inner) !important;
+}
+
+/* Shared card / section hierarchy */
+.game-panel .premium-card,
+.game-panel .history-card,
+.game-panel .players-card,
+.game-panel .slot-card,
+.game-panel .blackjack-card,
+.game-panel .shan-card,
+.game-panel .plinko-card,
+.game-panel .wheel-card,
+.game-panel .mines-card{
+  border:1px solid var(--bika-border) !important;
+  background:
+    linear-gradient(145deg,rgba(16,22,34,.94),rgba(7,10,17,.97)) !important;
+  box-shadow:var(--bika-shadow),var(--bika-inner) !important;
+}
+.game-panel .premium-card{
+  border-radius:var(--bika-radius-xl) !important;
+}
+.game-panel .history-card{
+  margin-top:13px !important;
+  padding:13px !important;
+  border-radius:var(--bika-radius-lg) !important;
+}
+.game-panel .section-title,
+.game-panel .card-title,
+.game-panel .history-title{
+  color:#eef3fb !important;
+  font-weight:900 !important;
+  letter-spacing:-.025em !important;
+}
+.game-panel .muted,
+.game-panel .hint,
+.game-panel small{
+  color:var(--bika-sub) !important;
+}
+
+/* Shared stat modules */
+.game-panel .stat,
+.game-panel .mini-stat,
+.game-panel .mini-stats>div,
+.game-panel .game-stat,
+.game-panel [class*="stat-box"]{
+  border:1px solid rgba(255,255,255,.065) !important;
+  border-radius:var(--bika-radius-md) !important;
+  background:rgba(255,255,255,.028) !important;
+  box-shadow:inset 0 1px rgba(255,255,255,.035) !important;
+}
+.game-panel .stat b,
+.game-panel .mini-stat b,
+.game-panel .mini-stats b{
+  color:#f7f9ff !important;
+  font-variant-numeric:tabular-nums;
+}
+
+/* Shared form system */
+.game-panel .bet-box{
+  padding:11px !important;
+  border:1px solid rgba(255,255,255,.065) !important;
+  border-radius:18px !important;
+  background:rgba(255,255,255,.022) !important;
+}
+.game-panel input,
+.game-panel select{
+  color:#f8fbff !important;
+  border:1px solid var(--bika-border-hi) !important;
+  border-radius:13px !important;
+  background:#060a11 !important;
+  outline:none !important;
+  box-shadow:inset 0 1px rgba(255,255,255,.035) !important;
+  transition:border-color .18s,box-shadow .18s !important;
+}
+.game-panel input:focus,
+.game-panel select:focus{
+  border-color:rgba(var(--game-accent-rgb),.48) !important;
+  box-shadow:0 0 0 3px rgba(var(--game-accent-rgb),.08),inset 0 1px rgba(255,255,255,.04) !important;
+}
+.game-panel .quick-bets button,
+.game-panel .secondary-btn{
+  border:1px solid var(--bika-border) !important;
+  border-radius:12px !important;
+  background:rgba(255,255,255,.035) !important;
+  color:#aeb9ca !important;
+}
+.game-panel .primary-btn,
+.game-panel button.primary{
+  border:1px solid rgba(var(--game-accent-rgb),.34) !important;
+  border-radius:13px !important;
+  background:linear-gradient(135deg,
+    rgba(var(--game-accent-rgb),.95),
+    rgba(115,140,255,.92)) !important;
+  color:#061019 !important;
+  box-shadow:0 12px 30px rgba(var(--game-accent-rgb),.10),var(--bika-inner) !important;
+}
+.game-panel button:not(:disabled){
+  -webkit-tap-highlight-color:transparent;
+}
+.game-panel button:disabled{
+  cursor:not-allowed !important;
+}
+
+/* Shared result/status strip */
+.game-panel .result{
+  min-height:46px !important;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:14px !important;
+  border:1px solid rgba(255,255,255,.075) !important;
+  background:rgba(255,255,255,.025) !important;
+  color:#aeb9ca !important;
+  line-height:1.45 !important;
+}
+.game-panel .result.win{
+  border-color:rgba(78,225,171,.25) !important;
+  background:linear-gradient(145deg,rgba(78,225,171,.08),rgba(255,255,255,.018)) !important;
+  color:#9af3d1 !important;
+}
+.game-panel .result.lose{
+  border-color:rgba(255,91,123,.20) !important;
+  background:linear-gradient(145deg,rgba(255,91,123,.065),rgba(255,255,255,.018)) !important;
+  color:#ffadbd !important;
+}
+
+/* Shared history */
+.game-panel .history-list,
+.game-panel .history-item{
+  border-color:rgba(255,255,255,.06) !important;
+}
+.game-panel .history-item{
+  border-radius:13px !important;
+  background:rgba(255,255,255,.025) !important;
+}
+.game-panel .history-item b{
+  color:#edf2fa !important;
+}
+
+/* Accent rails unify all game panels */
+.game-panel .premium-card:before,
+.game-panel .history-card:before{
+  content:"";
+  display:block;
+  width:42px;
+  height:2px;
+  margin-bottom:11px;
+  border-radius:99px;
+  background:linear-gradient(90deg,var(--game-accent),transparent);
+  box-shadow:0 0 16px rgba(var(--game-accent-rgb),.22);
+}
+
+/* Shared action row */
+.game-panel .game-actions,
+.game-panel .action-row,
+.game-panel .controls-row{
+  gap:8px !important;
+}
+.game-panel .hit-btn,
+.game-panel .stand-btn,
+.game-panel .cashout-btn{
+  border-radius:13px !important;
+  min-height:50px !important;
+}
+.game-panel .cashout-btn{
+  border-color:rgba(242,200,108,.28) !important;
+}
+.game-panel .hit-btn{
+  border-color:rgba(78,225,171,.28) !important;
+}
+.game-panel .stand-btn{
+  border-color:rgba(255,91,123,.25) !important;
+}
+
+/* Game-specific identity is subtle, not a different design language */
+#crash .premium-card{box-shadow:0 24px 70px rgba(0,0,0,.38),0 0 55px rgba(98,234,255,.035),var(--bika-inner)!important}
+#slot .premium-card{box-shadow:0 24px 70px rgba(0,0,0,.38),0 0 55px rgba(242,202,114,.035),var(--bika-inner)!important}
+#blackjack .premium-card{box-shadow:0 24px 70px rgba(0,0,0,.38),0 0 55px rgba(82,226,172,.035),var(--bika-inner)!important}
+#shan .premium-card{box-shadow:0 24px 70px rgba(0,0,0,.38),0 0 55px rgba(255,207,114,.035),var(--bika-inner)!important}
+#plinko .premium-card{box-shadow:0 24px 70px rgba(0,0,0,.38),0 0 55px rgba(123,154,255,.035),var(--bika-inner)!important}
+#wheel .premium-card{box-shadow:0 24px 70px rgba(0,0,0,.38),0 0 55px rgba(231,189,104,.035),var(--bika-inner)!important}
+#mines .premium-card{box-shadow:0 24px 70px rgba(0,0,0,.38),0 0 55px rgba(114,234,255,.035),var(--bika-inner)!important}
+
+/* Responsive rhythm */
+@media(max-width:760px){
+  .game-panel .game-toolbar{min-height:48px !important;padding-bottom:9px !important}
+  .game-panel .game-toolbar h2{font-size:15px !important}
+  .game-panel .history-card{padding:10px !important}
+  .game-panel .bet-box{padding:9px !important}
+}
+@media(min-width:1000px){
+  .game-panel{padding-inline:4px}
+  .game-panel .game-toolbar{padding-inline:4px !important}
+}
+@media(prefers-reduced-motion:reduce){
+  .game-panel{animation:none !important}
+}
+@keyframes bikaPageIn{
+  from{opacity:0;transform:translateY(5px)}
+  to{opacity:1;transform:none}
+}
