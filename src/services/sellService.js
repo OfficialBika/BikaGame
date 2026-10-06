@@ -236,83 +236,44 @@ async function listSellerOrders(sellerId, limit = 10) {
 
 async function approveOrder(orderId, ownerId) {
   await ensureSellIndexes();
-
   const order = await getOrder(orderId);
-  if (!order) return { ok: false, reason: 'ORDER_NOT_FOUND', order: null };
-  if (order.status === 'APPROVED') return { ok: false, reason: 'ORDER_ALREADY_APPROVED', order };
-  if (order.status === 'APPROVING') {
-    const approvedTx = await col('transactions').findOne({ type: 'sell_card_approved', orderId: String(orderId) });
-    if (approvedTx) {
-      await ordersCol().updateOne(
-        { orderId: String(orderId), status: 'APPROVING' },
-        { $set: { status: 'APPROVED', approvedAt: approvedTx.createdAt || new Date(), approvedBy: approvedTx.approvedBy || Number(ownerId), updatedAt: new Date() } }
-      );
-      return { ok: true, duplicate: true, order: await getOrder(orderId) };
-    }
-    return { ok: false, reason: 'ORDER_ALREADY_APPROVING', order };
-  }
-  if (order.status !== 'PENDING') return { ok: false, reason: `ORDER_ALREADY_${order.status}`, order };
+  if (!order) return { ok:false, reason:'ORDER_NOT_FOUND', order:null };
+  if (order.status === 'APPROVED') return { ok:false, reason:'ORDER_ALREADY_APPROVED', order };
+  if (order.status !== 'PENDING' && order.status !== 'APPROVING') return { ok:false, reason:`ORDER_ALREADY_${order.status}`, order };
 
-  const claim = await ordersCol().findOneAndUpdate(
-    { orderId: String(orderId), status: 'PENDING' },
-    { $set: { status: 'APPROVING', approvedBy: Number(ownerId), updatedAt: new Date() } },
-    { returnDocument: 'after' }
-  );
-  if (!claim) {
-    const current = await getOrder(orderId);
-    return { ok: false, reason: current ? `ORDER_ALREADY_${current.status}` : 'ORDER_NOT_FOUND', order: current };
-  }
+  const claim = order.status === 'PENDING'
+    ? await ordersCol().findOneAndUpdate({orderId:String(orderId),status:'PENDING'},{$set:{status:'APPROVING',approvedBy:Number(ownerId),updatedAt:new Date()}},{returnDocument:'after'})
+    : order;
+  if (!claim) { const current=await getOrder(orderId); return {ok:false,reason:current?`ORDER_ALREADY_${current.status}`:'ORDER_NOT_FOUND',order:current}; }
 
   try {
-    const result = await withRequiredTx(async (session) => {
-      const opts = { session };
-      const tx = col('transactions');
-      const existing = await tx.findOne(
-        { type: 'sell_card_approved', orderId: String(orderId) },
-        opts
+    const result=await withRequiredTx(async(session)=>{
+      const opts={session}; const tx=col('transactions'); const markerId=`__settlement:sell:${String(orderId)}`;
+      const existingApproval=await tx.findOne({type:'sell_card_approved',orderId:String(orderId)},opts);
+      if(existingApproval){ return {duplicate:true}; }
+      const marker=await tx.findOne({_id:markerId},opts);
+      if(marker) return {duplicate:true};
+      await tx.insertOne({_id:markerId,type:'sell_card_settlement',orderId:String(orderId),status:'PROCESSING',createdAt:new Date()},opts);
+      const seller=await col('users').findOneAndUpdate(
+        {userId:{$in:[String(claim.sellerId),Number(claim.sellerId)]}},
+        {$inc:{balance:Number(claim.price)},$set:{updatedAt:new Date()}},
+        {session,returnDocument:'after'}
       );
-      if (!existing) {
-        const userUpdate = await col('users').updateOne(
-          { userId: Number(claim.sellerId) },
-          { $inc: { balance: Number(claim.price) }, $set: { updatedAt: new Date() } },
-          opts
-        );
-        if (userUpdate.matchedCount !== 1) throw new Error('SELLER_USER_NOT_FOUND');
-
-        await tx.insertOne({
-          userId: Number(claim.sellerId),
-          amount: Number(claim.price),
-          type: 'sell_card_approved',
-          direction: 'credit',
-          orderId: String(claim.orderId),
-          receipt: claim.receipt,
-          botKey: claim.botKey,
-          botName: claim.botName,
-          rarityKey: claim.rarityKey,
-          rarityName: claim.rarityName,
-          giftLink: claim.giftLink,
-          approvedBy: Number(ownerId),
-          createdAt: new Date(),
-        }, opts);
-      }
-
-      return existing ? { duplicate: true } : { duplicate: false };
+      if(!seller) throw new Error('SELLER_USER_NOT_FOUND');
+      await tx.insertOne({
+        userId:seller.userId, amount:Number(claim.price), type:'sell_card_approved', direction:'credit', orderId:String(claim.orderId),
+        receipt:claim.receipt, botKey:claim.botKey, botName:claim.botName, rarityKey:claim.rarityKey, rarityName:claim.rarityName, giftLink:claim.giftLink, approvedBy:Number(ownerId), createdAt:new Date(),
+      },opts);
+      await tx.updateOne({_id:markerId},{ $set:{status:'COMMITTED',userId:seller.userId,amount:Number(claim.price),updatedAt:new Date()} },opts);
+      return {duplicate:false};
     });
-
-    await ordersCol().updateOne(
-      { orderId: String(orderId), status: 'APPROVING' },
-      { $set: { status: 'APPROVED', approvedAt: new Date(), approvedBy: Number(ownerId), updatedAt: new Date() } }
-    );
-    return { ok: true, duplicate: !!result.duplicate, order: await getOrder(orderId) };
-  } catch (err) {
-    await ordersCol().updateOne(
-      { orderId: String(orderId), status: 'APPROVING' },
-      { $set: { status: 'PENDING', lastError: err?.message || String(err), updatedAt: new Date() } }
-    );
+    await ordersCol().updateOne({orderId:String(orderId),status:'APPROVING'},{$set:{status:'APPROVED',approvedAt:new Date(),approvedBy:Number(ownerId),updatedAt:new Date()}});
+    return {ok:true,duplicate:!!result.duplicate,order:await getOrder(orderId)};
+  } catch(err) {
+    await ordersCol().updateOne({orderId:String(orderId),status:'APPROVING'},{$set:{status:'PENDING',lastError:err?.message||String(err),updatedAt:new Date()}});
     throw err;
   }
 }
-
 async function cancelOrder(orderId, ownerId) {
   await ensureSellIndexes();
 
