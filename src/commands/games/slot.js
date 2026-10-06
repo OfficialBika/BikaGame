@@ -3,8 +3,7 @@
 const { COIN, SLOT } = require('../../config/constants');
 const {
   getUser,
-  userPayToTreasury,
-  treasuryPayToUser,
+  settleSingleGame,
 } = require('../../services/economyService');
 const { getTreasury } = require('../../services/treasuryService');
 const { checkCooldown } = require('../../services/cooldownService');
@@ -228,17 +227,6 @@ module.exports = (bot) => {
         );
       }
 
-      try {
-        await userPayToTreasury(userId, bet, {
-          type: 'slot_bet',
-          chatId,
-          idempotencyKey: `${spinId}:bet`,
-        });
-        betTaken = true;
-      } catch (_) {
-        return editByIds(bot, chatId, sent.message_id, '❌ Balance မလုံလောက်ပါ။');
-      }
-
       const treasury = await getTreasury();
       const {
         rtpWinRate,
@@ -259,21 +247,24 @@ module.exports = (bot) => {
       let payout = multiplier > 0 ? Math.floor(bet * multiplier) : 0;
 
       if (payout > 0) {
-        const latestTreasury = await getTreasury();
-        const ownerBalance = Math.max(0, Number(latestTreasury?.ownerBalance || 0));
+        const ownerBalance = Math.max(0, Number(treasury?.ownerBalance || 0));
         const capPercent = Math.max(0, Math.min(1, Number(SLOT.capPercent || 0.30)));
         const maxPayout = Math.floor(ownerBalance * capPercent);
 
         payout = Math.min(payout, maxPayout, ownerBalance);
       }
 
-      if (payout > 0) {
-        try {
-          await treasuryPayToUser(userId, payout, {
-            type: 'slot_win',
-            idempotencyKey: `${spinId}:win`,
-            bet,
-            payout,
+      // One atomic transaction settles the bet and payout together.
+      // Any failure rolls the complete settlement back.
+      try {
+        await settleSingleGame({
+          settlementId: spinId,
+          typePrefix: 'slot',
+          userId,
+          bet,
+          payout,
+          meta: {
+            chatId,
             multiplier,
             combo: finalReels.join(','),
             rtpWinRate,
@@ -281,32 +272,26 @@ module.exports = (bot) => {
             rtpMode,
             promoRtpId,
             promoExpiresAt,
-          });
-        } catch (_) {
-          try {
-            await treasuryPayToUser(userId, bet, {
-              type: 'slot_refund',
-              idempotencyKey: `${spinId}:refund`,
-              bet,
-              reason: 'payout_failed',
-            });
-          } catch (_) {}
+          },
+        });
+        betTaken = false;
+      } catch (settlementErr) {
+        const message = String(settlementErr?.message || '');
 
-          betTaken = false;
-
-          // Show payout failure quickly after the safe refund completes.
-          await sleep(300);
-          return editByIds(
-            bot,
-            chatId,
-            sent.message_id,
-            `${SLOT_EMOJI} <b>BIKA Pro Slot</b>\n` +
-              `━━━━━━━━━━━\n` +
-              `<pre>${engine.art(finalReels)}</pre>\n` +
-              `━━━━━━━━━━━\n` +
-              `⚠️ Payout error ဖြစ်လို့ bet refund ပြန်ပေးထားပါတယ်။`
-          );
+        if (message === 'USER_INSUFFICIENT') {
+          return editByIds(bot, chatId, sent.message_id, '❌ Balance မလုံလောက်ပါ။');
         }
+
+        return editByIds(
+          bot,
+          chatId,
+          sent.message_id,
+          `${SLOT_EMOJI} <b>BIKA Pro Slot</b>\n` +
+            `━━━━━━━━━━━\n` +
+            `<pre>${engine.art(finalReels)}</pre>\n` +
+            `━━━━━━━━━━━\n` +
+            `⚠️ Settlement မအောင်မြင်လို့ ငွေစာရင်းကို atomic rollback လုပ်ထားပါတယ်။`
+        );
       }
 
       betTaken = false;
@@ -320,16 +305,8 @@ module.exports = (bot) => {
         resultText(finalReels, bet, payout)
       );
     } catch (err) {
-      if (betTaken) {
-        try {
-          await treasuryPayToUser(userId, bet, {
-            type: 'slot_refund',
-            idempotencyKey: `${spinId}:refund`,
-            bet,
-            reason: 'slot_runtime_error',
-          });
-        } catch (_) {}
-      }
+      // Settlement uses one Mongo transaction. If it throws before commit,
+      // the bet is rolled back automatically, so no manual refund is needed.
 
       if (sent?.message_id) {
         return editByIds(
