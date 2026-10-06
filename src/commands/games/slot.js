@@ -313,7 +313,7 @@ module.exports = (bot) => {
           bot,
           chatId,
           sent.message_id,
-          '⚠️ <b>Slot Error</b>\n━━━━━━━━━━━\nError ဖြစ်လို့ bet refund ပြန်ပေးထားပါတယ်။'
+          '⚠️ <b>Slot Error</b>\n━━━━━━━━━━━\nSettlement မအောင်မြင်ပါ။ ငွေစာရင်းကို atomic rollback လုပ်ထားပါတယ်။'
         );
       }
 
