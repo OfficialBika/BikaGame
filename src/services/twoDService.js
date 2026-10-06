@@ -1,6 +1,6 @@
 'use strict';
 
-const { col, withMaybeTx } = require('../config/database');
+const { col, withRequiredTx } = require('../config/database');
 const userModel = require('../models/userModel');
 const { env } = require('../config/env');
 const { logTx } = require('./transactionService');
@@ -23,7 +23,7 @@ const positions = () => col('two_d_positions');
 const offdates = () => col('two_d_offdates');
 // The bot's real treasury/bank document is stored in the config collection via treasuryService.
 // Keep 2D settlement on the same ownerBalance used by /treasury and economyService.
-const treasury = () => col('config');
+const treasury = () => col('treasury');
 
 const USER_SETTLEMENT_KEYS = 'twoDSettlementKeys';
 function settlementKey(eventId, userId) { return String(eventId) + ':' + String(userId); }
@@ -533,49 +533,50 @@ async function addBet(ctx, e, parsed) {
   const userId = Number(ctx.from && ctx.from.id);
   if (!userId) throw new Error('USER_REQUIRED');
   const sourceChatId = Number(ctx.chat.id), sourceMessageId = Number(ctx.message.message_id), now = new Date();
-  const old = await bets().findOne({ eventId: e.eventId, sourceChatId: sourceChatId, sourceMessageId: sourceMessageId });
-  if (old) return { duplicate: true, lines: old.lines, total: old.total, balance: null };
-  if (!(await userModel.collection().findOne({ userId: userId }))) throw new Error('USER_NOT_STARTED');
-  let debited = false;
-  const appliedLines = [];
-  const out = await withMaybeTx(async function (session) {
-    const opt = session ? { session: session, returnDocument: 'after' } : { returnDocument: 'after' };
-    const u0 = await userModel.collection().findOneAndUpdate({ userId: userId, balance: { $gte: parsed.total } }, { $inc: { balance: -parsed.total, totalLost: parsed.total }, $set: { updatedAt: now } }, opt);
+  const markerId = `__settlement:2d-bet:${String(e.eventId)}:${sourceChatId}:${sourceMessageId}`;
+  const out = await withRequiredTx(async function (session) {
+    const opt = { session, returnDocument: 'after' };
+    const tx = col('transactions');
+    const existingMarker = await tx.findOne({ _id: markerId }, { session });
+    if (existingMarker) return { duplicate: true, lines: parsed.lines, total: parsed.total, balance: null };
+
+    const old = await bets().findOne({ eventId: e.eventId, sourceChatId, sourceMessageId }, { session });
+    if (old) return { duplicate: true, lines: old.lines, total: old.total, balance: null };
+    if (!(await userModel.collection().findOne({ userId }, { session }))) throw new Error('USER_NOT_STARTED');
+
+    const u0 = await userModel.collection().findOneAndUpdate(
+      { userId, balance: { $gte: parsed.total } },
+      { $inc: { balance: -parsed.total, totalLost: parsed.total }, $set: { updatedAt: now } },
+      opt
+    );
     const u = u0 && u0.value !== undefined ? u0.value : u0;
     if (!u) throw new Error('USER_INSUFFICIENT');
-    debited = true;
-    try {
-      for (const line of parsed.lines) {
-        const p0 = await positions().findOneAndUpdate({ eventId: e.eventId, userId: userId, number: line.number, totalAmount: { $lte: MAX_PER_NUMBER - line.amount } }, { $inc: { totalAmount: line.amount }, $set: { updatedAt: now }, $setOnInsert: { eventId: e.eventId, userId: userId, number: line.number, createdAt: now, username: ctx.from.username ? String(ctx.from.username).toLowerCase() : null, firstName: ctx.from.first_name || null } }, Object.assign({ upsert: true, returnDocument: 'after' }, session ? { session: session } : {}));
-        const p = p0 && p0.value !== undefined ? p0.value : p0;
-        if (!p || Number(p.totalAmount) > MAX_PER_NUMBER) throw new Error('LIMIT_' + line.number);
-        appliedLines.push(line);
-      }
-      await bets().insertOne({ eventId: e.eventId, userId: userId, sourceChatId: sourceChatId, sourceMessageId: sourceMessageId, username: ctx.from.username ? String(ctx.from.username).toLowerCase() : null, firstName: ctx.from.first_name || null, lastName: ctx.from.last_name || null, lines: parsed.lines, total: parsed.total, createdAt: now }, session ? { session: session } : {});
 
-      // The player's stake has already been deducted above. Move the same amount
-      // into the actual Bot Bank (the same treasury used by /treasury and economyService)
-      // so 2D payouts have a real, auditable funding source.
-      const treasury0 = await treasury().findOneAndUpdate(
-        { key: 'treasury' },
-        { $inc: { ownerBalance: parsed.total }, $set: { updatedAt: now } },
-        Object.assign({ returnDocument: 'after' }, session ? { session: session } : {})
+    for (const line of parsed.lines) {
+      const p0 = await positions().findOneAndUpdate(
+        { eventId: e.eventId, userId, number: line.number, totalAmount: { $lte: MAX_PER_NUMBER - line.amount } },
+        { $inc: { totalAmount: line.amount }, $set: { updatedAt: now }, $setOnInsert: { eventId: e.eventId, userId, number: line.number, createdAt: now, username: ctx.from.username ? String(ctx.from.username).toLowerCase() : null, firstName: ctx.from.first_name || null } },
+        { session, upsert: true, returnDocument: 'after' }
       );
-      const treasuryDoc = treasury0 && treasury0.value !== undefined ? treasury0.value : treasury0;
-      if (!treasuryDoc) throw new Error('TREASURY_NOT_READY');
-
-      await logTx({ type: '2d_bet', fromUserId: userId, toUserId: 'TREASURY', amount: parsed.total, meta: { eventId: e.eventId, lines: parsed.lines } }, session ? { session: session } : {});
-      return { balance: Number(u.balance) };
-    } catch (err) {
-      if (!session && debited) {
-        await userModel.collection().updateOne({ userId: userId }, { $inc: { balance: parsed.total, totalLost: -parsed.total }, $set: { updatedAt: new Date() } });
-        await treasury().updateOne({ key: 'treasury' }, { $inc: { ownerBalance: -parsed.total }, $set: { updatedAt: new Date() } });
-        for (const line of appliedLines) await positions().updateOne({ eventId: e.eventId, userId: userId, number: line.number }, { $inc: { totalAmount: -line.amount } });
-      }
-      throw err;
+      const p = p0 && p0.value !== undefined ? p0.value : p0;
+      if (!p || Number(p.totalAmount) > MAX_PER_NUMBER) throw new Error('LIMIT_' + line.number);
     }
+
+    await bets().insertOne({ eventId:e.eventId,userId,sourceChatId,sourceMessageId,username:ctx.from.username?String(ctx.from.username).toLowerCase():null,firstName:ctx.from.first_name||null,lastName:ctx.from.last_name||null,lines:parsed.lines,total:parsed.total,createdAt:now },{session});
+
+    const treasuryDoc = await treasury().findOneAndUpdate(
+      { key:'treasury' },
+      { $inc:{ ownerBalance:parsed.total }, $set:{ updatedAt:now } },
+      { session, returnDocument:'after' }
+    );
+    const bank = treasuryDoc && treasuryDoc.value !== undefined ? treasuryDoc.value : treasuryDoc;
+    if (!bank) throw new Error('TREASURY_NOT_READY');
+
+    await logTx({ type:'2d_bet', fromUserId:userId, toUserId:'TREASURY', amount:parsed.total, meta:{eventId:e.eventId,lines:parsed.lines,idempotencyKey:`${markerId}:bet`} }, {session});
+    await tx.insertOne({ _id:markerId,type:'2d_bet_settlement',eventId:e.eventId,userId,amount:parsed.total,meta:{idempotencyKey:markerId},createdAt:now }, {session});
+    return { duplicate:false, lines:parsed.lines, display:parsed.display, total:parsed.total, balance:Number(u.balance) };
   });
-  return { duplicate: false, lines: parsed.lines, display: parsed.display, total: parsed.total, balance: out.balance };
+  return out;
 }
 function betComplete(e, r, useCustom) {
   const list = (r.display || r.lines.map(function (x) { return { label: x.number, amount: x.amount, multiplier: 1 }; })).map(function (x) {
@@ -686,82 +687,74 @@ function winnerText(rows) {
 }
 async function settle(e, number) {
   const current = await getEvent(e.eventId);
-  if (!current || !['closed', 'settling'].includes(current.status) || current.resultAt) {
-    throw new Error('RESULT_ALREADY_SETTLED');
-  }
-  if (current.status === 'settling' && current.winningNumber && current.winningNumber !== number) {
-    throw new Error('SETTLEMENT_IN_PROGRESS');
-  }
+  if (!current || !['closed', 'settling'].includes(current.status) || current.resultAt) throw new Error('RESULT_ALREADY_SETTLED');
+  if (current.status === 'settling' && current.winningNumber && current.winningNumber !== number) throw new Error('SETTLEMENT_IN_PROGRESS');
 
-  // Atomically claim the event. If another request already claimed it, resume that same settlement.
   if (current.status === 'closed') {
     const claim0 = await events().findOneAndUpdate(
-      { eventId: e.eventId, status: 'closed', resultAt: null },
-      { $set: { status: 'settling', winningNumber: number, settlementStartedAt: new Date(), updatedAt: new Date() } },
-      { returnDocument: 'after' }
+      { eventId:e.eventId, status:'closed', resultAt:null },
+      { $set:{ status:'settling', winningNumber:number, settlementStartedAt:new Date(), updatedAt:new Date() } },
+      { returnDocument:'after' }
     );
-    const claim = claim0 && claim0.value !== undefined ? claim0.value : claim0;
-    if (!claim) {
-      const locked = await getEvent(e.eventId);
-      if (!locked || locked.status !== 'settling' || locked.winningNumber !== number) throw new Error('SETTLEMENT_IN_PROGRESS');
+    const claim=claim0&&claim0.value!==undefined?claim0.value:claim0;
+    if(!claim){
+      const locked=await getEvent(e.eventId);
+      if(!locked||locked.status!=='settling'||locked.winningNumber!==number) throw new Error('SETTLEMENT_IN_PROGRESS');
     }
   }
 
-  const lockedEvent = await getEvent(e.eventId);
-  const rows = await winners(lockedEvent, number);
-  const total = rows.reduce(function (s, x) { return s + x.payout; }, 0);
-  const now = new Date();
-  const treasuryKey = treasurySettlementKey(lockedEvent.eventId);
+  const lockedEvent=await getEvent(e.eventId);
+  const rows=await winners(lockedEvent,number);
+  const total=rows.reduce((sum,x)=>sum+x.payout,0);
+  const now=new Date();
+  const treasuryKey=treasurySettlementKey(lockedEvent.eventId);
+  const markerId=`__settlement:2d:${String(lockedEvent.eventId)}:${String(number)}`;
 
-  await withMaybeTx(async function (session) {
-    const opt = session ? { session: session } : {};
+  await withRequiredTx(async function(session){
+    const opt={session};
+    const tx=col('transactions');
+    const marker=await tx.findOne({_id:markerId},opt);
+    if(marker) return;
 
-    // Treasury debit is itself idempotent. In fallback mode, the same event can safely resume.
-    if (total) {
-      const t = await treasury().findOneAndUpdate(
-        { key: 'treasury', ownerBalance: { $gte: total }, twoDSettlementKeys: { $ne: treasuryKey } },
-        { $inc: { ownerBalance: -total }, $addToSet: { twoDSettlementKeys: treasuryKey }, $set: { updatedAt: now } },
-        Object.assign({ returnDocument: 'after' }, opt)
+    if(total){
+      const t=await treasury().findOneAndUpdate(
+        {key:'treasury',ownerBalance:{$gte:total},twoDSettlementKeys:{$ne:treasuryKey}},
+        {$inc:{ownerBalance:-total},$addToSet:{twoDSettlementKeys:treasuryKey},$set:{updatedAt:now}},
+        {session,returnDocument:'after'}
       );
-      const treasuryDoc = t && t.value !== undefined ? t.value : t;
-      if (!treasuryDoc) {
-        const already = await treasury().findOne({ key: 'treasury', twoDSettlementKeys: treasuryKey });
-        if (!already) throw new Error('TREASURY_INSUFFICIENT');
+      const bank=t&&t.value!==undefined?t.value:t;
+      if(!bank){
+        const already=await treasury().findOne({key:'treasury',twoDSettlementKeys:treasuryKey},opt);
+        if(!already) throw new Error('TREASURY_INSUFFICIENT');
       }
     }
 
-    for (const x of rows) {
-      const key = settlementKey(lockedEvent.eventId, x.userId);
-      const u = await userModel.collection().updateOne(
-        { userId: x.userId, [USER_SETTLEMENT_KEYS]: { $ne: key } },
-        { $inc: { balance: x.payout, totalWon: x.payout }, $addToSet: { [USER_SETTLEMENT_KEYS]: key }, $set: { updatedAt: now } },
-        opt
+    for(const x of rows){
+      const key=settlementKey(lockedEvent.eventId,x.userId);
+      const u=await userModel.collection().findOneAndUpdate(
+        {userId:x.userId,[USER_SETTLEMENT_KEYS]:{$ne:key}},
+        {$inc:{balance:x.payout,totalWon:x.payout},$addToSet:{[USER_SETTLEMENT_KEYS]:key},$set:{updatedAt:now}},
+        {session,returnDocument:'after'}
       );
-
-      // If the marker was already present, the balance was credited in an earlier attempt.
-      // Only the transaction-log repair remains.
-      const txFilter = { type: '2d_win', fromUserId: 'TREASURY', toUserId: x.userId, 'meta.eventId': lockedEvent.eventId, 'meta.winningNumber': number };
-      if (u.modifiedCount === 0) {
-        const existingTx = await col('transactions').findOne(txFilter, opt);
-        if (!existingTx) {
-          await logTx({ type: '2d_win', fromUserId: 'TREASURY', toUserId: x.userId, amount: x.payout, meta: { eventId: lockedEvent.eventId, winningNumber: number } }, opt);
-        }
+      const credited=u&&u.value!==undefined?u.value:u;
+      if(credited){
+        await logTx({type:'2d_win',fromUserId:'TREASURY',toUserId:credited.userId,amount:x.payout,meta:{eventId:lockedEvent.eventId,winningNumber:number,idempotencyKey:`${markerId}:win:${String(x.userId)}`}},opt);
       } else {
-        const existingTx = await col('transactions').findOne(txFilter, opt);
-        if (!existingTx) {
-          await logTx({ type: '2d_win', fromUserId: 'TREASURY', toUserId: x.userId, amount: x.payout, meta: { eventId: lockedEvent.eventId, winningNumber: number } }, opt);
-        }
+        const existingTx=await tx.findOne({type:'2d_win','meta.eventId':lockedEvent.eventId,'meta.winningNumber':number,toUserId:x.userId},opt);
+        if(!existingTx) throw new Error('USER_SETTLEMENT_STATE_CONFLICT');
       }
     }
 
-    await events().updateOne(
-      { eventId: lockedEvent.eventId, status: 'settling', winningNumber: number, resultAt: null },
-      { $set: { status: 'result', resultAt: now, winnerCount: rows.length, totalPayout: total, settlementCompletedAt: now, updatedAt: now } },
+    const finished=await events().updateOne(
+      {eventId:lockedEvent.eventId,status:'settling',winningNumber:number,resultAt:null},
+      {$set:{status:'result',resultAt:now,winnerCount:rows.length,totalPayout:total,settlementCompletedAt:now,updatedAt:now}},
       opt
     );
-  });
+    if(finished.matchedCount!==1) throw new Error('RESULT_STATE_CONFLICT');
 
-  return { rows: rows, total: total, resultAt: now };
+    await tx.insertOne({_id:markerId,type:'2d_settlement',eventId:lockedEvent.eventId,winningNumber:number,totalPayout:total,meta:{idempotencyKey:markerId},createdAt:now},opt);
+  });
+  return {rows,total,resultAt:now};
 }
 async function verifyDailySettlement(event) {
   if (!event || event.status !== 'result' || !event.resultAt) return false;
