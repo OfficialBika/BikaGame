@@ -198,6 +198,8 @@ async function loadMe() {
 function openPanel(id) {
   AudioFX.setScene(id);
   AudioFX.sfx('tap');
+  document.body?.setAttribute('data-bika-game', id || 'home');
+  document.documentElement?.setAttribute('data-bika-game', id || 'home');
   document.querySelectorAll('.panel').forEach((el) => el.classList.toggle('active', el.id === id));
   document.querySelectorAll('.tab').forEach((el) => el.classList.toggle('active', el.dataset.open === id));
   window.scrollTo({ top: 0, behavior: 'smooth' });
