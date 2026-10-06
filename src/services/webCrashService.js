@@ -602,6 +602,7 @@ async function placeWebCrashBet({ userId, user, bet, roomId = DEFAULT_ROOM_ID })
       roomId: room.roomId,
       roundId: round.id,
       roundNo: round.no,
+      idempotencyKey: `${round.id}:bet:${finalUserId}`,
     });
 
     round.players.set(finalUserId, {
@@ -668,6 +669,7 @@ async function cashoutWebCrash({ userId, roomId = DEFAULT_ROOM_ID }) {
       rawPayout,
       multiplier: effectiveMultiplier,
       shownMultiplier: round.currentMultiplier,
+      idempotencyKey: `${round.id}:cashout:${finalUserId}`,
     });
 
     player.cashedOut = true;
