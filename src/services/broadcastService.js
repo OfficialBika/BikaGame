@@ -254,11 +254,13 @@ async function startBroadcast(bot, ownerChatId, text, progressCb, options = {}) 
         if (index >= targets.length) return;
 
         const target = targets[index];
+        let attempted = false;
 
         try {
           await pace();
           if (isCancelled(runId)) return;
 
+          attempted = true;
           await sendBroadcastTarget(bot, target, {
             source: source ? { ...source, message: sourceMessage } : null,
             formattedText,
@@ -271,8 +273,10 @@ async function startBroadcast(bot, ownerChatId, text, progressCb, options = {}) 
           if (isPermanentRecipientError(err)) skipped += 1;
           else fail += 1;
         } finally {
-          processed += 1;
-          queueProgress();
+          if (attempted) {
+            processed += 1;
+            queueProgress();
+          }
         }
       }
     }
