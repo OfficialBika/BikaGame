@@ -31,13 +31,7 @@ function makeId() {
   return `wmn${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function cleanupExpired() {
-  const now = Date.now();
-  for (const [userId, game] of activeGames.entries()) {
-    if (now - Number(game.createdAtMs || now) > TTL_MS) activeGames.delete(userId);
-  }
-}
-
+function cleanupExpired() {,  const now = Date.now();,  for (const game of activeGames.values()) {,    if (game.state === 'playing' && now - Number(game.createdAtMs || now) > TTL_MS && !game.expiring) {,      game.expiring = true;,      expireMinesGame(game).catch((err) => { game.expiring = false; console.error('WEB_MINES_EXPIRE_FAILED:', err?.message || err); });,    },  },},,async function expireMinesGame(game) {,  if (!game || ['lost','cashed_out','expired'].includes(game.state)) return;,  try {,    await treasuryPayToUser(game.userId, game.bet, {,      type:'web_mines_refund', source:'miniapp_mines', gameId:game.id, reason:'expired', idempotencyKey:`${game.id}:expire`,,    });,    game.state='expired';,    activeGames.delete(game.userId);,  } finally {,    game.expiring=false;,  },},
 function createMinePositions(mineCount, blockedIndex) {
   const blocked = new Set([Number(blockedIndex)]);
   const positions = new Set();
@@ -136,14 +130,14 @@ async function startWebMines({ userId, bet }) {
   if (!user) throw new Error('USER_NOT_FOUND');
   if (Number(user.balance || 0) < amount) throw new Error('USER_INSUFFICIENT');
 
+  const gameId = makeId();
   await userPayToTreasury(finalUserId, amount, {
-    type: 'web_mines_bet',
-    source: 'miniapp_mines',
-    mines: DEFAULT_MINES,
+    type: 'web_mines_bet', source: 'miniapp_mines', mines: DEFAULT_MINES,
+    gameId, idempotencyKey: `${gameId}:bet`,
   });
 
   const game = {
-    id: makeId(),
+    id: gameId,
     userId: finalUserId,
     bet: amount,
     mineCount: DEFAULT_MINES,
@@ -153,9 +147,12 @@ async function startWebMines({ userId, bet }) {
     minePositions: null,
     explodedIndex: null,
     createdAtMs: Date.now(),
+    processing: null,
+    expiring: false,
   };
 
   activeGames.set(finalUserId, game);
+  game.expiryTimer = setTimeout(() => expireMinesGame(game).catch((err) => console.error('WEB_MINES_EXPIRE_TIMER_FAILED:', err?.message || err)), TTL_MS + 25);
   const updated = await getUser(finalUserId);
   return { ok: true, balance: Number(updated?.balance || 0), game: publicGame(game) };
 }
@@ -209,46 +206,28 @@ async function cashoutWebMines({ userId }) {
   const finalUserId = cleanUserId(userId);
   const game = activeGames.get(finalUserId);
   if (!game || game.state !== 'playing') throw new Error('NO_ACTIVE_MINES');
-  if (!canCashout(game)) {
-    const err = new Error('MINES_CASHOUT_LOCKED');
-    err.minSafe = MIN_CASHOUT_SAFE;
-    throw err;
+  if (game.processing) throw new Error('MINES_CASHOUT_PROCESSING');
+  if (!canCashout(game)) { const err=new Error('MINES_CASHOUT_LOCKED'); err.minSafe=MIN_CASHOUT_SAFE; throw err; }
+
+  game.processing='cashout';
+  try {
+    const m=multiplier(game);
+    const rawPayout=Math.floor(game.bet*m);
+    const payout=await capPayout(game.bet,rawPayout);
+    if (payout>0) {
+      await treasuryPayToUser(finalUserId,payout,{
+        type:'web_mines_win', source:'miniapp_mines', gameId:game.id, bet:game.bet, payout, rawPayout, multiplier:m, mines:game.mineCount, safeOpened:game.openedSafe.size, rtp:game.rtp, idempotencyKey:`${game.id}:cashout`,
+      });
+    }
+    game.state='cashed_out';
+    if (game.expiryTimer) clearTimeout(game.expiryTimer);
+    activeGames.delete(finalUserId);
+    await recordWebGameHistory({userId:finalUserId,game:'mines',title:`${game.openedSafe.size} safe gems`,outcome:payout>game.bet?'win':payout>0?'paid':'lose',bet:game.bet,payout,net:payout-game.bet,multiplier:m,label:`x${m.toFixed(2)}`,meta:{mines:game.mineCount,safeOpened:game.openedSafe.size,rawPayout,rtp:game.rtp,gameId:game.id}});
+    const updated=await getUser(finalUserId);
+    return {ok:true,result:'cashed_out',payout,rawPayout,balance:Number(updated?.balance||0),game:publicGame(game,{payout})};
+  } finally {
+    game.processing=null;
   }
-
-  const m = multiplier(game);
-  const rawPayout = Math.floor(game.bet * m);
-  const payout = await capPayout(game.bet, rawPayout);
-
-  if (payout > 0) {
-    await treasuryPayToUser(finalUserId, payout, {
-      type: 'web_mines_win',
-      source: 'miniapp_mines',
-      bet: game.bet,
-      payout,
-      rawPayout,
-      multiplier: m,
-      mines: game.mineCount,
-      safeOpened: game.openedSafe.size,
-      rtp: game.rtp,
-    });
-  }
-
-  game.state = 'cashed_out';
-  activeGames.delete(finalUserId);
-  await recordWebGameHistory({
-    userId: finalUserId,
-    game: 'mines',
-    title: `${game.openedSafe.size} safe gems`,
-    outcome: payout > game.bet ? 'win' : payout > 0 ? 'paid' : 'lose',
-    bet: game.bet,
-    payout,
-    net: payout - game.bet,
-    multiplier: m,
-    label: `x${m.toFixed(2)}`,
-    meta: { mines: game.mineCount, safeOpened: game.openedSafe.size, rawPayout, rtp: game.rtp },
-  });
-  const updated = await getUser(finalUserId);
-  return { ok: true, result: 'cashed_out', payout, rawPayout, balance: Number(updated?.balance || 0), game: publicGame(game, { payout }) };
 }
 
 module.exports = {
