@@ -1,76 +1,179 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <meta name="theme-color" content="#05070c" />
-  <meta name="description" content="BIKA Premium Game Arena — Rocket, Slot, Blackjack, Shan Koe Mee, Plinko, Wheel and Mines." />
-  <title>BIKA Premium Game Arena</title>
-  <link rel="stylesheet" href="/miniapp/assets/style.css?v=professional-v32" />
-  <link rel="stylesheet" href="/miniapp/premium-ui-v17.css?v=20261006" />
-  <link id="bika-neon-v37-css" rel="stylesheet" href="/miniapp/bika-neon-v37.css?v=20261006-v37" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#060816">
+  <meta name="description" content="BIKA Game Arena — premium Telegram gaming experience.">
+  <title>BIKA Game Arena</title>
+  <link rel="stylesheet" href="/miniapp/bika-command-v40.css?v=20261007-v40">
 </head>
-<body class="bika-splash-lock">
-  <div id="bikaSplash" role="status" aria-label="Loading BIKA Premium Arena">
-    <div class="bs-grid"></div>
-    <div class="bs-scan"></div>
-    <div class="bs-vignette"></div>
-    <div class="bs-orbit"></div>
-    <div class="bs-core">
-      <div class="bs-brand" aria-label="BIKA">BIKA<span class="bs-sheen"></span></div>
-      <p class="bs-sub">PREMIUM GAME ARENA</p>
-      <p class="bs-tagline">PLAY • COMPETE • WIN</p>
-      <div class="bs-loader">
-        <div class="bs-loader-line"></div>
-        <div class="bs-loader-copy"><i class="bs-status-dot"></i><span>INITIALIZING ARENA</span></div>
-      </div>
-    </div>
+<body class="bika-v40">
+  <div id="bikaSplash" class="splash" role="status" aria-label="Loading BIKA Game Arena">
+    <div class="splash-grid"></div><div class="splash-glow"></div>
+    <div class="splash-core"><div class="splash-logo">BIKA</div><div>GAME ARENA</div><span>INITIALIZING</span></div>
   </div>
-  <div class="bg-orb orb-a"></div>
-  <div class="bg-orb orb-b"></div>
-  <div class="bg-grid"></div>
+
+  <div class="bg-layer bg-one"></div><div class="bg-layer bg-two"></div><div class="bg-grid"></div>
 
   <main class="app-shell">
-    <header class="topbar">
-      <div class="top-user"><div id="avatarText" class="avatar">B</div><div><span>PLAYER</span><b id="playerNameText">Loading...</b></div></div>
-      <div class="online-pill"><i></i><b id="onlineCountText">—</b><span>online</span></div>
-      <div class="wallet-pill"><span>Balance</span><b id="stickyBalanceText">—</b></div>
-    </header>
-
-    <div class="sound-dock" id="soundDock"><button id="soundToggleBtn" class="sound-toggle" type="button" aria-label="Toggle sound">🔇 Sound Off</button><div class="sound-controls" id="soundControls"><label>BGM <input id="musicVolume" type="range" min="0" max="100" value="32" /></label><label>SFX <input id="sfxVolume" type="range" min="0" max="100" value="68" /></label><span id="soundSceneText">Tap Sound On</span></div></div>
-    <section id="notTelegram" class="notice hidden">Telegram Mini App ထဲကနေဖွင့်မှ login verify အလုပ်လုပ်ပါမယ်။</section>
-
-    <section id="home" class="panel active home-panel">
-      <div class="hero-premium"><div><p class="eyebrow">BIKA PREMIUM CASINO</p><h1>Bika Premium Arena</h1><p>Rocket, Slot, Blackjack, Shan Koe Mee, Plinko, Wheel, Mines — premium mobile arena.</p></div><div class="hero-wallet"><span>Wallet</span><strong id="balanceText">—</strong></div></div>
-      <div class="game-grid">
-        <button class="game-card rocket-card" data-open="crash"><div class="badge live">LIVE</div><div class="game-icon">🚀</div><h2>Rocket Crash</h2><p>Multiplayer auto rounds</p><span>Open game</span></button>
-        <button class="game-card slot-home-card" data-open="slot"><div class="badge hot">HOT</div><div class="game-icon">🎰</div><h2>Premium Slot</h2><p>Neon reels & jackpot glow</p><span>Spin now</span></button>
-        <button class="game-card blackjack-home-card" data-open="blackjack"><div class="badge live">LIVE</div><div class="game-icon">🃏</div><h2>Web Blackjack</h2><p>5-player private-hand table</p><span>Join table</span></button>
-        <button class="game-card shan-home-card" data-open="shan"><div class="badge new">NEW</div><div class="game-icon">🃏</div><h2>Shan Koe Mee</h2><p>Human banker live table</p><span>Open table</span></button>
-        <button class="game-card plinko-home-card" data-open="plinko"><div class="badge new">NEW</div><div class="game-icon">🟡</div><h2>Plinko</h2><p>Drop ball to multiplier lane</p><span>Drop ball</span></button>
-        <button class="game-card wheel-home-card" data-open="wheel"><div class="badge daily">DAILY</div><div class="game-icon">🎡</div><h2>Lucky Wheel</h2><p>Spin for bonus multipliers</p><span>Spin wheel</span></button>
-        <button class="game-card mines-home-card" data-open="mines"><div class="badge new">NEW</div><div class="game-icon">💣</div><h2>Web Mines</h2><p>Open gems, avoid bombs</p><span>Play mines</span></button>
+    <aside class="sidebar">
+      <div class="brand-block">
+        <div class="brand-mark">BIKA</div>
+        <div class="brand-sub">GAME ARENA</div>
       </div>
+      <nav class="side-nav" aria-label="Main navigation">
+        <button class="side-item active" data-open="home"><span>⌂</span>Home</button>
+        <button class="side-item" data-open="crash"><span>🚀</span>Games</button>
+        <button class="side-item" data-open="crash"><span>●</span>Live</button>
+        <button class="side-item" data-open="wheel"><span>♕</span>Tournament</button>
+        <button class="side-item" data-open="wheel"><span>✦</span>Leaderboard</button>
+        <button class="side-item" data-open="home"><span>◈</span>Wallet</button>
+        <button class="side-item" data-open="home"><span>◷</span>History</button>
+        <button class="side-item" data-open="home"><span>♙</span>Profile</button>
+        <button class="side-item" data-open="slot"><span>✧</span>VIP Club</button>
+        <button class="side-item" data-open="home"><span>↗</span>Referral</button>
+        <button class="side-item" data-open="home"><span>⚙</span>Settings</button>
+      </nav>
+      <button class="bonus-card" data-open="wheel"><span class="bonus-icon">🎁</span><span><b>Daily Bonus</b><small>Claim your reward</small></span><strong>12:34:56</strong></button>
+    </aside>
+
+    <section class="content-shell">
+      <header class="topbar">
+        <div class="mobile-menu">☰</div>
+        <div class="search-box"><span>⌕</span><input aria-label="Search" placeholder="Search games, players, or events..."></div>
+        <div class="top-actions">
+          <div class="online-pill"><i></i><b id="onlineCountText">—</b><span>Online</span></div>
+          <button class="icon-btn" aria-label="Notifications">♢</button>
+          <div class="player-pill">
+            <div id="avatarText" class="avatar">B</div>
+            <div><b id="playerNameText">Loading...</b><small>Level 18</small></div>
+          </div>
+          <div class="wallet-pill"><span>Balance</span><b id="stickyBalanceText">—</b></div>
+          <button class="deposit-btn" data-open="home">Deposit</button>
+          <button class="telegram-btn" aria-label="Telegram">✈</button>
+        </div>
+      </header>
+
+      <div class="notice hidden" id="notTelegram">Telegram Mini App ထဲကနေဖွင့်မှ login verify အလုပ်လုပ်ပါမယ်။</div>
+
+      <section id="home" class="panel active home-panel">
+        <div class="home-grid">
+          <div class="hero-card">
+            <div class="hero-copy">
+              <p class="kicker">BIKA PREMIUM GAME ARENA</p>
+              <h1>PLAY. WIN. <span>UPGRADE.</span></h1>
+              <p>8+ premium games, fast rounds, live tables and a wallet built for the BIKA community.</p>
+              <div class="hero-actions"><button class="primary-cta" data-open="crash">PLAY NOW <b>→</b></button><button class="ghost-cta" data-open="home">Explore Games</button></div>
+              <div class="hero-tags"><span>✦ Instant Payout</span><span>✦ Secure Wallet</span><span>● 24/7 Online</span></div>
+            </div>
+            <div class="hero-orb">
+              <div class="orb-ring ring-a"></div><div class="orb-ring ring-b"></div><div class="orb-core">BIKA<span>G</span></div>
+            </div>
+          </div>
+
+          <aside class="side-stack">
+            <div class="widget live-widget">
+              <div class="widget-head"><div><p class="kicker">LIVE PLAYERS</p><h3>Active Now</h3></div><span class="live-dot"></span></div>
+              <div class="mini-avatars"><i>A</i><i>K</i><i>M</i><i>S</i><i>+</i><b>+1.2K</b></div>
+              <div class="win-list">
+                <div><span>Ko Min</span><strong>+1,250,000</strong><em>Rocket</em></div>
+                <div><span>Thant Zin</span><strong>+850,000</strong><em>Slot</em></div>
+                <div><span>May Thu</span><strong>+420,000</strong><em>Wheel</em></div>
+                <div><span>Aung Ko</span><strong>+2,100,000</strong><em>Blackjack</em></div>
+              </div>
+            </div>
+            <div class="widget event-widget">
+              <div class="event-art"><div><p class="kicker">DAILY EVENT</p><h3>MEGA REWARDS</h3><small>Bonus drops every day</small></div><div class="trophy">🏆</div></div>
+              <div class="timer-row"><span>12<small>Hours</small></span><span>34<small>Minutes</small></span><span>56<small>Seconds</small></span><button data-open="wheel">JOIN NOW</button></div>
+            </div>
+          </aside>
+
+          <section class="games-section">
+            <div class="section-head"><div><span class="section-icon">🔥</span><div><p class="kicker">BIKA LIBRARY</p><h2>Popular Games</h2></div></div><button data-open="crash">View All Games →</button></div>
+            <div class="game-carousel" id="gameLibrary">
+              <button class="game-tile rocket-card" data-open="crash"><div class="game-art rocket-art"><span class="tile-badge live">● LIVE</span><div class="art-emoji">🚀</div><div class="art-spark"></div></div><h3>Rocket Crash</h3><small>● 1.2K playing</small><strong>PLAY NOW</strong></button>
+              <button class="game-tile slot-home-card" data-open="slot"><div class="game-art slot-art"><span class="tile-badge hot">HOT</span><div class="art-emoji">🎰</div></div><h3>Premium Slot</h3><small>● 856 playing</small><strong>PLAY NOW</strong></button>
+              <button class="game-tile blackjack-home-card" data-open="blackjack"><div class="game-art blackjack-art"><span class="tile-badge live">● LIVE</span><div class="art-emoji">🂡</div></div><h3>Blackjack</h3><small>● 642 playing</small><strong>PLAY NOW</strong></button>
+              <button class="game-tile shan-home-card" data-open="shan"><div class="game-art shan-art"><span class="tile-badge new">NEW</span><div class="art-emoji">🎴</div></div><h3>Shan Koe Mee</h3><small>● 421 playing</small><strong>PLAY NOW</strong></button>
+              <button class="game-tile plinko-home-card" data-open="plinko"><div class="game-art plinko-art"><span class="tile-badge new">NEW</span><div class="art-emoji">🟡</div></div><h3>Plinko</h3><small>● 398 playing</small><strong>PLAY NOW</strong></button>
+              <button class="game-tile wheel-home-card" data-open="wheel"><div class="game-art wheel-art"><span class="tile-badge daily">DAILY</span><div class="art-emoji">🎡</div></div><h3>Lucky Wheel</h3><small>● 512 playing</small><strong>PLAY NOW</strong></button>
+              <button class="game-tile mines-home-card" data-open="mines"><div class="game-art mines-art"><span class="tile-badge new">NEW</span><div class="art-emoji">💣</div></div><h3>Mines</h3><small>● 366 playing</small><strong>PLAY NOW</strong></button>
+            </div>
+          </section>
+
+          <aside class="widget ranking-widget">
+            <div class="widget-head"><div><p class="kicker">TOP PLAYERS</p><h3>Leaderboard</h3></div><button>•••</button></div>
+            <div class="rank-tabs"><span class="active">Today</span><span>This Week</span><span>All Time</span></div>
+            <div class="rank-list">
+              <div><b>1</b><i>👑</i><span>Kyaw Gyi</span><strong>1,250,000,000</strong></div>
+              <div><b>2</b><i>◈</i><span>Maung Maung</span><strong>980,500,000</strong></div>
+              <div><b>3</b><i>✦</i><span>Thant Zin</span><strong>850,200,000</strong></div>
+              <div><b>4</b><i>●</i><span>Su Su</span><strong>642,000,000</strong></div>
+              <div><b>5</b><i>●</i><span>Aung Ko</span><strong>580,330,000</strong></div>
+            </div>
+          </aside>
+
+          <section class="lower-grid">
+            <div class="widget activity-widget"><div class="section-head compact"><div><p class="kicker">REALTIME</p><h3>Live Activity</h3></div><span class="status-chip">● LIVE</span></div><div class="activity-row"><i>🚀</i><span><b>Ko Min</b><small>Rocket Crash</small></span><strong>+1,250,000</strong><em>2s</em></div><div class="activity-row"><i>🎰</i><span><b>Thant Zin</b><small>Premium Slot</small></span><strong>+850,000</strong><em>8s</em></div><div class="activity-row"><i>🎡</i><span><b>May Thu</b><small>Lucky Wheel</small></span><strong>+420,000</strong><em>12s</em></div></div>
+            <div class="widget wallet-widget"><div class="section-head compact"><div><p class="kicker">MY WALLET</p><h3>Quick Access</h3></div><button class="mini-action" data-open="home">Open Wallet</button></div><div class="balance-row"><span>Available Balance</span><strong id="balanceText">—</strong></div><div class="wallet-actions"><button data-open="home">Deposit</button><button data-open="home">Transfer</button><button data-open="home">History</button></div></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="crash" class="panel game-panel">
+        <div class="game-page-head"><button class="back-home" data-open="home">‹ Home</button><div><p class="kicker">LIVE GAME</p><h2>🚀 Rocket Crash</h2></div><span class="status-chip">● LIVE</span></div>
+        <div class="game-workspace">
+          <div class="game-main-card"><div class="stage-top"><span class="round-chip">ROUND <b id="roundTitle">#—</b></span><span class="phase-chip" id="phaseChip">BET</span></div>
+            <div id="rocketScene" class="rocket-stage betting"><div class="stage-stars"></div><div class="stage-grid"></div><div id="roundCountdown" class="countdown-bubble">15</div><div id="crashMultiplier" class="rocket-multiplier">x1.00</div><div id="crashState" class="rocket-state">Bet time စောင့်နေပါတယ်…</div><div class="rocket-arc"></div><div id="rocketShip" class="ship">🚀</div><div id="explosion" class="explosion">💥</div></div>
+            <div class="bet-panel"><div class="bet-input"><span>BET AMOUNT</span><input id="crashBet" type="number" inputmode="numeric" placeholder="50,000"></div><button id="crashStartBtn" class="primary-btn">BET NOW</button><button id="cashoutBtn" class="cashout-btn" disabled>CASH OUT</button></div>
+            <div class="quick-bets"><button data-crash-bet="50">50</button><button data-crash-bet="100">100</button><button data-crash-bet="500">500</button><button data-crash-bet="1000">1K</button><button data-crash-bet="5000">5K</button></div>
+            <div id="crashResult" class="result muted">Auto round လည်နေပါတယ်။ Bet time အတွင်းဝင်ပါ။</div>
+          </div>
+          <aside class="game-side-card"><div class="side-title"><div><p class="kicker">ROUND INFO</p><h3>Live Players</h3></div><b id="playerCount">0</b></div><div class="stat-strip"><span>Total <b id="totalBet">0</b></span><span>Paid <b id="totalPaid">0</b></span></div><div id="playersList" class="player-list"></div><div class="history-card"><div class="history-head"><b>Recent Rounds</b><button data-refresh-history="rocket">Refresh</button></div><div id="rocketHistory" class="history-list"></div></div></aside>
+        </div>
+      </section>
+
+      <section id="slot" class="panel game-panel">
+        <div class="game-page-head"><button class="back-home" data-open="home">‹ Home</button><div><p class="kicker">POPULAR</p><h2>🎰 Premium Slot</h2></div><span class="status-chip hot">HOT</span></div>
+        <div class="single-game-card"><div class="slot-header"><div><p class="kicker">BIKA JACKPOT</p><h3>Lucky Reels</h3></div><b id="slotRange">—</b></div><div id="slotMachine" class="slot-machine"><div class="jackpot-line">JACKPOT <strong>125,680,000</strong></div><div class="reel-window"><div id="slotReelA" class="slot-reel">7️⃣</div><div id="slotReelB" class="slot-reel">💎</div><div id="slotReelC" class="slot-reel">👑</div></div><div class="payline"></div></div><div class="bet-panel"><div class="bet-input"><span>BET AMOUNT</span><input id="slotBet" type="number" inputmode="numeric" placeholder="50,000"></div><button id="spinBtn" class="primary-btn">SPIN NOW</button></div><div class="quick-bets"><button data-slot-bet="50">50</button><button data-slot-bet="100">100</button><button data-slot-bet="500">500</button><button data-slot-bet="1000">1K</button><button data-slot-bet="5000">5K</button></div><div id="slotResult" class="result muted">Bet ထည့်ပြီး SPIN နှိပ်ပါ။</div><div class="history-card"><div class="history-head"><b>Today Slot History</b><button data-refresh-history="slot">Refresh</button></div><div id="slotHistory" class="history-list"></div></div></div>
+      </section>
+
+      <section id="blackjack" class="panel game-panel">
+        <div class="game-page-head"><button class="back-home" data-open="home">‹ Home</button><div><p class="kicker">LIVE TABLE</p><h2>🃏 Blackjack</h2></div><span class="status-chip">● LIVE</span></div>
+        <div class="single-game-card table-game-card"><div class="table-headline"><div><p class="kicker">PRIVATE HANDS • MAX 5 PLAYERS</p><h3 id="bjTableTitle">Blackjack Table</h3><span id="bjRoomHint">Send .wbj in group and open the join button.</span></div><div class="room-chip"><b id="bjRoomState">NO ROOM</b><span id="bjRoomCount">0/5</span></div></div><div class="blackjack-table"><div class="dealer-zone"><div class="zone-label">DEALER <b id="bjDealerTotal">Hidden</b></div><div id="bjDealerCards" class="bj-cards"></div></div><div class="player-zone"><div class="zone-label">YOUR HAND <b id="bjMyTotal">—</b></div><div id="bjMyCards" class="bj-cards"></div></div><div id="bjSeats" class="bj-seats"></div></div><div class="bet-panel"><div class="bet-input"><span>BET AMOUNT</span><input id="bjBet" type="number" inputmode="numeric" placeholder="50,000"></div><button id="bjJoinBtn" class="primary-btn">JOIN TABLE</button></div><div class="action-grid"><button id="bjHitBtn" class="hit-btn" disabled>HIT</button><button id="bjStandBtn" class="stand-btn" disabled>STAND</button></div><div class="quick-bets"><button data-bj-bet="50">50</button><button data-bj-bet="100">100</button><button data-bj-bet="500">500</button><button data-bj-bet="1000">1K</button><button data-bj-bet="5000">5K</button></div><div id="bjResult" class="result muted">Group ထဲမှာ <b>.wbj</b> ပို့ပြီး Join button ကနေဝင်ပါ။</div><div class="history-card"><div class="history-head"><b>Today Blackjack History</b><button data-refresh-history="blackjack">Refresh</button></div><div id="blackjackHistory" class="history-list"></div></div></div>
+      </section>
+
+      <section id="shan" class="panel game-panel">
+        <div class="game-page-head"><button class="back-home" data-open="home">‹ Home</button><div><p class="kicker">LIVE TABLE</p><h2>🎴 Shan Koe Mee Pro</h2></div><span class="status-chip">● LIVE</span></div>
+        <div class="single-game-card table-game-card"><div class="table-headline"><div><p class="kicker">HUMAN BANKER • TURN BY TURN • PRIVATE CARDS</p><h3 id="shanTableTitle">Bika Shan Pro Table</h3><span id="shanRoomHint">Create a banker table or join a table from group link.</span></div><div class="room-chip"><b id="shanRoomState">NO TABLE</b><span id="shanRoomCount">0/6</span></div></div><div class="shan-metrics"><div><span>Banker Stake</span><b id="shanBankerStake">—</b></div><div><span>Total Bet</span><b id="shanTotalBet">0</b></div><div><span>3x Limit</span><b id="shanBetLimit">—</b></div><div><span>Turn Timer</span><b id="shanActionTimer">—</b></div></div><div class="shan-dealer-shoe"><div class="shoe-stack"><i></i><i></i><i></i></div><div><b>BIKA CARD SHOE</b><small>Cards are dealt one player at a time.</small></div><span id="shanTinBanner">TIN 1 / 3</span></div><div id="shanProTable" class="shan-table"><div class="banker-seat" id="shanBankerSeat"><div class="seat-avatar" id="shanBankerAvatar">BK</div><div><b id="shanBankerName">Banker</b><span id="shanBankerInfo">Hidden</span></div><div id="shanBankerCards" class="shan-cards"><span class="card-back">BIKA</span><span class="card-back">BIKA</span></div></div><div class="table-center"><b id="shanStageText">Waiting Table</b><span id="shanJoinTimer">—</span></div><div id="shanSeats" class="shan-seat-ring"></div></div><div class="bet-panel dual"><div class="bet-input"><span>BANKER STAKE</span><input id="shanBankerStakeInput" type="number" inputmode="numeric" placeholder="1,000"></div><button id="shanCreateBtn" class="secondary-btn">CREATE TABLE</button><div class="bet-input"><span>PLAYER BET</span><input id="shanBet" type="number" inputmode="numeric" placeholder="50,000"></div><button id="shanJoinBtn" class="primary-btn">JOIN TABLE</button></div><div class="action-grid"><button id="shanDrawBtn" class="hit-btn" disabled>DRAW</button><button id="shanStayBtn" class="stand-btn" disabled>STAY</button></div><div class="quick-bets"><button data-shan-bet="50">50</button><button data-shan-bet="100">100</button><button data-shan-bet="500">500</button><button data-shan-bet="1000">1K</button><button data-shan-bet="5000">5K</button></div><div id="shanResult" class="result muted">Human banker table ဖြစ်ပါတယ်။</div><details class="rules-box"><summary>Shan Koe Mee Pro Rules</summary><p>Human banker mode: table creator is banker. Players bet against banker. Each player receives 2 private cards, then active turn moves one-by-one.</p></details><div class="history-card"><div class="history-head"><b>Today Shan History</b><button data-refresh-history="shan">Refresh</button></div><div id="shanHistory" class="history-list"></div></div></div>
+      </section>
+
+      <section id="plinko" class="panel game-panel">
+        <div class="game-page-head"><button class="back-home" data-open="home">‹ Home</button><div><p class="kicker">NEW GAME</p><h2>🟡 Plinko</h2></div><span class="status-chip new">NEW</span></div>
+        <div class="single-game-card"><div id="plinkoBoard" class="plinko-board"><div class="plinko-head">DROP & MULTIPLY</div><div class="plinko-lane"></div><div id="plinkoBall" class="plinko-ball"></div></div><div id="plinkoBuckets" class="bucket-row"></div><div class="bet-panel"><div class="bet-input"><span>BET AMOUNT</span><input id="plinkoBet" type="number" inputmode="numeric" placeholder="50,000"></div><button id="plinkoBtn" class="primary-btn">DROP BALL</button></div><div class="quick-bets"><button data-plinko-bet="50">50</button><button data-plinko-bet="100">100</button><button data-plinko-bet="500">500</button><button data-plinko-bet="1000">1K</button></div><div id="plinkoResult" class="result muted">Ball drop လုပ်ရန် bet ထည့်ပါ။</div><div class="history-card"><div class="history-head"><b>Today Plinko History</b><button data-refresh-history="plinko">Refresh</button></div><div id="plinkoHistory" class="history-list"></div></div></div>
+      </section>
+
+      <section id="wheel" class="panel game-panel">
+        <div class="game-page-head"><button class="back-home" data-open="home">‹ Home</button><div><p class="kicker">DAILY REWARD</p><h2>🎡 Lucky Wheel</h2></div><span class="status-chip daily">DAILY</span></div>
+        <div class="single-game-card"><div class="wheel-layout"><div class="wheel-wrap"><div class="wheel-pointer"></div><div id="wheelDisk" class="wheel-disk"></div><div class="wheel-center">BIKA</div></div><div class="wheel-info"><p class="kicker">TODAY'S CHANCES</p><h3>Spin for bonus multipliers</h3><div id="wheelLegend" class="wheel-legend"></div><div id="wheelTarget" class="wheel-target">Pointer result: <b>—</b></div><div class="daily-spin"><div><b>🎁 Free Daily Spin</b><small id="dailyWheelInfo">Checking today's free spin...</small></div><button id="dailyWheelBtn" class="daily-btn">FREE SPIN</button></div><div class="bet-panel"><div class="bet-input"><span>BET AMOUNT</span><input id="wheelBet" type="number" inputmode="numeric" placeholder="50,000"></div><button id="wheelBtn" class="primary-btn">SPIN WHEEL</button></div><div class="quick-bets"><button data-wheel-bet="50">50</button><button data-wheel-bet="100">100</button><button data-wheel-bet="500">500</button><button data-wheel-bet="1000">1K</button></div><div id="wheelResult" class="result muted">Wheel spin လုပ်ရန် bet ထည့်ပါ။</div></div></div><div class="history-card"><div class="history-head"><b>Today Wheel History</b><button data-refresh-history="wheel">Refresh</button></div><div id="wheelHistory" class="history-list"></div></div></div>
+      </section>
+
+      <section id="mines" class="panel game-panel">
+        <div class="game-page-head"><button class="back-home" data-open="home">‹ Home</button><div><p class="kicker">RISK & REWARD</p><h2>💣 Web Mines</h2></div><span class="status-chip new">NEW</span></div>
+        <div class="single-game-card"><div class="mines-stats"><div><span>SAFE</span><b id="minesSafe">0</b></div><div><span>MULTIPLIER</span><b id="minesMulti">x1.00</b></div><div><span>CASHOUT</span><b id="minesCash">Locked</b></div></div><div id="minesBoard" class="mines-board"></div><div class="bet-panel"><div class="bet-input"><span>BET AMOUNT</span><input id="minesBet" type="number" inputmode="numeric" placeholder="50,000"></div><button id="minesStartBtn" class="primary-btn">START</button><button id="minesCashoutBtn" class="cashout-btn" disabled>CASH OUT</button></div><div class="quick-bets"><button data-mines-bet="50">50</button><button data-mines-bet="100">100</button><button data-mines-bet="500">500</button><button data-mines-bet="1000">1K</button></div><div id="minesResult" class="result muted">Start နှိပ်ပြီး gems ဖွင့်ပါ။</div><div class="history-card"><div class="history-head"><b>Today Mines History</b><button data-refresh-history="mines">Refresh</button></div><div id="minesHistory" class="history-list"></div></div></div>
+      </section>
+
+      <nav class="nav-tabs" aria-label="Mobile navigation">
+        <button class="tab active" data-open="home">⌂ Home</button><button class="tab" data-open="crash">◈ Games</button><button class="tab" data-open="wheel">✦ Live</button><button class="tab" data-open="home">◷ History</button><button class="tab" data-open="home">◉ Wallet</button>
+      </nav>
+
+      <div id="soundDock" class="sound-dock"><button id="soundToggleBtn" class="sound-toggle">🔇 Sound Off</button><div id="soundControls" class="sound-controls"><label>BGM <input id="musicVolume" type="range" min="0" max="100" value="32"></label><label>SFX <input id="sfxVolume" type="range" min="0" max="100" value="68"></label><span id="soundSceneText">Tap Sound On</span></div></div>
     </section>
-
-    <nav class="nav-tabs"><button class="tab active" data-open="home">🏠 Home</button><button class="tab" data-open="crash">🚀 Rocket</button><button class="tab" data-open="slot">🎰 Slot</button><button class="tab" data-open="blackjack">🃏 BJ</button><button class="tab" data-open="shan">🎴 Shan</button><button class="tab" data-open="plinko">🟡 Plinko</button><button class="tab" data-open="wheel">🎡 Wheel</button><button class="tab" data-open="mines">💣 Mines</button></nav>
-
-    <section id="crash" class="panel game-panel"><div class="game-toolbar"><button class="back-home" data-open="home">‹ Home</button><h2>🚀 Rocket Crash</h2><span class="badge live">LIVE</span></div><div class="rocket-compact-grid"><div class="rocket-stage premium-card"><div id="rocketScene" class="rocket-scene betting" style="--rocket-progress:0; --count-progress:1;"><div class="stars"></div><div class="planet"></div><div class="launch-pad"></div><div id="roundCountdown" class="countdown-bubble">15</div><div id="crashMultiplier" class="rocket-multiplier">x1.00</div><div id="crashState" class="rocket-state">Bet time စောင့်နေပါတယ်…</div><svg class="flight-path" viewBox="0 0 420 260"><path d="M38 222 C100 195 162 146 214 102 C270 55 330 28 386 22" /></svg><div id="rocketShip" class="ship"><div class="ship-body"><span></span></div><div class="flame"></div></div><div id="explosion" class="explosion">💥</div></div><div class="history-row" id="oddsRow"></div><div class="bet-box compact-bet"><input id="crashBet" type="number" inputmode="numeric" placeholder="Bet amount" /><button id="crashStartBtn" class="primary-btn">Place Bet</button><button id="cashoutBtn" class="cashout-btn" disabled>Cash Out</button></div><div class="quick-bets"><button data-crash-bet="50">50</button><button data-crash-bet="100">100</button><button data-crash-bet="500">500</button><button data-crash-bet="1000">1K</button><button data-crash-bet="5000">5K</button></div></div><div class="players-card premium-card"><div class="players-head"><div><p class="eyebrow">ROUND</p><h3 id="roundTitle">#—</h3></div><b id="phaseChip" class="phase-chip">BET</b></div><div class="mini-stats"><div><span>Players</span><b id="playerCount">0</b></div><div><span>Total</span><b id="totalBet">0</b></div><div><span>Paid</span><b id="totalPaid">0</b></div></div><div id="crashResult" class="result muted">Auto round လည်နေပါတယ်။ Bet time အတွင်းဝင်ပါ။</div><div class="history-card small-history"><div class="history-head"><b>Today History</b><button data-refresh-history="rocket">Refresh</button></div><div id="rocketHistory" class="history-list"><div class="history-empty">ဒီနေ့ history မရှိသေးပါ။</div></div></div><div id="playersList" class="players-list"></div></div></div></section>
-
-    <section id="slot" class="panel game-panel"><div class="game-toolbar"><button class="back-home" data-open="home">‹ Home</button><h2>🎰 Premium Slot</h2><span class="badge hot">HOT</span></div><div class="premium-card slot-card"><div class="slot-header"><p class="eyebrow">BIKA LUCKY REELS</p><b id="slotRange">—</b></div><div id="slotMachine" class="slot-machine"><div class="slot-brand">BIKA JACKPOT</div><div class="reel-window"><div id="slotReelA" class="slot-reel">?</div><div id="slotReelB" class="slot-reel">?</div><div id="slotReelC" class="slot-reel">?</div></div><div class="slot-payline"></div></div><div class="bet-box"><input id="slotBet" type="number" inputmode="numeric" placeholder="Bet amount" /><button id="spinBtn" class="primary-btn">SPIN NOW</button></div><div class="quick-bets"><button data-slot-bet="50">50</button><button data-slot-bet="100">100</button><button data-slot-bet="500">500</button><button data-slot-bet="1000">1K</button><button data-slot-bet="5000">5K</button></div><div id="slotResult" class="result muted">Bet ထည့်ပြီး SPIN နှိပ်ပါ။</div><div class="history-card"><div class="history-head"><b>Today Slot History</b><button data-refresh-history="slot">Refresh</button></div><div id="slotHistory" class="history-list"><div class="history-empty">ဒီနေ့ history မရှိသေးပါ။</div></div></div></div></section>
-
-    <section id="blackjack" class="panel game-panel"><div class="game-toolbar"><button class="back-home" data-open="home">‹ Home</button><h2>🃏 Web Blackjack</h2><span class="badge live">LIVE</span></div><div class="premium-card blackjack-card"><div class="bj-hero"><div><p class="eyebrow">PRIVATE HANDS • MAX 5 PLAYERS</p><h3 id="bjTableTitle">Blackjack Table</h3><span id="bjRoomHint">Send .wbj in group and open the join button.</span></div><div class="bj-room-chip"><b id="bjRoomState">NO ROOM</b><span id="bjRoomCount">0/5</span></div></div><div class="bj-table"><div class="bj-dealer-zone"><div class="bj-zone-title"><span>Dealer</span><b id="bjDealerTotal">Hidden</b></div><div id="bjDealerCards" class="bj-cards"></div></div><div class="bj-player-zone"><div class="bj-zone-title"><span>Your Hand</span><b id="bjMyTotal">—</b></div><div id="bjMyCards" class="bj-cards my-cards"></div></div><div id="bjSeats" class="bj-seats"></div></div><div class="bj-control-grid"><div class="bet-box bj-join-box"><input id="bjBet" type="number" inputmode="numeric" placeholder="Bet amount" /><button id="bjJoinBtn" class="primary-btn">JOIN TABLE</button></div><div class="bj-actions"><button id="bjHitBtn" class="hit-btn" disabled>🃏 HIT</button><button id="bjStandBtn" class="stand-btn" disabled>✋ STAND</button></div></div><div class="quick-bets"><button data-bj-bet="50">50</button><button data-bj-bet="100">100</button><button data-bj-bet="500">500</button><button data-bj-bet="1000">1K</button><button data-bj-bet="5000">5K</button></div><div id="bjResult" class="result muted">Group ထဲမှာ <b>.wbj</b> ပို့ပြီး Join button ကနေဝင်ပါ။ Player 5 ယောက်အထိဆော့နိုင်ပါတယ်။</div><div class="history-card"><div class="history-head"><b>Today Blackjack History</b><button data-refresh-history="blackjack">Refresh</button></div><div id="blackjackHistory" class="history-list"><div class="history-empty">ဒီနေ့ history မရှိသေးပါ။</div></div></div></div></section>
-
-    <section id="shan" class="panel game-panel"><div class="game-toolbar"><button class="back-home" data-open="home">‹ Home</button><h2>🎴 Shan Koe Mee Pro</h2><span class="badge live">LIVE</span></div><div class="premium-card shan-card shan-pro-card"><div class="shan-pro-hero"><div><p class="eyebrow">HUMAN BANKER • TURN BY TURN • PRIVATE CARDS</p><h3 id="shanTableTitle">Bika Shan Pro Table</h3><span id="shanRoomHint">Create a banker table or join a table from group link.</span></div><div class="shan-rules-chip"><b id="shanRoomState">NO TABLE</b><span id="shanRoomCount">0/6</span></div></div><div class="shan-metrics"><div><span>Banker Stake</span><b id="shanBankerStake">—</b></div><div><span>Total Bet</span><b id="shanTotalBet">0</b></div><div><span>3x Limit</span><b id="shanBetLimit">—</b></div><div><span>Turn Timer</span><b id="shanActionTimer">—</b></div></div><div class="shan-dealer-shoe"><div class="shoe-stack"><span></span><span></span><span></span></div><div class="shoe-text"><b>BIKA CARD SHOE</b><small>Cards are dealt from here, one player at a time.</small></div><div id="shanTinBanner" class="tin-banner">TIN 1 / 3</div></div><div class="shan-pro-table" id="shanProTable"><div class="banker-seat" id="shanBankerSeat"><div class="seat-avatar" id="shanBankerAvatar">BK</div><div class="seat-title"><b id="shanBankerName">Banker</b><span id="shanBankerInfo">Hidden</span></div><div id="shanBankerCards" class="shan-cards pro-cards"><span class="shan-card-face back">BIKA</span><span class="shan-card-face back">BIKA</span></div></div><div class="table-center-glow"><b id="shanStageText">Waiting Table</b><span id="shanJoinTimer">—</span></div><div id="shanSeats" class="shan-seat-ring"></div></div><div class="shan-control-grid pro-controls"><div class="bet-box shan-banker-box"><input id="shanBankerStakeInput" type="number" inputmode="numeric" placeholder="Banker stake" /><button id="shanCreateBtn" class="secondary-btn">CREATE BANKER TABLE</button></div><div class="bet-box shan-join-box"><input id="shanBet" type="number" inputmode="numeric" placeholder="Player bet" /><button id="shanJoinBtn" class="primary-btn">JOIN TABLE</button></div><div class="shan-actions"><button id="shanDrawBtn" class="hit-btn" disabled>🃏 DRAW</button><button id="shanStayBtn" class="stand-btn" disabled>✋ STAY</button></div></div><div class="quick-bets"><button data-shan-bet="50">50</button><button data-shan-bet="100">100</button><button data-shan-bet="500">500</button><button data-shan-bet="1000">1K</button><button data-shan-bet="5000">5K</button></div><div id="shanResult" class="result muted">Human banker table ဖြစ်ပါတယ်။ Banker reserve ကို 3x lock လုပ်ပြီး player bets ပြည့်ရင် TIN 3 ကြိမ်ခေါ်ပြီး စပါမယ်။</div><details class="rules-box"><summary>Shan Koe Mee Pro Rules</summary><p>Human banker mode: table creator is banker. Players bet against banker. Each player receives 2 private cards, then active turn moves one-by-one. Player can Draw one third card or Stay. Banker cards reveal after all players finish. When total bets reach 3x banker stake, the table auto-calls TIN 1/3, TIN 2/3, TIN 3/3 and starts dealing.</p></details><div class="history-card"><div class="history-head"><b>Today Shan History</b><button data-refresh-history="shan">Refresh</button></div><div id="shanHistory" class="history-list"><div class="history-empty">ဒီနေ့ history မရှိသေးပါ။</div></div></div></div></section>
-
-    <section id="plinko" class="panel game-panel"><div class="game-toolbar"><button class="back-home" data-open="home">‹ Home</button><h2>🟡 Plinko</h2><span class="badge new">NEW</span></div><div class="premium-card plinko-card"><div class="plinko-board" id="plinkoBoard"><div class="plinko-glow"></div><div id="plinkoBall" class="plinko-ball"></div></div><div id="plinkoBuckets" class="bucket-row"></div><div class="bet-box"><input id="plinkoBet" type="number" inputmode="numeric" placeholder="Bet amount" /><button id="plinkoBtn" class="primary-btn">DROP BALL</button></div><div class="quick-bets"><button data-plinko-bet="50">50</button><button data-plinko-bet="100">100</button><button data-plinko-bet="500">500</button><button data-plinko-bet="1000">1K</button></div><div id="plinkoResult" class="result muted">Ball drop လုပ်ရန် bet ထည့်ပါ။</div><div class="history-card"><div class="history-head"><b>Today Plinko History</b><button data-refresh-history="plinko">Refresh</button></div><div id="plinkoHistory" class="history-list"><div class="history-empty">ဒီနေ့ history မရှိသေးပါ။</div></div></div></div></section>
-
-    <section id="wheel" class="panel game-panel"><div class="game-toolbar"><button class="back-home" data-open="home">‹ Home</button><h2>🎡 Lucky Wheel</h2><span class="badge daily">DAILY</span></div><div class="premium-card wheel-card"><div class="wheel-wrap"><div class="wheel-pointer"></div><div id="wheelDisk" class="wheel-disk"></div><div class="wheel-center">BIKA</div></div><div id="wheelLegend" class="wheel-legend"></div><div id="wheelTarget" class="wheel-target">Pointer result: <b>—</b></div><div class="daily-wheel-card"><div><b>🎁 Daily Free Spin</b><span id="dailyWheelInfo">Checking today's free spin...</span></div><button id="dailyWheelBtn" class="daily-btn">FREE DAILY SPIN</button></div><div class="bet-box"><input id="wheelBet" type="number" inputmode="numeric" placeholder="Bet amount" /><button id="wheelBtn" class="primary-btn">SPIN WHEEL</button></div><div class="quick-bets"><button data-wheel-bet="50">50</button><button data-wheel-bet="100">100</button><button data-wheel-bet="500">500</button><button data-wheel-bet="1000">1K</button></div><div id="wheelResult" class="result muted">Wheel spin လုပ်ရန် bet ထည့်ပါ။</div><div class="history-card"><div class="history-head"><b>Today Wheel History</b><button data-refresh-history="wheel">Refresh</button></div><div id="wheelHistory" class="history-list"><div class="history-empty">ဒီနေ့ history မရှိသေးပါ။</div></div></div></div></section>
-
-    <section id="mines" class="panel game-panel"><div class="game-toolbar"><button class="back-home" data-open="home">‹ Home</button><h2>💣 Web Mines</h2><span class="badge new">NEW</span></div><div class="premium-card mines-card"><div class="mines-info"><div><span>Safe</span><b id="minesSafe">0</b></div><div><span>Multiplier</span><b id="minesMulti">x1.00</b></div><div><span>Cashout</span><b id="minesCash">Locked</b></div></div><div id="minesBoard" class="mines-board"></div><div class="bet-box"><input id="minesBet" type="number" inputmode="numeric" placeholder="Bet amount" /><button id="minesStartBtn" class="primary-btn">START</button><button id="minesCashoutBtn" class="cashout-btn" disabled>CASH OUT</button></div><div class="quick-bets"><button data-mines-bet="50">50</button><button data-mines-bet="100">100</button><button data-mines-bet="500">500</button><button data-mines-bet="1000">1K</button></div><div id="minesResult" class="result muted">Start နှိပ်ပြီး gems ဖွင့်ပါ။</div><div class="history-card"><div class="history-head"><b>Today Mines History</b><button data-refresh-history="mines">Refresh</button></div><div id="minesHistory" class="history-list"><div class="history-empty">ဒီနေ့ history မရှိသေးပါ။</div></div></div></div></section>
   </main>
 
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="/miniapp/assets/app.js?v=professional-v37"></script>
+  <script src="/miniapp/app-core.js?v=20261007-v40"></script>
+  <script src="/miniapp/app.js?v=20261007-v40"></script>
 </body>
 </html>
