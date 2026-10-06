@@ -15,7 +15,11 @@ async function ensureTreasury() {
   const exist = await c.findOne({ key: 'treasury' });
 
   if (exist) {
-    const fixed = {
+    // Read-only fast path. Do not rewrite the treasury document on every
+    // Telegram update because game settlements also update this same document.
+    // Repeated writes here caused unnecessary lock/transaction contention.
+    return {
+      ...exist,
       totalSupply: toNum(exist.totalSupply),
       ownerBalance: toNum(exist.ownerBalance),
       ownerUserId: exist.ownerUserId || env.OWNER_ID,
@@ -23,9 +27,6 @@ async function ensureTreasury() {
       vipWinRate: clampPercent(exist.vipWinRate, 90),
       rtpWinRate: clampPercent(exist.rtpWinRate, 35),
     };
-
-    await c.updateOne({ key: 'treasury' }, { $set: { ...fixed, updatedAt: new Date() } });
-    return c.findOne({ key: 'treasury' });
   }
 
   await c.insertOne({
@@ -49,7 +50,11 @@ async function getTreasury() {
 }
 
 function isOwner(ctx, t) {
-  return !!(t?.ownerUserId && ctx.from?.id === t.ownerUserId);
+  return !!(
+    t?.ownerUserId &&
+    ctx.from?.id != null &&
+    String(ctx.from.id) === String(t.ownerUserId)
+  );
 }
 
 async function setTotalSupply(amount) {
