@@ -13,19 +13,11 @@ async function safeCreateIndex(col, keys, options = {}) {
     throw err;
   }
 }
-
 async function dropLegacyShopCardIdUniqueIndex() {
   try {
     const indexes = await collections.shop_cards.indexes();
-    const legacyIndex = indexes.find((idx) => (
-      idx?.name === 'cardId_1' &&
-      idx?.unique === true &&
-      idx?.key?.cardId === 1 &&
-      Object.keys(idx?.key || {}).length === 1
-    ));
-
+    const legacyIndex = indexes.find((idx) => idx?.name === 'cardId_1' && idx?.unique === true && idx?.key?.cardId === 1 && Object.keys(idx?.key || {}).length === 1);
     if (!legacyIndex) return;
-
     await collections.shop_cards.dropIndex('cardId_1');
     logger.warn('Dropped legacy shop_cards unique index: cardId_1');
   } catch (err) {
@@ -33,29 +25,18 @@ async function dropLegacyShopCardIdUniqueIndex() {
     logger.warn(`Unable to drop legacy shop_cards cardId_1 index: ${err?.message || err}`);
   }
 }
-
 async function safeCreateShopCardsUniqueIndex() {
   try {
-    return await safeCreateIndex(
-      collections.shop_cards,
-      { botKey: 1, cardId: 1 },
-      {
-        unique: true,
-        name: 'botKey_1_cardId_1',
-        partialFilterExpression: {
-          botKey: { $exists: true },
-          cardId: { $exists: true },
-        },
-      }
-    );
+    return await safeCreateIndex(collections.shop_cards, { botKey: 1, cardId: 1 }, {
+      unique: true,
+      name: 'botKey_1_cardId_1',
+      partialFilterExpression: { botKey: { $exists: true }, cardId: { $exists: true } },
+    });
   } catch (err) {
     if (err?.code === 11000 || err?.codeName === 'DuplicateKey') {
-      logger.warn(
-        'shop_cards botKey/cardId duplicate data found; bot will continue. Run /fixshopindex to clean duplicates and rebuild the unique index.'
-      );
+      logger.warn('shop_cards botKey/cardId duplicate data found; bot will continue. Run /fixshopindex to clean duplicates and rebuild the unique index.');
       return null;
     }
-
     throw err;
   }
 }
@@ -83,63 +64,57 @@ async function connectMongo() {
   await safeCreateIndex(collections.users, { userId: 1 }, { unique: true });
   await safeCreateIndex(collections.users, { username: 1 }, { sparse: true });
   await safeCreateIndex(collections.users, { balance: -1 });
-
   await safeCreateIndex(collections.transactions, { createdAt: -1 });
   await safeCreateIndex(collections.transactions, { userId: 1, createdAt: -1 });
   await safeCreateIndex(collections.transactions, { type: 1, 'meta.eventId': 1, toUserId: 1 });
-
   await safeCreateIndex(collections.orders, { status: 1, createdAt: -1 });
   await safeCreateIndex(collections.orders, { userId: 1, createdAt: -1 });
   await safeCreateIndex(collections.orders, { rarity: 1, createdAt: -1 });
   await safeCreateIndex(collections.orders, { cardId: 1 }, { sparse: true });
-
   await safeCreateIndex(collections.config, { key: 1 }, { unique: true });
-
   await safeCreateIndex(collections.groups, { groupId: 1 }, { unique: true });
   await safeCreateIndex(collections.groups, { approvalStatus: 1, updatedAt: -1 });
-
   await dropLegacyShopCardIdUniqueIndex();
   await safeCreateShopCardsUniqueIndex();
   await safeCreateIndex(collections.shop_cards, { cardId: 1 }, { sparse: true, name: 'shop_cards_cardId_lookup' });
   await safeCreateIndex(collections.shop_cards, { rarity: 1, status: 1, cardId: 1 });
   await safeCreateIndex(collections.shop_cards, { status: 1, updatedAt: -1 });
   await safeCreateIndex(collections.shop_cards, { soldToUserId: 1, soldAt: -1 });
-
   await safeCreateIndex(collections.shop_settings, { key: 1 }, { unique: true });
-
   await safeCreateIndex(db.collection('sports_events'), { commentChatId: 1, threadRootMessageId: 1, status: 1 });
   await safeCreateIndex(db.collection('sports_events'), { commentChatId: 1, threadMessageIds: 1, status: 1 });
   await safeCreateIndex(db.collection('sports_events'), { status: 1, createdAt: -1 });
   await safeCreateIndex(db.collection('sports_bets'), { eventId: 1, userId: 1 }, { unique: true });
   await safeCreateIndex(db.collection('sports_bets'), { eventId: 1, potentialWin: -1 });
   await safeCreateIndex(db.collection('sports_bets'), { userId: 1, createdAt: -1 });
-
   await safeCreateIndex(collections.auctions, { auctionId: 1 }, { unique: true, name: 'auctions_id_unique' });
   await safeCreateIndex(collections.auctions, { channelId: 1, status: 1, endAt: 1 }, { name: 'auctions_active_end' });
   await safeCreateIndex(collections.auctions, { channelMessageId: 1 }, { unique: true, sparse: true, name: 'auctions_channel_message_unique' });
   await safeCreateIndex(collections.auction_bids, { auctionId: 1, createdAt: 1 }, { name: 'auction_bids_time' });
   await safeCreateIndex(collections.auction_bids, { auctionId: 1, messageId: 1 }, { unique: true, name: 'auction_bids_message_unique' });
-
   logger.info('Mongo connected');
 }
 function getDb() { if (!db) throw new Error('DB_NOT_CONNECTED'); return db; }
 function col(name) { if (!collections[name]) throw new Error(`COLLECTION_NOT_READY:${name}`); return collections[name]; }
 async function closeMongo() { if (client) await client.close(); }
-function txUnsupported(err) { const m=String(err?.message||err); return m.includes('Transaction numbers are only allowed')||m.includes('replica set')||m.includes('does not support transactions')||(m.includes('Transaction')&&m.includes('not supported')); }
+function txUnsupported(err) {
+  const m = String(err?.message || err);
+  return m.includes('Transaction numbers are only allowed') || m.includes('replica set') || m.includes('does not support transactions') || (m.includes('Transaction') && m.includes('not supported'));
+}
 async function withMaybeTx(work) {
   if (!TX_SUPPORTED) return work(null);
   const session = client.startSession();
   try { return await session.withTransaction(() => work(session)); }
-  catch(e) { if (txUnsupported(e)) { TX_SUPPORTED=false; logger.warn('Mongo transactions unsupported; fallback mode enabled'); return work(null); } throw e; }
-  finally { try { await session.endSession(); } catch(_){} }
+  catch (e) {
+    if (txUnsupported(e)) { TX_SUPPORTED = false; logger.warn('Mongo transactions unsupported; fallback mode enabled'); return work(null); }
+    throw e;
+  } finally { try { await session.endSession(); } catch(_) {} }
 }
-
 async function withRequiredTx(work) {
   if (!TX_SUPPORTED) throw new Error('MONGO_TRANSACTIONS_REQUIRED');
   const session = client.startSession();
-  try {
-    return await session.withTransaction(() => work(session));
-  } catch (e) {
+  try { return await session.withTransaction(() => work(session)); }
+  catch (e) {
     if (txUnsupported(e)) {
       TX_SUPPORTED = false;
       logger.error('Mongo transactions are required for this operation; refusing unsafe non-transactional fallback.');
@@ -148,9 +123,7 @@ async function withRequiredTx(work) {
       throw err;
     }
     throw e;
-  } finally {
-    try { await session.endSession(); } catch (_) {}
-  }
+  } finally { try { await session.endSession(); } catch (_) {} }
 }
 async function pingMs(){ const s=Date.now(); try{ await getDb().command({ping:1}); return Date.now()-s; }catch(_){return null;} }
 module.exports = { connectMongo, closeMongo, getDb, col, withMaybeTx, withRequiredTx, pingMs };
