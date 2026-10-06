@@ -81,7 +81,7 @@ async function treasuryPayToUser(toUserId, amount, meta = {}) {
   return withRequiredTx(async (session) => {
     const opts = { session };
 
-    if (idem && await treasuryModel.collection().findOne(txLookup(type, idem), opts)) return { ok: true, duplicate: true };
+    if (idem && await require('../config/database').getDb().collection('transactions').findOne(txLookup(type, idem), opts)) return { ok: true, duplicate: true };
 
     const t = extract(await treasuryModel.collection().findOneAndUpdate(
       { key: 'treasury', ownerBalance: { $gte: amt } },
@@ -115,7 +115,7 @@ async function userPayToTreasury(fromUserId, amount, meta = {}) {
   return withRequiredTx(async (session) => {
     const opts = { session };
 
-    if (idem && await treasuryModel.collection().findOne(txLookup(type, idem), opts)) return { ok: true, duplicate: true };
+    if (idem && await require('../config/database').getDb().collection('transactions').findOne(txLookup(type, idem), opts)) return { ok: true, duplicate: true };
 
     const u = extract(await userModel.collection().findOneAndUpdate(
       { userId: { $in: idVariants(fromUserId) }, balance: { $gte: amt } },
@@ -148,7 +148,7 @@ async function transferBalance(fromUserId, toUserId, amount, meta = {}) {
   return withRequiredTx(async (session) => {
     const opts = { session };
 
-    if (idem && await userModel.collection().findOne({ 'transferMeta.idempotencyKey': idem }, opts)) return { ok: true, duplicate: true };
+    if (idem && await require('../config/database').getDb().collection('transactions').findOne(txLookup(type, idem), opts)) return { ok: true, duplicate: true };
 
     const sender = extract(await userModel.collection().findOneAndUpdate(
       { userId: { $in: idVariants(fromUserId) }, balance: { $gte: amt } },
