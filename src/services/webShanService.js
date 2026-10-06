@@ -76,53 +76,28 @@ async function refundRoom(room, reason = 'expired') {
   room.state = 'refunded';
   room.finishedAtMs = nowMs();
   const refunds = [];
-  if (room.banker?.reserveLocked > 0) refunds.push(treasuryPayToUser(room.banker.userId, room.banker.reserveLocked, { type: 'web_shan_refund_banker', roomId: room.id, reason }));
-  for (const player of room.players.values()) if (player.bet > 0) refunds.push(treasuryPayToUser(player.userId, player.bet, { type: 'web_shan_refund_player', roomId: room.id, reason }));
+  if (room.banker?.reserveLocked > 0) refunds.push(treasuryPayToUser(room.banker.userId, room.banker.reserveLocked, { type: 'web_shan_refund_banker', roomId: room.id, reason, idempotencyKey: `${room.id}:refund:banker` }));
+  for (const player of room.players.values()) if (player.bet > 0) refunds.push(treasuryPayToUser(player.userId, player.bet, { type: 'web_shan_refund_player', roomId: room.id, reason, idempotencyKey: `${room.id}:refund:player:${player.userId}` }));
   await Promise.allSettled(refunds);
   return room;
 }
 
 async function createWebShanRoom({ chatId = null, title = '', createdBy = null, user = {}, bankerStake = null } = {}) {
   cleanupRooms();
-  const bankerId = Number(createdBy || user.id || user.userId);
-  if (!Number.isFinite(bankerId) || bankerId <= 0) throw new Error('INVALID_BANKER');
-  const stake = clamp(safeAmount(bankerStake || process.env.WEB_SHAN_DEFAULT_BANKER_STAKE || 5000), MIN_BANKER_STAKE, MAX_BANKER_STAKE);
-  const betLimit = Math.floor(stake * BANKER_BET_LIMIT_MULTIPLIER);
-  const reserveLocked = betLimit; // A full 3x reserve is locked so player payouts are always covered.
-  const bankerDoc = await getUser(bankerId);
-  if (Number(bankerDoc?.balance || 0) < reserveLocked) {
-    const err = new Error('BANKER_INSUFFICIENT_RESERVE');
-    err.required = reserveLocked;
-    throw err;
-  }
-  await userPayToTreasury(bankerId, reserveLocked, { type: 'web_shan_banker_reserve', source: 'miniapp_shan_pro', stake, betLimit });
-  const name = playerName({ ...user, id: bankerId, firstName: bankerDoc?.firstName, lastName: bankerDoc?.lastName, username: bankerDoc?.username });
-  const room = {
-    id: makeRoomId(),
-    chatId: chatId || null,
-    title: String(title || 'Bika Shan Koe Mee Pro Table').slice(0, 90),
-    createdAtMs: nowMs(),
-    joinDeadlineMs: nowMs() + JOIN_SECONDS * 1000,
-    actionDeadlineMs: null,
-    state: 'lobby',
-    stateLabel: 'WAITING BETS',
-    deck: [],
-    banker: { userId: bankerId, name, avatar: avatarText(name), username: user.username || bankerDoc?.username || null, stake, betLimit, reserveLocked, cards: [], info: null, payout: 0, net: -reserveLocked },
-    players: new Map(),
-    totalBet: 0,
-    turnOrder: [],
-    activeIndex: -1,
-    activeUserId: null,
-    tinStartedAtMs: null,
-    tinUntilMs: null,
-    tinStep: 0,
-    rtp: await getWebShanRtp(),
-    settled: false,
-  };
-  rooms.set(room.id, room);
-  return publicRoom(room, bankerId, await currentBalance(bankerId));
+  const bankerId=Number(createdBy || user.id || user.userId);
+  if(!Number.isFinite(bankerId)||bankerId<=0) throw new Error('INVALID_BANKER');
+  const stake=clamp(safeAmount(bankerStake || process.env.WEB_SHAN_DEFAULT_BANKER_STAKE || 5000),MIN_BANKER_STAKE,MAX_BANKER_STAKE);
+  const betLimit=Math.floor(stake*BANKER_BET_LIMIT_MULTIPLIER);
+  const reserveLocked=betLimit;
+  const roomId=makeRoomId();
+  const bankerDoc=await getUser(bankerId);
+  if(Number(bankerDoc?.balance||0)<reserveLocked){const err=new Error('BANKER_INSUFFICIENT_RESERVE');err.required=reserveLocked;throw err;}
+  await userPayToTreasury(bankerId,reserveLocked,{type:'web_shan_banker_reserve',source:'miniapp_shan_pro',stake,betLimit,roomId,idempotencyKey:`${roomId}:banker-reserve`});
+  const name=playerName({...user,id:bankerId,firstName:bankerDoc?.firstName,lastName:bankerDoc?.lastName,username:bankerDoc?.username});
+  const room={id:roomId,chatId:chatId||null,title:String(title||'Bika Shan Koe Mee Pro Table').slice(0,90),createdAtMs:nowMs(),joinDeadlineMs:nowMs()+JOIN_SECONDS*1000,actionDeadlineMs:null,state:'lobby',stateLabel:'WAITING BETS',deck:[],banker:{userId:bankerId,name,avatar:avatarText(name),username:user.username||bankerDoc?.username||null,stake,betLimit,reserveLocked,cards:[],info:null,payout:0,net:-reserveLocked},players:new Map(),totalBet:0,turnOrder:[],activeIndex:-1,activeUserId:null,tinStartedAtMs:null,tinUntilMs:null,tinStep:0,rtp:await getWebShanRtp(),settled:false};
+  rooms.set(room.id,room);
+  return publicRoom(room,bankerId,await currentBalance(bankerId));
 }
-
 function startTin(room) {
   if (room.state !== 'lobby') return room;
   room.state = 'tin';
@@ -213,7 +188,7 @@ async function joinWebShan({ roomId, userId, user = {}, bet } = {}) {
   }
   const userDoc = await getUser(finalUserId);
   if (Number(userDoc?.balance || 0) < finalBet) throw new Error('USER_INSUFFICIENT');
-  await userPayToTreasury(finalUserId, finalBet, { type: 'web_shan_player_bet', source: 'miniapp_shan_pro', roomId: room.id, bankerId: room.banker.userId });
+  await userPayToTreasury(finalUserId, finalBet, { type: 'web_shan_player_bet', source: 'miniapp_shan_pro', roomId: room.id, bankerId: room.banker.userId, idempotencyKey: `${room.id}:player-bet:${finalUserId}` });
   const name = playerName({ ...user, id: finalUserId, firstName: userDoc?.firstName, lastName: userDoc?.lastName, username: userDoc?.username });
   room.players.set(finalUserId, { userId: finalUserId, name, avatar: avatarText(name), username: user.username || userDoc?.username || null, bet: finalBet, hand: [], status: 'waiting', result: null, payout: 0, net: -finalBet, joinedAtMs: nowMs(), info: null });
   room.totalBet += finalBet;
@@ -282,14 +257,14 @@ async function settleRoom(room) {
     player.status = 'settled';
     player.info = cmp.player;
     totalPlayerPayout += payout;
-    if (payout > 0) await treasuryPayToUser(player.userId, payout, { type: 'web_shan_player_payout', source: 'miniapp_shan_pro', roomId: room.id, bet: player.bet, payout, result: label, bankerId: room.banker.userId });
+    if (payout > 0) await treasuryPayToUser(player.userId, payout, { type: 'web_shan_player_payout', source: 'miniapp_shan_pro', roomId: room.id, bet: player.bet, payout, result: label, bankerId: room.banker.userId, idempotencyKey: `${room.id}:player-payout:${player.userId}` });
     await recordWebGameHistory({ userId: player.userId, game: 'shan', title: 'Shan Pro Table', outcome: label.toLowerCase(), bet: player.bet, payout, net: player.net, multiplier: player.bet > 0 ? payout / player.bet : 0, label: `${label} • ${cmp.player.short}`, meta: { roomId: room.id, mode: 'human_banker', bankerId: room.banker.userId, player: cmp.player, banker: cmp.banker, playerCards: player.hand.map(publicCard), bankerCards: room.banker.cards.map(publicCard) } });
   }
   const escrowTotal = room.banker.reserveLocked + room.totalBet;
   const bankerReturn = Math.max(0, escrowTotal - totalPlayerPayout);
   room.banker.payout = bankerReturn;
   room.banker.net = bankerReturn - room.banker.reserveLocked;
-  if (bankerReturn > 0) await treasuryPayToUser(room.banker.userId, bankerReturn, { type: 'web_shan_banker_settle', source: 'miniapp_shan_pro', roomId: room.id, bankerReturn, totalPlayerPayout });
+  if (bankerReturn > 0) await treasuryPayToUser(room.banker.userId, bankerReturn, { type: 'web_shan_banker_settle', source: 'miniapp_shan_pro', roomId: room.id, bankerReturn, totalPlayerPayout, idempotencyKey: `${room.id}:banker-settle` });
   await recordWebGameHistory({ userId: room.banker.userId, game: 'shan', title: 'Shan Banker Table', outcome: room.banker.net >= 0 ? 'win' : 'lose', bet: room.banker.reserveLocked, payout: bankerReturn, net: room.banker.net, multiplier: room.banker.reserveLocked > 0 ? bankerReturn / room.banker.reserveLocked : 0, label: `BANKER • ${room.banker.net >= 0 ? '+' : ''}${room.banker.net}`, meta: { roomId: room.id, mode: 'human_banker', bankerCards: room.banker.cards.map(publicCard), totalBet: room.totalBet, totalPlayerPayout } });
   room.state = 'finished';
   room.stateLabel = 'SETTLED';
