@@ -8,4 +8,43 @@ function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
 const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
 function startOfDayYangon(d){ const offset=6.5*3600*1000; const local=new Date(d.getTime()+offset); local.setUTCHours(0,0,0,0); return new Date(local.getTime()-offset); }
 function isCommandLikeText(text=''){ return /^([/.])\S+/.test(String(text||'').trim()); }
-module.exports = { isGroupChat, fullNameFromTg, mentionHtml, userDocLabelHtml, parseAmount, parseMentionUsername, randInt, sleep, startOfDayYangon, isCommandLikeText };
+
+const BOT_SLASH_COMMANDS = new Set([
+  'start','bal','balance','daily','dailyclaim','gift','top10','wallet','sell','webapp',
+  'daily_tournament','dailytournament','approve','reject','groupstatus',
+  'treasury','setvipwr','vipwr','setrtp','rtp','promortp','setbjrtp','bjrtp',
+  'broadcast','broadcastend','maintenance','on','off','status','ping',
+  'auction','bid','bidhistory','shop','buy','mines','crash','dice','shan',
+  'two_d','twod','sports','sport'
+]);
+
+const BOT_DOT_COMMANDS = new Set([
+  'slot','blackjack','bj','mines','crash','dice','shan','2d','twod','sports'
+]);
+
+function commandToken(text='') {
+  const token = String(text || '').trim().split(/\\s+/)[0] || '';
+  return token.replace(/^[/\.]/, '').split('@')[0].toLowerCase();
+}
+
+function isBotCommandText(text='') {
+  if (!isCommandLikeText(text)) return false;
+  const raw = String(text || '').trim();
+  const prefix = raw[0];
+  const token = commandToken(raw);
+  return prefix === '/' ? BOT_SLASH_COMMANDS.has(token) : BOT_DOT_COMMANDS.has(token);
+}
+
+module.exports = {
+  isGroupChat,
+  fullNameFromTg,
+  mentionHtml,
+  userDocLabelHtml,
+  parseAmount,
+  parseMentionUsername,
+  randInt,
+  sleep,
+  startOfDayYangon,
+  isCommandLikeText,
+  isBotCommandText,
+};
