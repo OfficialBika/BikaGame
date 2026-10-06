@@ -1745,7 +1745,7 @@ module.exports = (bot) => {
     const now = new Date();
 
     await shopCardModel.collection().updateOne(
-      { cardId: String(cardId) },
+      { botKey, cardId: String(cardId) },
       {
         $setOnInsert: { cardId: String(cardId), createdAt: now },
         $set: {
@@ -1794,7 +1794,7 @@ module.exports = (bot) => {
 
     const operations = cardIds.map((cardId) => ({
       updateOne: {
-        filter: { cardId: String(cardId) },
+        filter: { botKey, cardId: String(cardId) },
         update: {
           $setOnInsert: { cardId: String(cardId), createdAt: now },
           $set: {
@@ -1825,35 +1825,15 @@ module.exports = (bot) => {
 
   bot.command('shopremove', async (ctx) => {
     if (!(await requireOwnerDm(ctx))) return;
-
-    const cardId = String(ctx.message?.text || '').trim().split(/\s+/)[1];
-
-    if (!cardId) {
-      return replyHTML(ctx, 'Usage: <code>/shopremove D001</code>', replyOptions(ctx));
-    }
-
-    const result = await shopCardModel.collection().updateOne(
-      { cardId },
-      {
-        $set: {
-          status: 'REMOVED',
-          removedByUserId: ctx.from.id,
-          updatedAt: new Date(),
-        },
-      }
-    );
-
-    if (!result.matchedCount) {
-      return replyHTML(ctx, '⚠️ Card ID မတွေ့ပါ။', replyOptions(ctx));
-    }
-
-    return replyHTML(
-      ctx,
-      `✅ <b>Card Removed</b>\n━━━━━━━━━━━━━━━━\nCard ID: <code>${escHtml(cardId)}</code>`,
-      replyOptions(ctx)
-    );
+    const parts=String(ctx.message?.text||'').trim().split(/\s+/);
+    const maybeBot=normalizeShopBot(parts[1]);
+    const botKey=maybeBot || 'bikabot';
+    const cardId=maybeBot ? parts[2] : parts[1];
+    if(!cardId) return replyHTML(ctx,'Usage: <code>/shopremove D001</code> or <code>/shopremove HallowBot H001</code>',replyOptions(ctx));
+    const result=await shopCardModel.collection().updateOne({ botKey, cardId:String(cardId) },{$set:{status:'REMOVED',removedByUserId:ctx.from.id,updatedAt:new Date()}});
+    if(!result.matchedCount) return replyHTML(ctx,'⚠️ Card ID မတွေ့ပါ။',replyOptions(ctx));
+    return replyHTML(ctx,`✅ <b>Card Removed</b>\n━━━━━━━━━━━━━━━━\nBot: <b>${shopBotLabel(botKey)}</b>\nCard ID: <code>${escHtml(cardId)}</code>`,replyOptions(ctx));
   });
-
   bot.command('shopcards', async (ctx) => {
     if (!(await requireOwnerDm(ctx))) return;
 
