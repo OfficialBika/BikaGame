@@ -1,0 +1,577 @@
+/* BIKA PROFESSIONAL GAME EXPERIENCE v33
+ * Frontend-only game-specific visual layer.
+ * No API, game engine, wallet, settlement or DOM contracts changed.
+ */
+
+:root{
+  --v33-ink:#05070b;
+  --v33-panel:#0a0f18;
+  --v33-line:rgba(255,255,255,.085);
+  --v33-text:#f5f8ff;
+  --v33-muted:#8490a6;
+  --v33-cyan:#55eaff;
+  --v33-blue:#6e8dff;
+  --v33-violet:#a56cff;
+  --v33-pink:#ff5d98;
+  --v33-gold:#f3c96d;
+  --v33-green:#50e6ad;
+  --v33-red:#ff5878;
+}
+
+/* Shared pro game shell */
+.game-panel{
+  position:relative;
+  isolation:isolate;
+}
+.game-panel:before{
+  content:"";
+  position:fixed;
+  left:0;right:0;top:0;
+  height:180px;
+  z-index:-1;
+  pointer-events:none;
+  background:linear-gradient(180deg,rgba(5,7,12,.72),transparent);
+}
+.game-toolbar .badge{
+  border-radius:999px !important;
+  padding:7px 9px !important;
+  font-size:7px !important;
+  letter-spacing:.13em !important;
+}
+.game-panel .premium-card{
+  overflow:hidden !important;
+}
+
+/* =========================
+   ROCKET — LIVE COCKPIT
+   ========================= */
+#crash .rocket-compact-grid{
+  gap:14px !important;
+}
+#crash .rocket-stage{
+  padding:11px !important;
+  border-radius:28px !important;
+  background:
+    radial-gradient(420px 180px at 50% 0%,rgba(85,234,255,.07),transparent 72%),
+    linear-gradient(145deg,#070b12,#050810 55%,#090612) !important;
+  border:1px solid rgba(85,234,255,.12) !important;
+}
+#crash .rocket-scene{
+  height:500px !important;
+  border-radius:23px !important;
+  background:
+    radial-gradient(520px 300px at 78% 24%,rgba(70,135,255,.17),transparent 44%),
+    radial-gradient(420px 230px at 12% 84%,rgba(255,71,129,.11),transparent 52%),
+    linear-gradient(145deg,#03070d,#07121e 52%,#05060e) !important;
+  border:1px solid rgba(85,234,255,.18) !important;
+  box-shadow:
+    inset 0 0 100px rgba(0,0,0,.68),
+    0 30px 70px rgba(0,0,0,.42),
+    0 0 55px rgba(85,234,255,.045) !important;
+}
+#crash .rocket-scene:after{
+  content:"LIVE ROCKET";
+  position:absolute;
+  left:18px;
+  bottom:16px;
+  z-index:12;
+  padding:7px 10px;
+  border-radius:999px;
+  border:1px solid rgba(85,234,255,.16);
+  background:rgba(4,10,17,.68);
+  color:rgba(173,246,255,.72);
+  font-size:7px;
+  font-weight:1000;
+  letter-spacing:.18em;
+  backdrop-filter:blur(12px);
+}
+#crash .rocket-multiplier{
+  font-size:clamp(64px,9vw,102px) !important;
+  text-shadow:
+    0 0 35px rgba(85,234,255,.17),
+    0 14px 40px rgba(0,0,0,.54) !important;
+}
+#crash .rocket-scene.running .rocket-multiplier{
+  animation:v33MultiplierPulse 1.15s ease-in-out infinite alternate;
+}
+#crash .rocket-scene.crashed .rocket-multiplier{
+  color:#ff7a96 !important;
+  text-shadow:0 0 35px rgba(255,88,120,.24),0 14px 40px rgba(0,0,0,.55) !important;
+}
+#crash .rocket-scene.betting .rocket-state{
+  color:#8fa8c0 !important;
+}
+#crash .players-card{
+  padding:18px !important;
+  border-radius:27px !important;
+  background:linear-gradient(145deg,rgba(12,17,28,.96),rgba(7,10,17,.98)) !important;
+}
+#crash .mini-stats>div{
+  min-height:72px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  border-radius:15px !important;
+  background:rgba(255,255,255,.028) !important;
+}
+#crash .players-list>*{
+  border-radius:13px !important;
+}
+@keyframes v33MultiplierPulse{
+  from{transform:translate(-50%,-50%) scale(1)}
+  to{transform:translate(-50%,-50%) scale(1.022)}
+}
+
+/* =========================
+   SLOT — PREMIUM CABINET
+   ========================= */
+#slot .slot-card{
+  padding:14px !important;
+  border-radius:28px !important;
+  background:
+    radial-gradient(500px 180px at 50% -10%,rgba(243,201,109,.08),transparent 65%),
+    linear-gradient(145deg,#0d111a,#070910) !important;
+}
+#slot .slot-header{
+  display:flex !important;
+  align-items:flex-end !important;
+  justify-content:space-between !important;
+  gap:12px !important;
+  margin:0 2px 10px !important;
+}
+#slot .slot-header #slotRange{
+  color:#8e9ab1 !important;
+  font-size:9px !important;
+  letter-spacing:.10em !important;
+}
+#slot .slot-machine{
+  min-height:315px !important;
+  display:flex !important;
+  flex-direction:column !important;
+  justify-content:center !important;
+  padding:30px 23px 25px !important;
+  border-radius:30px !important;
+  background:
+    radial-gradient(340px 150px at 50% 3%,rgba(243,201,109,.16),transparent 68%),
+    radial-gradient(320px 120px at 50% 100%,rgba(165,108,255,.08),transparent 75%),
+    linear-gradient(145deg,#17131b,#0b0d15 54%,#151018) !important;
+  border:1px solid rgba(243,201,109,.19) !important;
+  box-shadow:
+    0 30px 80px rgba(0,0,0,.46),
+    inset 0 1px rgba(255,255,255,.08),
+    inset 0 -28px 44px rgba(0,0,0,.24) !important;
+}
+#slot .slot-machine:after{
+  content:"PREMIUM REELS";
+  position:absolute;
+  left:50%;
+  bottom:10px;
+  transform:translateX(-50%);
+  color:rgba(247,220,151,.46);
+  font-size:7px;
+  letter-spacing:.32em;
+  font-weight:1000;
+}
+#slot .slot-brand{
+  margin-bottom:15px !important;
+  font-size:11px !important;
+  letter-spacing:.30em !important;
+}
+#slot .reel-window{
+  min-height:126px !important;
+  padding:13px !important;
+  gap:10px !important;
+  border-radius:20px !important;
+  background:#030509 !important;
+  border:1px solid rgba(255,255,255,.13) !important;
+  box-shadow:
+    inset 0 0 28px rgba(0,0,0,.92),
+    0 12px 25px rgba(0,0,0,.26) !important;
+}
+#slot .slot-reel{
+  position:relative;
+  height:108px !important;
+  border-radius:14px !important;
+  background:linear-gradient(180deg,#fff,#edf2f3 48%,#c7d0d1) !important;
+  font-size:45px !important;
+  box-shadow:
+    inset 0 0 12px rgba(0,0,0,.08),
+    inset 0 1px rgba(255,255,255,.92),
+    0 6px 14px rgba(0,0,0,.28) !important;
+}
+#slot .slot-reel:before,
+#slot .slot-reel:after{
+  content:"";
+  position:absolute;
+  left:5px;right:5px;
+  height:1px;
+  background:rgba(0,0,0,.10);
+  pointer-events:none;
+}
+#slot .slot-reel:before{top:20px}
+#slot .slot-reel:after{bottom:20px}
+#slot .slot-machine.spinning .slot-reel{
+  animation:v33ReelBlur .11s linear infinite alternate;
+}
+#slot .slot-machine.slot-win-glow{
+  box-shadow:
+    0 0 0 1px rgba(243,201,109,.18),
+    0 35px 95px rgba(0,0,0,.52),
+    0 0 70px rgba(243,201,109,.16),
+    inset 0 1px rgba(255,255,255,.08) !important;
+}
+#slot .slot-machine.slot-win-glow .slot-brand{
+  animation:v33GoldPulse .65s ease-in-out infinite alternate;
+}
+#slot .result.win{
+  border-color:rgba(80,230,173,.20) !important;
+  background:linear-gradient(145deg,rgba(80,230,173,.07),rgba(255,255,255,.025)) !important;
+}
+#slot .result.lose{
+  border-color:rgba(255,88,120,.15) !important;
+}
+@keyframes v33ReelBlur{
+  from{filter:blur(.35px);transform:translateY(-1px)}
+  to{filter:blur(1.1px);transform:translateY(1px)}
+}
+@keyframes v33GoldPulse{
+  from{opacity:.72}
+  to{opacity:1;text-shadow:0 0 18px rgba(243,201,109,.42)}
+}
+
+/* =========================
+   BLACKJACK — CARD TABLE
+   ========================= */
+#blackjack .blackjack-card{
+  border-radius:29px !important;
+  padding:13px !important;
+  background:linear-gradient(145deg,#0b111b,#06090f) !important;
+}
+#blackjack .bj-hero{
+  padding:15px !important;
+  border-radius:20px !important;
+  border:1px solid rgba(85,234,255,.12) !important;
+  background:
+    radial-gradient(280px 120px at 0% 0%,rgba(85,234,255,.10),transparent 72%),
+    linear-gradient(145deg,rgba(255,255,255,.045),rgba(255,255,255,.018)) !important;
+}
+#blackjack .bj-room-chip{
+  border-color:rgba(80,230,173,.20) !important;
+  background:linear-gradient(145deg,rgba(80,230,173,.08),rgba(255,255,255,.025)) !important;
+}
+#blackjack .bj-table{
+  position:relative !important;
+  min-height:455px !important;
+  border:1px solid rgba(240,200,112,.22) !important;
+  border-radius:30px !important;
+  padding:31px 24px 22px !important;
+  background:
+    radial-gradient(ellipse at 50% 42%,rgba(17,157,112,.28),transparent 50%),
+    radial-gradient(ellipse at 50% 100%,rgba(7,49,37,.92),transparent 62%),
+    linear-gradient(180deg,#063126,#04251e) !important;
+  box-shadow:
+    inset 0 0 90px rgba(0,0,0,.40),
+    0 25px 60px rgba(0,0,0,.30) !important;
+}
+#blackjack .bj-table:before{
+  content:"BLACKJACK";
+  position:absolute;
+  top:13px;left:50%;
+  transform:translateX(-50%);
+  color:rgba(243,201,109,.34);
+  font-size:7px;
+  font-weight:1000;
+  letter-spacing:.34em;
+}
+#blackjack .bj-dealer-zone,
+#blackjack .bj-player-zone{
+  border-radius:20px;
+  padding:12px;
+  background:rgba(0,0,0,.13);
+  border:1px solid rgba(255,255,255,.05);
+}
+#blackjack .bj-cards{
+  min-height:105px !important;
+}
+#blackjack .bj-card{
+  width:62px !important;
+  height:88px !important;
+  border-radius:12px !important;
+  box-shadow:0 16px 28px rgba(0,0,0,.35) !important;
+}
+#blackjack .bj-seat{
+  border-radius:15px !important;
+  background:rgba(255,255,255,.035) !important;
+}
+#blackjack .bj-seat.me{
+  border-color:rgba(80,230,173,.38) !important;
+}
+#blackjack .hit-btn:enabled{
+  box-shadow:0 0 28px rgba(80,230,173,.08);
+}
+#blackjack .stand-btn:enabled{
+  box-shadow:0 0 28px rgba(255,88,120,.08);
+}
+
+/* =========================
+   SHAN — LIVE TABLE ROOM
+   ========================= */
+#shan .shan-card{
+  padding:11px !important;
+  border-radius:30px !important;
+  background:
+    radial-gradient(520px 230px at 50% 0%,rgba(78,233,255,.08),transparent 65%),
+    linear-gradient(150deg,#0a0f1b,#080a12 62%,#100918) !important;
+}
+#shan .shan-pro-hero{
+  border-radius:22px !important;
+  background:
+    radial-gradient(260px 110px at 0% 0%,rgba(255,207,104,.09),transparent 70%),
+    linear-gradient(145deg,rgba(255,255,255,.05),rgba(255,255,255,.018)) !important;
+}
+#shan .shan-pro-table{
+  min-height:530px !important;
+  border:1px solid rgba(255,255,255,.10) !important;
+  border-radius:34px !important;
+  background:
+    radial-gradient(circle at 50% 50%,rgba(21,170,123,.17),transparent 30%),
+    radial-gradient(circle at 15% 20%,rgba(78,233,255,.08),transparent 27%),
+    radial-gradient(circle at 85% 80%,rgba(166,108,255,.08),transparent 28%),
+    linear-gradient(180deg,#07121c,#04100d 72%,#080912) !important;
+  box-shadow:inset 0 0 95px rgba(0,0,0,.50),0 28px 75px rgba(0,0,0,.38) !important;
+}
+#shan .shan-pro-table:after{
+  content:"LIVE TABLE";
+  position:absolute;
+  top:15px;left:50%;
+  transform:translateX(-50%);
+  padding:6px 9px;
+  border-radius:999px;
+  border:1px solid rgba(80,230,173,.13);
+  background:rgba(3,17,13,.48);
+  color:rgba(116,240,193,.62);
+  font-size:7px;
+  font-weight:1000;
+  letter-spacing:.18em;
+}
+#shan .banker-seat{
+  width:min(92%,470px) !important;
+  border-radius:22px !important;
+  background:linear-gradient(135deg,rgba(255,204,92,.13),rgba(255,88,120,.05)) !important;
+  border-color:rgba(243,201,109,.22) !important;
+}
+#shan .shan-player-seat{
+  border-radius:18px !important;
+  background:rgba(2,9,15,.64) !important;
+  border-color:rgba(255,255,255,.075) !important;
+}
+#shan .shan-player-seat.me{
+  border-color:rgba(85,234,255,.48) !important;
+  box-shadow:0 0 0 1px rgba(85,234,255,.10),0 0 30px rgba(85,234,255,.09) !important;
+}
+#shan .shan-player-seat.active-turn{
+  box-shadow:0 0 0 1px rgba(243,201,109,.12),0 0 34px rgba(243,201,109,.12) !important;
+}
+
+/* =========================
+   PLINKO — ARCADE PHYSICS
+   ========================= */
+#plinko .plinko-card{
+  padding:12px !important;
+  border-radius:28px !important;
+  background:linear-gradient(145deg,#080c16,#070910) !important;
+}
+#plinko .plinko-board{
+  min-height:520px !important;
+  border-radius:25px !important;
+  border:1px solid rgba(85,234,255,.15) !important;
+  background:
+    radial-gradient(circle at 50% 6%,rgba(85,234,255,.12),transparent 22%),
+    radial-gradient(circle at 50% 100%,rgba(166,108,255,.10),transparent 34%),
+    linear-gradient(180deg,#05111b,#07101a 52%,#0a0813) !important;
+  box-shadow:inset 0 0 75px rgba(0,0,0,.52),0 24px 60px rgba(0,0,0,.34) !important;
+  overflow:hidden !important;
+}
+#plinko .plinko-pin{
+  width:7px !important;
+  height:7px !important;
+  border-radius:50% !important;
+  background:#d9faff !important;
+  box-shadow:0 0 9px rgba(85,234,255,.40) !important;
+}
+#plinko .plinko-ball{
+  width:18px !important;
+  height:18px !important;
+  border-radius:50% !important;
+  background:radial-gradient(circle at 35% 30%,#fff,#73efff 36%,#5e7bff 68%,#5e4ccc 100%) !important;
+  box-shadow:0 0 22px rgba(85,234,255,.42),0 7px 18px rgba(0,0,0,.42) !important;
+}
+#plinko .bucket{
+  min-height:40px !important;
+  border-radius:12px !important;
+  background:rgba(255,255,255,.035) !important;
+  border-color:rgba(255,255,255,.08) !important;
+}
+#plinko .bucket.hit{
+  background:linear-gradient(145deg,rgba(85,234,255,.16),rgba(166,108,255,.11)) !important;
+  border-color:rgba(85,234,255,.35) !important;
+  box-shadow:0 0 26px rgba(85,234,255,.10) !important;
+}
+
+/* =========================
+   WHEEL — STUDIO PRIZE WHEEL
+   ========================= */
+#wheel .wheel-card{
+  padding:17px !important;
+  border-radius:29px !important;
+  background:
+    radial-gradient(380px 180px at 50% 0%,rgba(243,201,109,.09),transparent 66%),
+    linear-gradient(145deg,#0d111a,#080a11) !important;
+}
+#wheel .wheel-wrap{
+  filter:drop-shadow(0 30px 42px rgba(0,0,0,.50)) !important;
+}
+#wheel .wheel-wrap:before{
+  box-shadow:
+    0 0 0 1px rgba(243,201,109,.13),
+    0 0 45px rgba(243,201,109,.12),
+    inset 0 0 45px rgba(0,0,0,.55) !important;
+}
+#wheel .wheel-disk{
+  box-shadow:
+    inset 0 0 0 2px rgba(255,255,255,.14),
+    inset 0 0 45px rgba(0,0,0,.56),
+    0 0 34px rgba(85,234,255,.08) !important;
+}
+#wheel .wheel-center{
+  width:88px !important;
+  height:88px !important;
+  border-color:#e2bd67 !important;
+  box-shadow:
+    0 0 0 5px rgba(7,11,16,.92),
+    0 0 35px rgba(243,201,109,.23),
+    inset 0 0 24px rgba(0,0,0,.62) !important;
+}
+#wheel .wheel-pointer{
+  filter:drop-shadow(0 5px 9px rgba(0,0,0,.62)) drop-shadow(0 0 12px rgba(243,201,109,.32)) !important;
+}
+
+/* =========================
+   MINES — TACTICAL GRID
+   ========================= */
+#mines .mines-card{
+  padding:13px !important;
+  border-radius:29px !important;
+  background:
+    radial-gradient(380px 130px at 50% 0%,rgba(255,88,120,.08),transparent 72%),
+    linear-gradient(145deg,#0a0e16,#07090f) !important;
+}
+#mines .mines-info{
+  gap:8px !important;
+  margin-bottom:12px !important;
+}
+#mines .mines-info>div{
+  min-height:64px !important;
+  border-radius:16px !important;
+  background:rgba(255,255,255,.03) !important;
+  border:1px solid rgba(255,255,255,.075) !important;
+}
+#mines .mines-info>div:nth-child(2){
+  border-color:rgba(85,234,255,.12) !important;
+}
+#mines .mines-info>div:nth-child(3){
+  border-color:rgba(80,230,173,.13) !important;
+}
+#mines .mines-board{
+  padding:12px !important;
+  gap:9px !important;
+  border-radius:25px !important;
+  border:1px solid rgba(255,255,255,.09) !important;
+  background:
+    radial-gradient(circle at 50% 50%,rgba(85,234,255,.05),transparent 48%),
+    linear-gradient(145deg,#07111a,#050a10) !important;
+  box-shadow:inset 0 0 60px rgba(0,0,0,.48),0 25px 60px rgba(0,0,0,.30) !important;
+}
+#mines .mine-tile{
+  min-width:0 !important;
+  aspect-ratio:1 !important;
+  border-radius:13px !important;
+  border:1px solid rgba(255,255,255,.08) !important;
+  background:
+    linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.018)) !important;
+  color:#6c7b91 !important;
+  font-size:19px !important;
+  box-shadow:inset 0 1px rgba(255,255,255,.05),0 10px 17px rgba(0,0,0,.20) !important;
+  transition:transform .14s ease,border-color .14s ease,background .14s ease,box-shadow .14s ease !important;
+}
+#mines .mine-tile:not(:disabled):active{
+  transform:scale(.95) !important;
+}
+#mines .mine-tile.safe{
+  background:linear-gradient(145deg,rgba(80,230,173,.18),rgba(85,234,255,.08)) !important;
+  border-color:rgba(80,230,173,.34) !important;
+  box-shadow:0 0 25px rgba(80,230,173,.11),inset 0 1px rgba(255,255,255,.09) !important;
+  animation:v33SafePop .24s ease both;
+}
+#mines .mine-tile.boom{
+  background:radial-gradient(circle,rgba(255,88,120,.34),rgba(255,88,120,.05) 64%) !important;
+  border-color:rgba(255,88,120,.42) !important;
+  box-shadow:0 0 34px rgba(255,88,120,.18) !important;
+  animation:v33Boom .34s ease both;
+}
+@keyframes v33SafePop{
+  0%{transform:scale(.82);opacity:.5}
+  70%{transform:scale(1.06)}
+  100%{transform:scale(1);opacity:1}
+}
+@keyframes v33Boom{
+  0%{transform:scale(.84);filter:brightness(1)}
+  45%{transform:scale(1.10);filter:brightness(1.45)}
+  100%{transform:scale(1);filter:brightness(1)}
+}
+
+/* Shared game controls */
+.game-panel .bet-box{
+  margin-top:12px !important;
+}
+.game-panel .primary-btn:disabled,
+.game-panel .cashout-btn:disabled,
+.game-panel .hit-btn:disabled,
+.game-panel .stand-btn:disabled,
+.game-panel .secondary-btn:disabled{
+  opacity:.42 !important;
+  filter:saturate(.5) !important;
+}
+.game-panel .history-card{
+  margin-top:12px !important;
+}
+
+/* Touch / accessibility */
+@media(hover:hover){
+  #mines .mine-tile:not(:disabled):hover{
+    transform:translateY(-2px);
+    border-color:rgba(85,234,255,.22);
+    box-shadow:0 12px 24px rgba(0,0,0,.24),0 0 22px rgba(85,234,255,.06);
+  }
+}
+@media(max-width:760px){
+  #crash .rocket-scene{height:430px !important}
+  #crash .players-card{padding:13px !important}
+  #slot .slot-machine{min-height:260px !important;padding:22px 13px 20px !important}
+  #slot .reel-window{min-height:96px !important}
+  #slot .slot-reel{height:82px !important;font-size:31px !important}
+  #blackjack .bj-table{min-height:400px !important;padding:28px 13px 18px !important}
+  #blackjack .bj-card{width:46px !important;height:66px !important}
+  #shan .shan-pro-table{min-height:430px !important}
+  #plinko .plinko-board{min-height:420px !important}
+  #wheel .wheel-center{width:72px !important;height:72px !important}
+  #mines .mines-board{gap:7px !important;padding:9px !important}
+  #mines .mine-tile{border-radius:10px !important;font-size:16px !important}
+}
+@media(prefers-reduced-motion:reduce){
+  #crash .rocket-scene.running .rocket-multiplier,
+  #slot .slot-machine.spinning .slot-reel,
+  #slot .slot-machine.slot-win-glow .slot-brand,
+  #mines .mine-tile.safe,
+  #mines .mine-tile.boom{animation:none !important}
+}
