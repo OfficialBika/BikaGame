@@ -18,7 +18,7 @@
     document.head.appendChild(link);
   }
   try {
-    loadSync('/miniapp/app.js?v=professional-v36');
+    loadSync('/miniapp/app.js?v=professional-v37');
     loadSync('/miniapp/assets/bj-enhance.js?v=20260915');
     loadSync('/miniapp/assets/wallet-history.js?v=20260915');
     loadSync('/miniapp/assets/rocket-enhance-v1.js?v=20260916-pro');
