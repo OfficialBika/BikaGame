@@ -276,3 +276,74 @@ body.bika-app-ready #bikaSplash .bs-loader-copy:after{
   #bikaSplash .bs-scan,#bikaSplash .bs-orbit,#bikaSplash .bs-brand:before,#bikaSplash .bs-brand:after,#bikaSplash .bs-loader-line:after,#bikaSplash .bs-status-dot{animation:none}
   #bikaSplash .bs-sheen{display:none}
 }
+
+/* ---------- Global neon product accents ---------- */
+body{
+  background-color:var(--bika-neon-ink);
+}
+.app-shell:before{
+  content:"";
+  position:fixed;
+  top:0;
+  left:50%;
+  width:min(720px,74vw);
+  height:1px;
+  transform:translateX(-50%);
+  pointer-events:none;
+  z-index:1;
+  background:linear-gradient(90deg,transparent,rgba(53,234,255,.42),rgba(255,255,255,.7),rgba(255,61,154,.34),transparent);
+  box-shadow:0 0 22px rgba(53,234,255,.18);
+}
+.topbar{
+  border-color:rgba(53,234,255,.12)!important;
+}
+.topbar:after{
+  content:"";
+  position:absolute;
+  left:12%;
+  right:12%;
+  bottom:-1px;
+  height:1px;
+  background:linear-gradient(90deg,transparent,rgba(53,234,255,.34),transparent);
+  box-shadow:0 0 16px rgba(53,234,255,.18);
+  pointer-events:none;
+}
+.hero-premium h1{
+  background:linear-gradient(100deg,#fff 8%,#7af4ff 36%,#fff 50%,#b78cff 70%,#ff83bf 94%);
+  background-size:220% 100%;
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+  animation:bikaHeroShift 6s ease-in-out infinite;
+  text-shadow:0 0 34px rgba(53,234,255,.08);
+}
+.game-card{
+  isolation:isolate;
+}
+.game-card:after{
+  content:"";
+  position:absolute;
+  left:14px;
+  right:14px;
+  top:0;
+  height:1px;
+  border-radius:99px;
+  opacity:.72;
+  background:linear-gradient(90deg,transparent,currentColor,transparent);
+  color:rgba(255,255,255,.26);
+  box-shadow:0 0 14px currentColor;
+}
+.rocket-card:after{color:rgba(53,234,255,.72)}
+.slot-home-card:after{color:rgba(242,202,114,.72)}
+.blackjack-home-card:after{color:rgba(82,226,172,.72)}
+.shan-home-card:after{color:rgba(255,207,114,.72)}
+.plinko-home-card:after{color:rgba(123,154,255,.72)}
+.wheel-home-card:after{color:rgba(231,189,104,.72)}
+.mines-home-card:after{color:rgba(114,234,255,.72)}
+@keyframes bikaHeroShift{
+  0%,100%{background-position:0% 50%}
+  50%{background-position:100% 50%}
+}
+@media (prefers-reduced-motion:reduce){
+  .hero-premium h1{animation:none}
+}
