@@ -1,7 +1,7 @@
 'use strict';
 
 const { COIN } = require('../config/constants');
-const { getUser, userPayToTreasury, treasuryPayToUser } = require('./economyService');
+const { getUser, settleSingleGame } = require('./economyService');
 const { getTreasury } = require('./treasuryService');
 const { getWebGameRtp } = require('./webGameRtpService');
 const { recordWebGameHistory } = require('./webBetHistoryService');
@@ -81,74 +81,31 @@ async function capPayout(bet, rawPayout) {
   return Math.max(0, Math.min(Math.floor(Number(rawPayout) || 0), hardMax));
 }
 
-async function playWebPlinko({ userId, bet }) {
+async function playWebPlinko({ userId, bet, spinId = null }) {
   const amount = parseBet(bet);
   if (!Number.isInteger(amount) || amount < MIN_BET || amount > MAX_BET) {
-    const err = new Error('BET_RANGE');
-    err.minBet = MIN_BET;
-    err.maxBet = MAX_BET;
-    throw err;
+    const err = new Error('BET_RANGE'); err.minBet = MIN_BET; err.maxBet = MAX_BET; throw err;
   }
-
   const user = await getUser(userId);
   if (!user) throw new Error('USER_NOT_FOUND');
   if (Number(user.balance || 0) < amount) throw new Error('USER_INSUFFICIENT');
-
   const rtp = await getWebGameRtp('plinko');
   const bucket = weightedPick(buildWeightedBuckets(rtp));
   const rawPayout = Math.floor(amount * bucket.multiplier);
-
-  await userPayToTreasury(userId, amount, {
-    type: 'web_plinko_bet',
-    source: 'miniapp_plinko',
-    rtp,
-    bucket: bucket.index,
-  });
-
-  let payout = 0;
-  if (rawPayout > 0) {
-    payout = await capPayout(amount, rawPayout);
-    if (payout > 0) {
-      await treasuryPayToUser(userId, payout, {
-        type: 'web_plinko_win',
-        source: 'miniapp_plinko',
-        bet: amount,
-        payout,
-        rawPayout,
-        multiplier: bucket.multiplier,
-        rtp,
-        bucket: bucket.index,
-      });
-    }
-  }
-
-  const updated = await getUser(userId);
+  const payout = rawPayout > 0 ? await capPayout(amount, rawPayout) : 0;
+  const settlementId = String(spinId || `plinko:${userId}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`);
   const path = generatePath(bucket.index);
-  await recordWebGameHistory({
-    userId,
-    game: 'plinko',
-    title: `Bucket ${bucket.label}`,
-    outcome: payout > amount ? 'win' : payout > 0 ? 'paid' : 'lose',
-    bet: amount,
-    payout,
-    net: payout - amount,
-    multiplier: bucket.multiplier,
-    label: bucket.label,
-    meta: { bucket: bucket.index, rawPayout, rtp, path },
+  await settleSingleGame({
+    settlementId, typePrefix: 'web_plinko', userId, bet: amount, payout,
+    meta: { source:'miniapp_plinko', rtp, bucket:bucket.index, multiplier:bucket.multiplier, rawPayout, path },
   });
-  return {
-    ok: true,
-    game: 'plinko',
-    coin: COIN,
-    rtp,
-    bet: amount,
-    bucket: { index: bucket.index, label: bucket.label, multiplier: bucket.multiplier, color: bucket.color },
-    path,
-    payout,
-    rawPayout,
-    net: payout - amount,
-    balance: Number(updated?.balance || 0),
-  };
+  const updated = await getUser(userId);
+  await recordWebGameHistory({
+    userId, game:'plinko', title:`Bucket ${bucket.label}`,
+    outcome:payout>amount?'win':payout>0?'paid':'lose', bet:amount, payout, net:payout-amount,
+    multiplier:bucket.multiplier, label:bucket.label, meta:{bucket:bucket.index,rawPayout,rtp,path,settlementId},
+  });
+  return {ok:true,game:'plinko',coin:COIN,rtp,bet:amount,bucket:{index:bucket.index,label:bucket.label,multiplier:bucket.multiplier,color:bucket.color},path,payout,rawPayout,net:payout-amount,balance:Number(updated?.balance||0)};
 }
 
 module.exports = {
