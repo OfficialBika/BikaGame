@@ -18,7 +18,6 @@ module.exports = async (ctx, next) => {
   ).trim();
 
   // Owner is the only account allowed to operate while maintenance is ON.
-  // This also guarantees /on can be sent by the owner to bring the bot back.
   if (isOwner(ctx, t)) {
     return next();
   }
@@ -27,9 +26,9 @@ module.exports = async (ctx, next) => {
     return next();
   }
 
-  // Do not interfere with ordinary non-command chat messages.
-  // Every command/callback is blocked during maintenance for non-owners,
-  // including commands not present in the bot command registry.
+  // Ordinary chat messages continue through the bot normally.
+  // Every command/callback is blocked for non-owners during maintenance,
+  // including commands not listed in the bot command registry.
   if (!isCommandUpdate(ctx, text)) {
     return next();
   }
@@ -46,14 +45,10 @@ module.exports = async (ctx, next) => {
 
   return replyHTML(
     ctx,
-    '🛠️ <b>Bot Maintenance Mode</b>
-' +
-      '━━━━━━━━━━━━
-' +
-      'လက်ရှိ Bot ကို ပြုပြင်နေပါတယ်။
-' +
-      'Owner သာ အသုံးပြုနိုင်ပါတယ်။
-' +
+    '🛠️ <b>Bot Maintenance Mode</b>\n' +
+      '━━━━━━━━━━━━\n' +
+      'လက်ရှိ Bot ကို ပြုပြင်နေပါတယ်။\n' +
+      'Owner သာ အသုံးပြုနိုင်ပါတယ်။\n' +
       'ခဏစောင့်ပြီး ပြန်သုံးပေးပါ။'
   );
 };
