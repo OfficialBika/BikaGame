@@ -223,23 +223,23 @@ async function startBroadcast(bot, ownerChatId, text, progressCb, options = {}) 
     });
 
     const queueProgress = () => {
-      if (!progressCb) return;
+      if (processed % PROGRESS_EVERY !== 0) return;
 
-      const state = snapshot();
-      progressChain = progressChain
-        .then(() => progressCb(state))
-        .catch(() => {});
-
-      if (processed % PROGRESS_EVERY === 0) {
-        void updateBroadcastState({
-          broadcastHeartbeatAt: new Date(),
-          broadcastProcessed: processed,
-          broadcastTotal: targets.length,
-          broadcastSent: ok,
-          broadcastFailed: fail,
-          broadcastSkipped: skipped,
-        }).catch(() => {});
+      if (progressCb) {
+        const state = snapshot();
+        progressChain = progressChain
+          .then(() => progressCb(state))
+          .catch(() => {});
       }
+
+      void updateBroadcastState({
+        broadcastHeartbeatAt: new Date(),
+        broadcastProcessed: processed,
+        broadcastTotal: targets.length,
+        broadcastSent: ok,
+        broadcastFailed: fail,
+        broadcastSkipped: skipped,
+      }).catch(() => {});
     };
 
     let cursor = 0;
@@ -294,21 +294,29 @@ async function startBroadcast(bot, ownerChatId, text, progressCb, options = {}) 
   } finally {
     if (current?.id === runId) current = null;
 
-    try {
-      await updateBroadcastState({
-        broadcastRunning: false,
-        broadcastRunId: null,
-        broadcastStartedAt: null,
-        broadcastHeartbeatAt: null,
-        broadcastOwnerChatId: null,
-        broadcastProcessed: null,
-        broadcastTotal: null,
-        broadcastSent: null,
-        broadcastFailed: null,
-        broadcastSkipped: null,
-      });
-    } catch (_) {
-      // Do not hide the broadcast result because cleanup-state persistence failed.
+    if (lockAcquired) {
+      try {
+        await treasuryModel.collection().updateOne(
+          { key: 'treasury', broadcastRunId: runId },
+          {
+            $set: {
+              broadcastRunning: false,
+              broadcastRunId: null,
+              broadcastStartedAt: null,
+              broadcastHeartbeatAt: null,
+              broadcastOwnerChatId: null,
+              broadcastProcessed: null,
+              broadcastTotal: null,
+              broadcastSent: null,
+              broadcastFailed: null,
+              broadcastSkipped: null,
+              updatedAt: new Date(),
+            },
+          }
+        );
+      } catch (_) {
+        // Do not hide the broadcast result because cleanup-state persistence failed.
+      }
     }
   }
 }
