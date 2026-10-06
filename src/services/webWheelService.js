@@ -155,13 +155,28 @@ async function spinWebWheel({ userId, bet, spinId = null }) {
     meta: { source: 'miniapp_wheel', rtp, segment: segment.index, multiplier: segment.multiplier, rawPayout },
   });
   const updated = await getUser(userId);
+  const jitter = randomSafeJitter();
   await recordWebGameHistory({
     userId, game: 'wheel', title: `Wheel ${segment.label}`,
     outcome: payout > amount ? 'win' : payout > 0 ? 'paid' : 'lose',
     bet: amount, payout, net: payout - amount, multiplier: segment.multiplier, label: segment.label,
-    meta: { segment: segment.index, rawPayout, rtp, settlementId },
+    meta: { segment: segment.index, rawPayout, rtp, mode: 'paid', settlementId },
   });
-  return { ok:true, game:'wheel', coin:COIN, rtp, bet:amount, segment:{index:segment.index,label:segment.label,multiplier:segment.multiplier,color:segment.color}, payout, rawPayout, net:payout-amount, balance:Number(updated?.balance||0) };
+  return {
+    ok: true,
+    mode: 'paid',
+    game: 'wheel',
+    coin: COIN,
+    rtp,
+    bet: amount,
+    segment: { index: segment.index, label: segment.label, multiplier: segment.multiplier, color: segment.color },
+    stopAngleDegrees: stopAngleForSegment(segment.index, jitter),
+    stopAngleJitter: jitter,
+    payout,
+    rawPayout,
+    net: payout - amount,
+    balance: Number(updated?.balance || 0),
+  };
 }
 async function spinDailyWebWheel({ userId }) {
   await ensureDailyIndexes();
@@ -190,9 +205,17 @@ async function spinDailyWebWheel({ userId }) {
     throw err;
   }
   const updated=await getUser(uid);
-  await recordWebGameHistory({userId:uid,game:'wheel',title:'Daily Wheel',outcome:payout>0?'win':'lose',bet:0,payout,net:payout,multiplier:segment.multiplier,label:segment.label,meta:{dateKey,rawPayout,rtp,segment:segment.index,settlementId}});
-  return {ok:true,game:'wheel_daily',coin:COIN,dateKey,label:segment.label,multiplier:segment.multiplier,segment:segment.index,baseReward:DAILY_BASE_REWARD,rawPayout,payout,balance:Number(updated?.balance||0),nextAtMs:nextDailyResetMs(now)};
+  const jitter = randomSafeJitter();
+  await recordWebGameHistory({userId:uid,game:'wheel',title:`Daily Wheel ${segment.label}`,outcome:payout>0?'daily_win':'daily_lose',bet:0,payout,net:payout,multiplier:segment.multiplier,label:segment.label,meta:{segment:segment.index,rawPayout,rtp,mode:'daily',baseReward:DAILY_BASE_REWARD,dateKey,settlementId}});
+  return {
+    ok:true, mode:'daily', game:'wheel', coin:COIN, rtp, bet:0, baseReward:DAILY_BASE_REWARD,
+    segment:{index:segment.index,label:segment.label,multiplier:segment.multiplier,color:segment.color},
+    stopAngleDegrees:stopAngleForSegment(segment.index,jitter), stopAngleJitter:jitter,
+    payout, rawPayout, net:payout, balance:Number(updated?.balance||0),
+    daily: await getDailyWheelStatus(uid),
+  };
 }
+
 module.exports = {
   spinWebWheel,
   spinDailyWebWheel,
