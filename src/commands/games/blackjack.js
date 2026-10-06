@@ -323,7 +323,7 @@ function isTooManyRequestsError(err) {
     String(err?.message || err).includes('429: Too Many Requests');
 }
 
-async function telegramWithRetry(label, work, maxRetries = 2) {
+async function telegramWithRetry(label, work, maxRetries = 1) {
   let lastErr = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
@@ -340,8 +340,9 @@ async function telegramWithRetry(label, work, maxRetries = 2) {
         throw err;
       }
 
-      const delay = retryAfterMs(err) || 1500;
-      console.warn(`${label} rate limited; retrying after ${Math.ceil(delay / 1000)}s`);
+      const requestedDelay = retryAfterMs(err) || 1500;
+      const delay = Math.min(requestedDelay, 5000);
+      console.warn(`${label} rate limited; retrying after ${Math.ceil(delay / 1000)}s (capped)`);
       await sleep(delay);
     }
   }
