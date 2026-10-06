@@ -1,6 +1,6 @@
 'use strict';
 
-const { getDb, col } = require('../config/database');
+const { getDb, col, withRequiredTx } = require('../config/database');
 const {
   getBotConfig,
   getRarityConfig,
@@ -234,98 +234,72 @@ async function listSellerOrders(sellerId, limit = 10) {
     .toArray();
 }
 
-async function creditSellerBalance(order, ownerId) {
-  const users = col('users');
-  const transactions = col('transactions');
-  const now = new Date();
-
-  const userUpdate = await users.updateOne(
-    { userId: Number(order.sellerId) },
-    {
-      $inc: { balance: Number(order.price) },
-      $set: { updatedAt: now },
-    }
-  );
-
-  if (userUpdate.matchedCount !== 1) {
-    throw new Error('SELLER_USER_NOT_FOUND');
-  }
-
-  await transactions.insertOne({
-    userId: Number(order.sellerId),
-    amount: Number(order.price),
-    type: 'sell_card_approved',
-    direction: 'credit',
-    orderId: order.orderId,
-    receipt: order.receipt,
-    botKey: order.botKey,
-    botName: order.botName,
-    rarityKey: order.rarityKey,
-    rarityName: order.rarityName,
-    giftLink: order.giftLink,
-    approvedBy: Number(ownerId),
-    createdAt: now,
-  });
-}
-
 async function approveOrder(orderId, ownerId) {
   await ensureSellIndexes();
 
-  const now = new Date();
-  const lock = await ordersCol().updateOne(
-    { orderId: String(orderId), status: 'PENDING' },
-    {
-      $set: {
-        status: 'APPROVING',
-        approvedBy: Number(ownerId),
-        updatedAt: now,
-      },
-    }
-  );
+  const order = await getOrder(orderId);
+  if (!order) return { ok: false, reason: 'ORDER_NOT_FOUND', order: null };
+  if (order.status === 'APPROVED') return { ok: false, reason: 'ORDER_ALREADY_APPROVED', order };
+  if (order.status !== 'PENDING') return { ok: false, reason: `ORDER_ALREADY_${order.status}`, order };
 
-  if (lock.modifiedCount !== 1) {
+  const claim = await ordersCol().findOneAndUpdate(
+    { orderId: String(orderId), status: 'PENDING' },
+    { $set: { status: 'APPROVING', approvedBy: Number(ownerId), updatedAt: new Date() } },
+    { returnDocument: 'after' }
+  );
+  if (!claim) {
     const current = await getOrder(orderId);
-    return {
-      ok: false,
-      reason: current ? `ORDER_ALREADY_${current.status}` : 'ORDER_NOT_FOUND',
-      order: current,
-    };
+    return { ok: false, reason: current ? `ORDER_ALREADY_${current.status}` : 'ORDER_NOT_FOUND', order: current };
   }
 
-  const order = await getOrder(orderId);
-
   try {
-    await creditSellerBalance(order, ownerId);
+    const result = await withRequiredTx(async (session) => {
+      const opts = { session };
+      const tx = col('transactions');
+      const existing = await tx.findOne(
+        { type: 'sell_card_approved', orderId: String(orderId) },
+        opts
+      );
+      if (!existing) {
+        const userUpdate = await col('users').updateOne(
+          { userId: Number(claim.sellerId) },
+          { $inc: { balance: Number(claim.price) }, $set: { updatedAt: new Date() } },
+          opts
+        );
+        if (userUpdate.matchedCount !== 1) throw new Error('SELLER_USER_NOT_FOUND');
+
+        await tx.insertOne({
+          userId: Number(claim.sellerId),
+          amount: Number(claim.price),
+          type: 'sell_card_approved',
+          direction: 'credit',
+          orderId: String(claim.orderId),
+          receipt: claim.receipt,
+          botKey: claim.botKey,
+          botName: claim.botName,
+          rarityKey: claim.rarityKey,
+          rarityName: claim.rarityName,
+          giftLink: claim.giftLink,
+          approvedBy: Number(ownerId),
+          createdAt: new Date(),
+        }, opts);
+      }
+
+      return existing ? { duplicate: true } : { duplicate: false };
+    });
+
+    await ordersCol().updateOne(
+      { orderId: String(orderId), status: 'APPROVING' },
+      { $set: { status: 'APPROVED', approvedAt: new Date(), approvedBy: Number(ownerId), updatedAt: new Date() } }
+    );
+    return { ok: true, duplicate: !!result.duplicate, order: await getOrder(orderId) };
   } catch (err) {
     await ordersCol().updateOne(
       { orderId: String(orderId), status: 'APPROVING' },
-      {
-        $set: {
-          status: 'PENDING',
-          lastError: err?.message || String(err),
-          updatedAt: new Date(),
-        },
-      }
+      { $set: { status: 'PENDING', lastError: err?.message || String(err), updatedAt: new Date() } }
     );
     throw err;
   }
-
-  await ordersCol().updateOne(
-    { orderId: String(orderId), status: 'APPROVING' },
-    {
-      $set: {
-        status: 'APPROVED',
-        approvedAt: new Date(),
-        approvedBy: Number(ownerId),
-        updatedAt: new Date(),
-      },
-    }
-  );
-
-  return {
-    ok: true,
-    order: await getOrder(orderId),
-  };
 }
 
 async function cancelOrder(orderId, ownerId) {
