@@ -294,8 +294,8 @@ module.exports = (bot) => {
 
           betTaken = false;
 
-          // Final error edit, reduced from 260ms.
-          await sleep(3000);
+          // Show payout failure quickly after the safe refund completes.
+          await sleep(300);
           return editByIds(
             bot,
             chatId,
@@ -311,8 +311,8 @@ module.exports = (bot) => {
 
       betTaken = false;
 
-      // Final result edit, reduced from 260ms.
-      await sleep(2000);
+      // Keep a brief visual pause without making every spin feel slow.
+      await sleep(300);
       return editByIds(
         bot,
         chatId,
