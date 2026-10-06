@@ -193,9 +193,11 @@ async function startBroadcast(bot, ownerChatId, text, progressCb, options = {}) 
 
   const runId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   current = { id: runId, cancelled: false };
+  let lockAcquired = false;
 
   try {
     await acquireBroadcastLock(runId, ownerChatId);
+    lockAcquired = true;
 
     const formattedText = `📣 <b>BIKA Broadcast</b>\n━━━━━━━━━━━━━━\n${escHtml(text || '')}`;
     const targets = await collectTargets();
