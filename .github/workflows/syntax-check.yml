@@ -1,19 +1,40 @@
-name: syntax-check
+name: ci
 
 on:
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
 
 jobs:
-  syntax:
+  javascript:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - name: Check JavaScript syntax
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-package-lock --no-audit --no-fund
+
+      - name: Run project syntax check
+        run: npm run check
+
+      - name: Check public JavaScript syntax
         shell: bash
         run: |
           set -euo pipefail
-          node --version
-          node --check index.js
-          find src public -type f \( -name '*.js' -o -name '*.cjs' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check
+          find public -type f \( -name '*.js' -o -name '*.cjs' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check
+
+      - name: Smoke-test pure game engines
+        run: |
+          node -e "require('./src/games/slotEngine'); require('./src/games/blackjackEngine'); require('./src/games/diceEngine'); require('./src/games/shanEngine'); console.log('game engines OK')"
+
+      - name: Verify critical middleware/modules load
+        run: |
+          node -e "require('./src/utils/helpers'); require('./src/middlewares/maintenance'); require('./src/middlewares/groupApproval'); console.log('middleware modules OK')"

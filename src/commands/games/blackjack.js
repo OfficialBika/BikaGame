@@ -11,7 +11,6 @@ const { getDb } = require('../../config/database');
 const { ensureTreasury, isOwner } = require('../../services/treasuryService');
 const { replyHTML } = require('../../utils/telegram');
 const { fmt } = require('../../utils/format');
-const { isGroupChat } = require('../../utils/helpers');
 
 const activeGames = new Map();
 const activeUsers = new Map();
@@ -541,10 +540,7 @@ module.exports = (bot) => {
   });
 
   bot.hears(/^\.(blackjack|bj)\s+(\d+)\s*$/i, async (ctx) => {
-    if (!isGroupChat(ctx)) {
-      return replyHTML(ctx, 'ℹ️ group ထဲမှာပဲ သုံးနိုင်ပါတယ်။');
-    }
-
+    // Blackjack is supported in both private DM and group chats.
     const userId = ctx.from?.id;
     const chatId = ctx.chat?.id;
     const commandMessageId = ctx.message?.message_id;

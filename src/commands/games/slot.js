@@ -11,7 +11,6 @@ const { checkCooldown } = require('../../services/cooldownService');
 const engine = require('../../games/slotEngine');
 const { replyHTML, editByIds } = require('../../utils/telegram');
 const { fmt } = require('../../utils/format');
-const { isGroupChat } = require('../../utils/helpers');
 
 let getActivePromoRtp = null;
 try {
@@ -151,14 +150,8 @@ module.exports = (bot) => {
   bot.hears(/^\.(slot)\s+(\d+)\s*$/i, async (ctx) => {
     const options = replyOptions(ctx);
 
-    if (!isGroupChat(ctx)) {
-      return replyHTML(
-        ctx,
-        'ℹ️ <code>.slot</code> ကို group ထဲမှာပဲ သုံးနိုင်ပါတယ်။',
-        options
-      );
-    }
-
+    // Slot is supported in both private DM and group chats.
+    // Keep the original chatId for cooldown/promo/ledger metadata.
     const userId = ctx.from?.id;
     const chatId = ctx.chat?.id;
     const bet = Number(ctx.match?.[2]);
