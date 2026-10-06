@@ -90,18 +90,18 @@ async function treasuryPayToUser(toUserId, amount, meta = {}) {
     ));
     if (!t) throw new Error('TREASURY_INSUFFICIENT');
 
-    const u = await userModel.collection().updateOne(
-      { userId: toUserId },
+    const u = extract(await userModel.collection().findOneAndUpdate(
+      { userId: { $in: idVariants(toUserId) } },
       {
         $inc: { balance: amt, totalWon: String(type).includes('win') ? amt : 0 },
         $set: { updatedAt: new Date() },
         $setOnInsert: { createdAt: new Date() },
       },
-      { session, upsert: true }
-    );
-    if (u.matchedCount !== 1 && u.upsertedCount !== 1) throw new Error('USER_CREDIT_FAILED');
+      { session, returnDocument: 'after', upsert: true }
+    ));
+    if (!u) throw new Error('USER_CREDIT_FAILED');
 
-    await logTx({ type, fromUserId: 'TREASURY', toUserId, amount: amt, meta }, opts);
+    await logTx({ type, fromUserId: 'TREASURY', toUserId: u.userId, amount: amt, meta }, opts);
     return { ok: true, duplicate: false };
   });
 }
