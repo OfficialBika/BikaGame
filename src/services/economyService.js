@@ -3,6 +3,7 @@ const treasuryModel = require('../models/treasuryModel');
 const { withRequiredTx } = require('../config/database');
 const { toNum } = require('../utils/format');
 const { logTx } = require('./transactionService');
+const transactionModel = require('../models/transactionModel');
 
 function extract(res) { return res?.value !== undefined ? res.value : res; }
 function idVariants(userId) {
@@ -81,7 +82,7 @@ async function treasuryPayToUser(toUserId, amount, meta = {}) {
   return withRequiredTx(async (session) => {
     const opts = { session };
 
-    if (idem && await require('../config/database').getDb().collection('transactions').findOne(txLookup(type, idem), opts)) return { ok: true, duplicate: true };
+    if (idem && await transactionModel.collection().findOne(txLookup(type, idem), opts)) return { ok: true, duplicate: true };
 
     const t = extract(await treasuryModel.collection().findOneAndUpdate(
       { key: 'treasury', ownerBalance: { $gte: amt } },
@@ -115,7 +116,7 @@ async function userPayToTreasury(fromUserId, amount, meta = {}) {
   return withRequiredTx(async (session) => {
     const opts = { session };
 
-    if (idem && await require('../config/database').getDb().collection('transactions').findOne(txLookup(type, idem), opts)) return { ok: true, duplicate: true };
+    if (idem && await transactionModel.collection().findOne(txLookup(type, idem), opts)) return { ok: true, duplicate: true };
 
     const u = extract(await userModel.collection().findOneAndUpdate(
       { userId: { $in: idVariants(fromUserId) }, balance: { $gte: amt } },
@@ -148,7 +149,7 @@ async function transferBalance(fromUserId, toUserId, amount, meta = {}) {
   return withRequiredTx(async (session) => {
     const opts = { session };
 
-    if (idem && await require('../config/database').getDb().collection('transactions').findOne(txLookup(type, idem), opts)) return { ok: true, duplicate: true };
+    if (idem && await transactionModel.collection().findOne(txLookup(type, idem), opts)) return { ok: true, duplicate: true };
 
     const sender = extract(await userModel.collection().findOneAndUpdate(
       { userId: { $in: idVariants(fromUserId) }, balance: { $gte: amt } },
