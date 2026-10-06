@@ -183,7 +183,7 @@ async function collectTargets() {
 }
 
 async function startBroadcast(bot, ownerChatId, text, progressCb, options = {}) {
-  if (current && !current.cancelled) throw new Error('BROADCAST_RUNNING');
+  if (current) throw new Error('BROADCAST_RUNNING');
 
   const sourceMessage = options.copyMessage || null;
   const source = describeCopySource(sourceMessage, ownerChatId);
