@@ -201,7 +201,8 @@ function openPanel(id) {
   document.body?.setAttribute('data-bika-game', id || 'home');
   document.documentElement?.setAttribute('data-bika-game', id || 'home');
   document.querySelectorAll('.panel').forEach((el) => el.classList.toggle('active', el.id === id));
-  document.querySelectorAll('.tab').forEach((el) => el.classList.toggle('active', el.dataset.open === id));
+  const navTarget = id === 'home' ? 'home' : (PANEL_TO_GAME[id] ? 'games' : null);
+  if (navTarget) document.querySelectorAll('.nav-tabs .tab').forEach((el) => el.classList.toggle('active', el.dataset.b === navTarget));
   window.scrollTo({ top: 0, behavior: 'smooth' });
   const game = PANEL_TO_GAME[id];
   if (game) loadHistory(game).catch(() => null);
