@@ -28,14 +28,14 @@
         <button class="side-item" data-open="crash"><span>●</span>Live</button>
         <button class="side-item" data-open="wheel"><span>♕</span>Tournament</button>
         <button class="side-item" data-open="wheel"><span>✦</span>Leaderboard</button>
-        <button class="side-item" data-open="home"><span>◈</span>Wallet</button>
-        <button class="side-item" data-open="home"><span>◷</span>History</button>
-        <button class="side-item" data-open="home"><span>♙</span>Profile</button>
+        <button class="side-item" data-nav="wallet"><span>◈</span>Wallet</button>
+        <button class="side-item" data-nav="history"><span>◷</span>History</button>
+        <button class="side-item" data-nav="profile"><span>♙</span>Profile</button>
         <button class="side-item" data-open="slot"><span>✧</span>VIP Club</button>
-        <button class="side-item" data-open="home"><span>↗</span>Referral</button>
-        <button class="side-item" data-open="home"><span>⚙</span>Settings</button>
+        <button class="side-item" data-nav="referral"><span>↗</span>Referral</button>
+        <button class="side-item" data-nav="settings"><span>⚙</span>Settings</button>
       </nav>
-      <button class="bonus-card" data-open="wheel"><span class="bonus-icon">🎁</span><span><b>Daily Bonus</b><small>Claim your reward</small></span><strong>12:34:56</strong></button>
+      <button class="bonus-card" data-open="wheel"><span class="bonus-icon">🎁</span><span><b>Daily Bonus</b><small>Claim your reward</small></span><strong id="sidebarDailyStatus">—</strong></button>
     </aside>
 
     <section class="content-shell">
@@ -47,7 +47,7 @@
           <button class="icon-btn" aria-label="Notifications">♢</button>
           <div class="player-pill">
             <div id="avatarText" class="avatar">B</div>
-            <div><b id="playerNameText">Loading...</b><small>Level 18</small></div>
+            <div><b id="playerNameText">Loading...</b><small id="playerTier">PLAYER</small></div>
           </div>
           <div class="wallet-pill"><span>Balance</span><b id="stickyBalanceText">—</b></div>
           <button class="deposit-btn" data-open="home">Deposit</button>
@@ -63,9 +63,9 @@
             <div class="hero-copy">
               <p class="kicker">BIKA PREMIUM GAME ARENA</p>
               <h1>PLAY. WIN. <span>UPGRADE.</span></h1>
-              <p>8+ premium games, fast rounds, live tables and a wallet built for the BIKA community.</p>
+              <p>Premium games, live rounds, real account balance and Telegram-native gameplay — all in one BIKA arena.</p>
               <div class="hero-actions"><button class="primary-cta" data-open="crash">PLAY NOW <b>→</b></button><button class="ghost-cta" data-open="home">Explore Games</button></div>
-              <div class="hero-tags"><span>✦ Instant Payout</span><span>✦ Secure Wallet</span><span>● 24/7 Online</span></div>
+              <div class="hero-tags"><span>✦ Live Rounds</span><span>✦ BIKA Wallet</span><span>● Telegram Mini App</span></div>
             </div>
             <div class="hero-orb">
               <div class="orb-ring ring-a"></div><div class="orb-ring ring-b"></div><div class="orb-core">BIKA<span>G</span></div>
@@ -74,51 +74,41 @@
 
           <aside class="side-stack">
             <div class="widget live-widget">
-              <div class="widget-head"><div><p class="kicker">LIVE PLAYERS</p><h3>Active Now</h3></div><span class="live-dot"></span></div>
-              <div class="mini-avatars"><i>A</i><i>K</i><i>M</i><i>S</i><i>+</i><b>+1.2K</b></div>
-              <div class="win-list">
-                <div><span>Ko Min</span><strong>+1,250,000</strong><em>Rocket</em></div>
-                <div><span>Thant Zin</span><strong>+850,000</strong><em>Slot</em></div>
-                <div><span>May Thu</span><strong>+420,000</strong><em>Wheel</em></div>
-                <div><span>Aung Ko</span><strong>+2,100,000</strong><em>Blackjack</em></div>
-              </div>
+              <div class="widget-head"><div><p class="kicker">LIVE STATUS</p><h3 id="homeRoundState">Loading…</h3></div><span class="live-dot"></span></div>
+              <div class="mini-avatars" id="homeLiveAvatars"><i>—</i><i>—</i><i>—</i><b id="homeOnlineCount">—</b></div>
+              <div class="win-list" id="homeLivePlayers"><div><span>Loading live round…</span><strong>—</strong><em id="homeRoundNo">—</em></div></div>
             </div>
             <div class="widget event-widget">
-              <div class="event-art"><div><p class="kicker">DAILY EVENT</p><h3>MEGA REWARDS</h3><small>Bonus drops every day</small></div><div class="trophy">🏆</div></div>
-              <div class="timer-row"><span>12<small>Hours</small></span><span>34<small>Minutes</small></span><span>56<small>Seconds</small></span><button data-open="wheel">JOIN NOW</button></div>
+              <div class="event-art"><div><p class="kicker">DAILY REWARD</p><h3>FREE SPIN</h3><small id="homeDailyInfo">Checking availability…</small></div><div class="trophy">🎁</div></div>
+              <div class="timer-row"><span class="daily-status-cell"><b id="homeDailyStatus">—</b><small>Status</small></span><span class="daily-status-cell"><b id="homeDailyReward">—</b><small>Base reward</small></span><span class="daily-status-cell"><b id="homeDailyDate">—</b><small>Date</small></span><button id="homeDailyBtn" data-open="wheel">OPEN WHEEL</button></div>
             </div>
           </aside>
 
           <section class="games-section">
             <div class="section-head"><div><span class="section-icon">🔥</span><div><p class="kicker">BIKA LIBRARY</p><h2>Popular Games</h2></div></div><button data-open="crash">View All Games →</button></div>
             <div class="game-carousel" id="gameLibrary">
-              <button class="game-tile rocket-card" data-open="crash"><div class="game-art rocket-art"><span class="tile-badge live">● LIVE</span><div class="art-emoji">🚀</div><div class="art-spark"></div></div><h3>Rocket Crash</h3><small>● 1.2K playing</small><strong>PLAY NOW</strong></button>
-              <button class="game-tile slot-home-card" data-open="slot"><div class="game-art slot-art"><span class="tile-badge hot">HOT</span><div class="art-emoji">🎰</div></div><h3>Premium Slot</h3><small>● 856 playing</small><strong>PLAY NOW</strong></button>
-              <button class="game-tile blackjack-home-card" data-open="blackjack"><div class="game-art blackjack-art"><span class="tile-badge live">● LIVE</span><div class="art-emoji">🂡</div></div><h3>Blackjack</h3><small>● 642 playing</small><strong>PLAY NOW</strong></button>
-              <button class="game-tile shan-home-card" data-open="shan"><div class="game-art shan-art"><span class="tile-badge new">NEW</span><div class="art-emoji">🎴</div></div><h3>Shan Koe Mee</h3><small>● 421 playing</small><strong>PLAY NOW</strong></button>
-              <button class="game-tile plinko-home-card" data-open="plinko"><div class="game-art plinko-art"><span class="tile-badge new">NEW</span><div class="art-emoji">🟡</div></div><h3>Plinko</h3><small>● 398 playing</small><strong>PLAY NOW</strong></button>
-              <button class="game-tile wheel-home-card" data-open="wheel"><div class="game-art wheel-art"><span class="tile-badge daily">DAILY</span><div class="art-emoji">🎡</div></div><h3>Lucky Wheel</h3><small>● 512 playing</small><strong>PLAY NOW</strong></button>
-              <button class="game-tile mines-home-card" data-open="mines"><div class="game-art mines-art"><span class="tile-badge new">NEW</span><div class="art-emoji">💣</div></div><h3>Mines</h3><small>● 366 playing</small><strong>PLAY NOW</strong></button>
+              <button class="game-tile rocket-card" data-open="crash"><div class="game-art rocket-art"><span class="tile-badge live">● LIVE</span><div class="art-emoji">🚀</div></div><h3>Rocket Crash</h3><small id="homeRocketPlayers">Live players —</small><strong>PLAY NOW</strong></button>
+              <button class="game-tile slot-home-card" data-open="slot"><div class="game-art slot-art"><span class="tile-badge hot">HOT</span><div class="art-emoji">🎰</div></div><h3>Premium Slot</h3><small>Open game to play</small><strong>PLAY NOW</strong></button>
+              <button class="game-tile blackjack-home-card" data-open="blackjack"><div class="game-art blackjack-art"><span class="tile-badge live">● LIVE</span><div class="art-emoji">🂡</div></div><h3>Blackjack</h3><small>Private table</small><strong>PLAY NOW</strong></button>
+              <button class="game-tile shan-home-card" data-open="shan"><div class="game-art shan-art"><span class="tile-badge new">NEW</span><div class="art-emoji">🎴</div></div><h3>Shan Koe Mee</h3><small>Banker tables</small><strong>PLAY NOW</strong></button>
+              <button class="game-tile plinko-home-card" data-open="plinko"><div class="game-art plinko-art"><span class="tile-badge new">NEW</span><div class="art-emoji">🟡</div></div><h3>Plinko</h3><small>Drop & multiply</small><strong>PLAY NOW</strong></button>
+              <button class="game-tile wheel-home-card" data-open="wheel"><div class="game-art wheel-art"><span class="tile-badge daily">DAILY</span><div class="art-emoji">🎡</div></div><h3>Lucky Wheel</h3><small id="homeWheelStatus">Daily status —</small><strong>PLAY NOW</strong></button>
+              <button class="game-tile mines-home-card" data-open="mines"><div class="game-art mines-art"><span class="tile-badge new">NEW</span><div class="art-emoji">💣</div></div><h3>Mines</h3><small>Risk & reward</small><strong>PLAY NOW</strong></button>
             </div>
           </section>
 
           <aside class="widget ranking-widget">
-            <div class="widget-head"><div><p class="kicker">TOP PLAYERS</p><h3>Leaderboard</h3></div><button>•••</button></div>
-            <div class="rank-tabs"><span class="active">Today</span><span>This Week</span><span>All Time</span></div>
-            <div class="rank-list">
-              <div><b>1</b><i>👑</i><span>Kyaw Gyi</span><strong>1,250,000,000</strong></div>
-              <div><b>2</b><i>◈</i><span>Maung Maung</span><strong>980,500,000</strong></div>
-              <div><b>3</b><i>✦</i><span>Thant Zin</span><strong>850,200,000</strong></div>
-              <div><b>4</b><i>●</i><span>Su Su</span><strong>642,000,000</strong></div>
-              <div><b>5</b><i>●</i><span>Aung Ko</span><strong>580,330,000</strong></div>
+            <div class="widget-head"><div><p class="kicker">YOUR ACTIVITY</p><h3>Recent Results</h3></div><button data-open="home">•••</button></div>
+            <div class="rank-tabs"><span class="active">Recent</span><span>Games</span><span>—</span></div>
+            <div class="rank-list" id="homeRecentResults">
+              <div><b>—</b><i>◷</i><span>Loading history…</span><strong>—</strong></div>
             </div>
           </aside>
 
           <section class="lower-grid">
-            <div class="widget activity-widget"><div class="section-head compact"><div><p class="kicker">REALTIME</p><h3>Live Activity</h3></div><span class="status-chip">● LIVE</span></div><div class="activity-row"><i>🚀</i><span><b>Ko Min</b><small>Rocket Crash</small></span><strong>+1,250,000</strong><em>2s</em></div><div class="activity-row"><i>🎰</i><span><b>Thant Zin</b><small>Premium Slot</small></span><strong>+850,000</strong><em>8s</em></div><div class="activity-row"><i>🎡</i><span><b>May Thu</b><small>Lucky Wheel</small></span><strong>+420,000</strong><em>12s</em></div></div>
-            <div class="widget wallet-widget"><div class="section-head compact"><div><p class="kicker">MY WALLET</p><h3>Quick Access</h3></div><button class="mini-action" data-open="home">Open Wallet</button></div><div class="balance-row"><span>Available Balance</span><strong id="balanceText">—</strong></div><div class="wallet-actions"><button data-open="home">Deposit</button><button data-open="home">Transfer</button><button data-open="home">History</button></div></div>
-          </section>
-        </div>
+            <div class="widget activity-widget"><div class="section-head compact"><div><p class="kicker">ACCOUNT</p><h3>Recent Activity</h3></div><span class="status-chip">SYNCED</span></div><div id="homeActivityList"><div class="activity-row"><i>◷</i><span><b>Loading…</b><small>Recent game activity</small></span><strong>—</strong><em>—</em></div></div></div>
+            <div class="widget wallet-widget"><div class="section-head compact"><div><p class="kicker">MY WALLET</p><h3>Quick Access</h3></div><button class="mini-action" data-open="home">Open Wallet</button></div><div class="balance-row"><span>Available Balance</span><strong id="balanceText">—</strong></div><div class="wallet-actions"><button data-open="home">Wallet</button><button data-open="home">Transfer</button><button data-open="home">History</button></div></div>
+          </section>        </div>
       </section>
 
       <section id="crash" class="panel game-panel">
@@ -173,7 +163,6 @@
   </main>
 
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="/miniapp/app-core.js?v=20261007-v40"></script>
   <script src="/miniapp/app.js?v=20261007-v40"></script>
 </body>
 </html>
