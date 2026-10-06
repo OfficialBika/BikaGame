@@ -422,64 +422,49 @@ function clearGame(gameId) {
 }
 
 async function expireGame(bot, gameId) {
-  const game = clearGame(gameId);
-  if (!game || game.settled) return;
-
-  game.settled = true;
-
+  const game = activeGames.get(gameId);
+  if (!game || game.settled || game.processing) return;
+  game.processing = true;
   try {
     await treasuryPayToUser(game.userId, game.bet, {
-      type: 'blackjack_refund',
-      bet: game.bet,
-      reason: 'blackjack_action_timeout',
+      type: 'blackjack_refund', idempotencyKey: `${game.id}:refund`, bet: game.bet, reason: 'blackjack_action_timeout'
     });
-  } catch (_) {}
-
-  try {
-    await editGameMessage(bot, game, expiredText(game), undefined);
-  } catch (_) {}
+    game.settled = true;
+    clearGame(game.id);
+  } catch (_) {
+    game.processing = false;
+    return;
+  }
+  try { await editGameMessage(bot, game, expiredText(game), undefined); } catch (_) {}
 }
 
 async function settleGame(bot, game, result) {
   const payout = payoutFor(result, game.bet);
-
-  clearGame(game.id);
-  game.settled = true;
-
-  if (payout > 0) {
-    try {
+  if (!game || game.settled) return;
+  game.processing = true;
+  try {
+    if (payout > 0) {
       await treasuryPayToUser(game.userId, payout, {
-        type: 'blackjack_win',
-        bet: game.bet,
-        payout,
-        result,
-        bjRtpWinRate: game.bjRtpWinRate,
-        fairResult: game.fairResult || result,
-        rtpTargetResult: game.rtpTargetResult || result,
+        type:'blackjack_win', idempotencyKey:`${game.id}:win`, bet:game.bet, payout, result,
+        bjRtpWinRate:game.bjRtpWinRate, fairResult:game.fairResult || result, rtpTargetResult:game.rtpTargetResult || result
       });
-    } catch (_) {
-      try {
-        await treasuryPayToUser(game.userId, game.bet, {
-          type: 'blackjack_refund',
-          bet: game.bet,
-          reason: 'blackjack_payout_failed',
-        });
-      } catch (_) {}
-
-      return editGameMessage(
-        bot,
-        game,
-        `⚠️ <b>Blackjack Payout Error</b>\n` +
-          `━━━━━━━━━━━━\n` +
-          `Payout error ဖြစ်လို့ bet refund ပြန်ပေးထားပါတယ်။`,
-        undefined
-      );
     }
+    game.settled = true;
+    clearGame(game.id);
+    return editGameMessage(bot, game, blackjackResultText(game, result, payout), undefined);
+  } catch (err) {
+    if (payout > 0) {
+      try {
+        await treasuryPayToUser(game.userId, game.bet, { type:'blackjack_refund', idempotencyKey:`${game.id}:refund`, bet:game.bet, reason:'blackjack_payout_failed' });
+        game.settled=true;
+        clearGame(game.id);
+        return editGameMessage(bot, game, `⚠️ <b>Blackjack Payout Error</b>\n━━━━━━━━━━━━\nPayout failed; bet refund ပြန်ပေးထားပါတယ်။`, undefined);
+      } catch (_) {}
+    }
+    game.processing=false;
+    return editGameMessage(bot, game, `⚠️ <b>Blackjack Payout Error</b>\n━━━━━━━━━━━━\nPayout/refund မပြီးသေးပါ။ ထပ်ကြိုးစားနိုင်ပါတယ်။`, undefined);
   }
-
-  return editGameMessage(bot, game, blackjackResultText(game, result, payout), undefined);
 }
-
 async function dealerPlayAndSettle(bot, game) {
   const fairBeforeRtp = decideResult(game);
   const targetResult = chooseBjTargetResult(game, fairBeforeRtp);
@@ -584,11 +569,13 @@ module.exports = (bot) => {
 
     let betTaken = false;
     let game = null;
+    const transactionKey = `blackjack:${chatId}:${commandMessageId || Date.now()}`;
 
     try {
       await userPayToTreasury(userId, bet, {
         type: 'blackjack_bet',
         chatId,
+        idempotencyKey: `${transactionKey}:bet`,
       });
 
       betTaken = true;
@@ -656,6 +643,7 @@ module.exports = (bot) => {
         try {
           await treasuryPayToUser(userId, bet, {
             type: 'blackjack_refund',
+            idempotencyKey: `${transactionKey}:refund`,
             bet,
             reason: 'blackjack_runtime_error',
           });

@@ -258,89 +258,47 @@ async function recordMinesTournament(game, payout, result) {
 }
 
 async function payoutAndSettle(bot, game, reason) {
-  const rawPayout = cashoutAmount(game);
-  const payout = await capPayout(game, rawPayout);
-
-  clearGame(game.id);
-  game.settled = true;
-
+  const rawPayout=cashoutAmount(game);
+  const payout=await capPayout(game,rawPayout);
+  if(game.processing) return;
+  game.processing=true;
   try {
-    await treasuryPayToUser(game.userId, payout, {
-      type: 'mines_win',
-      bet: game.bet,
-      payout,
-      rawPayout,
-      multiplier: currentMultiplier(game),
-      mines: game.mineCount,
-      safeOpened: game.openedSafe.size,
-      paidSafeOpened: paidSafeOpened(game),
-      houseEdge: HOUSE_EDGE,
-      payoutDamping: PAYOUT_DAMPING,
-      maxPayoutMultiplier: MAX_PAYOUT_MULTIPLIER,
-      reason,
-    });
+    await treasuryPayToUser(game.userId,payout,{type:'mines_win',idempotencyKey:`${game.id}:win`,bet:game.bet,payout,rawPayout,multiplier:currentMultiplier(game),mines:game.mineCount,safeOpened:game.openedSafe.size,paidSafeOpened:paidSafeOpened(game),houseEdge:HOUSE_EDGE,payoutDamping:PAYOUT_DAMPING,maxPayoutMultiplier:MAX_PAYOUT_MULTIPLIER,reason});
+    game.settled=true;
+    if(game.timeoutHandle) clearTimeout(game.timeoutHandle);
+    clearGame(game.id);
   } catch (err) {
     try {
-      await treasuryPayToUser(game.userId, game.bet, {
-        type: 'mines_refund',
-        bet: game.bet,
-        reason: 'mines_payout_failed',
-      });
+      await treasuryPayToUser(game.userId,game.bet,{type:'mines_refund',idempotencyKey:`${game.id}:refund`,bet:game.bet,reason:'mines_payout_failed'});
+      game.settled=true;
+      if(game.timeoutHandle) clearTimeout(game.timeoutHandle);
+      clearGame(game.id);
+      return editByIds(bot,game.chatId,game.messageId,`⚠️ <b>Mines Payout Error</b>\n━━━━━━━━━━━━\nPayout error ဖြစ်လို့ bet refund ပြန်ပေးထားပါတယ်။`,{reply_markup:minesKeyboard(game,true)});
     } catch (_) {}
-
-    return editByIds(
-      bot,
-      game.chatId,
-      game.messageId,
-      `⚠️ <b>Mines Payout Error</b>\n` +
-        `━━━━━━━━━━━━\n` +
-        `Payout error ဖြစ်လို့ bet refund ပြန်ပေးထားပါတယ်။`,
-      { reply_markup: minesKeyboard(game, true) }
-    );
+    game.processing=false;
+    return editByIds(bot,game.chatId,game.messageId,`⚠️ <b>Mines Payout Error</b>\n━━━━━━━━━━━━\nPayout/refund မပြီးသေးပါ။ ထပ်ကြိုးစားနိုင်ပါတယ်။`,{reply_markup:minesKeyboard(game,true)});
   }
-
-  recordMinesTournament(game, payout, reason).catch(() => {});
-
-  return editByIds(
-    bot,
-    game.chatId,
-    game.messageId,
-    minesText(game, `✅ <b>Cash Out Success!</b>\nNet: <b>${fmt(payout - game.bet)}</b> ${COIN}`, true, payout),
-    { reply_markup: minesKeyboard(game, true) }
-  );
+  recordMinesTournament(game,payout,reason).catch(()=>{});
+  return editByIds(bot,game.chatId,game.messageId,minesText(game,`✅ <b>Cash Out Success!</b>\nNet: <b>${fmt(payout-game.bet)}</b> ${COIN}`,true,payout),{reply_markup:minesKeyboard(game,true)});
 }
 
 async function expireGame(bot, gameId) {
-  const game = activeGames.get(gameId);
-  if (!game || game.settled) return;
-
-  if (game.processing) {
-    game.timeoutHandle = setTimeout(() => expireGame(bot, gameId).catch(() => {}), 5000);
+  const game=activeGames.get(gameId);
+  if(!game||game.settled) return;
+  if(game.processing){game.timeoutHandle=setTimeout(()=>expireGame(bot,gameId).catch(()=>{}),5000);return;}
+  if(canCashOut(game)) return payoutAndSettle(bot,game,'timeout_auto_cashout');
+  game.processing=true;
+  try {
+    await treasuryPayToUser(game.userId,game.bet,{type:'mines_refund',idempotencyKey:`${game.id}:refund`,bet:game.bet,reason:game.openedSafe.size>0?'mines_timeout_before_cashout_unlock':'mines_timeout_no_pick'});
+    game.settled=true;
+    if(game.timeoutHandle) clearTimeout(game.timeoutHandle);
+    clearGame(game.id);
+  } catch (_) {
+    game.processing=false;
+    game.timeoutHandle=setTimeout(()=>expireGame(bot,gameId).catch(()=>{}),5000);
     return;
   }
-
-  if (canCashOut(game)) {
-    return payoutAndSettle(bot, game, 'timeout_auto_cashout');
-  }
-
-  clearGame(game.id);
-  game.settled = true;
-
-  try {
-    await treasuryPayToUser(game.userId, game.bet, {
-      type: 'mines_refund',
-      bet: game.bet,
-      reason: game.openedSafe.size > 0 ? 'mines_timeout_before_cashout_unlock' : 'mines_timeout_no_pick',
-    });
-  } catch (_) {}
-
-  return editByIds(
-    bot,
-    game.chatId,
-    game.messageId,
-    minesText(game, '⌛ Cash Out unlock မဖြစ်သေးခင် အချိန်ကုန်သွားလို့ bet refund ပြန်ပေးထားပါတယ်။', true, game.bet),
-    { reply_markup: minesKeyboard(game, true) }
-  );
+  return editByIds(bot,game.chatId,game.messageId,minesText(game,'⌛ Cash Out unlock မဖြစ်သေးခင် အချိန်ကုန်သွားလို့ bet refund ပြန်ပေးထားပါတယ်။',true,game.bet),{reply_markup:minesKeyboard(game,true)});
 }
 
 async function startMines(ctx, bot, parsed) {
@@ -401,17 +359,20 @@ async function startMines(ctx, bot, parsed) {
 
   let betTaken = false;
   let game = null;
+  const gameId = makeGameId();
 
   try {
     await userPayToTreasury(userId, bet, {
       type: 'mines_bet',
       chatId,
       mines: mineCount,
+      gameId,
+      idempotencyKey: `${gameId}:bet`,
     });
     betTaken = true;
 
     game = {
-      id: makeGameId(),
+      id: gameId,
       userId,
       chatId,
       messageId: null,
@@ -457,6 +418,7 @@ async function startMines(ctx, bot, parsed) {
       try {
         await treasuryPayToUser(userId, bet, {
           type: 'mines_refund',
+          idempotencyKey: `${gameId}:refund`,
           bet,
           reason: 'mines_start_error',
         });
@@ -539,6 +501,7 @@ module.exports = (bot) => {
         try {
           await treasuryPayToUser(game.userId, game.bet, {
             type: 'mines_refund',
+            idempotencyKey: `${game.id}:refund`,
             bet: game.bet,
             reason: game.openedSafe.size > 0 ? 'mines_cancel_before_cashout_unlock' : 'mines_cancel_before_pick',
           });

@@ -2,7 +2,7 @@
 
 const { COIN } = require('../config/constants');
 const { getDb } = require('../config/database');
-const { getUser, userPayToTreasury, treasuryPayToUser } = require('./economyService');
+const { getUser, settleSingleGame } = require('./economyService');
 const { getTreasury } = require('./treasuryService');
 const { getWebGameRtp } = require('./webGameRtpService');
 const { recordWebGameHistory } = require('./webBetHistoryService');
@@ -137,62 +137,31 @@ async function getDailyWheelStatus(userId) {
   };
 }
 
-async function spinWebWheel({ userId, bet }) {
+async function spinWebWheel({ userId, bet, spinId = null }) {
   const amount = parseBet(bet);
   if (!Number.isInteger(amount) || amount < MIN_BET || amount > MAX_BET) {
-    const err = new Error('BET_RANGE');
-    err.minBet = MIN_BET;
-    err.maxBet = MAX_BET;
-    throw err;
+    const err = new Error('BET_RANGE'); err.minBet = MIN_BET; err.maxBet = MAX_BET; throw err;
   }
-
   const user = await getUser(userId);
   if (!user) throw new Error('USER_NOT_FOUND');
   if (Number(user.balance || 0) < amount) throw new Error('USER_INSUFFICIENT');
-
   const rtp = await getWebGameRtp('wheel');
   const segment = weightedPick(buildWeightedSegments(rtp));
   const rawPayout = Math.floor(amount * segment.multiplier);
-
-  await userPayToTreasury(userId, amount, {
-    type: 'web_wheel_bet',
-    source: 'miniapp_wheel',
-    rtp,
-    segment: segment.index,
+  const payout = rawPayout > 0 ? await capPayout(amount, rawPayout) : 0;
+  const settlementId = String(spinId || `wheel:${userId}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`);
+  await settleSingleGame({
+    settlementId, typePrefix: 'web_wheel', userId, bet: amount, payout,
+    meta: { source: 'miniapp_wheel', rtp, segment: segment.index, multiplier: segment.multiplier, rawPayout },
   });
-
-  let payout = 0;
-  if (rawPayout > 0) {
-    payout = await capPayout(amount, rawPayout);
-    if (payout > 0) {
-      await treasuryPayToUser(userId, payout, {
-        type: 'web_wheel_win',
-        source: 'miniapp_wheel',
-        bet: amount,
-        payout,
-        rawPayout,
-        multiplier: segment.multiplier,
-        rtp,
-        segment: segment.index,
-      });
-    }
-  }
-
   const updated = await getUser(userId);
-  await recordWebGameHistory({
-    userId,
-    game: 'wheel',
-    title: `Wheel ${segment.label}`,
-    outcome: payout > amount ? 'win' : payout > 0 ? 'paid' : 'lose',
-    bet: amount,
-    payout,
-    net: payout - amount,
-    multiplier: segment.multiplier,
-    label: segment.label,
-    meta: { segment: segment.index, rawPayout, rtp, mode: 'paid' },
-  });
-
   const jitter = randomSafeJitter();
+  await recordWebGameHistory({
+    userId, game: 'wheel', title: `Wheel ${segment.label}`,
+    outcome: payout > amount ? 'win' : payout > 0 ? 'paid' : 'lose',
+    bet: amount, payout, net: payout - amount, multiplier: segment.multiplier, label: segment.label,
+    meta: { segment: segment.index, rawPayout, rtp, mode: 'paid', settlementId },
+  });
   return {
     ok: true,
     mode: 'paid',
@@ -209,97 +178,40 @@ async function spinWebWheel({ userId, bet }) {
     balance: Number(updated?.balance || 0),
   };
 }
-
 async function spinDailyWebWheel({ userId }) {
+  await ensureDailyIndexes();
   const uid = Number(userId);
   if (!Number.isFinite(uid) || uid <= 0) throw new Error('INVALID_USER');
+  const now = new Date();
+  const dateKey = dailyDateKey(now);
   const user = await getUser(uid);
   if (!user) throw new Error('USER_NOT_FOUND');
-
-  await ensureDailyIndexes();
-  const dateKey = dailyDateKey();
-  const now = new Date();
-  const existing = await dailyCollection().findOne({ userId: Math.floor(uid), dateKey });
-  if (existing) {
-    const err = new Error('WHEEL_DAILY_USED');
-    err.nextAtMs = nextDailyResetMs(now);
-    throw err;
-  }
-
   const rtp = await getWebGameRtp('wheel');
   const segment = weightedPick(buildWeightedSegments(rtp));
   const rawPayout = Math.floor(DAILY_BASE_REWARD * segment.multiplier);
-  let payout = 0;
-  if (rawPayout > 0) payout = await capDailyPayout(rawPayout);
-
-  const claim = {
-    userId: Math.floor(uid),
-    dateKey,
-    label: segment.label,
-    multiplier: segment.multiplier,
-    segment: segment.index,
-    baseReward: DAILY_BASE_REWARD,
-    rawPayout,
-    payout,
-    claimedAtMs: now.getTime(),
-    createdAt: now,
-  };
-
+  const payout = await capDailyPayout(rawPayout);
+  const settlementId = `daily:${uid}:${dateKey}`;
+  await settleSingleGame({
+    settlementId, typePrefix: 'web_wheel_daily', userId: uid, payout,
+    meta: { source:'miniapp_wheel_daily', dateKey, baseReward:DAILY_BASE_REWARD, rawPayout, multiplier:segment.multiplier, segment:segment.index, rtp },
+  });
+  const claim={ userId:uid, dateKey, label:segment.label, multiplier:segment.multiplier, segment:segment.index, baseReward:DAILY_BASE_REWARD, rawPayout, payout, claimedAtMs:now.getTime(), createdAt:now };
   try {
     await dailyCollection().insertOne(claim);
   } catch (err) {
     if (err?.code === 11000) {
-      const used = new Error('WHEEL_DAILY_USED');
-      used.nextAtMs = nextDailyResetMs(now);
-      throw used;
+      const used=new Error('WHEEL_DAILY_USED'); used.nextAtMs=nextDailyResetMs(now); throw used;
     }
     throw err;
   }
-
-  if (payout > 0) {
-    await treasuryPayToUser(uid, payout, {
-      type: 'web_wheel_daily_win',
-      source: 'miniapp_wheel_daily',
-      baseReward: DAILY_BASE_REWARD,
-      payout,
-      rawPayout,
-      multiplier: segment.multiplier,
-      rtp,
-      segment: segment.index,
-      dateKey,
-    });
-  }
-
-  const updated = await getUser(uid);
-  await recordWebGameHistory({
-    userId: uid,
-    game: 'wheel',
-    title: `Daily Wheel ${segment.label}`,
-    outcome: payout > 0 ? 'daily_win' : 'daily_lose',
-    bet: 0,
-    payout,
-    net: payout,
-    multiplier: segment.multiplier,
-    label: segment.label,
-    meta: { segment: segment.index, rawPayout, rtp, mode: 'daily', baseReward: DAILY_BASE_REWARD, dateKey },
-  });
-
+  const updated=await getUser(uid);
   const jitter = randomSafeJitter();
+  await recordWebGameHistory({userId:uid,game:'wheel',title:`Daily Wheel ${segment.label}`,outcome:payout>0?'daily_win':'daily_lose',bet:0,payout,net:payout,multiplier:segment.multiplier,label:segment.label,meta:{segment:segment.index,rawPayout,rtp,mode:'daily',baseReward:DAILY_BASE_REWARD,dateKey,settlementId}});
   return {
-    ok: true,
-    mode: 'daily',
-    game: 'wheel',
-    coin: COIN,
-    rtp,
-    bet: 0,
-    baseReward: DAILY_BASE_REWARD,
-    segment: { index: segment.index, label: segment.label, multiplier: segment.multiplier, color: segment.color },
-    stopAngleDegrees: stopAngleForSegment(segment.index, jitter),
-    stopAngleJitter: jitter,
-    payout,
-    rawPayout,
-    net: payout,
-    balance: Number(updated?.balance || 0),
+    ok:true, mode:'daily', game:'wheel', coin:COIN, rtp, bet:0, baseReward:DAILY_BASE_REWARD,
+    segment:{index:segment.index,label:segment.label,multiplier:segment.multiplier,color:segment.color},
+    stopAngleDegrees:stopAngleForSegment(segment.index,jitter), stopAngleJitter:jitter,
+    payout, rawPayout, net:payout, balance:Number(updated?.balance||0),
     daily: await getDailyWheelStatus(uid),
   };
 }

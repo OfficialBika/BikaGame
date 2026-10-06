@@ -1,6 +1,6 @@
 'use strict';
 const { BLACKJACK = {} } = require('../config/constants');
-const { getUser, userPayToTreasury, treasuryPayToUser } = require('./economyService');
+const { getUser, userPayToTreasury, settleSingleGame } = require('./economyService');
 const { getWebGameRtp, setWebGameRtp } = require('./webGameRtpService');
 const { recordWebGameHistory } = require('./webBetHistoryService');
 const MIN_BET=Math.max(1,Number(process.env.WEB_BJ_MIN_BET||BLACKJACK.minBet||50));
@@ -38,11 +38,45 @@ const setWebBlackjackRtp=(v,u=null)=>setWebGameRtp(RTP_GAME_KEY,v,u);
 function resetRoundForLobby(r){if(!r||r.state!=='finished')return r;r.state='lobby';r.settled=false;r.deck=[];r.dealer=[];r.actionDeadlineMs=null;r.finishedAtMs=null;r.createdAtMs=nowMs();r.joinDeadlineMs=nowMs()+JOIN_SECONDS*1000;r.nextRoundAtMs=null;r.roundNo=Number(r.roundNo||0)+1;r.players.clear();return r;}
 function scheduleNextRound(r){if(r.nextRoundTimer)clearTimeout(r.nextRoundTimer);r.nextRoundAtMs=nowMs()+NEXT_ROUND_SECONDS*1000;r.nextRoundTimer=setTimeout(()=>{r.nextRoundTimer=null;if(r.state==='finished')resetRoundForLobby(r);},NEXT_ROUND_SECONDS*1000);}
 async function createWebBlackjackRoom({chatId,title='',createdBy=null}={}){cleanupRooms();const r={id:makeRoomId(),chatId:chatId||null,title:String(title||'Bika Blackjack Table').slice(0,80),createdBy,createdAtMs:nowMs(),joinDeadlineMs:nowMs()+JOIN_SECONDS*1000,actionDeadlineMs:null,nextRoundAtMs:null,nextRoundTimer:null,state:'lobby',deck:[],dealer:[],players:new Map(),rtp:await getWebBlackjackRtp(),settled:false,roundNo:1};rooms.set(r.id,r);return publicRoom(r,createdBy);}
-function maybeAutoStartOrExpire(r){if(r.state==='finished'&&r.nextRoundAtMs&&nowMs()>=r.nextRoundAtMs)resetRoundForLobby(r);if(r.state==='lobby'&&nowMs()>=r.joinDeadlineMs){if(r.players.size)startRound(r);else{r.state='expired';r.finishedAtMs=nowMs();}}if(r.state==='playing'&&r.actionDeadlineMs&&nowMs()>=r.actionDeadlineMs){for(const p of r.players.values())if(p.status==='playing')p.status='stand';return finishDealer(r).catch(e=>console.error('WEB_BJ_AUTO_FINISH_FAILED:',e?.message||e));}return null;}
+function maybeAutoStartOrExpire(r){if(r.state==='finished'&&r.nextRoundAtMs&&nowMs()>=r.nextRoundAtMs)resetRoundForLobby(r);if(r.state==='lobby'&&nowMs()>=r.joinDeadlineMs){if(r.players.size)startRound(r);else{r.state='expired';r.finishedAtMs=nowMs();}}if(r.state==='playing'&&r.actionDeadlineMs&&nowMs()>=r.actionDeadlineMs){for(const p of r.players.values())if(p.status==='playing')p.status='stand';return finishDealer(r).catch(e=>console.error('WEB_BJ_AUTO_FINISH_FAILED:',e?.message||e));}if(r.state==='dealer'&&!r.settled)return finishDealer(r).catch(e=>console.error('WEB_BJ_RETRY_SETTLEMENT_FAILED:',e?.message||e));return null;}
 function startRound(r){if(r.state!=='lobby')return r;if(!r.players.size){r.state='expired';r.finishedAtMs=nowMs();return r;}r.deck=createDeck();r.dealer=[];for(const p of r.players.values()){p.hand=[];p.result=null;p.payout=0;p.net=-p.bet;p.status='playing';}for(let i=0;i<2;i++){for(const p of r.players.values())p.hand.push(draw(r));r.dealer.push(draw(r));}for(const p of r.players.values())if(isNatural(p.hand))p.status='blackjack';r.state='playing';r.actionDeadlineMs=nowMs()+ACTION_SECONDS*1000;if([...r.players.values()].every(finalActionDone))finishDealer(r).catch(e=>console.error('WEB_BJ_NATURAL_FINISH_FAILED:',e?.message||e));return r;}
 function shapeDealerForTable(r){const totals=[...r.players.values()].map(p=>handValue(p.hand)).filter(v=>v<=21);if(!totals.length)return handForTotal(18);const rtp=Math.max(40,Math.min(95,Number(r.rtp||65)));if(Math.random()*100<rtp){if(Math.random()<.72)return bustHand();const min=Math.min(...totals);return handForTotal(Math.max(17,Math.min(20,min-1)));}const max=Math.max(...totals);return handForTotal(Math.max(17,Math.min(21,max+1)));}
-async function finishDealer(r){if(!r||r.settled||!['playing','dealer'].includes(r.state))return r;r.state='dealer';r.dealer=shapeDealerForTable(r);while(handValue(r.dealer)<17)r.dealer.push(draw(r));for(const p of r.players.values()){const result=decideResult(p,r.dealer),payout=payoutFor(result,p.bet);p.result=result;p.payout=payout;p.net=payout-p.bet;p.status='settled';if(payout>0){try{await treasuryPayToUser(p.userId,payout,{type:'web_blackjack_payout',bet:p.bet,payout,result,roomId:r.id,rtp:r.rtp});}catch(e){console.error('WEB_BJ_PAYOUT_FAILED:',e?.message||e);p.result='PAYOUT_ERROR';p.payout=0;p.net=-p.bet;}}await recordWebGameHistory({userId:p.userId,game:'blackjack',title:'Web Blackjack',outcome:p.result,bet:p.bet,payout:p.payout,net:p.net,label:p.result==='BLACKJACK'?'Blackjack':p.result,meta:{roomId:r.id,playerTotal:handValue(p.hand),dealerTotal:handValue(r.dealer),players:r.players.size}});}r.state='finished';r.settled=true;r.finishedAtMs=nowMs();scheduleNextRound(r);return r;}
-async function joinWebBlackjack({roomId,userId,user={},bet}={}){const r=getRoomOrThrow(roomId);maybeAutoStartOrExpire(r);if(r.state!=='lobby'){if(r.state==='finished'){const e=new Error('BJ_NEXT_ROUND_WAIT');e.nextAtMs=r.nextRoundAtMs;throw e;}throw new Error(r.state==='expired'?'BJ_ROOM_EXPIRED':'BJ_ALREADY_STARTED');}const uid=Number(userId);if(!Number.isFinite(uid)||uid<=0)throw new Error('INVALID_USER');if(r.players.has(uid))return publicRoom(r,uid);if(r.players.size>=MAX_PLAYERS)throw new Error('BJ_TABLE_FULL');const b=safeBet(bet);if(b<MIN_BET||b>MAX_BET){const e=new Error('BET_RANGE');e.minBet=MIN_BET;e.maxBet=MAX_BET;throw e;}const doc=await getUser(uid);if(Number(doc?.balance||0)<b)throw new Error('USER_INSUFFICIENT');await userPayToTreasury(uid,b,{type:'web_blackjack_bet',roomId:r.id,playerCount:r.players.size+1});const name=playerName({...user,id:uid});r.players.set(uid,{userId:uid,name,avatar:avatarText(name),username:user.username||null,bet:b,hand:[],status:'waiting',result:null,payout:0,net:-b,joinedAtMs:nowMs()});if(r.players.size>=MAX_PLAYERS)startRound(r);return publicRoom(r,uid,await currentBalance(uid));}
+async function finishDealer(r) {
+  if (!r || r.settled || !['playing','dealer'].includes(r.state)) return r;
+  r.state='dealer';
+  if (!r.dealer?.length) { r.dealer=shapeDealerForTable(r); while(handValue(r.dealer)<17) r.dealer.push(draw(r)); }
+  let payoutFailed=false;
+  for (const p of r.players.values()) {
+    if (!p.result) {
+      p.result=decideResult(p,r.dealer);
+      p.payout=payoutFor(p.result,p.bet);
+      p.net=p.payout-p.bet;
+      p.status='settled';
+    }
+    if (p.payout>0 && !p.settledAtMs) {
+      try {
+        await settleSingleGame({ settlementId:`${r.id}:${p.userId}`, typePrefix:'web_blackjack', userId:p.userId, payout:p.payout, meta:{ roomId:r.id, bet:p.bet, result:p.result, rtp:r.rtp } });
+        p.settledAtMs=nowMs();
+      } catch(e) {
+        payoutFailed=true;
+        console.error('WEB_BJ_PAYOUT_FAILED:',e?.message||e);
+      }
+    }
+    if (p.payout===0 || p.settledAtMs) {
+      if (!p.historyRecordedAtMs) {
+        await recordWebGameHistory({userId:p.userId,game:'blackjack',title:'Web Blackjack',outcome:p.result,bet:p.bet,payout:p.payout,net:p.net,label:p.result==='BLACKJACK'?'Blackjack':p.result,meta:{roomId:r.id,playerTotal:handValue(p.hand),dealerTotal:handValue(r.dealer),players:r.players.size}});
+        p.historyRecordedAtMs=nowMs();
+      }
+    }
+  }
+  if (payoutFailed) return r;
+  r.state='finished';
+  r.settled=true;
+  r.finishedAtMs=nowMs();
+  scheduleNextRound(r);
+  return r;
+}
+async function joinWebBlackjack({roomId,userId,user={},bet}={}){const r=getRoomOrThrow(roomId);maybeAutoStartOrExpire(r);if(r.state!=='lobby'){if(r.state==='finished'){const e=new Error('BJ_NEXT_ROUND_WAIT');e.nextAtMs=r.nextRoundAtMs;throw e;}throw new Error(r.state==='expired'?'BJ_ROOM_EXPIRED':'BJ_ALREADY_STARTED');}const uid=Number(userId);if(!Number.isFinite(uid)||uid<=0)throw new Error('INVALID_USER');if(r.players.has(uid))return publicRoom(r,uid);if(r.players.size>=MAX_PLAYERS)throw new Error('BJ_TABLE_FULL');const b=safeBet(bet);if(b<MIN_BET||b>MAX_BET){const e=new Error('BET_RANGE');e.minBet=MIN_BET;e.maxBet=MAX_BET;throw e;}const doc=await getUser(uid);if(Number(doc?.balance||0)<b)throw new Error('USER_INSUFFICIENT');await userPayToTreasury(uid,b,{type:'web_blackjack_bet',roomId:r.id,playerCount:r.players.size+1,idempotencyKey:`${r.id}:bet:${uid}`});const name=playerName({...user,id:uid});r.players.set(uid,{userId:uid,name,avatar:avatarText(name),username:user.username||null,bet:b,hand:[],status:'waiting',result:null,payout:0,net:-b,joinedAtMs:nowMs()});if(r.players.size>=MAX_PLAYERS)startRound(r);return publicRoom(r,uid,await currentBalance(uid));}
 async function leaveWebBlackjack({roomId,userId}={}){const r=getRoomOrThrow(roomId),uid=Number(userId),p=r.players.get(uid);if(!p)return publicRoom(r,uid,await currentBalance(uid));if(r.state==='playing'){if(p.status==='playing')p.status='left';p.left=true;if([...r.players.values()].every(finalActionDone))await finishDealer(r);}else{r.players.delete(uid);if(r.state==='lobby'&&!r.players.size)r.joinDeadlineMs=nowMs()+JOIN_SECONDS*1000;}return publicRoom(r,uid,await currentBalance(uid));}
 async function hitWebBlackjack({roomId,userId}={}){const r=getRoomOrThrow(roomId);maybeAutoStartOrExpire(r);const p=r.players.get(Number(userId));if(!p)throw new Error('BJ_NOT_JOINED');if(r.state!=='playing')throw new Error('BJ_NOT_PLAYING');if(p.status!=='playing')throw new Error('BJ_ACTION_DONE');p.hand.push(draw(r));const v=handValue(p.hand);if(v>21)p.status='bust';else if(v===21)p.status='stand';if([...r.players.values()].every(finalActionDone))await finishDealer(r);return publicRoom(r,userId,await currentBalance(userId));}
 async function standWebBlackjack({roomId,userId}={}){const r=getRoomOrThrow(roomId);maybeAutoStartOrExpire(r);const p=r.players.get(Number(userId));if(!p)throw new Error('BJ_NOT_JOINED');if(r.state!=='playing')throw new Error('BJ_NOT_PLAYING');if(p.status!=='playing')throw new Error('BJ_ACTION_DONE');p.status='stand';if([...r.players.values()].every(finalActionDone))await finishDealer(r);return publicRoom(r,userId,await currentBalance(userId));}

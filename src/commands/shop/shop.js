@@ -1,6 +1,8 @@
 'use strict';
 
 const { ObjectId } = require('mongodb');
+const { col, withRequiredTx } = require('../../config/database');
+const { logTx } = require('../../services/transactionService');
 const { COIN } = require('../../config/constants');
 const { getBotInfo } = require('../../config/bot');
 const orderModel = require('../../models/orderModel');
@@ -8,7 +10,6 @@ const shopCardModel = require('../../models/shopCardModel');
 const shopSettingModel = require('../../models/shopSettingModel');
 const {
   getUser,
-  userPayToTreasury,
   treasuryPayToUser,
 } = require('../../services/economyService');
 const {
@@ -1252,55 +1253,55 @@ module.exports = (bot) => {
       }
 
       if (action === 'CANCEL') {
-        let refunded = false;
-
         try {
-          await treasuryPayToUser(order.userId, order.price, {
-            type: 'shop_order_refund',
-            orderId: String(order._id),
-            cardId: order.cardId,
-            rarity: order.rarity,
-            reason: 'owner_cancel',
+          const markerId = `__settlement:shop-refund:${String(order._id)}`;
+          await withRequiredTx(async (session) => {
+            const opts = { session };
+            const tx = col('transactions');
+            const existing = await tx.findOne({ _id: markerId }, opts);
+            if (existing) return;
+
+            const refunded = await col('treasury').findOneAndUpdate(
+              { key:'treasury', ownerBalance:{ $gte:Number(order.price||0) } },
+              { $inc:{ ownerBalance:-Number(order.price||0) }, $set:{ updatedAt:new Date() } },
+              { session, returnDocument:'after' }
+            );
+            if (!refunded) throw new Error('TREASURY_INSUFFICIENT_FOR_REFUND');
+            const credited = await col('users').findOneAndUpdate(
+              { userId:{ $in:[String(order.userId),Number(order.userId)] } },
+              { $inc:{ balance:Number(order.price||0) }, $set:{ updatedAt:new Date() } },
+              { session, returnDocument:'after' }
+            );
+            if (!credited) throw new Error('REFUND_USER_NOT_FOUND');
+
+            const cardOr=[{ _id: order.cardObjectId }];
+            if (order.cardId) cardOr.push(order.botKey ? { cardId:order.cardId, botKey:order.botKey } : { cardId:order.cardId });
+            const card=await shopCardModel.collection().findOne({ $and:[{status:'SOLD',soldToUserId:order.userId},{ $or:cardOr }] }, opts);
+            if (card) {
+              const released=await shopCardModel.collection().updateOne({ _id:card._id, status:'SOLD', soldToUserId:order.userId }, { $set:{ status:'AVAILABLE', soldToUserId:null, soldAt:null, updatedAt:new Date() } }, opts);
+              if (released.matchedCount!==1) throw new Error('CARD_RELEASE_CONFLICT');
+            }
+
+            const changed=await orderModel.collection().updateOne(
+              { _id:order._id, status:'PENDING' },
+              { $set:{ status:'CANCELLED', cancelledByUserId:ctx.from.id, cancelledAt:new Date(), refunded:true, updatedAt:new Date() } },
+              opts
+            );
+            if (changed.matchedCount!==1) throw new Error('ORDER_CANCEL_STATE_CONFLICT');
+            await logTx({ type:'shop_order_refund', fromUserId:'TREASURY', toUserId:credited.userId, amount:Number(order.price||0), meta:{ orderId:String(order._id), cardId:order.cardId, reason:'owner_cancel', idempotencyKey:markerId } }, opts);
+            await tx.insertOne({ _id:markerId, type:'shop_refund_settlement', orderId:String(order._id), payout:Number(order.price||0), meta:{idempotencyKey:markerId}, createdAt:new Date() }, opts);
           });
-          refunded = true;
-        } catch (_) {}
-
-        await orderModel.collection().updateOne(
-          { _id: order._id, status: 'PENDING' },
-          {
-            $set: {
-              status: 'CANCELLED',
-              cancelledByUserId: ctx.from.id,
-              cancelledAt: new Date(),
-              refunded,
-              updatedAt: new Date(),
-            },
-          }
-        );
-
-        await shopCardModel.collection().updateOne(
-          { cardId: order.cardId, status: 'SOLD' },
-          {
-            $set: {
-              status: 'AVAILABLE',
-              soldToUserId: null,
-              soldAt: null,
-              updatedAt: new Date(),
-            },
-          }
-        );
+        } catch (err) {
+          try { await ctx.answerCbQuery('Refund မအောင်မြင်သေးပါ — order ကို မပယ်ဖျက်သေးပါ။', { show_alert:true }); } catch (_) {}
+          return;
+        }
 
         const updated = await orderModel.collection().findOne({ _id: order._id });
-
-        try {
-          await bot.telegram.sendMessage(order.userId, buyerCancelledText(updated, refunded), {
-            parse_mode: 'HTML',
-          });
-        } catch (_) {}
-
+        try { await bot.telegram.sendMessage(order.userId, buyerCancelledText(updated, true), { parse_mode:'HTML' }); } catch (_) {}
         try { await ctx.answerCbQuery('Order cancelled.'); } catch (_) {}
         return editHTML(ctx, ownerCompletedText(updated, 'CANCEL'));
       }
+
 
       try {
         await ctx.answerCbQuery('Unknown owner action.', { show_alert: true });
@@ -1407,60 +1408,61 @@ module.exports = (bot) => {
     try { await ctx.answerCbQuery('Creating exchange request...'); } catch (_) {}
 
     try {
-      const latestCard = await shopCardModel.collection().findOne({
-        _id: new ObjectId(pending.cardObjectId),
-        status: 'AVAILABLE',
-      });
-
-      if (!latestCard) {
-        clearPending(id);
-        return editOrderMessage(
-          bot,
-          pending.chatId,
-          pending.msgId,
-          '⚠️ <b>Card unavailable</b>\n━━━━━━━━━━━━━━━━\nဒီ card ကို တစ်ခြားသူလဲယူသွားပြီးဖြစ်နိုင်ပါတယ်။',
-          pending.hasMedia
-        );
-      }
-
-      await userPayToTreasury(pending.userId, pending.price, {
-        type: 'shop_card_exchange',
-        cardId: latestCard.cardId,
-        rarity: latestCard.rarity,
-      });
-
-      await shopCardModel.collection().updateOne(
-        { _id: latestCard._id, status: 'AVAILABLE' },
-        {
-          $set: {
-            status: 'SOLD',
-            soldToUserId: pending.userId,
-            soldAt: new Date(),
-            updatedAt: new Date(),
-          },
+      const markerId = `__settlement:shop:${String(id)}`;
+      const purchase = await withRequiredTx(async (session) => {
+        const opts = { session };
+        const tx = col('transactions');
+        const existing = await tx.findOne({ _id: markerId }, opts);
+        if (existing?.orderId) {
+          const existingOrder = await orderModel.collection().findOne({ _id: new ObjectId(existing.orderId) }, opts);
+          if (existingOrder) return { duplicate: true, orderId: existingOrder._id, card: await shopCardModel.collection().findOne({ _id: existingOrder.cardObjectId }) || null, receiptCode: existingOrder.receiptCode };
         }
-      );
 
-      const receipt = makeReceiptCode();
-
-      const inserted = await orderModel.collection().insertOne({
-        buyerId: pending.userId,
-        userId: pending.userId,
-        username: pending.buyer.username ? pending.buyer.username.toLowerCase() : null,
-        itemId: latestCard.cardId,
-        itemName: latestCard.name || latestCard.cardId,
-        cardId: latestCard.cardId,
-        botKey: pending.botKey || cardBotKey(latestCard),
-        rarity: latestCard.rarity,
-        mediaType: latestCard.mediaType || null,
-        mediaFileId: latestCard.mediaFileId || null,
-        price: pending.price,
-        receiptCode: receipt,
-        status: 'PENDING',
-        ownerNotified: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        const latestCard = await shopCardModel.collection().findOne({ _id: new ObjectId(pending.cardObjectId), status: 'AVAILABLE' }, opts);
+        if (!latestCard) {
+          const err=new Error('CARD_UNAVAILABLE');
+          throw err;
+        }
+        const now = new Date();
+        const user = await col('users').findOneAndUpdate(
+          { userId: { $in: [String(pending.userId), Number(pending.userId)] }, balance: { $gte: pending.price } },
+          { $inc: { balance: -pending.price }, $set: { updatedAt: now } },
+          { session, returnDocument:'after' }
+        );
+        if (!user) throw new Error('USER_INSUFFICIENT');
+        const treasury = await col('treasury').findOneAndUpdate(
+          { key:'treasury' },
+          { $inc:{ ownerBalance:pending.price }, $set:{ updatedAt:now } },
+          { session, returnDocument:'after' }
+        );
+        if (!treasury) throw new Error('TREASURY_NOT_FOUND');
+        const cardUpdate = await shopCardModel.collection().updateOne(
+          { _id: latestCard._id, status:'AVAILABLE' },
+          { $set:{ status:'SOLD', soldToUserId:pending.userId, soldAt:now, updatedAt:now } },
+          opts
+        );
+        if (cardUpdate.matchedCount !== 1) throw new Error('CARD_RESERVATION_CONFLICT');
+        const receipt = makeReceiptCode();
+        const inserted = await orderModel.collection().insertOne({
+          buyerId:pending.userId, userId:pending.userId,
+          username:pending.buyer.username ? pending.buyer.username.toLowerCase() : null,
+          itemId:latestCard.cardId, itemName:latestCard.name || latestCard.cardId, cardId:latestCard.cardId,
+          botKey:pending.botKey || cardBotKey(latestCard), rarity:latestCard.rarity,
+          mediaType:latestCard.mediaType || null, mediaFileId:latestCard.mediaFileId || null,
+          price:pending.price, receiptCode:receipt, status:'PENDING', ownerNotified:false, cardObjectId:latestCard._id, createdAt:now, updatedAt:now
+        }, opts);
+        await logTx({ type:'shop_card_exchange', fromUserId:user.userId, toUserId:'TREASURY', amount:pending.price, meta:{ cardId:latestCard.cardId, rarity:latestCard.rarity, botKey:pending.botKey || cardBotKey(latestCard), idempotencyKey:markerId, orderId:String(inserted.insertedId) } }, opts);
+        await tx.insertOne({ _id:markerId, type:'shop_card_settlement', orderId:String(inserted.insertedId), cardId:latestCard.cardId, userId:user.userId, amount:pending.price, meta:{idempotencyKey:markerId}, createdAt:now }, opts);
+        return { duplicate:false, orderId:inserted.insertedId, card:latestCard, receiptCode:receipt };
       });
+      const latestCard = purchase.card || pending.card;
+      const insertedId = purchase.orderId;
+      const receipt = purchase.receiptCode;
+      if (purchase.duplicate) {
+        clearPending(id);
+        const updatedUser=await getUser(pending.userId);
+        return editOrderMessage(bot,pending.chatId,pending.msgId,buyerPendingText({...pending,card:latestCard,receiptCode:receipt,userId:pending.userId},insertedId,updatedUser?.balance||0,true),pending.hasMedia);
+      }
 
       let ownerNotified = false;
       const ownerId = (await ensureTreasury())?.ownerUserId;
@@ -1475,11 +1477,11 @@ module.exports = (bot) => {
                 card: latestCard,
                 receiptCode: receipt,
               },
-              inserted.insertedId
+              insertedId
             ),
             {
               parse_mode: 'HTML',
-              reply_markup: ownerOrderKeyboard(String(inserted.insertedId)),
+              reply_markup: ownerOrderKeyboard(String(insertedId)),
             }
           );
 
@@ -1512,7 +1514,7 @@ module.exports = (bot) => {
             receiptCode: receipt,
             userId: pending.userId,
           },
-          inserted.insertedId,
+          insertedId,
           updatedUser?.balance || 0,
           ownerNotified
         ),
@@ -1743,7 +1745,7 @@ module.exports = (bot) => {
     const now = new Date();
 
     await shopCardModel.collection().updateOne(
-      { cardId: String(cardId) },
+      { botKey, cardId: String(cardId) },
       {
         $setOnInsert: { cardId: String(cardId), createdAt: now },
         $set: {
@@ -1792,7 +1794,7 @@ module.exports = (bot) => {
 
     const operations = cardIds.map((cardId) => ({
       updateOne: {
-        filter: { cardId: String(cardId) },
+        filter: { botKey, cardId: String(cardId) },
         update: {
           $setOnInsert: { cardId: String(cardId), createdAt: now },
           $set: {
@@ -1823,35 +1825,15 @@ module.exports = (bot) => {
 
   bot.command('shopremove', async (ctx) => {
     if (!(await requireOwnerDm(ctx))) return;
-
-    const cardId = String(ctx.message?.text || '').trim().split(/\s+/)[1];
-
-    if (!cardId) {
-      return replyHTML(ctx, 'Usage: <code>/shopremove D001</code>', replyOptions(ctx));
-    }
-
-    const result = await shopCardModel.collection().updateOne(
-      { cardId },
-      {
-        $set: {
-          status: 'REMOVED',
-          removedByUserId: ctx.from.id,
-          updatedAt: new Date(),
-        },
-      }
-    );
-
-    if (!result.matchedCount) {
-      return replyHTML(ctx, '⚠️ Card ID မတွေ့ပါ။', replyOptions(ctx));
-    }
-
-    return replyHTML(
-      ctx,
-      `✅ <b>Card Removed</b>\n━━━━━━━━━━━━━━━━\nCard ID: <code>${escHtml(cardId)}</code>`,
-      replyOptions(ctx)
-    );
+    const parts=String(ctx.message?.text||'').trim().split(/\s+/);
+    const maybeBot=normalizeShopBot(parts[1]);
+    const botKey=maybeBot || 'bikabot';
+    const cardId=maybeBot ? parts[2] : parts[1];
+    if(!cardId) return replyHTML(ctx,'Usage: <code>/shopremove D001</code> or <code>/shopremove HallowBot H001</code>',replyOptions(ctx));
+    const result=await shopCardModel.collection().updateOne({ botKey, cardId:String(cardId) },{$set:{status:'REMOVED',removedByUserId:ctx.from.id,updatedAt:new Date()}});
+    if(!result.matchedCount) return replyHTML(ctx,'⚠️ Card ID မတွေ့ပါ။',replyOptions(ctx));
+    return replyHTML(ctx,`✅ <b>Card Removed</b>\n━━━━━━━━━━━━━━━━\nBot: <b>${shopBotLabel(botKey)}</b>\nCard ID: <code>${escHtml(cardId)}</code>`,replyOptions(ctx));
   });
-
   bot.command('shopcards', async (ctx) => {
     if (!(await requireOwnerDm(ctx))) return;
 

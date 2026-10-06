@@ -1,6 +1,6 @@
 'use strict';
 
-const { col, withMaybeTx } = require('../config/database');
+const { col, withRequiredTx } = require('../config/database');
 const { ensureUser, treasuryPayToUser } = require('./economyService');
 const { logTx } = require('./transactionService');
 const { env } = require('../config/env');
@@ -62,8 +62,8 @@ async function placeBet(event, ctx, alias, amount) {
   const userId = Number(ctx.from.id);
   const now = new Date();
 
-  return withMaybeTx(async (session) => {
-    const opts = session ? { session } : {};
+  return withRequiredTx(async (session) => {
+    const opts = { session };
     const existing = await bets().findOne({ eventId: event._id, userId }, opts);
     if (existing) throw new Error('DUPLICATE_BET');
 
@@ -74,7 +74,12 @@ async function placeBet(event, ctx, alias, amount) {
     );
     if (!user) throw new Error('USER_INSUFFICIENT');
 
-    await col('config').updateOne({ key: 'treasury' }, { $inc: { ownerBalance: amount }, $set: { updatedAt: now } }, opts);
+    const treasuryUpdate = await col('treasury').findOneAndUpdate(
+      { key: 'treasury' },
+      { $inc: { ownerBalance: amount }, $set: { updatedAt: now } },
+      { session, returnDocument: 'after' }
+    );
+    if (!treasuryUpdate) throw new Error('TREASURY_NOT_FOUND');
 
     const betDoc = {
       eventId: event._id, userId,
@@ -96,23 +101,62 @@ async function stopEvent(event) {
 
 async function settleEvent(event, winnerAlias, payoutFn) {
   if (event.status !== 'stopped') throw new Error('EVENT_NOT_STOPPED');
-  const winner = event.teams.find(t => t.alias === winnerAlias);
+  const winner = event.teams.find((team) => team.alias === winnerAlias);
   if (!winner) throw new Error('INVALID_WINNER');
   const allBets = await bets().find({ eventId: event._id }).sort({ potentialWin: -1, createdAt: 1 }).toArray();
-  const winners = allBets.filter(b => b.alias === winnerAlias);
-  const losers = allBets.filter(b => b.alias !== winnerAlias);
-  const totalWinBal = winners.reduce((s, b) => s + b.potentialWin, 0);
-  const treasury = await col('config').findOne({ key: 'treasury' });
-  if (Number(treasury?.ownerBalance || 0) < totalWinBal) throw new Error('TREASURY_INSUFFICIENT_FOR_SETTLEMENT');
-  for (const bet of winners) {
-    await payoutFn(bet.userId, bet.potentialWin, { type: 'sports_win', eventId: String(event._id), betId: String(bet._id), odd: bet.odd });
-    await bets().updateOne({ _id: bet._id }, { $set: { status: 'won', settledAt: new Date(), payout: bet.potentialWin } });
-  }
-  if (losers.length) await bets().updateMany({ _id: { $in: losers.map(b => b._id) } }, { $set: { status: 'lost', settledAt: new Date(), payout: 0 } });
-  await events().updateOne({ _id: event._id }, { $set: { status: 'settled', winnerAlias, winnerTeam: winner.name, settledAt: new Date(), totalWinBal, updatedAt: new Date() } });
-  return { winner, winners, losers, allBets };
-}
+  const winners = allBets.filter((bet) => bet.alias === winnerAlias);
+  const losers = allBets.filter((bet) => bet.alias !== winnerAlias);
+  const totalWinBal = winners.reduce((sum, bet) => sum + Number(bet.potentialWin || 0), 0);
+  const tx = col('transactions');
+  const markerId = `__settlement:sports:${String(event._id)}`;
 
+  return withRequiredTx(async (session) => {
+    const opts = { session };
+    const existing = await tx.findOne({ _id: markerId }, opts);
+    if (existing) return { winner, winners, losers, allBets, duplicate: true };
+
+    const missing = [];
+    for (const bet of winners) {
+      if (bet.status === 'won') continue;
+      const paid = await tx.findOne({ type: 'sports_win', 'meta.eventId': String(event._id), 'meta.betId': String(bet._id) }, opts);
+      if (!paid) missing.push(bet);
+    }
+    const missingTotal = missing.reduce((sum, bet) => sum + Number(bet.potentialWin || 0), 0);
+    if (missingTotal > 0) {
+      const treasury = await col('treasury').findOneAndUpdate(
+        { key: 'treasury', ownerBalance: { $gte: missingTotal } },
+        { $inc: { ownerBalance: -missingTotal }, $set: { updatedAt: new Date() } },
+        { session, returnDocument: 'after' }
+      );
+      if (!treasury) throw new Error('TREASURY_INSUFFICIENT_FOR_SETTLEMENT');
+      for (const bet of missing) {
+        const user = await col('users').findOneAndUpdate(
+          { userId: { $in: [String(bet.userId), Number(bet.userId)] } },
+          { $inc: { balance: Number(bet.potentialWin), totalWon: Number(bet.potentialWin) }, $set: { updatedAt: new Date() } },
+          { session, returnDocument: 'after' }
+        );
+        if (!user) throw new Error('PAYOUT_USER_NOT_FOUND');
+        await logTx({
+          type: 'sports_win',
+          fromUserId: 'TREASURY',
+          toUserId: user.userId,
+          amount: Number(bet.potentialWin),
+          meta: { eventId: String(event._id), betId: String(bet._id), odd: bet.odd, idempotencyKey: `${markerId}:win:${String(bet._id)}` },
+        }, opts);
+      }
+    }
+    if (losers.length) await bets().updateMany({ _id: { $in: losers.map((bet) => bet._id) } }, { $set: { status: 'lost', settledAt: new Date(), payout: 0 } }, opts);
+    for (const bet of winners) await bets().updateOne({ _id: bet._id }, { $set: { status: 'won', settledAt: new Date(), payout: Number(bet.potentialWin) } }, opts);
+    const updated = await events().updateOne(
+      { _id: event._id, status: 'stopped' },
+      { $set: { status: 'settled', winnerAlias, winnerTeam: winner.name, settledAt: new Date(), totalWinBal, updatedAt: new Date() } },
+      opts
+    );
+    if (updated.matchedCount !== 1) throw new Error('EVENT_SETTLE_STATE_CONFLICT');
+    await tx.insertOne({ _id: markerId, type: 'sports_settlement', eventId: String(event._id), winnerAlias, payout: totalWinBal, meta: { idempotencyKey: markerId }, createdAt: new Date() }, opts);
+    return { winner, winners, losers, allBets, duplicate: false };
+  });
+}
 async function rememberThreadMessage(eventId, messageId) { if (!eventId || !messageId) return; await events().updateOne({ _id: eventId }, { $addToSet: { threadMessageIds: Number(messageId) }, $set: { updatedAt: new Date() } }); }
 
 module.exports = { events, bets, rememberThreadMessage, normalizeAlias, parseSetEvent, parseBet, formatDate, fmt, getReplyRoot, findActiveEventByThread, createEvent, placeBet, stopEvent, settleEvent };

@@ -1,7 +1,7 @@
 'use strict';
 
 const { COIN, SLOT } = require('../config/constants');
-const { getUser, userPayToTreasury, treasuryPayToUser } = require('./economyService');
+const { getUser, settleSingleGame } = require('./economyService');
 const { getTreasury } = require('./treasuryService');
 const engine = require('../games/slotEngine');
 const { getWebGameRtp } = require('./webGameRtpService');
@@ -23,53 +23,24 @@ async function capSlotPayout(bet, payout) {
   return Math.max(0, Math.min(Math.floor(payout), maxPayout, ownerBalance));
 }
 
-async function spinWebSlot({ userId, bet }) {
-  const finalUserId = cleanUserId(userId);
-  const amount = parseBet(bet);
-  if (!finalUserId) throw new Error('INVALID_USER');
-  if (!Number.isInteger(amount) || amount <= 0) throw new Error('INVALID_BET');
-  if (amount < Number(SLOT.minBet || 50) || amount > Number(SLOT.maxBet || 7000)) {
-    const err = new Error('BET_RANGE'); err.minBet = Number(SLOT.minBet || 50); err.maxBet = Number(SLOT.maxBet || 7000); throw err;
-  }
-  const cooldownLeft = checkCooldown(finalUserId);
-  if (cooldownLeft > 0) { const err = new Error('COOLDOWN'); err.cooldownLeft = cooldownLeft; throw err; }
-  if (activeSpins.has(finalUserId)) throw new Error('SPIN_RUNNING');
+async function spinWebSlot({ userId, bet, spinId = null }) {
+  const finalUserId=cleanUserId(userId); const amount=parseBet(bet);
+  if(!finalUserId) throw new Error('INVALID_USER');
+  if(!Number.isInteger(amount)||amount<=0) throw new Error('INVALID_BET');
+  if(amount<Number(SLOT.minBet||50)||amount>Number(SLOT.maxBet||7000)){const err=new Error('BET_RANGE');err.minBet=Number(SLOT.minBet||50);err.maxBet=Number(SLOT.maxBet||7000);throw err;}
+  const cooldownLeft=checkCooldown(finalUserId); if(cooldownLeft>0){const err=new Error('COOLDOWN');err.cooldownLeft=cooldownLeft;throw err;}
+  if(activeSpins.has(finalUserId)) throw new Error('SPIN_RUNNING');
   activeSpins.add(finalUserId);
-  let betTaken = false;
   try {
-    const user = await getUser(finalUserId);
-    if (!user) throw new Error('USER_NOT_FOUND');
-    if (Number(user.balance || 0) < amount) throw new Error('USER_INSUFFICIENT');
-    await userPayToTreasury(finalUserId, amount, { type:'web_slot_bet', source:'miniapp', });
-    betTaken = true;
-
-    const treasury = await getTreasury();
-    const rtpWinRate = await getWebGameRtp('slot');
-    const vipWinRate = Number(treasury?.vipWinRate ?? 90);
-    const reels = engine.spin(user, vipWinRate, Math.random, rtpWinRate);
-    const multiplier = Number(engine.multiplier(reels)) || 0;
-    const rawPayout = multiplier > 0 ? Math.floor(amount * multiplier) : 0;
-    const payout = await capSlotPayout(amount, rawPayout);
-
-    if (payout > 0) {
-      try {
-        await treasuryPayToUser(finalUserId, payout, { type:'web_slot_win', source:'miniapp', bet:amount, payout, rawPayout, multiplier, combo:reels.join(','), rtpWinRate });
-      } catch (err) {
-        try { await treasuryPayToUser(finalUserId, amount, { type:'web_slot_refund', source:'miniapp', bet:amount, reason:'web_slot_payout_failed' }); } catch (_) {}
-        betTaken = false; throw err;
-      }
-    }
-    betTaken = false;
-    const updated = await getUser(finalUserId);
-    await recordWebGameHistory({
-      userId:finalUserId, game:'slot', title:reels.join(' '), outcome:payout>amount?'win':payout>0?'paid':'lose',
-      bet:amount, payout, net:payout-amount, multiplier, label:reels.join(' '),
-      meta:{reels,rawPayout,rtp:rtpWinRate,vip:!!user.isVip},
-    });
+    const user=await getUser(finalUserId); if(!user) throw new Error('USER_NOT_FOUND');
+    if(Number(user.balance||0)<amount) throw new Error('USER_INSUFFICIENT');
+    const treasury=await getTreasury(); const rtpWinRate=await getWebGameRtp('slot'); const vipWinRate=Number(treasury?.vipWinRate??90);
+    const reels=engine.spin(user,vipWinRate,Math.random,rtpWinRate); const multiplier=Number(engine.multiplier(reels))||0; const rawPayout=multiplier>0?Math.floor(amount*multiplier):0; const payout=await capSlotPayout(amount,rawPayout);
+    const settlementId=String(spinId||`slot:${finalUserId}:${Date.now()}:${Math.random().toString(36).slice(2,8)}`);
+    await settleSingleGame({settlementId,typePrefix:'web_slot',userId:finalUserId,bet:amount,payout,meta:{source:'miniapp',reels:reels.join(','),multiplier,rawPayout,rtpWinRate,vip:!!user.isVip}});
+    const updated=await getUser(finalUserId);
+    await recordWebGameHistory({userId:finalUserId,game:'slot',title:reels.join(' '),outcome:payout>amount?'win':payout>0?'paid':'lose',bet:amount,payout,net:payout-amount,multiplier,label:reels.join(' '),meta:{reels,rawPayout,rtp:rtpWinRate,vip:!!user.isVip,settlementId}});
     return {ok:true,coin:COIN,bet:amount,reels,art:engine.art(reels),multiplier,rawPayout,payout,net:payout-amount,balance:Number(updated?.balance||0),result:payout>0?'WIN':'LOSE',rtp:rtpWinRate};
-  } catch (err) {
-    if (betTaken) { try { await treasuryPayToUser(finalUserId, amount, {type:'web_slot_refund',source:'miniapp',bet:amount,reason:'web_slot_runtime_error'}); } catch (_) {} }
-    throw err;
   } finally { activeSpins.delete(finalUserId); }
 }
 

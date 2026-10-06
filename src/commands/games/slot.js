@@ -199,6 +199,7 @@ module.exports = (bot) => {
     activeSlots.add(userId);
     incGroupActive(chatId);
 
+    const spinId = `slot:${chatId}:${ctx.message?.message_id || Date.now()}`;
     let betTaken = false;
     let sent = null;
 
@@ -231,6 +232,7 @@ module.exports = (bot) => {
         await userPayToTreasury(userId, bet, {
           type: 'slot_bet',
           chatId,
+          idempotencyKey: `${spinId}:bet`,
         });
         betTaken = true;
       } catch (_) {
@@ -269,6 +271,7 @@ module.exports = (bot) => {
         try {
           await treasuryPayToUser(userId, payout, {
             type: 'slot_win',
+            idempotencyKey: `${spinId}:win`,
             bet,
             payout,
             multiplier,
@@ -283,6 +286,7 @@ module.exports = (bot) => {
           try {
             await treasuryPayToUser(userId, bet, {
               type: 'slot_refund',
+              idempotencyKey: `${spinId}:refund`,
               bet,
               reason: 'payout_failed',
             });
@@ -320,6 +324,7 @@ module.exports = (bot) => {
         try {
           await treasuryPayToUser(userId, bet, {
             type: 'slot_refund',
+            idempotencyKey: `${spinId}:refund`,
             bet,
             reason: 'slot_runtime_error',
           });
