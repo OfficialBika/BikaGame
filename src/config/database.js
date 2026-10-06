@@ -133,5 +133,24 @@ async function withMaybeTx(work) {
   catch(e) { if (txUnsupported(e)) { TX_SUPPORTED=false; logger.warn('Mongo transactions unsupported; fallback mode enabled'); return work(null); } throw e; }
   finally { try { await session.endSession(); } catch(_){} }
 }
+
+async function withRequiredTx(work) {
+  if (!TX_SUPPORTED) throw new Error('MONGO_TRANSACTIONS_REQUIRED');
+  const session = client.startSession();
+  try {
+    return await session.withTransaction(() => work(session));
+  } catch (e) {
+    if (txUnsupported(e)) {
+      TX_SUPPORTED = false;
+      logger.error('Mongo transactions are required for this operation; refusing unsafe non-transactional fallback.');
+      const err = new Error('MONGO_TRANSACTIONS_REQUIRED');
+      err.cause = e;
+      throw err;
+    }
+    throw e;
+  } finally {
+    try { await session.endSession(); } catch (_) {}
+  }
+}
 async function pingMs(){ const s=Date.now(); try{ await getDb().command({ping:1}); return Date.now()-s; }catch(_){return null;} }
-module.exports = { connectMongo, closeMongo, getDb, col, withMaybeTx, pingMs };
+module.exports = { connectMongo, closeMongo, getDb, col, withMaybeTx, withRequiredTx, pingMs };

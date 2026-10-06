@@ -1,6 +1,6 @@
 'use strict';
 
-const { col, withMaybeTx } = require('../config/database');
+const { col, withRequiredTx } = require('../config/database');
 const userModel = require('../models/userModel');
 const { ensureTreasury } = require('./treasuryService');
 const treasuryModel = require('../models/treasuryModel');
@@ -347,7 +347,7 @@ async function bid(ctx, bot, a) {
   const now = new Date();
   let result = null;
 
-  await withMaybeTx(async (session) => {
+  await withRequiredTx(async (session) => {
     const opt = session ? { session } : {};
     const fresh = await auctions().findOne({ auctionId: a.auctionId, status: 'open', endAt: { $gt: now } }, opt);
     if (!fresh) throw new Error('AUCTION_CLOSED');
@@ -596,7 +596,9 @@ function register(bot) {
               ? emoji('LOCK', '🔒') + ' Auction ပိတ်သွားပါပြီ။'
               : code === 'BID_TOO_LOW'
                 ? emoji('WARNING', '⚠️') + ' <b>အမြင့်ဆုံး Bid ကို ကျော်ရပါမယ်။</b>'
-                : emoji('WARNING', '⚠️') + ' Bid မအောင်မြင်ပါ။ ခဏနေ ပြန်စမ်းပါ။';
+                : code === 'MONGO_TRANSACTIONS_REQUIRED'
+                  ? emoji('WARNING', '⚠️') + ' Auction ငွေကြေးလုံခြုံရေးအတွက် Database transaction support မရှိသေးပါ။ Bid ကို မပြောင်းလဲထားပါ။'
+                  : emoji('WARNING', '⚠️') + ' Bid မအောင်မြင်ပါ။ ခဏနေ ပြန်စမ်းပါ။';
           await ctx.reply(msg, { parse_mode: 'HTML', reply_to_message_id: ctx.message.message_id });
         }
         return;
@@ -611,52 +613,76 @@ function register(bot) {
 
 async function closeAuction(bot, a) {
   let claim = null;
-  if (a.status === 'closing') {
-    claim = await auctions().findOne({
-      auctionId: a.auctionId,
-      status: 'closing',
-      endAt: { $lte: new Date() }
-    });
-  } else {
-    const claim0 = await auctions().findOneAndUpdate(
-      { auctionId: a.auctionId, status: 'open', endAt: { $lte: new Date() } },
-      { $set: { status: 'closing', closedAt: new Date(), updatedAt: new Date() } },
-      { returnDocument: 'after' }
-    );
-    claim = claim0?.value !== undefined ? claim0.value : claim0;
-  }
-  if (!claim) return null;
 
-  const now = new Date();
-  let closed = claim;
-  await withMaybeTx(async (session) => {
-    const opt = session ? { session } : {};
+  await withRequiredTx(async (session) => {
+    const opt = { session };
+
+    if (a.status === 'closing') {
+      claim = await auctions().findOne({
+        auctionId: a.auctionId,
+        status: 'closing',
+        endAt: { $lte: new Date() }
+      }, opt);
+    } else {
+      const claim0 = await auctions().findOneAndUpdate(
+        { auctionId: a.auctionId, status: 'open', endAt: { $lte: new Date() } },
+        { $set: { status: 'closing', closedAt: new Date(), updatedAt: new Date() } },
+        Object.assign({ returnDocument: 'after' }, opt)
+      );
+      claim = claim0?.value !== undefined ? claim0.value : claim0;
+    }
+
+    if (!claim) return;
+
+    const now = new Date();
     const winnerId = claim.highestBidderId ? String(claim.highestBidderId) : null;
     const finalAmount = Number(claim.currentBid || 0);
+
     if (winnerId && finalAmount > 0) {
       await treasuryModel.collection().updateOne(
         { key: 'treasury' },
         { $inc: { ownerBalance: finalAmount }, $set: { updatedAt: now } },
         opt
       );
-      await logTx({ type: 'auction_win_settlement', fromUserId: winnerId, toUserId: 'TREASURY', amount: finalAmount, meta: { auctionId: claim.auctionId } }, opt);
+      await logTx({
+        type: 'auction_win_settlement',
+        fromUserId: winnerId,
+        toUserId: 'TREASURY',
+        amount: finalAmount,
+        meta: { auctionId: claim.auctionId }
+      }, opt);
     }
-    await auctions().updateOne(
+
+    const closed0 = await auctions().findOneAndUpdate(
       { auctionId: claim.auctionId, status: 'closing' },
-      { $set: { status: 'closed', winnerId, finalAmount, settledAt: now, historyExpiresAt: new Date(now.getTime() + AUCTION_HISTORY_RETENTION_MS), updatedAt: now } },
-      opt
+      {
+        $set: {
+          status: 'closed',
+          winnerId,
+          finalAmount,
+          settledAt: now,
+          historyExpiresAt: new Date(now.getTime() + AUCTION_HISTORY_RETENTION_MS),
+          updatedAt: now
+        }
+      },
+      Object.assign({ returnDocument: 'after' }, opt)
     );
+    if (!closed0) {
+      throw new Error('AUCTION_CLOSE_STATE_RACE');
+    }
   });
 
-  closed = await auctions().findOne({ auctionId: claim.auctionId, status: 'closed' });
-  if (closed) {
-    // Final-state edit is important: do not leave the Channel Post showing
-    // LIVE AUCTION after the auction has already settled.
-    let finalUpdated = await updateChannelPost(bot, closed, true);
-    if (!finalUpdated) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      finalUpdated = await updateChannelPost(bot, closed, true);
-    }
+  if (!claim) return null;
+
+  const closed = await auctions().findOne({ auctionId: claim.auctionId, status: 'closed' });
+  if (!closed) return null;
+
+  // Final-state edit is important: do not leave the Channel Post showing
+  // LIVE AUCTION after the auction has already settled.
+  let finalUpdated = await updateChannelPost(bot, closed, true);
+  if (!finalUpdated) {
+    await new Promise(resolve => setTimeout(resolve, 500));
+    finalUpdated = await updateChannelPost(bot, closed, true);
   }
 
   const winnerText = closed.winnerId
