@@ -430,6 +430,7 @@ async function expireGame(bot, gameId) {
   try {
     await treasuryPayToUser(game.userId, game.bet, {
       type: 'blackjack_refund',
+      idempotencyKey: `${game.id}:refund`,
       bet: game.bet,
       reason: 'blackjack_action_timeout',
     });
@@ -462,6 +463,7 @@ async function settleGame(bot, game, result) {
       try {
         await treasuryPayToUser(game.userId, game.bet, {
           type: 'blackjack_refund',
+          idempotencyKey: `${game.id}:refund`,
           bet: game.bet,
           reason: 'blackjack_payout_failed',
         });
