@@ -613,10 +613,10 @@ function register(bot) {
 
 async function closeAuction(bot, a) {
   let claim = null;
-  let settlementFailed = false;
 
   await withRequiredTx(async (session) => {
     const opt = { session };
+
     if (a.status === 'closing') {
       claim = await auctions().findOne({
         auctionId: a.auctionId,
@@ -670,12 +670,9 @@ async function closeAuction(bot, a) {
     if (!closed0) {
       throw new Error('AUCTION_CLOSE_STATE_RACE');
     }
-  }).catch((err) => {
-    settlementFailed = true;
-    throw err;
   });
 
-  if (settlementFailed || !claim) return null;
+  if (!claim) return null;
 
   const closed = await auctions().findOne({ auctionId: claim.auctionId, status: 'closed' });
   if (!closed) return null;
@@ -689,10 +686,10 @@ async function closeAuction(bot, a) {
   }
 
   const winnerText = closed.winnerId
-    ? emoji('WINNER', '🏆') + ' <b>AUCTION WINNER</b>\\n\\n' +
+    ? emoji('WINNER', '🏆') + ' <b>AUCTION WINNER</b>\n\n' +
       mention({ userId: closed.winnerId, firstName: closed.highestBidderName, username: closed.highestBidderUsername }) +
-      '\\n\\n' + emoji('PRICE', '💰') + ' Final Bid: <b>' + money(closed.finalAmount) + '</b>'
-    : emoji('ENDED', '🏁') + ' <b>Auction ပြီးပါပြီ</b>\\n\\nBid မရှိခဲ့ပါ။';
+      '\n\n' + emoji('PRICE', '💰') + ' Final Bid: <b>' + money(closed.finalAmount) + '</b>'
+    : emoji('ENDED', '🏁') + ' <b>Auction ပြီးပါပြီ</b>\n\nBid မရှိခဲ့ပါ။';
 
   if (closed.discussionChatId && closed.discussionRootMessageId) {
     try {
