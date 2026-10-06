@@ -206,7 +206,7 @@ async function cashoutWebMines({ userId }) {
   const finalUserId = cleanUserId(userId);
   const game = activeGames.get(finalUserId);
   if (!game || game.state !== 'playing') throw new Error('NO_ACTIVE_MINES');
-  if (game.processing) throw new Error('MINES_CASHOUT_PROCESSING');
+  if (game.processing || game.expiring) throw new Error(game.expiring ? 'MINES_EXPIRING' : 'MINES_CASHOUT_PROCESSING');
   if (!canCashout(game)) { const err=new Error('MINES_CASHOUT_LOCKED'); err.minSafe=MIN_CASHOUT_SAFE; throw err; }
 
   game.processing='cashout';
