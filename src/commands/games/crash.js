@@ -359,6 +359,7 @@ async function refundRound(bot, session, round, reason = 'crash_stop_refund') {
     try {
       await treasuryPayToUser(player.userId, player.bet, {
         type: 'crash_refund',
+        idempotencyKey: `${round.id}:refund:${player.userId}`,
         roundId: round.id,
         bet: player.bet,
         reason,
@@ -383,6 +384,7 @@ async function settleCashout(bot, session, round, player, reason = 'cashout') {
 
   await treasuryPayToUser(player.userId, payout, {
     type: 'crash_win',
+    idempotencyKey: `${round.id}:cashout:${player.userId}`,
     roundId: round.id,
     bet: player.bet,
     payout,
@@ -657,6 +659,7 @@ async function handleBet(ctx, bot) {
 
     await userPayToTreasury(userId, amount, {
       type: 'crash_bet',
+      idempotencyKey: `${round.id}:bet:${userId}`,
       roundId: round.id,
       roundNo: round.no,
       chatId: ctx.chat.id,
