@@ -643,6 +643,7 @@ module.exports = (bot) => {
         try {
           await treasuryPayToUser(userId, bet, {
             type: 'blackjack_refund',
+            idempotencyKey: `${transactionKey}:refund`,
             bet,
             reason: 'blackjack_runtime_error',
           });
