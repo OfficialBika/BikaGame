@@ -2,7 +2,7 @@
 
 const { ensureTreasury, isOwner } = require('../services/treasuryService');
 const { getGroup } = require('../services/groupService');
-const { isGroupChat, isCommandLikeText } = require('../utils/helpers');
+const { isGroupChat, isBotCommandText } = require('../utils/helpers');
 const { replyHTML } = require('../utils/telegram');
 
 const APPROVAL_COMMANDS = new Set([
@@ -32,7 +32,7 @@ module.exports = async (ctx, next) => {
 
   const text = String(ctx.message?.text || ctx.callbackQuery?.data || '').trim();
   const isCallback = ctx.updateType === 'callback_query';
-  const isCommand = isCommandLikeText(text);
+  const isCommand = isBotCommandText(text);
 
   if (!(isCallback || isCommand)) {
     return next();
