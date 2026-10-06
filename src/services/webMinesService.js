@@ -31,7 +31,37 @@ function makeId() {
   return `wmn${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function cleanupExpired() {,  const now = Date.now();,  for (const game of activeGames.values()) {,    if (game.state === 'playing' && now - Number(game.createdAtMs || now) > TTL_MS && !game.expiring) {,      game.expiring = true;,      expireMinesGame(game).catch((err) => { game.expiring = false; console.error('WEB_MINES_EXPIRE_FAILED:', err?.message || err); });,    },  },},,async function expireMinesGame(game) {,  if (!game || ['lost','cashed_out','expired'].includes(game.state)) return;,  try {,    await treasuryPayToUser(game.userId, game.bet, {,      type:'web_mines_refund', source:'miniapp_mines', gameId:game.id, reason:'expired', idempotencyKey:`${game.id}:expire`,,    });,    game.state='expired';,    activeGames.delete(game.userId);,  } finally {,    game.expiring=false;,  },},
+function cleanupExpired() {
+  const now = Date.now();
+  for (const game of activeGames.values()) {
+    if (game.state === 'playing' && now - Number(game.createdAtMs || now) > TTL_MS && !game.expiring) {
+      game.expiring = true;
+      expireMinesGame(game).catch((err) => {
+        game.expiring = false;
+        console.error('WEB_MINES_EXPIRE_FAILED:', err?.message || err);
+      });
+    }
+  }
+}
+
+async function expireMinesGame(game) {
+  if (!game || ['lost', 'cashed_out', 'expired'].includes(game.state)) return;
+  if (game.processing) { game.expiring = false; return; }
+  try {
+    await treasuryPayToUser(game.userId, game.bet, {
+      type: 'web_mines_refund',
+      source: 'miniapp_mines',
+      gameId: game.id,
+      reason: 'expired',
+      idempotencyKey: `${game.id}:expire`,
+    });
+    game.state = 'expired';
+    if (game.expiryTimer) clearTimeout(game.expiryTimer);
+    activeGames.delete(game.userId);
+  } finally {
+    game.expiring = false;
+  }
+}
 function createMinePositions(mineCount, blockedIndex) {
   const blocked = new Set([Number(blockedIndex)]);
   const positions = new Set();
