@@ -74,7 +74,12 @@ async function placeBet(event, ctx, alias, amount) {
     );
     if (!user) throw new Error('USER_INSUFFICIENT');
 
-    await col('treasury').updateOne({ key: 'treasury' }, { $inc: { ownerBalance: amount }, $set: { updatedAt: now } }, opts);
+    const treasuryUpdate = await col('treasury').findOneAndUpdate(
+      { key: 'treasury' },
+      { $inc: { ownerBalance: amount }, $set: { updatedAt: now } },
+      { session, returnDocument: 'after' }
+    );
+    if (!treasuryUpdate) throw new Error('TREASURY_NOT_FOUND');
 
     const betDoc = {
       eventId: event._id, userId,
