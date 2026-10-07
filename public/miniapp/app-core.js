@@ -347,7 +347,9 @@ function updateRocketFrame() {
   if (liveRound.state === 'running') setText('crashMultiplier', `x${m.toFixed(2)}`);
   const scene = $('rocketScene');
   if (scene) scene.style.setProperty('--rocket-progress', rocketProgress(m, liveRound.state));
-  syncRocketVisual(liveRound, m);
+  if (rocketVisual) {
+    try { rocketVisual.setFrame(rocketProgress(m, liveRound.state), m, liveRound.state); } catch (_) {}
+  }
 }
 
 async function pollCrash() {
