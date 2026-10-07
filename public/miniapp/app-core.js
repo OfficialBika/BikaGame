@@ -4,6 +4,8 @@ let config = null;
 let pollTimer = null;
 let rafTimer = null;
 let liveRound = null;
+let rocketVisual = null;
+let rocketVisualReady = null;
 let slotSpinTimer = null;
 let wheelRotation = 0;
 const urlParams = new URLSearchParams(window.location.search);
@@ -257,6 +259,31 @@ function rocketProgress(multiplier, phase) {
   return Math.max(0, Math.min(0.96, Math.log(m) / Math.log(visualMax)));
 }
 
+async function ensureRocketVisual() {
+  if (rocketVisual) return rocketVisual;
+  if (rocketVisualReady) return rocketVisualReady;
+  rocketVisualReady = import('/miniapp/rocket-pixi-v1.js?v=20261007-v1')
+    .then((mod) => mod.createBikaRocketScene($('rocketCanvas')))
+    .then((instance) => {
+      rocketVisual = instance;
+      return instance;
+    })
+    .catch((err) => {
+      rocketVisualReady = null;
+      console.warn('BIKA PixiJS rocket visual unavailable; using CSS scene.', err);
+      return null;
+    });
+  return rocketVisualReady;
+}
+
+function syncRocketVisual(round, multiplierOverride = null) {
+  const multiplier = multiplierOverride == null
+    ? Number(round?.state === 'crashed' ? (round.crashPoint || round.multiplier || 1) : multiplierAt(round))
+    : Number(multiplierOverride);
+  const progress = rocketProgress(Math.max(1, multiplier), round?.state);
+  ensureRocketVisual().then((visual) => visual?.setFrame(progress, multiplier, round?.state || 'betting')).catch(() => null);
+}
+
 function renderPlayers(round) {
   const list = $('playersList'); if (!list) return;
   const players = round?.players || [];
@@ -311,6 +338,7 @@ function renderRocket(status) {
     setHTML('crashResult', `💥 Crashed at <b>x${Number(round.crashPoint || round.multiplier || 1).toFixed(2)}</b>`);
   }
   updateRocketFrame();
+  syncRocketVisual(round);
 }
 
 function updateRocketFrame() {
@@ -319,6 +347,7 @@ function updateRocketFrame() {
   if (liveRound.state === 'running') setText('crashMultiplier', `x${m.toFixed(2)}`);
   const scene = $('rocketScene');
   if (scene) scene.style.setProperty('--rocket-progress', rocketProgress(m, liveRound.state));
+  syncRocketVisual(liveRound, m);
 }
 
 async function pollCrash() {
