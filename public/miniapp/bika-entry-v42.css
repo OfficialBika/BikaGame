@@ -1,0 +1,150 @@
+/* BIKA GAME — TELEGRAM ENTRY SPLASH FIX V42
+   Presentation-only patch layered over V41.
+   Goal: keep the Telegram Mini App entry splash compact on small screens
+   so the BIKA mark never dominates the viewport or clips at the edges.
+*/
+
+@import url('/miniapp/bika-reference-v41.css?v=20261007-v41');
+
+body.bika-v41{
+  overflow-x:hidden;
+}
+
+#bikaSplash.splash{
+  overflow:hidden;
+  padding:
+    max(20px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right))
+    max(20px, env(safe-area-inset-bottom))
+    max(16px, env(safe-area-inset-left));
+  box-sizing:border-box;
+}
+
+#bikaSplash .splash-core{
+  width:min(84vw, 520px);
+  max-width:520px;
+  padding:24px 18px;
+  box-sizing:border-box;
+  transform:none;
+}
+
+#bikaSplash .splash-logo{
+  font-size:clamp(52px, 11vw, 76px);
+  line-height:.9;
+  letter-spacing:-.075em;
+  transform:scale(.92);
+  transform-origin:center;
+}
+
+#bikaSplash .splash-core > div:not(.splash-logo){
+  font-size:clamp(8px, 1.9vw, 12px);
+  letter-spacing:clamp(.16em, .8vw, .28em);
+  margin-top:7px;
+}
+
+#bikaSplash .splash-core span{
+  font-size:8px;
+  margin-top:13px;
+  letter-spacing:.24em;
+}
+
+#bikaSplash:before{
+  width:min(66vw, 300px);
+  height:min(66vw, 300px);
+  max-width:300px;
+  max-height:300px;
+}
+
+#bikaSplash:after{
+  width:min(88vw, 400px);
+  height:min(88vw, 400px);
+  max-width:400px;
+  max-height:400px;
+}
+
+@media (max-width:600px){
+  #bikaSplash .splash-core{
+    width:min(82vw, 360px);
+    padding:20px 12px;
+  }
+  #bikaSplash .splash-logo{
+    font-size:clamp(44px, 18vw, 64px);
+    transform:scale(.88);
+  }
+  #bikaSplash .splash-core > div:not(.splash-logo){
+    font-size:8px;
+    letter-spacing:.17em;
+    margin-top:5px;
+  }
+  #bikaSplash .splash-core span{
+    font-size:7px;
+    letter-spacing:.18em;
+    margin-top:11px;
+  }
+  #bikaSplash:before{
+    width:min(58vw, 240px);
+    height:min(58vw, 240px);
+  }
+  #bikaSplash:after{
+    width:min(78vw, 315px);
+    height:min(78vw, 315px);
+  }
+}
+
+@media (max-width:380px){
+  #bikaSplash .splash-core{
+    width:min(86vw, 320px);
+    padding:18px 8px;
+  }
+  #bikaSplash .splash-logo{
+    font-size:46px;
+    transform:scale(.84);
+  }
+  #bikaSplash .splash-core > div:not(.splash-logo){
+    font-size:7px;
+    letter-spacing:.14em;
+  }
+  #bikaSplash .splash-core span{
+    font-size:6px;
+    letter-spacing:.14em;
+  }
+  #bikaSplash:before{
+    width:210px;
+    height:210px;
+  }
+  #bikaSplash:after{
+    width:280px;
+    height:280px;
+  }
+}
+
+@media (orientation:landscape) and (max-height:520px){
+  #bikaSplash .splash-core{
+    padding:10px 14px;
+  }
+  #bikaSplash .splash-logo{
+    font-size:46px;
+  }
+  #bikaSplash .splash-core > div:not(.splash-logo){
+    margin-top:3px;
+  }
+  #bikaSplash .splash-core span{
+    margin-top:7px;
+  }
+  #bikaSplash:before{
+    width:210px;
+    height:210px;
+  }
+  #bikaSplash:after{
+    width:285px;
+    height:285px;
+  }
+}
+
+@media (prefers-reduced-motion:reduce){
+  #bikaSplash:before,
+  #bikaSplash:after,
+  #bikaSplash .splash-logo{
+    animation:none!important;
+  }
+}
