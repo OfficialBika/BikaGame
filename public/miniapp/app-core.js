@@ -438,13 +438,23 @@ function spinWheelTo(segmentIndex, stopAngleDegrees, mode = 'paid') {
   const delta = normalizeDeg(target - current);
   const extraTurns = mode === 'daily' ? 7 : 6;
   wheelRotation += extraTurns * 360 + delta;
+  const duration = mode === 'daily' ? 5850 : 5250;
   const disk = $('wheelDisk');
-  if (disk) {
-    disk.dataset.activeIndex = String(segmentIndex ?? '');
-    disk.classList.add('wheel-spinning');
-    disk.style.transform = `rotate(${wheelRotation}deg)`;
-    setTimeout(() => { disk.classList.remove('wheel-spinning'); AudioFX.sfx('wheelStop'); }, mode === 'daily' ? 5850 : 5250);
-  }
+  if (disk) disk.dataset.activeIndex = String(segmentIndex ?? '');
+  const animate = (instance) => {
+    if (instance?.spinTo) {
+      instance.spinTo(wheelRotation, duration);
+      setTimeout(() => AudioFX.sfx('wheelStop'), Math.max(0, duration - 10));
+      return;
+    }
+    if (disk) {
+      disk.classList.add('wheel-spinning');
+      disk.style.transform = `rotate(${wheelRotation}deg)`;
+      setTimeout(() => { disk.classList.remove('wheel-spinning'); AudioFX.sfx('wheelStop'); }, duration);
+    }
+  };
+  if (wheel3D) animate(wheel3D);
+  else loadWheel3D().then(animate).catch(() => null);
 }
 function renderWheelTarget(segment) {
   const label = segment?.label || '—';
@@ -467,75 +477,50 @@ async function loadWheelDailyStatus() {
   } catch (_) {}
 }
 
-function buildWheel() {
+let wheel3D = null;
+let wheel3DReady = null;
+
+function wheelFallbackBuild(segments) {
   const disk = $('wheelDisk');
   const legend = $('wheelLegend');
-  if (!disk || !config?.wheel?.segments) return;
-  const segments = config.wheel.segments;
-  const degrees = Number(config?.wheel?.segmentDegrees || (360 / Math.max(1, segments.length)));
-  const cx = 300, cy = 300, radius = 276;
-  const safeColor = (v, fallback) => /^#[0-9a-f]{3,8}$/i.test(String(v || '')) ? String(v) : fallback;
-  const polar = (deg, r = radius) => {
-    const rad = deg * Math.PI / 180;
-    return { x: cx + r * Math.sin(rad), y: cy - r * Math.cos(rad) };
-  };
-  const arcPath = (startDeg, endDeg) => {
-    const a = polar(startDeg), b = polar(endDeg);
-    const largeArc = endDeg - startDeg > 180 ? 1 : 0;
-    return `M ${cx} ${cy} L ${a.x.toFixed(2)} ${a.y.toFixed(2)} A ${radius} ${radius} 0 ${largeArc} 1 ${b.x.toFixed(2)} ${b.y.toFixed(2)} Z`;
-  };
-  const lights = Array.from({ length: 28 }, (_, i) => {
-    const p = polar(i * (360 / 28), 288);
-    return `<circle class="wheel-led" cx="${p.x.toFixed(2)}" cy="${p.y.toFixed(2)}" r="5"/>`;
-  }).join('');
-  const parts = segments.map((s, i) => {
-    const start = i * degrees;
-    const end = Math.min(360, start + degrees);
-    const mid = start + degrees / 2;
-    const p = polar(mid, segments.length <= 10 ? 184 : 190);
-    const color = safeColor(s.color, ['#ff3f73','#ff5d3b','#ffd158','#58e64f','#15cfc7','#229be8','#5363ff','#9347ff','#d83bc6','#f24970'][i % 10]);
-    const label = String(s.label || '');
-    const jack = /jack/i.test(label);
-    const coinCx = p.x.toFixed(1), coinCy = (p.y - 18).toFixed(1);
-    return `
-      <path class="wheel-segment" data-wheel-mark="${i}" d="${arcPath(start, end)}" fill="${color}"/>
-      <path class="wheel-segment-shine" d="${arcPath(start + 1.5, Math.max(start + 1.5, end - 1.5))}"/>
-      <g class="wheel-segment-content" data-wheel-mark="${i}">
-        ${jack
-          ? `<text class="wheel-jack-icon" x="${coinCx}" y="${(p.y - 41).toFixed(1)}">♛</text>
-             <text class="wheel-jack-title" x="${coinCx}" y="${(p.y - 15).toFixed(1)}">JACKPOT</text>
-             <text class="wheel-label" x="${coinCx}" y="${(p.y + 13).toFixed(1)}">${escapeHtml(label)}</text>`
-          : `<g class="wheel-coins" transform="translate(${coinCx} ${coinCy})"><ellipse cx="0" cy="8" rx="17" ry="6"/><ellipse cx="0" cy="2" rx="17" ry="6"/><ellipse cx="0" cy="-4" rx="17" ry="6"/></g>
-             <text class="wheel-label" x="${coinCx}" y="${(p.y + 26).toFixed(1)}">${escapeHtml(label)}</text>`}
-      </g>`;
-  }).join('');
-  disk.title = segments.map((s) => s.label).join(' • ');
-  disk.innerHTML = `
-    <svg class="wheel-svg" viewBox="0 0 600 600" role="img" aria-label="BIKA Lucky Wheel">
-      <defs>
-        <radialGradient id="wheelFaceGlow" cx="50%" cy="42%" r="68%">
-          <stop offset="0%" stop-color="#ffffff" stop-opacity=".18"/><stop offset="48%" stop-color="#ffffff" stop-opacity=".04"/><stop offset="100%" stop-color="#000000" stop-opacity=".30"/>
-        </radialGradient>
-        <linearGradient id="wheelGoldEdge" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#fff4a8"/><stop offset="24%" stop-color="#ffd95e"/><stop offset="52%" stop-color="#f19c1d"/><stop offset="78%" stop-color="#fff0a1"/><stop offset="100%" stop-color="#b45d0c"/>
-        </linearGradient>
-        <filter id="wheelGlow" x="-60%" y="-60%" width="220%" height="220%">
-          <feGaussianBlur stdDeviation="5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter>
-      </defs>
-      <circle cx="300" cy="300" r="296" fill="#090c18" stroke="url(#wheelGoldEdge)" stroke-width="8"/>
-      <circle cx="300" cy="300" r="286" fill="none" stroke="#30213a" stroke-width="8"/>
-      <g>${parts}</g>
-      <circle cx="300" cy="300" r="276" fill="url(#wheelFaceGlow)" pointer-events="none"/>
-      <circle cx="300" cy="300" r="228" fill="none" stroke="rgba(255,255,255,.20)" stroke-width="2"/>
-      <circle cx="300" cy="300" r="276" fill="none" stroke="url(#wheelGoldEdge)" stroke-width="7"/>
-      <circle cx="300" cy="300" r="292" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="2"/>
-      <g filter="url(#wheelGlow)">${lights}</g>
-    </svg>`;
-  if (legend) {
-    legend.innerHTML = segments.map((s, i) => `<span class="legend-${i}" style="--c:${safeColor(s.color, '#7e88ff')}">${escapeHtml(s.label)}</span>`).join('');
-  }
+  if (!disk) return;
+  const list = Array.isArray(segments) ? segments : [];
+  const palette = ['#ff3f73','#ff5d3b','#ffd158','#58e64f','#15cfc7','#229be8','#5363ff','#9347ff','#d83bc6','#f24970'];
+  const colors = list.map((s, i) => /^#[0-9a-f]{3,8}$/i.test(String(s.color || '')) ? s.color : palette[i % palette.length]);
+  disk.classList.add('wheel-2d-fallback');
+  disk.style.setProperty('--fallback-count', String(Math.max(1, colors.length)));
+  disk.style.background = `conic-gradient(from -90deg,${colors.map((color, i) => `${color} ${i * (360 / colors.length)}deg ${(i + 1) * (360 / colors.length)}deg`).join(',')})`;
+  disk.innerHTML = '';
+  if (legend) legend.innerHTML = list.map((s) => `<span>${escapeHtml(s.label || '')}</span>`).join('');
 }
+
+async function loadWheel3D() {
+  if (wheel3D) return wheel3D;
+  if (wheel3DReady) return wheel3DReady;
+  wheel3DReady = import('/miniapp/wheel-three-v1.js?v=20261007-v46')
+    .then((mod) => mod.createBikaWheel3D($('wheelDisk'), config?.wheel?.segments || []))
+    .then((instance) => {
+      wheel3D = instance;
+      $('wheelDisk')?.classList.remove('wheel-2d-fallback');
+      wheel3D.refresh(config?.wheel?.segments || []);
+      return wheel3D;
+    })
+    .catch((err) => {
+      wheel3DReady = null;
+      console.warn('BIKA Three.js wheel unavailable; keeping visual fallback.', err);
+      wheelFallbackBuild(config?.wheel?.segments || []);
+      return null;
+    });
+  return wheel3DReady;
+}
+
+function buildWheel() {
+  const segments = config?.wheel?.segments || [];
+  const legend = $('wheelLegend');
+  if (legend) legend.innerHTML = segments.map((s, i) => `<span class="legend-${i}" style="--c:${escapeHtml(s.color || '#7e88ff')}">${escapeHtml(s.label || '')}</span>`).join('');
+  loadWheel3D().catch(() => null);
+}
+
 async function spinWheel() {
   const btn = $('wheelBtn');
   const centerBtn = $('wheelCenterBtn');
