@@ -145,8 +145,38 @@
       </section>
 
       <section id="wheel" class="panel game-panel">
-        <div class="game-page-head"><button class="back-home" data-open="home">‹ Home</button><div><p class="kicker">DAILY REWARD</p><h2>🎡 Lucky Wheel</h2></div><span class="status-chip daily">DAILY</span></div>
-        <div class="single-game-card"><div class="wheel-layout"><div class="wheel-wrap"><div class="wheel-pointer"></div><div id="wheelDisk" class="wheel-disk"></div><div class="wheel-center">BIKA</div></div><div class="wheel-info"><p class="kicker">TODAY'S CHANCES</p><h3>Spin for bonus multipliers</h3><div id="wheelLegend" class="wheel-legend"></div><div id="wheelTarget" class="wheel-target">Pointer result: <b>—</b></div><div class="daily-spin"><div><b>🎁 Free Daily Spin</b><small id="dailyWheelInfo">Checking today's free spin...</small></div><button id="dailyWheelBtn" class="daily-btn">FREE SPIN</button></div><div class="bet-panel"><div class="bet-input"><span>BET AMOUNT</span><input id="wheelBet" type="number" inputmode="numeric" placeholder="50,000"></div><button id="wheelBtn" class="primary-btn">SPIN WHEEL</button></div><div class="quick-bets"><button data-wheel-bet="50">50</button><button data-wheel-bet="100">100</button><button data-wheel-bet="500">500</button><button data-wheel-bet="1000">1K</button></div><div id="wheelResult" class="result muted">Wheel spin လုပ်ရန် bet ထည့်ပါ။</div></div></div><div class="history-card"><div class="history-head"><b>Today Wheel History</b><button data-refresh-history="wheel">Refresh</button></div><div id="wheelHistory" class="history-list"></div></div></div>
+        <div class="game-page-head wheel-page-head"><button class="back-home" data-open="home">‹ Home</button><div><p class="kicker">DAILY REWARD</p><h2>🎡 Lucky Wheel</h2><small class="wheel-page-subtitle">Spin everyday and win amazing rewards!</small></div><span class="status-chip daily">🎁 DAILY</span></div>
+        <div class="single-game-card wheel-premium-card">
+          <div class="wheel-showcase" aria-label="BIKA Lucky Wheel">
+            <div class="wheel-stage-glow"></div>
+            <span class="wheel-spark spark-a">✦</span><span class="wheel-spark spark-b">✦</span><span class="wheel-spark spark-c">✧</span><span class="wheel-spark spark-d">✦</span>
+            <span class="wheel-coin coin-a">₿</span><span class="wheel-coin coin-b">₿</span><span class="wheel-coin coin-c">₿</span>
+            <span class="wheel-gift gift-a">🎁</span><span class="wheel-gift gift-b">🎁</span>
+            <div class="wheel-wrap">
+              <div class="wheel-pointer" aria-hidden="true"></div>
+              <div id="wheelDisk" class="wheel-disk"></div>
+              <button id="wheelCenterBtn" type="button" class="wheel-center" aria-label="Spin wheel">SPIN</button>
+            </div>
+          </div>
+          <div class="wheel-info">
+            <div class="wheel-section-kicker"><span>🔥</span><p class="kicker">TODAY'S CHANCES</p></div>
+            <h3>Spin for bonus <span>multipliers</span></h3>
+            <div id="wheelLegend" class="wheel-legend"></div>
+            <div id="wheelTarget" class="wheel-target">Pointer result: <b>—</b></div>
+            <div class="daily-spin">
+              <div class="daily-gift" aria-hidden="true">🎁</div>
+              <div class="daily-spin-copy"><b>Free Daily Spin</b><small id="dailyWheelInfo">Checking today's free spin...</small><strong>500 $</strong></div>
+              <button id="dailyWheelBtn" class="daily-btn">FREE DAILY SPIN</button>
+            </div>
+            <div class="wheel-paid-controls">
+              <div class="bet-input"><span>BET AMOUNT</span><input id="wheelBet" type="number" inputmode="numeric" placeholder="50,000"></div>
+              <button id="wheelBtn" class="primary-btn">SPIN NOW</button>
+            </div>
+            <div class="quick-bets"><button data-wheel-bet="50">50</button><button data-wheel-bet="100">100</button><button data-wheel-bet="500">500</button><button data-wheel-bet="1000">1K</button></div>
+            <div id="wheelResult" class="result muted">Wheel spin လုပ်ရန် bet ထည့်ပါ။</div>
+          </div>
+          <div class="history-card"><div class="history-head"><b>Today Wheel History</b><button data-refresh-history="wheel">Refresh</button></div><div id="wheelHistory" class="history-list"></div></div>
+        </div>
       </section>
 
       <section id="mines" class="panel game-panel">
@@ -155,7 +185,7 @@
       </section>
 
       <nav class="nav-tabs" aria-label="Mobile navigation">
-        <button class="tab active" data-open="home">⌂ Home</button><button class="tab" data-open="crash">◈ Games</button><button class="tab" data-open="wheel">✦ Live</button><button class="tab" data-open="home">◷ History</button><button class="tab" data-open="home">◉ Wallet</button>
+        <button class="tab active" data-open="home">⌂ Home</button><button class="tab" data-open="crash">🎮 Games</button><button class="tab" data-open="home">◷ History</button><button class="tab" data-open="home">▱ Wallet</button><button class="tab" data-open="home">♙ Profile</button>
       </nav>
 
       <div id="soundDock" class="sound-dock"><button id="soundToggleBtn" class="sound-toggle">🔇 Sound Off</button><div id="soundControls" class="sound-controls"><label>BGM <input id="musicVolume" type="range" min="0" max="100" value="32"></label><label>SFX <input id="sfxVolume" type="range" min="0" max="100" value="68"></label><span id="soundSceneText">Tap Sound On</span></div></div>
