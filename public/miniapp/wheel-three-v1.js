@@ -142,11 +142,59 @@ function createScene(THREE, container, inputSegments, options) {
   const labelGroup = new THREE.Group();
   wheel.add(labelGroup);
 
-  const leds = [];
+  // Jewel-like radial separators: these catch the key light and give every
+  // slice a crisp, manufactured 3D edge instead of a flat CSS-pie look.
+  const dividerGroup = new THREE.Group();
+  wheel.add(dividerGroup);
+  const dividerMaterial = new THREE.MeshPhysicalMaterial({
+    color: 0xffd86a,
+    metalness: 0.96,
+    roughness: 0.16,
+    clearcoat: 0.9,
+    clearcoatRoughness: 0.12,
+    emissive: 0x5a2e00,
+    emissiveIntensity: 0.22
+  });
+
+  const gemColors = [0xff3fbf, 0x41e6ff, 0x7a57ff, 0xffd75a];
+  const wheelGems = [];
   const ledColors = [0xfff4ac,0x58efff,0xff6edc,0xfff4ac];
 
   const ledGeo = new THREE.SphereGeometry(0.062, 12, 12);
   const ledRadius = 3.02;
+
+  const countForDecor = Math.max(1, Array.isArray(inputSegments) ? inputSegments.length : 10);
+  const decorStep = Math.PI * 2 / countForDecor;
+  for (let i = 0; i < countForDecor; i += 1) {
+    const angle = Math.PI / 2 + i * decorStep;
+    const divider = new THREE.Mesh(
+      new THREE.BoxGeometry(0.028, 2.55, 0.065),
+      dividerMaterial
+    );
+    divider.position.set(Math.cos(angle) * 1.30, Math.sin(angle) * 1.30, 0.32);
+    divider.rotation.z = angle - Math.PI / 2;
+    dividerGroup.add(divider);
+  }
+
+  // Faceted "gem" studs around the premium rim.
+  const gemGeo = new THREE.OctahedronGeometry(0.13, 1);
+  for (let i = 0; i < 10; i += 1) {
+    const angle = Math.PI / 2 + i * Math.PI * 2 / 10 + Math.PI / 10;
+    const material = new THREE.MeshPhysicalMaterial({
+      color: gemColors[i % gemColors.length],
+      metalness: 0.48,
+      roughness: 0.12,
+      clearcoat: 1,
+      clearcoatRoughness: 0.08,
+      emissive: gemColors[i % gemColors.length],
+      emissiveIntensity: 0.38
+    });
+    const gem = new THREE.Mesh(gemGeo, material);
+    gem.position.set(Math.cos(angle) * 2.83, Math.sin(angle) * 2.83, 0.36);
+    gem.rotation.set(0.18, 0.28, angle);
+    wheel.add(gem);
+    wheelGems.push(gem);
+  }
   for (let i = 0; i < 28; i += 1) {
     const a = Math.PI / 2 + i * Math.PI * 2 / 28;
     const mat = new THREE.MeshStandardMaterial({
@@ -200,6 +248,27 @@ function createScene(THREE, container, inputSegments, options) {
     coin.userData.phase = i * 0.34;
     scene.add(coin);
     coins.push(coin);
+  }
+
+  // Small faceted gems float around the wheel like a game-show prize halo.
+  const prizeGems = [];
+  const prizeGemGeo = new THREE.OctahedronGeometry(0.17, 1);
+  for (let i = 0; i < 6; i += 1) {
+    const angle = i / 6 * Math.PI * 2 + 0.36;
+    const material = new THREE.MeshPhysicalMaterial({
+      color: gemColors[(i + 1) % gemColors.length],
+      metalness: 0.42,
+      roughness: 0.14,
+      clearcoat: 0.95,
+      emissive: gemColors[(i + 1) % gemColors.length],
+      emissiveIntensity: 0.30
+    });
+    const gem = new THREE.Mesh(prizeGemGeo, material);
+    gem.position.set(Math.cos(angle) * (3.45 + (i % 2) * 0.16), Math.sin(angle) * (3.45 + (i % 2) * 0.16), 0.10 + (i % 2) * 0.10);
+    gem.userData.phase = i * 0.55;
+    gem.userData.spin = 0.004 + (i % 3) * 0.001;
+    scene.add(gem);
+    prizeGems.push(gem);
   }
 
   // Premium light rig.
@@ -439,6 +508,17 @@ function createScene(THREE, container, inputSegments, options) {
       coin.position.z = 0.27 + Math.sin(t * 1.5 + coin.userData.phase) * 0.045;
       coin.position.y += Math.sin(t * 0.9 + coin.userData.phase) * 0.0008;
     });
+    wheelGems.forEach((gem, i) => {
+      gem.rotation.x += 0.004 * (i % 2 ? -1 : 1);
+      gem.rotation.y += 0.007;
+      const pulse = 0.96 + Math.sin(t * 2.4 + i) * 0.05;
+      gem.scale.setScalar(pulse);
+    });
+    prizeGems.forEach((gem) => {
+      gem.rotation.x += gem.userData.spin * (spin ? 2.8 : 1);
+      gem.rotation.y += 0.005;
+      gem.position.z = 0.10 + Math.sin(t * 1.35 + gem.userData.phase) * 0.07;
+    });
 
     // Explicit clear every frame prevents WebView backbuffer residue / gray canvases.
     renderer.setClearColor(0x000000, 0);
@@ -456,6 +536,11 @@ function createScene(THREE, container, inputSegments, options) {
     cancelAnimationFrame(raf);
     window.removeEventListener('resize', resize);
     container.removeEventListener('pointermove', onPointerMove);
+    dividerMaterial.dispose();
+    gemGeo.dispose();
+    wheelGems.forEach((gem) => gem.material.dispose());
+    prizeGemGeo.dispose();
+    prizeGems.forEach((gem) => gem.material.dispose());
     renderer.dispose();
     renderer.domElement.remove();
   }
