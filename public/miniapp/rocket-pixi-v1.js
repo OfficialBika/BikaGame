@@ -123,7 +123,6 @@ export async function createBikaRocketScene(container, options = {}) {
     crisp.moveTo(pts[0].x,pts[0].y);
     pts.slice(1).forEach(p=>{glow.lineTo(p.x,p.y);crisp.lineTo(p.x,p.y);});
     glow.stroke({color:0xd83cff,width:10,alpha:0.06});
-    glow.filters = [new PIXI.BlurFilter({ strength: 8, quality: 3 })];
     graphLayer.addChild(glow);
     glow = new PIXI.Graphics();
     glow.moveTo(pts[0].x,pts[0].y);
@@ -151,13 +150,13 @@ export async function createBikaRocketScene(container, options = {}) {
 
   function addFlame() {
     const flameGlow = new PIXI.Graphics()
-      .poly([-54,-9,-92,0,-54,9,-30,0])
+      .poly([-58,-12,-112,0,-58,12,-28,0])
       .fill({color:0xff5a2d,alpha:0.26});
     const flame = new PIXI.Graphics()
-      .poly([-34,-6,-68,0,-34,6,-12,0])
+      .poly([-40,-8,-86,0,-40,8,-12,0])
       .fill({color:0xffde57,alpha:0.98});
     const core = new PIXI.Graphics()
-      .poly([-28,-3,-52,0,-28,3,-10,0])
+      .poly([-31,-4,-64,0,-31,4,-9,0])
       .fill({color:0xffffff,alpha:0.98});
     rocket.addChild(flameGlow,flame,core);
   }
@@ -182,50 +181,50 @@ export async function createBikaRocketScene(container, options = {}) {
     rocket.addChild(finBack);
 
     const body = new PIXI.Graphics()
-      .ellipse(0,0,44,24)
+      .ellipse(0,0,56,30)
       .fill({color:0xe9f3f9})
       .stroke({width:2,color:0xffffff,alpha:0.75});
-    body.scale.x=1.20;
+    body.scale.x=1.24;
     rocket.addChild(body);
 
     const bodyShade = new PIXI.Graphics()
-      .ellipse(4,4,39,19)
+      .ellipse(5,5,49,24)
       .fill({color:0x586e80,alpha:0.40});
-    bodyShade.scale.x=1.18;
+    bodyShade.scale.x=1.20;
     rocket.addChild(bodyShade);
 
     const nose = new PIXI.Graphics()
-      .poly([45,0,28,-10,28,10])
+      .poly([61,0,36,-12,36,12])
       .fill({color:0xffffff,alpha:0.97});
     rocket.addChild(nose);
 
     const windowOuter = new PIXI.Graphics()
-      .circle(17,-2,10)
+      .circle(23,-2,12)
       .fill({color:0x142749,alpha:1})
       .stroke({width:2,color:0x9eeeff,alpha:0.8});
     rocket.addChild(windowOuter);
     const windowInner = new PIXI.Graphics()
-      .circle(17,-2,6)
+      .circle(23,-2,7)
       .fill({color:0x35c9ff,alpha:0.92});
     rocket.addChild(windowInner);
     const windowShine = new PIXI.Graphics()
-      .circle(14,-5,2.5)
+      .circle(20,-6,3)
       .fill({color:0xffffff,alpha:0.95});
     rocket.addChild(windowShine);
 
     const finFront = new PIXI.Graphics()
-      .poly([3,-13,23,-29,30,-12,14,-5])
+      .poly([5,-16,29,-36,37,-14,17,-5])
       .fill({color:0xff3d70,alpha:1})
       .stroke({width:2,color:0xff9caf,alpha:0.55});
     rocket.addChild(finFront);
 
     const finBottom = new PIXI.Graphics()
-      .poly([3,13,23,28,29,12,14,5])
+      .poly([5,16,29,35,36,14,17,5])
       .fill({color:0xd92d62,alpha:0.92});
     rocket.addChild(finBottom);
 
     const noseGlow = new PIXI.Graphics()
-      .circle(46,0,4.2)
+      .circle(62,0,5.5)
       .fill({color:0xff4fc7,alpha:0.8});
     rocket.addChild(noseGlow);
 
@@ -244,7 +243,7 @@ export async function createBikaRocketScene(container, options = {}) {
     const p=point(progress);
     rocket.position.set(p.x,p.y);
     rocket.rotation=-0.55;
-    rocket.scale.set(clamp(width/620,0.72,1.22));
+    rocket.scale.set(clamp(width/500,0.90,1.45));
     const pulse=1+Math.sin(frame*0.15)*0.025;
     rocket.alpha = state==='crashed' ? 0.35 : 1;
     rocket.scale.x*=pulse;
