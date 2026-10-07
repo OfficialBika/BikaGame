@@ -32,11 +32,10 @@ function createScene(THREE, container, inputSegments, options) {
     alpha: true,
     powerPreference: 'high-performance'
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.85));
+  renderer.setPixelRatio(Math.min(Math.max(window.devicePixelRatio || 1, 1.5), 2.5));
   renderer.setSize(100, 100, false);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.12;
+  renderer.toneMapping = THREE.NoToneMapping;
   renderer.setClearColor(0x000000, 0);
   renderer.setClearAlpha(0);
   renderer.shadowMap.enabled = false;
@@ -46,7 +45,7 @@ function createScene(THREE, container, inputSegments, options) {
   container.appendChild(renderer.domElement);
 
   const root = new THREE.Group();
-  root.rotation.x = -0.045;
+  root.rotation.x = -0.085;
   root.rotation.y = 0.012;
   scene.add(root);
 
@@ -58,9 +57,9 @@ function createScene(THREE, container, inputSegments, options) {
   const stageGlow = new THREE.Mesh(
     new THREE.CircleGeometry(3.48, 128),
     new THREE.MeshBasicMaterial({
-      color: 0x22324c,
+      color: 0x17285a,
       transparent: true,
-      opacity: 0.58,
+      opacity: 0.72,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide
@@ -72,11 +71,11 @@ function createScene(THREE, container, inputSegments, options) {
   const stagePlate = new THREE.Mesh(
     new THREE.CircleGeometry(3.30, 128),
     new THREE.MeshStandardMaterial({
-      color: 0x081224,
-      metalness: 0.68,
-      roughness: 0.34,
+      color: 0x050a18,
+      metalness: 0.72,
+      roughness: 0.26,
       transparent: true,
-      opacity: 0.92,
+      opacity: 0.60,
       side: THREE.DoubleSide
     })
   );
@@ -84,12 +83,15 @@ function createScene(THREE, container, inputSegments, options) {
   wheel.add(stagePlate);
 
   // High quality materials.
-  const gold = new THREE.MeshStandardMaterial({
-    color: 0xffcf55, metalness: 0.92, roughness: 0.22
+  const gold = new THREE.MeshPhysicalMaterial({
+    color: 0xffd451, metalness: 0.96, roughness: 0.16,
+    clearcoat: 1, clearcoatRoughness: 0.08,
+    emissive: 0x5a2b00, emissiveIntensity: 0.34
   });
-  const goldBright = new THREE.MeshStandardMaterial({
-    color: 0xffe89b, metalness: 0.9, roughness: 0.18,
-    emissive: 0x5a3700, emissiveIntensity: 0.28
+  const goldBright = new THREE.MeshPhysicalMaterial({
+    color: 0xffffbd, metalness: 0.94, roughness: 0.12,
+    clearcoat: 1, clearcoatRoughness: 0.06,
+    emissive: 0x7b4300, emissiveIntensity: 0.48
   });
   const darkMetal = new THREE.MeshStandardMaterial({
     color: 0x12182b, metalness: 0.9, roughness: 0.23
@@ -114,21 +116,21 @@ function createScene(THREE, container, inputSegments, options) {
   wheel.add(innerRim);
 
   const innerTrack = new THREE.Mesh(
-    new THREE.TorusGeometry(2.34, 0.028, 12, 112),
+    new THREE.TorusGeometry(2.36, 0.040, 16, 144),
     new THREE.MeshStandardMaterial({
-      color: 0xc7d2ff, metalness: 0.75, roughness: 0.28,
-      emissive: 0x233b7c, emissiveIntensity: 0.22
+      color: 0xf4fbff, metalness: 0.78, roughness: 0.18,
+      emissive: 0x31dfff, emissiveIntensity: 0.38
     })
   );
   innerTrack.position.z = 0.34;
   wheel.add(innerTrack);
 
   const innerGlow = new THREE.Mesh(
-    new THREE.TorusGeometry(2.52, 0.035, 10, 112),
+    new THREE.TorusGeometry(2.54, 0.055, 12, 144),
     new THREE.MeshBasicMaterial({
-      color: 0x58eaff,
+      color: 0x6df4ff,
       transparent: true,
-      opacity: 0.18,
+      opacity: 0.34,
       depthWrite: false,
       blending: THREE.AdditiveBlending
     })
@@ -153,7 +155,7 @@ function createScene(THREE, container, inputSegments, options) {
     clearcoat: 0.9,
     clearcoatRoughness: 0.12,
     emissive: 0x5a2e00,
-    emissiveIntensity: 0.22
+    emissiveIntensity: 0.34
   });
 
   const gemColors = [0xff3fbf, 0x41e6ff, 0x7a57ff, 0xffd75a];
@@ -161,18 +163,18 @@ function createScene(THREE, container, inputSegments, options) {
   const leds = [];
   const ledColors = [0xfff4ac,0x58efff,0xff6edc,0xfff4ac];
 
-  const ledGeo = new THREE.SphereGeometry(0.062, 12, 12);
-  const ledRadius = 3.02;
+  const ledGeo = new THREE.SphereGeometry(0.074, 18, 18);
+  const ledRadius = 3.04;
 
   const countForDecor = Math.max(1, Array.isArray(inputSegments) ? inputSegments.length : 10);
   const decorStep = Math.PI * 2 / countForDecor;
   for (let i = 0; i < countForDecor; i += 1) {
     const angle = Math.PI / 2 + i * decorStep;
     const divider = new THREE.Mesh(
-      new THREE.BoxGeometry(0.028, 2.55, 0.065),
+      new THREE.BoxGeometry(0.034, 2.62, 0.090),
       dividerMaterial
     );
-    divider.position.set(Math.cos(angle) * 1.30, Math.sin(angle) * 1.30, 0.32);
+    divider.position.set(Math.cos(angle) * 1.34, Math.sin(angle) * 1.34, 0.38);
     divider.rotation.z = angle - Math.PI / 2;
     dividerGroup.add(divider);
   }
@@ -253,9 +255,9 @@ function createScene(THREE, container, inputSegments, options) {
 
   // Small faceted gems float around the wheel like a game-show prize halo.
   const prizeGems = [];
-  const prizeGemGeo = new THREE.OctahedronGeometry(0.17, 1);
-  for (let i = 0; i < 6; i += 1) {
-    const angle = i / 6 * Math.PI * 2 + 0.36;
+  const prizeGemGeo = new THREE.OctahedronGeometry(0.15, 1);
+  for (let i = 0; i < 4; i += 1) {
+    const angle = i / 4 * Math.PI * 2 + 0.36;
     const material = new THREE.MeshPhysicalMaterial({
       color: gemColors[(i + 1) % gemColors.length],
       metalness: 0.42,
@@ -265,7 +267,7 @@ function createScene(THREE, container, inputSegments, options) {
       emissiveIntensity: 0.30
     });
     const gem = new THREE.Mesh(prizeGemGeo, material);
-    gem.position.set(Math.cos(angle) * (3.45 + (i % 2) * 0.16), Math.sin(angle) * (3.45 + (i % 2) * 0.16), 0.10 + (i % 2) * 0.10);
+    gem.position.set(Math.cos(angle) * (3.38 + (i % 2) * 0.14), Math.sin(angle) * (3.38 + (i % 2) * 0.14), 0.10 + (i % 2) * 0.12);
     gem.userData.phase = i * 0.55;
     gem.userData.spin = 0.004 + (i % 3) * 0.001;
     scene.add(gem);
@@ -273,17 +275,17 @@ function createScene(THREE, container, inputSegments, options) {
   }
 
   // Premium light rig.
-  scene.add(new THREE.HemisphereLight(0x9aa7ff, 0x03040a, 1.25));
-  const key = new THREE.DirectionalLight(0xffe7a3, 3.2);
+  scene.add(new THREE.HemisphereLight(0xa7b8ff, 0x010208, 1.45));
+  const key = new THREE.DirectionalLight(0xffe8a8, 2.25);
   key.position.set(2.5, 3.8, 6.5);
   scene.add(key);
-  const cyan = new THREE.PointLight(0x2ee9ff, 18, 8);
+  const cyan = new THREE.PointLight(0x28e9ff, 24, 8);
   cyan.position.set(-3.6, 1.8, 4.5);
   scene.add(cyan);
-  const pink = new THREE.PointLight(0xff2db5, 14, 7);
+  const pink = new THREE.PointLight(0xff35c9, 18, 7);
   pink.position.set(3.6, 0.6, 3.8);
   scene.add(pink);
-  const goldGlow = new THREE.PointLight(0xffcf55, 13, 6);
+  const goldGlow = new THREE.PointLight(0xffcf55, 16, 6);
   goldGlow.position.set(0, -2.5, 4.0);
   scene.add(goldGlow);
 
@@ -305,12 +307,13 @@ function createScene(THREE, container, inputSegments, options) {
 
   function makeLabelTexture(text, color, jackpot = false) {
     const canvas = document.createElement('canvas');
-    canvas.width = 420;
-    canvas.height = 170;
+    canvas.width = 1024;
+    canvas.height = 512;
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    ctx.fontKerning = 'normal';
 
     const drawCoin = (x, y, r, fill, stroke) => {
       ctx.beginPath();
@@ -328,49 +331,58 @@ function createScene(THREE, container, inputSegments, options) {
     };
 
     if (jackpot) {
+      ctx.save();
       ctx.shadowColor = '#ff2dc7';
-      ctx.shadowBlur = 26;
-      ctx.fillStyle = '#ffdf69';
+      ctx.shadowBlur = 34;
+      const g = ctx.createLinearGradient(320, 0, 700, 0);
+      g.addColorStop(0, '#ffd65b'); g.addColorStop(0.5, '#fff0a0'); g.addColorStop(1, '#ffb82e');
+      ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.roundRect(155, 66, 110, 42, 9);
+      ctx.roundRect(300, 215, 424, 112, 24);
       ctx.fill();
-      ctx.shadowBlur = 10;
-      ctx.fillStyle = '#8a1d58';
-      ctx.fillRect(162, 72, 96, 30);
-      drawCoin(186, 68, 13, '#ffe37a', '#fff5bd');
-      drawCoin(210, 64, 15, '#ffc933', '#fff0a3');
-      drawCoin(234, 68, 13, '#ffb522', '#ffe596');
-      ctx.fillStyle = '#fff6af';
-      ctx.font = '900 25px Inter, system-ui, sans-serif';
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#5d184c';
+      ctx.fillRect(316, 230, 392, 82);
+      ctx.restore();
+      drawCoin(360, 210, 34, '#ffe37a', '#fff5bd');
+      drawCoin(430, 198, 40, '#ffc933', '#fff0a3');
+      drawCoin(500, 210, 34, '#ffb522', '#ffe596');
+      ctx.fillStyle = '#fff7ba';
+      ctx.font = '900 58px Inter, system-ui, sans-serif';
       ctx.shadowColor = '#ffd95d';
-      ctx.shadowBlur = 18;
-      ctx.fillText('♛ JACKPOT', 210, 35);
-      ctx.shadowBlur = 8;
+      ctx.shadowBlur = 24;
+      ctx.fillText('JACKPOT', 512, 112);
+      ctx.shadowBlur = 12;
       ctx.fillStyle = '#ffffff';
-      ctx.font = '900 25px Inter, system-ui, sans-serif';
-      ctx.fillText(String(text || ''), 210, 132);
+      ctx.font = '900 58px Inter, system-ui, sans-serif';
+      ctx.fillText(String(text || ''), 512, 390);
     } else {
       ctx.shadowColor = color;
-      ctx.shadowBlur = 16;
-      drawCoin(184, 48, 15, '#fff0a4', '#ffffff');
-      drawCoin(207, 41, 17, '#ffd34f', '#fff7b7');
-      drawCoin(230, 48, 15, '#ffb62c', '#ffe89a');
-
+      ctx.shadowBlur = 22;
+      drawCoin(400, 125, 42, '#fff0a4', '#ffffff');
+      drawCoin(492, 105, 50, '#ffd34f', '#fff7b7');
+      drawCoin(584, 125, 42, '#ffb62c', '#ffe89a');
       ctx.shadowColor = color;
-      ctx.shadowBlur = 14;
+      ctx.shadowBlur = 24;
+      ctx.strokeStyle = '#fff5d0';
+      ctx.lineWidth = 7;
+      ctx.font = '900 92px Inter, system-ui, sans-serif';
+      ctx.strokeText(String(text || ''), 512, 338);
       ctx.fillStyle = '#ffffff';
-      ctx.font = '900 44px Inter, system-ui, sans-serif';
-      ctx.fillText(String(text || ''), 210, 112);
+      ctx.fillText(String(text || ''), 512, 338);
     }
 
     const tex = new THREE.CanvasTexture(canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = 4;
+    tex.anisotropy = 8;
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.generateMipmaps = false;
     const material = new THREE.SpriteMaterial({
       map: tex, transparent: true, depthWrite: false
     });
     const sprite = new THREE.Sprite(material);
-    sprite.scale.set(jackpot ? 1.48 : 1.10, jackpot ? 0.66 : 0.47, 1);
+    sprite.scale.set(jackpot ? 1.72 : 1.36, jackpot ? 0.78 : 0.62, 1);
     return sprite;
   }
 
@@ -392,7 +404,7 @@ function createScene(THREE, container, inputSegments, options) {
     for (const x of built) {
       segmentGroup.remove(x.mesh);
       x.mesh.geometry.dispose();
-      x.mesh.material.dispose();
+      Array.isArray(x.mesh.material) ? x.mesh.material.forEach((m) => m.dispose()) : x.mesh.material.dispose();
       if (x.shadowMesh) {
         segmentGroup.remove(x.shadowMesh);
         x.shadowMesh.geometry.dispose();
@@ -417,26 +429,37 @@ function createScene(THREE, container, inputSegments, options) {
       const color = safeColor(s.color, palette[i % palette.length]);
       const shape = makeSegmentShape(start + 0.008, end - 0.008);
       const geometry = new THREE.ExtrudeGeometry(shape, {
-        depth: 0.25,
+        depth: 0.34,
         bevelEnabled: true,
-        bevelThickness: 0.035,
-        bevelSize: 0.025,
-        bevelSegments: 2,
-        curveSegments: 3
+        bevelThickness: 0.052,
+        bevelSize: 0.036,
+        bevelSegments: 3,
+        curveSegments: 5
       });
       geometry.translate(0, 0, 0.02);
-      const material = new THREE.MeshPhysicalMaterial({
-        color,
-        metalness: 0.38,
-        roughness: 0.22,
-        clearcoat: 0.72,
-        clearcoatRoughness: 0.18,
-        emissive: new THREE.Color(color),
-        emissiveIntensity: 0.10,
+      geometry.computeVertexNormals();
+      const faceColor = new THREE.Color(color);
+      const sideColor = faceColor.clone().multiplyScalar(0.50);
+      const faceMaterial = new THREE.MeshPhysicalMaterial({
+        color: faceColor,
+        metalness: 0.18,
+        roughness: 0.19,
+        clearcoat: 0.88,
+        clearcoatRoughness: 0.10,
+        emissive: faceColor,
+        emissiveIntensity: 0.16,
         side: THREE.DoubleSide,
         flatShading: false
       });
-      const mesh = new THREE.Mesh(geometry, material);
+      const sideMaterial = new THREE.MeshStandardMaterial({
+        color: sideColor,
+        metalness: 0.82,
+        roughness: 0.24,
+        emissive: sideColor,
+        emissiveIntensity: 0.08,
+        side: THREE.DoubleSide
+      });
+      const mesh = new THREE.Mesh(geometry, [faceMaterial, sideMaterial]);
       mesh.castShadow = false;
       mesh.receiveShadow = false;
       segmentGroup.add(mesh);
@@ -444,9 +467,9 @@ function createScene(THREE, container, inputSegments, options) {
       // A slightly offset shadow duplicate makes the wheel read as a real 3D object
       // even on low-power mobile WebViews where specular highlights are subtle.
       const shadowMaterial = new THREE.MeshBasicMaterial({
-        color: 0x030713,
+        color: 0x02030a,
         transparent: true,
-        opacity: 0.42,
+        opacity: 0.24,
         depthWrite: false,
         side: THREE.DoubleSide
       });
@@ -457,7 +480,7 @@ function createScene(THREE, container, inputSegments, options) {
       built.push({ mesh, shadowMesh });
 
       const mid = start + step / 2;
-      const labelRadius = count <= 10 ? 1.77 : 1.92;
+      const labelRadius = count <= 10 ? 1.79 : 1.94;
       const sprite = makeLabelTexture(String(s.label || ''), color, /jack/i.test(String(s.label || '')));
       sprite.position.set(Math.cos(mid) * labelRadius, Math.sin(mid) * labelRadius, 0.38);
       sprite.material.depthTest = false;
@@ -498,7 +521,7 @@ function createScene(THREE, container, inputSegments, options) {
     const aspect = w / h;
     // Orthographic framing keeps the full circular wheel visible on Telegram's
     // narrow WebView instead of letting the perspective camera crop the rim.
-    const fitRadius = 3.72;
+    const fitRadius = 3.78;
     const halfHeight = Math.max(fitRadius, fitRadius / Math.max(0.45, aspect));
     const halfWidth = halfHeight * aspect;
     camera.left = -halfWidth;
@@ -520,8 +543,8 @@ function createScene(THREE, container, inputSegments, options) {
       const e = 1 - Math.pow(1 - p, 5);
       baseRotation = THREE.MathUtils.lerp(spin.from, spin.to, e);
       wheel.rotation.z = baseRotation;
-      root.rotation.y = 0.012 + pointerX * 0.032;
-      root.rotation.x = -0.045 - pointerY * 0.018;
+      root.rotation.y = 0.012 + pointerX * 0.040;
+      root.rotation.x = -0.085 - pointerY * 0.024;
       if (p >= 1) {
         baseRotation = spin.to % (Math.PI * 2);
         wheel.rotation.z = baseRotation;
@@ -529,8 +552,8 @@ function createScene(THREE, container, inputSegments, options) {
       }
     } else {
       wheel.rotation.z = baseRotation;
-      root.rotation.y += (0.012 + pointerX * 0.032 - root.rotation.y) * Math.min(1, dt * 3.5);
-      root.rotation.x += (-0.045 - pointerY * 0.018 - root.rotation.x) * Math.min(1, dt * 3.5);
+      root.rotation.y += (0.012 + pointerX * 0.040 - root.rotation.y) * Math.min(1, dt * 3.5);
+      root.rotation.x += (-0.085 - pointerY * 0.024 - root.rotation.x) * Math.min(1, dt * 3.5);
     }
 
     const t = now * 0.001;
