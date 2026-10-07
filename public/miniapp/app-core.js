@@ -487,6 +487,7 @@ function wheelFallbackBuild(segments) {
   const list = Array.isArray(segments) ? segments : [];
   const palette = ['#ff3f73','#ff5d3b','#ffd158','#58e64f','#15cfc7','#229be8','#5363ff','#9347ff','#d83bc6','#f24970'];
   const colors = list.map((s, i) => /^#[0-9a-f]{3,8}$/i.test(String(s.color || '')) ? s.color : palette[i % palette.length]);
+  disk.classList.remove('wheel-3d-host');
   disk.classList.add('wheel-2d-fallback');
   disk.style.setProperty('--fallback-count', String(Math.max(1, colors.length)));
   disk.style.background = `conic-gradient(from -90deg,${colors.map((color, i) => `${color} ${i * (360 / colors.length)}deg ${(i + 1) * (360 / colors.length)}deg`).join(',')})`;
@@ -497,7 +498,7 @@ function wheelFallbackBuild(segments) {
 async function loadWheel3D() {
   if (wheel3D) return wheel3D;
   if (wheel3DReady) return wheel3DReady;
-  wheel3DReady = import('/miniapp/wheel-three-v1.js?v=20261007-v51')
+  wheel3DReady = import('/miniapp/wheel-three-v1.js?v=20261007-v52')
     .then((mod) => mod.createBikaWheel3D($('wheelDisk'), config?.wheel?.segments || []))
     .then((instance) => {
       wheel3D = instance;
