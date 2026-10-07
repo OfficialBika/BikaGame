@@ -1537,3 +1537,143 @@ body.bika-v41:before{
     padding-bottom:82px !important;
   }
 }
+
+
+/* ===== Lucky Wheel V50 — premium mobile composition / full-wheel framing ===== */
+#wheel .wheel-premium-card{
+  overflow:hidden !important;
+  border-radius:24px !important;
+  background:
+    radial-gradient(420px 240px at 50% 8%,rgba(73,83,255,.14),transparent 70%),
+    linear-gradient(180deg,#050714 0%,#070a17 52%,#040611 100%) !important;
+}
+#wheel .wheel-showcase{
+  min-height:470px !important;
+  height:470px !important;
+  padding:0 !important;
+  background:
+    radial-gradient(circle at 50% 48%,rgba(38,69,116,.28),transparent 43%),
+    radial-gradient(circle at 12% 52%,rgba(29,220,255,.11),transparent 27%),
+    radial-gradient(circle at 88% 52%,rgba(255,39,183,.11),transparent 27%),
+    linear-gradient(180deg,#070a18,#050714) !important;
+}
+#wheel .wheel-stage-grid{opacity:.12 !important}
+#wheel .wheel-particle-vignette{opacity:.55 !important}
+#wheel .wheel-wrap{
+  width:390px !important;
+  height:390px !important;
+  margin:0 auto !important;
+  filter:drop-shadow(0 26px 38px rgba(0,0,0,.62)) !important;
+}
+#wheel .wheel-wrap:before{
+  inset:-18px !important;
+  opacity:.22 !important;
+}
+#wheel .wheel-wrap:after{
+  inset:-7px !important;
+  opacity:.52 !important;
+}
+#wheel .wheel-pointer{
+  width:34px !important;
+  height:55px !important;
+  top:-7px !important;
+}
+#wheel .wheel-pointer>span{width:15px !important;height:15px !important;top:5px !important}
+#wheel .wheel-center{
+  width:94px !important;
+  height:94px !important;
+  border-width:7px !important;
+  box-shadow:
+    0 0 0 5px rgba(8,11,20,.92),
+    0 0 0 8px rgba(255,208,75,.22),
+    0 0 28px rgba(255,198,55,.38),
+    inset 0 7px 14px rgba(255,255,255,.32),
+    inset 0 -10px 18px rgba(125,54,0,.22) !important;
+}
+#wheel .wheel-center-crown{font-size:18px !important}
+#wheel .wheel-center b{font-size:24px !important}
+#wheel .wheel-center small{font-size:6px !important}
+#wheel .wheel-brand-plate{
+  bottom:8px !important;
+  min-width:144px !important;
+  padding:6px 17px 5px !important;
+  border-radius:11px !important;
+  border-width:1px !important;
+  box-shadow:0 7px 20px rgba(0,0,0,.42),0 0 18px rgba(255,192,42,.16) !important;
+}
+#wheel .wheel-brand-plate strong{font-size:16px !important}
+#wheel .wheel-brand-plate span{font-size:5.5px !important}
+#wheel .wheel-info{
+  padding:20px 14px 28px !important;
+  max-width:900px !important;
+}
+#wheel .wheel-info h3{
+  font-size:clamp(24px,4vw,34px) !important;
+  letter-spacing:-.035em !important;
+}
+#wheel .wheel-legend{
+  gap:7px !important;
+}
+#wheel .wheel-legend span{
+  min-height:42px !important;
+  height:42px !important;
+  border-radius:11px !important;
+  font-size:9px !important;
+}
+#wheel .wheel-target{margin-top:10px !important}
+#wheel .daily-spin{border-radius:16px !important}
+#wheel .single-game-card{padding-bottom:92px !important}
+
+@media(max-width:900px){
+  #wheel .wheel-showcase{
+    min-height:clamp(400px,66vw,470px) !important;
+    height:clamp(400px,66vw,470px) !important;
+  }
+  #wheel .wheel-wrap{
+    width:min(390px,52vw) !important;
+    height:min(390px,52vw) !important;
+  }
+}
+@media(max-width:760px){
+  #wheel .wheel-showcase{
+    min-height:430px !important;
+    height:430px !important;
+  }
+  #wheel .wheel-wrap{
+    width:min(360px,82vw) !important;
+    height:min(360px,82vw) !important;
+  }
+  #wheel .wheel-info{padding:18px 10px 24px !important}
+}
+@media(max-width:430px){
+  #wheel .wheel-showcase{
+    min-height:350px !important;
+    height:350px !important;
+  }
+  #wheel .wheel-wrap{
+    width:304px !important;
+    height:304px !important;
+  }
+  #wheel .wheel-center{
+    width:82px !important;
+    height:82px !important;
+    border-width:6px !important;
+  }
+  #wheel .wheel-center b{font-size:20px !important}
+  #wheel .wheel-center-crown{font-size:16px !important}
+  #wheel .wheel-brand-plate{
+    min-width:122px !important;
+    padding:5px 13px 4px !important;
+  }
+  #wheel .wheel-brand-plate strong{font-size:14px !important}
+  #wheel .wheel-brand-plate span{font-size:5px !important}
+  #wheel .wheel-legend{
+    grid-template-columns:repeat(5,1fr) !important;
+    gap:6px !important;
+  }
+  #wheel .wheel-legend span{
+    min-height:39px !important;
+    height:39px !important;
+    font-size:8px !important;
+  }
+}
