@@ -270,7 +270,7 @@ function rocketProgress(multiplier, phase) {
 async function ensureRocketVisual() {
   if (rocketVisual) return rocketVisual;
   if (rocketVisualReady) return rocketVisualReady;
-  rocketVisualReady = import('/miniapp/rocket-pixi-v1.js?v=20261007-v2')
+  rocketVisualReady = import('/miniapp/rocket-pixi-v1.js?v=20261007-v3')
     .then((mod) => mod.createBikaRocketScene($('rocketCanvas')))
     .then((instance) => {
       rocketVisual = instance;
