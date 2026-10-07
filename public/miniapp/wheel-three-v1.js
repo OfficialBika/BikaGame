@@ -23,9 +23,9 @@ function createScene(THREE, container, inputSegments, options) {
   const scene = new THREE.Scene();
   scene.background = null;
 
-  const camera = new THREE.PerspectiveCamera(26, 1, 0.1, 100);
-  camera.position.set(0, 0.72, 8.2);
-  camera.lookAt(0, 0.05, 0);
+  const camera = new THREE.OrthographicCamera(-4, 4, 4, -4, 0.1, 100);
+  camera.position.set(0, 0, 8.2);
+  camera.lookAt(0, 0, 0);
 
   const renderer = new THREE.WebGLRenderer({
     antialias: true,
@@ -391,8 +391,17 @@ function createScene(THREE, container, inputSegments, options) {
     const w = Math.max(1, rect.width);
     const h = Math.max(1, rect.height);
     const aspect = w / h;
-    camera.aspect = aspect;
-    camera.fov = aspect < 0.9 ? 30 : aspect > 1.25 ? 24 : 27;
+    // Orthographic framing keeps the full circular wheel visible on Telegram's
+    // narrow WebView instead of letting the perspective camera crop the rim.
+    const fitRadius = 3.72;
+    const halfHeight = Math.max(fitRadius, fitRadius / Math.max(0.45, aspect));
+    const halfWidth = halfHeight * aspect;
+    camera.left = -halfWidth;
+    camera.right = halfWidth;
+    camera.top = halfHeight;
+    camera.bottom = -halfHeight;
+    camera.near = 0.1;
+    camera.far = 100;
     camera.updateProjectionMatrix();
     renderer.setSize(w, h, false);
   }
