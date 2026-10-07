@@ -540,7 +540,7 @@ async function spinWheel() {
   const btn = $('wheelBtn');
   const centerBtn = $('wheelCenterBtn');
   setBusy(btn, true, 'SPINNING...');
-  setBusy(centerBtn, true, 'SPINNING...');
+  if (centerBtn) { centerBtn.disabled = true; centerBtn.classList.add('is-busy'); centerBtn.setAttribute('aria-busy', 'true'); }
   setClass('wheelResult','result muted');
   setText('wheelResult','🎡 Wheel လည်နေပါတယ်... မြှားအောက်မှာရပ်တဲ့ result နဲ့ payout တိတိကျကျတူပါမယ်');
   renderWheelTarget(null);
@@ -562,7 +562,10 @@ async function spinWheel() {
     setClass('wheelResult','result lose');
     setText('wheelResult', err.message);
     tg?.HapticFeedback?.notificationOccurred?.('error');
-  } finally { setBusy(btn, false); setBusy(centerBtn, false); }
+  } finally {
+    setBusy(btn, false);
+    if (centerBtn) { centerBtn.disabled = false; centerBtn.classList.remove('is-busy'); centerBtn.removeAttribute('aria-busy'); }
+  }
 }
 
 async function spinDailyWheel() {
