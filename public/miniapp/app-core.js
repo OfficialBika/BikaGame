@@ -238,9 +238,17 @@ function refreshAllVisibleHistory() {
 }
 
 function renderHistory(history = []) {
-  const row = $('oddsRow'); if (!row) return;
   const items = Array.isArray(history) ? history.slice(0, 10) : [];
-  row.innerHTML = items.length ? items.map((item) => `<span class="odd ${item.color || 'blue'}">x${Number(item.multiplier || 1).toFixed(2)}</span>`).join('') : '<span class="odd blue">waiting</span>';
+  const makeItem = (item) => {
+    const m = Number(item?.multiplier || 1);
+    const color = item?.color || (m < 1.5 ? 'red' : m < 2.5 ? 'yellow' : m < 5 ? 'blue' : 'green');
+    return `<span class="odd ${color}" title="Round #${escapeHtml(item?.roundNo ?? '—')}">x${m.toFixed(2)}</span>`;
+  };
+  const html = items.length ? items.map(makeItem).join('') : '<span class="odd blue">waiting</span>';
+  const row = $('oddsRow');
+  if (row) row.innerHTML = html;
+  const rocket = $('rocketHistory');
+  if (rocket) rocket.innerHTML = items.length ? items.map((item) => makeItem(item)).join('') : '<span class="odd blue">waiting</span>';
 }
 
 function multiplierAt(round) {
@@ -286,12 +294,18 @@ function syncRocketVisual(round, multiplierOverride = null) {
 
 function renderPlayers(round) {
   const list = $('playersList'); if (!list) return;
-  const players = round?.players || [];
-  list.innerHTML = players.length ? players.map((p) => `
-    <div class="player-row ${p.me ? 'me' : ''}">
-      <span>${p.cashedOut ? '✅' : '⏳'} ${escapeHtml(p.name)}</span>
-      <b>${p.cashedOut ? fmt(p.payout) + ' ' + coin() : fmt(p.bet) + ' ' + coin()}</b>
-    </div>`).join('') : '<div class="result muted">No players yet.</div>';
+  const players = Array.isArray(round?.players) ? round.players : [];
+  list.innerHTML = players.length ? players.map((p) => {
+    const cashout = Number(p.cashoutMultiplier || 0);
+    const betText = fmt(p.bet) + ' ' + coin();
+    const cashText = p.cashedOut && cashout > 0 ? `x${cashout.toFixed(2)}` : '—';
+    return `
+      <div class="player-row ${p.me ? 'me' : ''}">
+        <span><i class="player-status-dot ${p.cashedOut ? 'out' : 'live'}"></i>${escapeHtml(p.name || 'Player')}</span>
+        <b class="player-bet-cell">${betText}</b>
+        <em class="player-cash-cell ${p.cashedOut ? 'out' : ''}">${cashText}</em>
+      </div>`;
+  }).join('') : '<div class="result muted">No players yet.</div>';
 }
 
 function renderRocket(status) {
