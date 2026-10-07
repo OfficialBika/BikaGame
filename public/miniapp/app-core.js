@@ -303,6 +303,18 @@ function updateRocketVector(progress, phase = 'betting') {
   art.style.transform = `translate(${x}px,${y}px) translate(-50%,-50%) rotate(${tilt}deg) scale(${scale})`;
   art.style.opacity = String(opacity);
   art.dataset.progress = String(u);
+
+  const path = $('rocketTrajectoryPath');
+  const glow = $('rocketTrajectoryGlow');
+  if (path && glow) {
+    const visible = phase === 'betting' ? Math.max(0, u * 100) : Math.max(4, u * 100);
+    path.style.strokeDasharray = `${visible} 100`;
+    glow.style.strokeDasharray = `${visible} 100`;
+    const endX = 6 + (88 - 6) * u;
+    const endY = 87 + (15 - 87) * u - 18 * u * (1 - u);
+    path.dataset.endX = String(endX);
+    path.dataset.endY = String(endY);
+  }
 }
 
 function syncRocketVisual(round, multiplierOverride = null) {
