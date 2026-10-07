@@ -112,15 +112,63 @@
       </section>
 
       <section id="crash" class="panel game-panel">
-        <div class="game-page-head"><button class="back-home" data-open="home">‹ Home</button><div><p class="kicker">LIVE GAME</p><h2>🚀 Rocket Crash</h2></div><span class="status-chip">● LIVE</span></div>
-        <div class="game-workspace">
-          <div class="game-main-card"><div class="stage-top"><span class="round-chip">ROUND <b id="roundTitle">#—</b></span><span class="phase-chip" id="phaseChip">BET</span></div>
-            <div id="rocketScene" class="rocket-stage betting"><div class="stage-stars"></div><div class="stage-grid"></div><div id="roundCountdown" class="countdown-bubble">15</div><div id="crashMultiplier" class="rocket-multiplier">x1.00</div><div id="crashState" class="rocket-state">Bet time စောင့်နေပါတယ်…</div><div class="rocket-arc"></div><div id="rocketShip" class="ship">🚀</div><div id="explosion" class="explosion">💥</div></div>
-            <div class="bet-panel"><div class="bet-input"><span>BET AMOUNT</span><input id="crashBet" type="number" inputmode="numeric" placeholder="50,000"></div><button id="crashStartBtn" class="primary-btn">BET NOW</button><button id="cashoutBtn" class="cashout-btn" disabled>CASH OUT</button></div>
-            <div class="quick-bets"><button data-crash-bet="50">50</button><button data-crash-bet="100">100</button><button data-crash-bet="500">500</button><button data-crash-bet="1000">1K</button><button data-crash-bet="5000">5K</button></div>
-            <div id="crashResult" class="result muted">Auto round လည်နေပါတယ်။ Bet time အတွင်းဝင်ပါ။</div>
+        <div class="game-page-head rocket-page-head">
+          <button class="back-home" data-open="home">‹ Home</button>
+          <div class="rocket-head-copy">
+            <p class="kicker">LIVE GAME</p>
+            <h2><span class="rocket-head-icon">🚀</span> Rocket Crash</h2>
+            <small>Ride the rocket. Cash out before it crashes.</small>
           </div>
-          <aside class="game-side-card"><div class="side-title"><div><p class="kicker">ROUND INFO</p><h3>Live Players</h3></div><b id="playerCount">0</b></div><div class="stat-strip"><span>Total <b id="totalBet">0</b></span><span>Paid <b id="totalPaid">0</b></span></div><div id="playersList" class="player-list"></div><div class="history-card"><div class="history-head"><b>Recent Rounds</b><button data-refresh-history="rocket">Refresh</button></div><div id="rocketHistory" class="history-list"></div></div></aside>
+          <span class="status-chip rocket-live-chip"><i></i> LIVE</span>
+          <div class="rocket-head-actions"><button type="button" class="rocket-icon-btn" aria-label="Online players">◉ <span id="onlineCountText">—</span></button><button type="button" class="rocket-icon-btn" aria-label="Refresh round" data-refresh-history="rocket">↻</button></div>
+        </div>
+
+        <div class="rocket-workspace">
+          <main class="rocket-main-card">
+            <div class="rocket-stage-top">
+              <div><span class="rocket-round-pill">ROUND <b id="roundTitle">#—</b></span><span class="rocket-phase-pill" id="phaseChip">BET</span></div>
+              <div class="rocket-stage-status">LIVE ROUND <b>•</b> AUTO</div>
+            </div>
+
+            <div id="rocketScene" class="rocket-scene betting">
+              <div id="rocketCanvas" class="rocket-pixi-host" aria-hidden="true"></div>
+              <div class="rocket-vignette" aria-hidden="true"></div>
+              <div class="rocket-top-left-badge">BIKA <span>CRASH</span></div>
+              <div id="roundCountdown" class="countdown-bubble">15</div>
+              <div class="rocket-graph-label graph-y1">5.00x</div>
+              <div class="rocket-graph-label graph-y2">3.00x</div>
+              <div class="rocket-graph-label graph-y3">1.50x</div>
+              <div class="rocket-axis axis-a">1s</div><div class="rocket-axis axis-b">3s</div><div class="rocket-axis axis-c">5s</div><div class="rocket-axis axis-d">7s</div><div class="rocket-axis axis-e">10s</div>
+              <div class="rocket-live-dot"><i></i> LIVE</div>
+              <div id="crashMultiplier" class="rocket-multiplier">x1.00</div>
+              <div id="crashState" class="rocket-state">Bet time — 15s</div>
+              <div class="rocket-bottom-glow" aria-hidden="true"></div>
+              <div class="rocket-run-tag">● ROCKET ASCENDING</div>
+            </div>
+
+            <div class="rocket-bet-zone">
+              <div class="rocket-bet-row">
+                <div class="bet-input rocket-bet-input"><span>BET AMOUNT</span><input id="crashBet" type="number" inputmode="numeric" placeholder="50,000"></div>
+                <button id="crashStartBtn" class="rocket-bet-now primary-btn">BET NOW</button>
+                <button id="cashoutBtn" class="rocket-cashout" disabled><span>AUTO CASHOUT</span><b>MANUAL</b></button>
+              </div>
+              <div class="rocket-auto-row"><span>Auto Cashout</span><b>2.00x</b><button type="button">›</button></div>
+              <div class="quick-bets rocket-quick-bets"><button data-crash-bet="10000">10K</button><button data-crash-bet="50000">50K</button><button data-crash-bet="100000">100K</button><button data-crash-bet="500000">500K</button><button data-crash-bet="1000000">1M</button></div>
+            </div>
+            <div id="crashResult" class="result muted rocket-result">Auto round လည်နေပါတယ်။ Bet time အတွင်းဝင်ပါ။</div>
+          </main>
+
+          <aside class="rocket-side-card">
+            <div class="rocket-side-head"><div><p class="kicker">LIVE PLAYERS</p><h3>Live Players</h3></div><strong id="playerCount">0</strong></div>
+            <div class="rocket-player-cols"><span>Player</span><span>Bet</span><span>Cashout</span></div>
+            <div id="playersList" class="player-list rocket-player-list"></div>
+            <div class="rocket-total-strip"><span>Total Bet <b id="totalBet">0</b></span><span>Total Paid <b id="totalPaid">0</b></span></div>
+          </aside>
+        </div>
+
+        <div class="rocket-history-section">
+          <div class="rocket-history-title"><div><p class="kicker">RECENT ROUNDS</p><h3>Recent Rounds</h3></div><button data-refresh-history="rocket">Refresh</button></div>
+          <div id="rocketHistory" class="history-list rocket-history-list"></div>
         </div>
       </section>
 
