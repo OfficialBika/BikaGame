@@ -1,0 +1,326 @@
+/* BIKA GAME — REFERENCE OVERHAUL V41
+   Presentation-only layer. Imports V40 so existing game/layout selectors remain intact,
+   then upgrades the Mini App toward the supplied premium gaming-dashboard reference.
+*/
+@import url('/miniapp/bika-command-v40.css?v=20261007-v40');
+
+:root{
+  --v41-bg:#04050d;
+  --v41-panel:rgba(8,11,22,.88);
+  --v41-panel2:rgba(12,16,31,.94);
+  --v41-line:rgba(109,116,255,.25);
+  --v41-cyan:#39eaff;
+  --v41-purple:#824dff;
+  --v41-pink:#ff2bb5;
+  --v41-gold:#ffd45e;
+  --v41-green:#48edb0;
+}
+body.bika-v41{
+  background:
+    radial-gradient(900px 500px at 45% -10%,rgba(88,61,255,.16),transparent 66%),
+    radial-gradient(700px 420px at 100% 40%,rgba(255,35,175,.10),transparent 68%),
+    linear-gradient(180deg,#03040b 0%,#060815 45%,#03050c 100%);
+}
+body.bika-v41:before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;
+  background:
+    linear-gradient(rgba(75,103,210,.028) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(75,103,210,.028) 1px,transparent 1px);
+  background-size:36px 36px;
+  mask-image:linear-gradient(to bottom,#000,transparent 90%);
+}
+.app-shell{width:min(1540px,100%);grid-template-columns:204px minmax(0,1fr)}
+.sidebar{
+  padding:20px 13px 16px;
+  background:linear-gradient(180deg,rgba(4,6,15,.97),rgba(7,8,17,.92));
+  border-right:1px solid rgba(108,111,255,.20);
+  box-shadow:18px 0 70px rgba(48,31,150,.08);
+}
+.brand-block{padding:5px 10px 22px;margin-bottom:17px;border-bottom:1px solid rgba(111,121,255,.17)}
+.brand-mark{
+  font-size:47px;line-height:.82;letter-spacing:-.09em;
+  text-shadow:0 0 30px rgba(180,60,255,.16);
+}
+.brand-sub{font-size:9px;letter-spacing:.38em;color:#9aa7c8}
+.side-nav{gap:6px}
+.side-item{
+  height:43px;border-radius:12px;padding:0 12px;gap:11px;
+  font-size:11px;color:#7f8ba7;border:1px solid transparent;
+  transition:transform .18s,background .18s,border-color .18s,box-shadow .18s;
+}
+.side-item span{width:21px;font-size:15px}
+.side-item:hover{transform:translateX(2px);background:rgba(103,78,255,.08);border-color:rgba(115,96,255,.14)}
+.side-item.active,.bika-v41[data-bika-game="home"] .side-item[data-open="home"]{
+  background:linear-gradient(100deg,rgba(76,55,255,.48),rgba(255,38,186,.16));
+  border-color:rgba(117,91,255,.42);
+  box-shadow:inset 3px 0 #a747ff,0 10px 28px rgba(74,48,255,.16);
+  color:#fff;
+}
+.bonus-card{
+  left:13px;right:13px;bottom:17px;padding:12px;border-radius:15px;
+  background:
+    radial-gradient(circle at 20% 0%,rgba(255,51,194,.20),transparent 45%),
+    linear-gradient(145deg,rgba(63,17,91,.88),rgba(18,10,42,.94));
+  border-color:rgba(255,64,194,.34);
+  box-shadow:0 15px 40px rgba(84,23,150,.18);
+}
+.content-shell{padding:10px 14px 80px}
+.topbar{
+  min-height:60px;margin-bottom:13px;padding:8px 10px;border-radius:17px;
+  background:linear-gradient(90deg,rgba(8,11,23,.96),rgba(11,14,29,.90));
+  border-color:rgba(106,114,255,.25);
+  box-shadow:0 16px 45px rgba(0,0,0,.34),0 0 35px rgba(69,55,255,.06);
+}
+.search-box{height:40px;border-radius:12px;background:rgba(255,255,255,.028);border-color:rgba(116,126,206,.19)}
+.search-box:focus-within{border-color:rgba(68,232,255,.42);box-shadow:0 0 0 3px rgba(68,232,255,.06),0 0 25px rgba(68,232,255,.07)}
+.online-pill,.wallet-pill,.player-pill{border-color:rgba(116,126,206,.18);background:rgba(255,255,255,.025)}
+.deposit-btn{
+  height:38px;padding:0 17px;border-radius:11px;
+  background:linear-gradient(110deg,#7636ff,#3b86ff);
+  box-shadow:0 0 24px rgba(78,71,255,.24),inset 0 1px rgba(255,255,255,.22);
+}
+.panel.active{animation:v41PanelIn .24s ease both}
+@keyframes v41PanelIn{from{opacity:.72;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+.home-grid{
+  grid-template-columns:minmax(0,1fr) 316px;
+  grid-template-areas:"hero side" "games rank" "lower lower";
+  gap:13px;
+}
+.hero-card{
+  min-height:318px;border-radius:21px;
+  border-color:rgba(111,92,255,.36);
+  background:
+    radial-gradient(500px 300px at 78% 44%,rgba(39,216,255,.15),transparent 62%),
+    radial-gradient(440px 280px at 20% 100%,rgba(255,35,186,.17),transparent 65%),
+    linear-gradient(125deg,#0d1227 0%,#090c19 52%,#080814 100%);
+  box-shadow:0 25px 70px rgba(0,0,0,.42),inset 0 1px rgba(255,255,255,.07);
+}
+.hero-card:before{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:
+    linear-gradient(115deg,transparent 20%,rgba(89,93,255,.08) 45%,transparent 64%),
+    radial-gradient(circle at 78% 48%,rgba(255,255,255,.08) 0 1px,transparent 2px);
+  background-size:auto,90px 90px;
+}
+.hero-copy{padding:31px 31px;max-width:720px}
+.hero-copy .kicker{font-size:8px;color:#6cecff}
+.hero-copy h1{
+  margin:9px 0 13px;font-size:clamp(44px,5.3vw,72px);letter-spacing:-.075em;
+  text-shadow:0 0 30px rgba(75,72,255,.12);
+}
+.hero-copy>p:not(.kicker){font-size:12px;line-height:1.62;color:#a8b3c9;max-width:570px}
+.hero-actions{margin-top:21px}
+.primary-cta,.ghost-cta{height:42px;padding:0 19px;border-radius:11px;font-size:10px}
+.primary-cta{
+  background:linear-gradient(105deg,#aa2cff,#5748ff 48%,#1f94ff);
+  border-color:rgba(208,128,255,.55);
+  box-shadow:0 12px 30px rgba(112,43,255,.30),0 0 28px rgba(53,117,255,.12);
+}
+.ghost-cta{background:rgba(255,255,255,.035);border-color:rgba(127,139,205,.20)}
+.hero-tags{margin-top:21px}
+.hero-tags span{padding:7px 10px;border-radius:9px;font-size:7px;background:rgba(255,255,255,.035);border-color:rgba(118,131,206,.17)}
+.hero-orb{
+  right:-95px;top:-82px;width:500px;height:500px;
+  opacity:1;filter:drop-shadow(0 0 50px rgba(60,70,255,.10));
+}
+.hero-orb:before{
+  content:"";position:absolute;inset:68px;border-radius:50%;
+  background:
+    radial-gradient(circle at 45% 30%,rgba(255,255,255,.15),transparent 4%),
+    radial-gradient(ellipse at 48% 42%,rgba(71,219,255,.30),transparent 24%),
+    radial-gradient(ellipse at 55% 55%,rgba(255,40,190,.22),transparent 35%),
+    linear-gradient(145deg,rgba(36,43,86,.76),rgba(9,12,25,.95));
+  border:1px solid rgba(104,116,255,.30);
+  box-shadow:inset 0 0 80px rgba(55,75,255,.16),0 0 70px rgba(68,65,255,.12);
+  clip-path:polygon(50% 0,78% 10%,94% 34%,87% 68%,68% 92%,36% 100%,11% 77%,5% 44%,19% 14%);
+}
+.orb-ring{border-color:rgba(65,220,255,.25);box-shadow:0 0 0 22px rgba(65,220,255,.018),0 0 95px rgba(65,220,255,.11)}
+.ring-b{inset:58px;border-color:rgba(255,55,184,.25);transform:rotate(52deg)}
+.orb-core{width:150px;height:150px;background:radial-gradient(circle at 35% 25%,#273766,#090d1b 68%);border-color:rgba(116,112,255,.45);box-shadow:inset 0 0 55px rgba(79,100,255,.18),0 0 70px rgba(80,75,255,.18);font-size:28px}
+
+.side-stack{gap:13px}
+.widget{
+  border-radius:17px;
+  background:linear-gradient(145deg,rgba(13,17,34,.97),rgba(6,9,18,.97));
+  border-color:rgba(113,124,219,.21);
+  box-shadow:0 18px 42px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.035);
+}
+.widget-head,.section-head{padding:14px 15px}
+.widget-head h3,.section-head h2,.section-head h3{font-size:14px}
+.live-widget:before,.ranking-widget:before,.event-widget:before{
+  content:"";display:block;height:2px;background:linear-gradient(90deg,#35eaff,#7e4dff,#ff2db6);box-shadow:0 0 15px rgba(89,79,255,.35)
+}
+.mini-avatars i{
+  width:26px;height:26px;border-color:rgba(91,223,255,.25);
+  box-shadow:0 0 12px rgba(66,113,255,.10)
+}
+.win-list>div{padding:9px 4px}
+.event-art{
+  min-height:106px;padding:16px;
+  background:
+    radial-gradient(180px 100px at 80% 35%,rgba(255,174,45,.27),transparent 68%),
+    radial-gradient(160px 90px at 18% 80%,rgba(255,37,180,.15),transparent 70%),
+    linear-gradient(135deg,#281132,#161027);
+}
+.event-art h3{font-size:20px;text-shadow:0 0 18px rgba(255,77,190,.24)}
+.trophy{font-size:49px;filter:drop-shadow(0 0 22px rgba(255,199,65,.52))}
+.timer-row span{background:rgba(255,255,255,.025);border-color:rgba(117,127,210,.17)}
+
+.games-section{
+  border-radius:17px;background:rgba(7,10,19,.74);
+  border-color:rgba(109,122,220,.20);padding-bottom:12px;
+  box-shadow:0 18px 45px rgba(0,0,0,.22);
+}
+.games-section:before{
+  content:"";display:block;height:2px;background:linear-gradient(90deg,#ff3cb7,#744dff,#38eaff);box-shadow:0 0 16px rgba(100,77,255,.28)
+}
+.section-head{padding-top:12px}
+.section-head h2{font-size:16px}
+.game-carousel{
+  grid-template-columns:repeat(7,minmax(126px,1fr));
+  gap:8px;padding:0 11px;overflow-x:auto;scrollbar-width:none;
+}
+.game-carousel::-webkit-scrollbar{display:none}
+.game-tile{
+  min-width:126px;border-radius:13px;
+  border-color:rgba(108,123,214,.20);
+  background:linear-gradient(160deg,#11172b,#080b15);
+  box-shadow:0 11px 25px rgba(0,0,0,.25),inset 0 1px rgba(255,255,255,.045);
+}
+.game-tile:hover{transform:translateY(-4px);border-color:rgba(105,91,255,.55);box-shadow:0 18px 34px rgba(0,0,0,.34),0 0 24px rgba(74,64,255,.10)}
+.game-art{height:126px;border-bottom-color:rgba(119,129,215,.15)}
+.game-art:after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(180deg,transparent 45%,rgba(3,5,12,.30) 100%);
+}
+.art-emoji{font-size:54px;z-index:2;transition:transform .2s,filter .2s}
+.game-tile:hover .art-emoji{transform:scale(1.08) translateY(-2px);filter:drop-shadow(0 0 24px rgba(89,112,255,.45))}
+.rocket-art{background:radial-gradient(circle at 58% 48%,rgba(48,231,255,.42),transparent 25%),radial-gradient(circle at 20% 70%,rgba(91,64,255,.26),transparent 35%),linear-gradient(145deg,#07152f,#10296b 52%,#17102d)}
+.slot-art{background:radial-gradient(circle at 50% 53%,rgba(255,205,58,.42),transparent 27%),radial-gradient(circle at 80% 20%,rgba(255,52,170,.24),transparent 32%),linear-gradient(145deg,#4a120f,#8a1c43 54%,#26102d)}
+.blackjack-art{background:radial-gradient(circle at 50% 58%,rgba(28,255,183,.36),transparent 27%),linear-gradient(145deg,#062b28,#09204a 58%,#071017)}
+.shan-art{background:radial-gradient(circle at 55% 55%,rgba(255,52,166,.38),transparent 27%),linear-gradient(145deg,#4b1238,#1c102d 60%,#0d1329)}
+.plinko-art{background:radial-gradient(circle at 52% 50%,rgba(100,129,255,.43),transparent 30%),linear-gradient(145deg,#111a59,#14214b 55%,#0a1428)}
+.wheel-art{background:radial-gradient(circle at 50% 50%,rgba(255,207,63,.40),transparent 30%),radial-gradient(circle at 20% 20%,rgba(255,48,176,.18),transparent 35%),linear-gradient(145deg,#4a2610,#30152b)}
+.mines-art{background:radial-gradient(circle at 50% 52%,rgba(98,105,255,.42),transparent 28%),linear-gradient(145deg,#16184b,#0b1025 62%,#0b0b18)}
+.game-tile h3{font-size:11px;margin-top:10px}
+.game-tile small{font-size:7px}
+.game-tile strong{
+  height:31px;margin-top:9px;border-radius:8px;font-size:8px;
+  background:linear-gradient(105deg,#7c2cff,#3c68ff,#249cff);
+  border-color:rgba(133,106,255,.44);
+  box-shadow:0 7px 18px rgba(65,62,255,.20);
+}
+
+.ranking-widget{padding-bottom:8px}
+.rank-tabs{padding-bottom:10px}
+.rank-tabs span{font-size:7px}
+.rank-list>div{padding:9px 2px}
+.rank-list i{width:22px;height:22px}
+.rank-list strong{font-size:8px}
+
+.lower-grid{gap:13px}
+.activity-widget,.wallet-widget{min-height:145px}
+.balance-row strong{font-size:26px}
+
+.game-page-head{margin:4px 0 13px}
+.game-page-head h2{font-size:22px}
+.back-home{height:38px;border-radius:11px}
+.game-main-card,.game-side-card,.single-game-card{
+  border-radius:18px;
+  border-color:rgba(110,123,218,.22);
+  background:linear-gradient(145deg,rgba(13,18,35,.97),rgba(6,9,17,.98));
+  box-shadow:0 22px 60px rgba(0,0,0,.36),inset 0 1px rgba(255,255,255,.035);
+}
+.rocket-stage{
+  height:430px;border-radius:15px;
+  box-shadow:inset 0 0 100px rgba(31,83,255,.07),0 0 35px rgba(45,192,255,.05);
+}
+.rocket-multiplier{font-size:82px;text-shadow:0 0 50px rgba(55,228,255,.24)}
+.bet-input input{height:43px;background:rgba(4,7,14,.88);border-color:rgba(115,126,211,.20)}
+.primary-btn{
+  background:linear-gradient(105deg,#822cff,#4960ff,#2498ff);
+  box-shadow:0 10px 25px rgba(74,55,255,.23),inset 0 1px rgba(255,255,255,.18);
+}
+.quick-bets button{
+  border-radius:8px;background:rgba(255,255,255,.025);border-color:rgba(113,124,205,.17)
+}
+.single-game-card{max-width:1120px}
+.slot-machine{min-height:390px;border-radius:16px;box-shadow:inset 0 0 90px rgba(255,30,183,.12),0 0 35px rgba(255,31,183,.06)}
+.slot-reel{height:135px;font-size:52px}
+.blackjack-table,.shan-table,.plinko-board,.mines-board{
+  box-shadow:inset 0 0 90px rgba(70,82,255,.06),0 0 30px rgba(44,50,180,.05)
+}
+.blackjack-table{min-height:410px;border-radius:17px}
+.plinko-board{height:500px;border-radius:17px}
+.mines-board{max-width:720px;border-radius:17px}
+.nav-tabs{border-color:rgba(105,118,218,.24)}
+.sound-dock{border-color:rgba(110,123,218,.23)}
+
+#bikaNavPage{background:rgba(2,4,10,.96)}
+.bnp-shell{background:linear-gradient(180deg,#070a16,#04060d)}
+.bnp-card,.games-page-card{border-color:rgba(111,122,220,.22);box-shadow:0 18px 42px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.035)}
+
+.splash{
+  background:
+    radial-gradient(circle at 50% 42%,rgba(112,51,255,.22),transparent 30%),
+    radial-gradient(circle at 20% 70%,rgba(255,39,187,.12),transparent 28%),
+    radial-gradient(circle at 82% 25%,rgba(42,227,255,.13),transparent 28%),
+    #03040b;
+}
+.splash:before,.splash:after{
+  content:"";position:absolute;border-radius:50%;pointer-events:none;
+  border:1px solid rgba(55,231,255,.20);box-shadow:0 0 70px rgba(68,68,255,.10);
+}
+.splash:before{width:380px;height:380px;animation:v41Orbit 7s linear infinite}
+.splash:after{width:510px;height:510px;border-color:rgba(255,45,185,.12);animation:v41Orbit 11s linear infinite reverse}
+.splash-grid{opacity:.8;background-size:34px 34px}
+.splash-core{z-index:2;letter-spacing:.22em}
+.splash-logo{
+  font-size:88px;
+  background:linear-gradient(90deg,#ff37c4 0%,#8c43ff 45%,#35eaff 100%);
+  -webkit-background-clip:text;
+  text-shadow:0 0 45px rgba(104,62,255,.25);
+  animation:v41LogoPulse 2.2s ease-in-out infinite;
+}
+.splash-core span{font-size:9px;letter-spacing:.35em;color:#7b8aaa}
+@keyframes v41Orbit{to{transform:rotate(360deg)}}
+@keyframes v41LogoPulse{50%{filter:drop-shadow(0 0 24px rgba(54,230,255,.28))}}
+@media(prefers-reduced-motion:reduce){.splash:before,.splash:after,.splash-logo{animation:none!important}}
+
+@media(max-width:1180px){
+  .app-shell{grid-template-columns:190px minmax(0,1fr)}
+  .home-grid{grid-template-columns:minmax(0,1fr) 285px}
+  .game-carousel{grid-template-columns:repeat(5,minmax(126px,1fr))}
+}
+@media(max-width:900px){
+  .app-shell{grid-template-columns:174px minmax(0,1fr)}
+  .home-grid{grid-template-columns:1fr;grid-template-areas:"hero" "side" "games" "rank" "lower"}
+  .game-carousel{grid-template-columns:repeat(4,minmax(130px,1fr));overflow-x:auto}
+  .hero-card{min-height:300px}
+}
+@media(max-width:680px){
+  .content-shell{padding:6px 8px 82px}
+  .topbar{border-radius:14px}
+  .hero-card{min-height:270px}
+  .hero-copy{padding:21px 18px}
+  .hero-copy h1{font-size:38px}
+  .hero-copy>p:not(.kicker){max-width:72%;font-size:9px}
+  .hero-orb{right:-150px;top:-50px;width:380px;height:380px}
+  .game-carousel{grid-template-columns:repeat(2,minmax(0,1fr));overflow:visible}
+  .game-tile{min-width:0}
+  .game-art{height:96px}
+  .side-stack{grid-template-columns:1fr 1fr}
+  .rocket-stage{height:310px}
+  .rocket-multiplier{font-size:50px}
+  .slot-machine{min-height:310px}
+  .slot-reel{height:100px}
+  .plinko-board{height:370px}
+}
+@media(max-width:430px){
+  .side-stack{grid-template-columns:1fr}
+  .game-carousel{grid-template-columns:1fr 1fr}
+  .hero-card{min-height:250px}
+  .hero-copy h1{font-size:32px}
+  .hero-orb{right:-175px;opacity:.72}
+}
