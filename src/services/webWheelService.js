@@ -1,7 +1,11 @@
 'use strict';
 
 const { COIN } = require('../config/constants');
-const { getDb } = require('../config/database');
+const { getDb, withRequiredTx } = require('../config/database');
+const userModel = require('../models/userModel');
+const transactionModel = require('../models/transactionModel');
+const treasuryModel = require('../models/treasuryModel');
+const { logTx } = require('./transactionService');
 const { getUser, settleSingleGame } = require('./economyService');
 const { getTreasury } = require('./treasuryService');
 const { getWebGameRtp } = require('./webGameRtpService');
@@ -184,34 +188,197 @@ async function spinDailyWebWheel({ userId }) {
   if (!Number.isFinite(uid) || uid <= 0) throw new Error('INVALID_USER');
   const now = new Date();
   const dateKey = dailyDateKey(now);
+  const settlementId = `daily:${uid}:${dateKey}`;
+  const markerId = `__settlement:web_wheel_daily:${settlementId}`;
+
   const user = await getUser(uid);
   if (!user) throw new Error('USER_NOT_FOUND');
+
+  // Select the result before opening the transaction; the payout itself is
+  // still capped and settled against the authoritative treasury inside it.
   const rtp = await getWebGameRtp('wheel');
   const segment = weightedPick(buildWeightedSegments(rtp));
   const rawPayout = Math.floor(DAILY_BASE_REWARD * segment.multiplier);
-  const payout = await capDailyPayout(rawPayout);
-  const settlementId = `daily:${uid}:${dateKey}`;
-  await settleSingleGame({
-    settlementId, typePrefix: 'web_wheel_daily', userId: uid, payout,
-    meta: { source:'miniapp_wheel_daily', dateKey, baseReward:DAILY_BASE_REWARD, rawPayout, multiplier:segment.multiplier, segment:segment.index, rtp },
-  });
-  const claim={ userId:uid, dateKey, label:segment.label, multiplier:segment.multiplier, segment:segment.index, baseReward:DAILY_BASE_REWARD, rawPayout, payout, claimedAtMs:now.getTime(), createdAt:now };
+
+  let result = null;
+
   try {
-    await dailyCollection().insertOne(claim);
+    result = await withRequiredTx(async (session) => {
+      const opts = { session };
+      const daily = dailyCollection();
+      const tx = transactionModel.collection();
+      const treasury = treasuryModel.collection();
+
+      const existingClaim = await daily.findOne(
+        { userId: Math.floor(uid), dateKey },
+        opts
+      );
+      if (existingClaim) {
+        const used = new Error('WHEEL_DAILY_USED');
+        used.nextAtMs = nextDailyResetMs(now);
+        throw used;
+      }
+
+      // Recovery compatibility with claims settled by the older implementation.
+      const existingMarker = await tx.findOne({ _id: markerId }, opts);
+      if (existingMarker) {
+        const existingClaim = await daily.findOne(
+          { userId: Math.floor(uid), dateKey },
+          opts
+        );
+        return {
+          duplicate: true,
+          payout: Number(existingMarker.payout || 0),
+          balance: Number(existingMarker.balanceAfter || 0),
+          claim: existingClaim || null,
+        };
+      }
+
+      const treasuryDoc = await treasury.findOne({ key: 'treasury' }, opts);
+      if (!treasuryDoc) throw new Error('TREASURY_NOT_READY');
+
+      const ownerBalance = Math.max(0, Number(treasuryDoc.ownerBalance || 0));
+      const maxByPercent = Math.floor(ownerBalance * CAP_PERCENT);
+      const maxByBase = Math.floor(DAILY_BASE_REWARD * MAX_PAYOUT_MULTIPLIER);
+      const hardMax = Math.max(
+        0,
+        Math.min(
+          ownerBalance,
+          maxByPercent > 0 ? maxByPercent : ownerBalance,
+          maxByBase
+        )
+      );
+      const payout = Math.max(0, Math.min(Math.floor(rawPayout || 0), hardMax));
+
+      if (payout > 0) {
+        const debitedTreasury = await treasury.findOneAndUpdate(
+          { key: 'treasury', ownerBalance: { $gte: payout } },
+          { $inc: { ownerBalance: -payout }, $set: { updatedAt: now } },
+          { session, returnDocument: 'after' }
+        );
+        if (!debitedTreasury) throw new Error('TREASURY_INSUFFICIENT');
+      }
+
+      const credited = await userModel.collection().findOneAndUpdate(
+        { userId: { $in: [Math.floor(uid), String(Math.floor(uid))] } },
+        {
+          $inc: { balance: payout, totalWon: payout },
+          $set: { updatedAt: now }
+        },
+        { session, returnDocument: 'after' }
+      );
+      const userAfter = credited && credited.value !== undefined ? credited.value : credited;
+      if (!userAfter) throw new Error('PAYOUT_USER_NOT_FOUND');
+
+      const claim = {
+        userId: Math.floor(uid),
+        dateKey,
+        label: segment.label,
+        multiplier: segment.multiplier,
+        segment: segment.index,
+        baseReward: DAILY_BASE_REWARD,
+        rawPayout,
+        payout,
+        claimedAtMs: now.getTime(),
+        createdAt: now,
+      };
+
+      await daily.insertOne(claim, opts);
+
+      await logTx({
+        type: 'web_wheel_daily_win',
+        fromUserId: payout > 0 ? 'TREASURY' : 'TREASURY',
+        toUserId: userAfter.userId,
+        amount: payout,
+        meta: {
+          source: 'miniapp_wheel_daily',
+          dateKey,
+          baseReward: DAILY_BASE_REWARD,
+          rawPayout,
+          multiplier: segment.multiplier,
+          segment: segment.index,
+          rtp,
+          settlementId,
+          idempotencyKey: markerId,
+        },
+        balanceAfter: Number(userAfter.balance || 0),
+      }, opts);
+
+      await tx.insertOne({
+        _id: markerId,
+        type: 'web_wheel_daily_settlement',
+        settlementId,
+        userId: userAfter.userId,
+        bet: 0,
+        payout,
+        balanceAfter: Number(userAfter.balance || 0),
+        meta: { dateKey, segment: segment.index, rtp, idempotencyKey: markerId },
+        createdAt: now,
+      }, opts);
+
+      return {
+        duplicate: false,
+        payout,
+        balance: Number(userAfter.balance || 0),
+        claim,
+      };
+    });
   } catch (err) {
     if (err?.code === 11000) {
-      const used=new Error('WHEEL_DAILY_USED'); used.nextAtMs=nextDailyResetMs(now); throw used;
+      const used = new Error('WHEEL_DAILY_USED');
+      used.nextAtMs = nextDailyResetMs(now);
+      throw used;
     }
     throw err;
   }
-  const updated=await getUser(uid);
-  const jitter = randomSafeJitter();
-  await recordWebGameHistory({userId:uid,game:'wheel',title:`Daily Wheel ${segment.label}`,outcome:payout>0?'daily_win':'daily_lose',bet:0,payout,net:payout,multiplier:segment.multiplier,label:segment.label,meta:{segment:segment.index,rawPayout,rtp,mode:'daily',baseReward:DAILY_BASE_REWARD,dateKey,settlementId}});
+
+  const claim = result.claim || {};
+  const payout = Number(result.payout || 0);
+  const updatedBalance = Number(result.balance || (await getUser(uid))?.balance || 0);
+  const responseSegment = result.duplicate && claim.segment != null
+    ? SEGMENTS[Number(claim.segment)] || segment
+    : segment;
+
+  await recordWebGameHistory({
+    userId: uid,
+    game: 'wheel',
+    title: `Daily Wheel ${responseSegment.label}`,
+    outcome: payout > 0 ? 'daily_win' : 'daily_lose',
+    bet: 0,
+    payout,
+    net: payout,
+    multiplier: Number(responseSegment.multiplier || 0),
+    label: responseSegment.label,
+    meta: {
+      dateKey,
+      rawPayout: Number(claim.rawPayout ?? rawPayout),
+      rtp,
+      segment: Number(responseSegment.index),
+      mode: 'daily',
+      baseReward: DAILY_BASE_REWARD,
+      settlementId,
+    },
+  });
+
   return {
-    ok:true, mode:'daily', game:'wheel', coin:COIN, rtp, bet:0, baseReward:DAILY_BASE_REWARD,
-    segment:{index:segment.index,label:segment.label,multiplier:segment.multiplier,color:segment.color},
-    stopAngleDegrees:stopAngleForSegment(segment.index,jitter), stopAngleJitter:jitter,
-    payout, rawPayout, net:payout, balance:Number(updated?.balance||0),
+    ok: true,
+    mode: 'daily',
+    game: 'wheel',
+    coin: COIN,
+    rtp,
+    bet: 0,
+    baseReward: DAILY_BASE_REWARD,
+    segment: {
+      index: responseSegment.index,
+      label: responseSegment.label,
+      multiplier: responseSegment.multiplier,
+      color: responseSegment.color
+    },
+    stopAngleDegrees: stopAngleForSegment(responseSegment.index, randomSafeJitter()),
+    payout,
+    rawPayout: Number(claim.rawPayout ?? rawPayout),
+    net: payout,
+    balance: updatedBalance,
     daily: await getDailyWheelStatus(uid),
   };
 }
