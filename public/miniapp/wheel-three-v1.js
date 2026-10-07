@@ -158,6 +158,7 @@ function createScene(THREE, container, inputSegments, options) {
 
   const gemColors = [0xff3fbf, 0x41e6ff, 0x7a57ff, 0xffd75a];
   const wheelGems = [];
+  const leds = [];
   const ledColors = [0xfff4ac,0x58efff,0xff6edc,0xfff4ac];
 
   const ledGeo = new THREE.SphereGeometry(0.062, 12, 12);
