@@ -132,6 +132,41 @@
 
             <div id="rocketScene" class="rocket-scene betting">
               <div id="rocketCanvas" class="rocket-pixi-host" aria-hidden="true"></div>
+              <svg id="rocketArt" class="rocket-art" viewBox="0 0 220 120" aria-hidden="true">
+                <defs>
+                  <linearGradient id="raBody" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#ffffff"/><stop offset=".28" stop-color="#d9edf8"/>
+                    <stop offset=".62" stop-color="#7890a7"/><stop offset="1" stop-color="#172338"/>
+                  </linearGradient>
+                  <linearGradient id="raFin" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#ff5eaa"/><stop offset=".55" stop-color="#ff2c68"/><stop offset="1" stop-color="#9c164e"/>
+                  </linearGradient>
+                  <radialGradient id="raWindow" cx=".34" cy=".28">
+                    <stop offset="0" stop-color="#eaffff"/><stop offset=".22" stop-color="#6beaff"/>
+                    <stop offset=".62" stop-color="#2471db"/><stop offset="1" stop-color="#0a1736"/>
+                  </radialGradient>
+                  <linearGradient id="raFlame" x1="0" y1=".5" x2="1" y2=".5">
+                    <stop offset="0" stop-color="#ff3a62" stop-opacity="0"/>
+                    <stop offset=".18" stop-color="#ff5c36"/><stop offset=".48" stop-color="#ffcb48"/><stop offset=".72" stop-color="#fff9cf"/><stop offset="1" stop-color="#ffffff"/>
+                  </linearGradient>
+                  <filter id="raGlow"><feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                  <filter id="raSoft"><feGaussianBlur stdDeviation="10"/></filter>
+                </defs>
+                <g filter="url(#raGlow)">
+                  <path d="M18 60 C-3 49,-14 49,-28 60 C-10 71,1 71,18 60Z" fill="url(#raFlame)" opacity=".95"/>
+                  <path d="M31 49 L11 24 L39 35 L52 50Z" fill="url(#raFin)" stroke="#ff9ac2" stroke-width="2"/>
+                  <path d="M31 71 L11 96 L40 84 L53 69Z" fill="url(#raFin)" stroke="#ff799f" stroke-width="2"/>
+                  <path d="M30 60 C35 36,68 21,119 30 C150 36,179 49,202 60 C179 71,150 84,119 90 C68 99,35 84,30 60Z"
+                        fill="url(#raBody)" stroke="#ffffff" stroke-width="2.3"/>
+                  <path d="M60 37 C89 28,128 31,158 42" fill="none" stroke="#ffffff" stroke-opacity=".42" stroke-width="4" stroke-linecap="round"/>
+                  <path d="M190 49 L216 60 L190 71 L199 60Z" fill="#ffffff"/>
+                  <circle cx="117" cy="57" r="17" fill="#12233e" stroke="#8fefff" stroke-width="3"/>
+                  <circle cx="117" cy="57" r="12" fill="url(#raWindow)"/>
+                  <circle cx="112" cy="51" r="4" fill="#ffffff" opacity=".92"/>
+                  <circle cx="201" cy="60" r="5" fill="#ff57d2"/>
+                </g>
+                <ellipse cx="72" cy="104" rx="74" ry="10" fill="#22dfff" opacity=".10" filter="url(#raSoft)"/>
+              </svg>
               <div class="rocket-vignette" aria-hidden="true"></div>
               <div class="rocket-top-left-badge">BIKA <span>CRASH</span></div>
               <div id="roundCountdown" class="countdown-bubble">15</div>
@@ -144,6 +179,11 @@
               <div id="crashState" class="rocket-state">Bet time — 15s</div>
               <div class="rocket-bottom-glow" aria-hidden="true"></div>
               <div class="rocket-run-tag">● ROCKET ASCENDING</div>
+            </div>
+
+            <div class="rocket-history-inline">
+              <div class="rocket-history-title"><div><p class="kicker">RECENT ROUNDS</p><h3>Recent Rounds</h3></div><button type="button" data-refresh-history="rocket">Refresh</button></div>
+              <div id="rocketHistory" class="history-list rocket-history-list"></div>
             </div>
 
             <div class="rocket-bet-zone">
@@ -166,10 +206,7 @@
           </aside>
         </div>
 
-        <div class="rocket-history-section">
-          <div class="rocket-history-title"><div><p class="kicker">RECENT ROUNDS</p><h3>Recent Rounds</h3></div><button data-refresh-history="rocket">Refresh</button></div>
-          <div id="rocketHistory" class="history-list rocket-history-list"></div>
-        </div>
+        
       </section>
 
       <section id="slot" class="panel game-panel">
