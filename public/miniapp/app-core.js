@@ -284,12 +284,36 @@ async function ensureRocketVisual() {
   return rocketVisualReady;
 }
 
+function updateRocketVector(progress, phase = 'betting') {
+  const scene = $('rocketScene');
+  const art = $('rocketArt');
+  if (!scene || !art) return;
+  const w = scene.clientWidth || 320;
+  const h = scene.clientHeight || 330;
+  const u = Math.max(0.02, Math.min(0.98, Number(progress) || 0.02));
+  const x0 = w * 0.075, y0 = h * 0.86;
+  const x1 = w * 0.86, y1 = h * 0.15;
+  const cx = w * 0.48, cy = h * 0.63;
+  const inv = 1 - u;
+  const x = inv * inv * x0 + 2 * inv * u * cx + u * u * x1;
+  const y = inv * inv * y0 + 2 * inv * u * cy + u * u * y1;
+  const scale = Math.max(.82, Math.min(1.18, w / 540));
+  const tilt = -38 - (u * 5);
+  const opacity = phase === 'crashed' ? 0.28 : 1;
+  art.style.transform = `translate(${x}px,${y}px) translate(-50%,-50%) rotate(${tilt}deg) scale(${scale})`;
+  art.style.opacity = String(opacity);
+  art.dataset.progress = String(u);
+}
+
 function syncRocketVisual(round, multiplierOverride = null) {
   const multiplier = multiplierOverride == null
     ? Number(round?.state === 'crashed' ? (round.crashPoint || round.multiplier || 1) : multiplierAt(round))
     : Number(multiplierOverride);
   const progress = rocketProgress(Math.max(1, multiplier), round?.state);
-  ensureRocketVisual().then((visual) => visual?.setFrame(progress, multiplier, round?.state || 'betting')).catch(() => null);
+  updateRocketVector(progress, round?.state || 'betting');
+  if (rocketVisual) {
+    try { rocketVisual.setFrame(progress, multiplier, round?.state || 'betting'); } catch (_) {}
+  }
 }
 
 function renderPlayers(round) {
@@ -359,10 +383,12 @@ function updateRocketFrame() {
   if (!liveRound) return;
   const m = multiplierAt(liveRound);
   if (liveRound.state === 'running') setText('crashMultiplier', `x${m.toFixed(2)}`);
+  const progress = rocketProgress(m, liveRound.state);
   const scene = $('rocketScene');
-  if (scene) scene.style.setProperty('--rocket-progress', rocketProgress(m, liveRound.state));
+  if (scene) scene.style.setProperty('--rocket-progress', progress);
+  updateRocketVector(progress, liveRound.state);
   if (rocketVisual) {
-    try { rocketVisual.setFrame(rocketProgress(m, liveRound.state), m, liveRound.state); } catch (_) {}
+    try { rocketVisual.setFrame(progress, m, liveRound.state); } catch (_) {}
   }
 }
 
