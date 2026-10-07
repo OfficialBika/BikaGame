@@ -462,6 +462,8 @@ async function loadWheelDailyStatus() {
       if (data.available) info.innerHTML = `1 free spin today • base reward <b>${fmt(data.baseReward)} ${coin()}</b>`;
       else info.innerHTML = `Claimed today: <b>${escapeHtml(data.last?.label || '—')}</b> • next reset tomorrow`;
     }
+    const reward = $('dailyWheelReward');
+    if (reward) reward.textContent = data.baseReward != null ? `${fmt(data.baseReward)} ${coin()}` : '—';
   } catch (_) {}
 }
 
