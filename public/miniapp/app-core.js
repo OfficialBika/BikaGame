@@ -306,6 +306,8 @@ function updateRocketVector(progress, phase = 'betting') {
   const opacity = phase === 'crashed' ? 0.28 : 1;
   art.style.transform = `translate(${x}px,${y}px) translate(-50%,-50%) rotate(${tilt}deg) scale(${scale})`;
   art.style.opacity = String(opacity);
+  art.style.setProperty('--rocket-motion-intensity', phase === 'running' ? '1' : '0.25');
+  art.style.setProperty('--rocket-progress', String(u));
   art.dataset.progress = String(u);
 
   const path = $('rocketTrajectoryPath');
