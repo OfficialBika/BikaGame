@@ -310,23 +310,58 @@ function createScene(THREE, container, inputSegments, options) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+
+    const drawCoin = (x, y, r, fill, stroke) => {
+      ctx.beginPath();
+      ctx.ellipse(x, y, r, r * 0.38, 0, 0, Math.PI * 2);
+      ctx.fillStyle = fill;
+      ctx.fill();
+      ctx.lineWidth = Math.max(2, r * 0.12);
+      ctx.strokeStyle = stroke;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(x, y - r * 0.42, r, r * 0.38, 0, 0, Math.PI * 2);
+      ctx.fillStyle = fill;
+      ctx.fill();
+      ctx.stroke();
+    };
+
     if (jackpot) {
-      ctx.shadowColor = '#fff0a1';
-      ctx.shadowBlur = 22;
-      ctx.fillStyle = '#fff0a1';
-      ctx.font = '900 34px Inter, system-ui, sans-serif';
-      ctx.fillText('♛ JACKPOT', 210, 58);
+      ctx.shadowColor = '#ff2dc7';
+      ctx.shadowBlur = 26;
+      ctx.fillStyle = '#ffdf69';
+      ctx.beginPath();
+      ctx.roundRect(155, 66, 110, 42, 9);
+      ctx.fill();
       ctx.shadowBlur = 10;
+      ctx.fillStyle = '#8a1d58';
+      ctx.fillRect(162, 72, 96, 30);
+      drawCoin(186, 68, 13, '#ffe37a', '#fff5bd');
+      drawCoin(210, 64, 15, '#ffc933', '#fff0a3');
+      drawCoin(234, 68, 13, '#ffb522', '#ffe596');
+      ctx.fillStyle = '#fff6af';
+      ctx.font = '900 25px Inter, system-ui, sans-serif';
+      ctx.shadowColor = '#ffd95d';
+      ctx.shadowBlur = 18;
+      ctx.fillText('♛ JACKPOT', 210, 35);
+      ctx.shadowBlur = 8;
       ctx.fillStyle = '#ffffff';
-      ctx.font = '900 26px Inter, system-ui, sans-serif';
-      ctx.fillText(String(text || ''), 210, 112);
+      ctx.font = '900 25px Inter, system-ui, sans-serif';
+      ctx.fillText(String(text || ''), 210, 132);
     } else {
       ctx.shadowColor = color;
       ctx.shadowBlur = 16;
-      ctx.fillStyle = '#fff';
-      ctx.font = '900 48px Inter, system-ui, sans-serif';
-      ctx.fillText(String(text || ''), 210, 86);
+      drawCoin(184, 48, 15, '#fff0a4', '#ffffff');
+      drawCoin(207, 41, 17, '#ffd34f', '#fff7b7');
+      drawCoin(230, 48, 15, '#ffb62c', '#ffe89a');
+
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 14;
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 44px Inter, system-ui, sans-serif';
+      ctx.fillText(String(text || ''), 210, 112);
     }
+
     const tex = new THREE.CanvasTexture(canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 4;
@@ -334,7 +369,7 @@ function createScene(THREE, container, inputSegments, options) {
       map: tex, transparent: true, depthWrite: false
     });
     const sprite = new THREE.Sprite(material);
-    sprite.scale.set(jackpot ? 1.50 : 1.08, jackpot ? 0.61 : 0.44, 1);
+    sprite.scale.set(jackpot ? 1.48 : 1.10, jackpot ? 0.66 : 0.47, 1);
     return sprite;
   }
 
