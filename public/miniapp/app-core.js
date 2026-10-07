@@ -497,7 +497,7 @@ function wheelFallbackBuild(segments) {
 async function loadWheel3D() {
   if (wheel3D) return wheel3D;
   if (wheel3DReady) return wheel3DReady;
-  wheel3DReady = import('/miniapp/wheel-three-v1.js?v=20261007-v48')
+  wheel3DReady = import('/miniapp/wheel-three-v1.js?v=20261007-v49')
     .then((mod) => mod.createBikaWheel3D($('wheelDisk'), config?.wheel?.segments || []))
     .then((instance) => {
       wheel3D = instance;
