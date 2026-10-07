@@ -145,29 +145,51 @@
       </section>
 
       <section id="wheel" class="panel game-panel">
-        <div class="game-page-head wheel-page-head"><button class="back-home" data-open="home">‹ Home</button><div><p class="kicker">DAILY REWARD</p><h2>🎡 Lucky Wheel</h2><small class="wheel-page-subtitle">Spin everyday and win amazing rewards!</small></div><span class="status-chip daily">🎁 DAILY</span></div>
+        <div class="game-page-head wheel-page-head">
+          <button class="back-home" data-open="home">‹ Home</button>
+          <div>
+            <p class="kicker">DAILY REWARD</p>
+            <h2><span class="wheel-title-crown">♛</span> Lucky Wheel</h2>
+            <small class="wheel-page-subtitle">Spin everyday and win amazing rewards!</small>
+          </div>
+          <span class="status-chip daily">🎁 DAILY</span>
+        </div>
+
         <div class="single-game-card wheel-premium-card">
           <div class="wheel-showcase" aria-label="BIKA Lucky Wheel">
-            <div class="wheel-stage-glow"></div>
+            <div class="wheel-ambient ambient-one"></div><div class="wheel-ambient ambient-two"></div>
+            <div class="wheel-stage-grid"></div>
             <span class="wheel-spark spark-a">✦</span><span class="wheel-spark spark-b">✦</span><span class="wheel-spark spark-c">✧</span><span class="wheel-spark spark-d">✦</span>
-            <span class="wheel-coin coin-a">₿</span><span class="wheel-coin coin-b">₿</span><span class="wheel-coin coin-c">₿</span>
+            <span class="wheel-coin coin-a">B</span><span class="wheel-coin coin-b">B</span><span class="wheel-coin coin-c">B</span>
             <span class="wheel-gift gift-a">🎁</span><span class="wheel-gift gift-b">🎁</span>
+
             <div class="wheel-wrap">
-              <div class="wheel-pointer" aria-hidden="true"></div>
-              <div id="wheelDisk" class="wheel-disk"></div>
-              <button id="wheelCenterBtn" type="button" class="wheel-center" aria-label="Spin wheel">SPIN</button>
+              <div class="wheel-pointer" aria-hidden="true"><span></span></div>
+              <div id="wheelDisk" class="wheel-disk" aria-label="Wheel of rewards"></div>
+              <button id="wheelCenterBtn" type="button" class="wheel-center" aria-label="Spin wheel">
+                <span class="wheel-center-crown">♛</span><b>SPIN</b><small>NOW</small>
+              </button>
             </div>
+
+            <div class="wheel-brand-plate"><strong>BIKA</strong><span>LUCKY WHEEL</span></div>
           </div>
+
           <div class="wheel-info">
             <div class="wheel-section-kicker"><span>🔥</span><p class="kicker">TODAY'S CHANCES</p></div>
             <h3>Spin for bonus <span>multipliers</span></h3>
             <div id="wheelLegend" class="wheel-legend"></div>
             <div id="wheelTarget" class="wheel-target">Pointer result: <b>—</b></div>
+
             <div class="daily-spin">
               <div class="daily-gift" aria-hidden="true">🎁</div>
-              <div class="daily-spin-copy"><b>Free Daily Spin</b><small id="dailyWheelInfo">Checking today's free spin...</small><strong id="dailyWheelReward">—</strong></div>
+              <div class="daily-spin-copy">
+                <b>Free Daily Spin</b>
+                <small id="dailyWheelInfo">Checking today's free spin...</small>
+                <strong id="dailyWheelReward">—</strong>
+              </div>
               <button id="dailyWheelBtn" class="daily-btn">FREE DAILY SPIN</button>
             </div>
+
             <div class="wheel-paid-controls">
               <div class="bet-input"><span>BET AMOUNT</span><input id="wheelBet" type="number" inputmode="numeric" placeholder="50,000"></div>
               <button id="wheelBtn" class="primary-btn">SPIN NOW</button>
@@ -175,7 +197,11 @@
             <div class="quick-bets"><button data-wheel-bet="50">50</button><button data-wheel-bet="100">100</button><button data-wheel-bet="500">500</button><button data-wheel-bet="1000">1K</button></div>
             <div id="wheelResult" class="result muted">Wheel spin လုပ်ရန် bet ထည့်ပါ။</div>
           </div>
-          <div class="history-card"><div class="history-head"><b>Today Wheel History</b><button data-refresh-history="wheel">Refresh</button></div><div id="wheelHistory" class="history-list"></div></div>
+
+          <div class="history-card">
+            <div class="history-head"><b>Today Wheel History</b><button data-refresh-history="wheel">Refresh</button></div>
+            <div id="wheelHistory" class="history-list"></div>
+          </div>
         </div>
       </section>
 
