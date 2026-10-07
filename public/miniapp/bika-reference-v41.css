@@ -1411,3 +1411,129 @@ body.bika-v41:before{
 @media(max-width:430px){
   #wheel .wheel-wrap{width:294px !important;height:294px !important}
 }
+
+
+/* ===== Lucky Wheel V48 — zero-gray WebGL stage + premium mobile composition ===== */
+#wheel .wheel-premium-card{
+  background:
+    radial-gradient(560px 300px at 50% 26%,rgba(42,224,255,.12),transparent 66%),
+    radial-gradient(420px 280px at 50% 66%,rgba(132,63,255,.12),transparent 70%),
+    linear-gradient(180deg,#050817 0%,#060914 55%,#040611 100%) !important;
+}
+#wheel .wheel-showcase{
+  min-height:600px;
+  background:
+    radial-gradient(360px 260px at 50% 48%,rgba(30,48,80,.22),transparent 70%),
+    radial-gradient(220px 180px at 14% 48%,rgba(34,224,255,.09),transparent 74%),
+    radial-gradient(240px 180px at 88% 50%,rgba(255,44,184,.08),transparent 74%),
+    #050817;
+}
+#wheel .wheel-disk.wheel-3d-host,
+#wheel .bika-wheel3d-canvas{
+  background:transparent !important;
+  background-color:transparent !important;
+  box-shadow:none !important;
+  mix-blend-mode:normal !important;
+}
+#wheel .wheel-disk.wheel-3d-host canvas{
+  background:transparent !important;
+  background-color:rgba(0,0,0,0) !important;
+}
+#wheel .wheel-wrap{
+  width:min(540px,82vw) !important;
+  height:min(540px,82vw) !important;
+  filter:drop-shadow(0 28px 42px rgba(0,0,0,.62));
+}
+#wheel .wheel-wrap:before{
+  inset:-20px;
+  filter:blur(15px);
+  opacity:.30;
+}
+#wheel .wheel-wrap:after{
+  inset:-9px;
+  border-width:1px;
+  opacity:.72;
+}
+#wheel .wheel-brand-plate{
+  bottom:15px;
+  min-width:168px;
+  background:linear-gradient(180deg,rgba(36,24,22,.95),rgba(11,11,18,.98));
+  box-shadow:0 10px 28px rgba(0,0,0,.46),0 0 25px rgba(255,192,42,.22);
+}
+#wheel .wheel-info{
+  max-width:880px;
+  padding:24px 24px 30px;
+}
+#wheel .wheel-info h3 span{
+  background:linear-gradient(90deg,#fb55d7,#a77bff 72%,#50e9ff);
+  -webkit-background-clip:text;
+  background-clip:text;
+  color:transparent;
+}
+#wheel .wheel-target{
+  background:linear-gradient(180deg,rgba(18,24,45,.9),rgba(8,11,22,.86));
+  border-color:rgba(119,140,230,.20);
+  box-shadow:inset 0 1px rgba(255,255,255,.04);
+}
+#wheel .daily-spin{
+  background:
+    radial-gradient(190px 90px at 0% 50%,rgba(255,208,76,.08),transparent 70%),
+    linear-gradient(135deg,rgba(24,27,42,.95),rgba(10,13,25,.92));
+  border-color:rgba(255,208,76,.22);
+}
+#wheel .daily-gift{
+  filter:drop-shadow(0 0 14px rgba(255,196,59,.38));
+}
+#wheel .wheel-legend span{
+  position:relative;
+  overflow:hidden;
+}
+#wheel .wheel-legend span:before{
+  content:"";
+  position:absolute;
+  left:7px;right:7px;top:0;height:1px;
+  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--c),white 20%),transparent);
+  opacity:.62;
+}
+@media(max-width:760px){
+  #wheel .wheel-showcase{
+    min-height:clamp(430px,116vw,510px);
+    padding:0 5px 52px;
+  }
+  #wheel .wheel-wrap{
+    width:min(360px,91vw) !important;
+    height:min(360px,91vw) !important;
+  }
+  #wheel .wheel-brand-plate{
+    bottom:13px;
+    min-width:148px;
+    padding:7px 18px 6px;
+  }
+  #wheel .wheel-info{
+    padding:20px 12px 22px;
+  }
+  #wheel .single-game-card{
+    padding-bottom:74px !important;
+  }
+}
+@media(max-width:430px){
+  #wheel .wheel-showcase{
+    min-height:390px;
+  }
+  #wheel .wheel-wrap{
+    width:min(318px,86vw) !important;
+    height:min(318px,86vw) !important;
+  }
+  #wheel .wheel-brand-plate{
+    bottom:10px;
+    min-width:132px;
+    padding:6px 15px 5px;
+  }
+  #wheel .wheel-info{
+    padding-left:10px;
+    padding-right:10px;
+  }
+  #wheel .single-game-card{
+    padding-bottom:82px !important;
+  }
+}
