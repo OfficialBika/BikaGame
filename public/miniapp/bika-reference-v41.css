@@ -2374,3 +2374,118 @@ body.bika-v41:before{
 @media(max-width:680px){
   #crash .rocket-stage-status{font-size:6px!important;letter-spacing:.11em!important}
 }
+
+
+/* ===== Rocket Crash V11 — polished animated vector rocket ===== */
+#crash .rocket-inline-art{
+  position:absolute!important;
+  left:0!important;top:0!important;
+  width:205px!important;height:auto!important;
+  z-index:9!important;
+  overflow:visible!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+  transform-origin:50% 50%!important;
+  pointer-events:none!important;
+  filter:
+    drop-shadow(0 0 6px rgba(120,236,255,.58))
+    drop-shadow(0 0 15px rgba(255,60,187,.26))
+    drop-shadow(0 15px 18px rgba(0,0,0,.60))!important;
+  will-change:transform,opacity,filter!important;
+}
+#crash .rocket-inline-art .rocket-main-flame{
+  transform-box:fill-box!important;
+  transform-origin:right center!important;
+  animation:rocketFlamePulse .10s ease-in-out infinite alternate!important;
+}
+#crash .rocket-inline-art .rocket-body{
+  transform-box:fill-box!important;
+  transform-origin:center!important;
+}
+#crash .rocket-inline-art .rocket-fin{
+  transform-box:fill-box!important;
+  transform-origin:center!important;
+  animation:rocketFinShimmer .85s ease-in-out infinite alternate!important;
+}
+#crash .rocket-inline-art .rocket-window-core{
+  transform-box:fill-box!important;
+  transform-origin:center!important;
+  animation:rocketWindowPulse 1.25s ease-in-out infinite!important;
+}
+#crash .rocket-inline-art .rocket-ground-glow{
+  animation:rocketGroundPulse .72s ease-in-out infinite alternate!important;
+  transform-origin:center!important;
+}
+#crash .rocket-scene.running .rocket-inline-art{
+  filter:
+    drop-shadow(0 0 8px rgba(97,237,255,.74))
+    drop-shadow(0 0 19px rgba(255,59,190,.36))
+    drop-shadow(0 16px 21px rgba(0,0,0,.65))!important;
+}
+#crash .rocket-scene.crashed .rocket-inline-art{
+  filter:
+    grayscale(.12)
+    drop-shadow(0 0 9px rgba(255,72,102,.52))
+    drop-shadow(0 13px 19px rgba(0,0,0,.65))!important;
+}
+#crash .rocket-scene:before{
+  content:""!important;
+  position:absolute!important;inset:0!important;z-index:2!important;pointer-events:none!important;
+  background:
+    radial-gradient(circle at 16% 22%,rgba(255,255,255,.78) 0 1px,transparent 2px),
+    radial-gradient(circle at 34% 15%,rgba(98,220,255,.62) 0 1px,transparent 2px),
+    radial-gradient(circle at 67% 20%,rgba(190,100,255,.72) 0 1.3px,transparent 2.3px),
+    radial-gradient(circle at 88% 39%,rgba(255,103,201,.58) 0 1px,transparent 2px),
+    radial-gradient(circle at 76% 68%,rgba(88,218,255,.50) 0 1px,transparent 2px),
+    radial-gradient(circle at 22% 58%,rgba(110,142,255,.48) 0 1px,transparent 2px),
+    radial-gradient(420px 260px at 52% 49%,rgba(38,73,255,.13),transparent 72%);
+  animation:rocketStarDrift 5s linear infinite!important;
+}
+#crash .countdown-bubble{
+  left:auto!important;right:14px!important;top:14px!important;
+  width:44px!important;height:44px!important;
+  font-size:15px!important;
+  z-index:12!important;
+}
+#crash .rocket-top-left-badge{left:14px!important;right:auto!important;top:14px!important;z-index:11!important}
+#crash .rocket-multiplier{
+  z-index:10!important;
+}
+@keyframes rocketFlamePulse{
+  from{transform:scaleX(.78) scaleY(.86);opacity:.66}
+  to{transform:scaleX(1.12) scaleY(1.16);opacity:1}
+}
+@keyframes rocketFinShimmer{
+  from{filter:brightness(.92) drop-shadow(0 0 0 rgba(255,73,151,0))}
+  to{filter:brightness(1.16) drop-shadow(0 0 7px rgba(255,70,174,.34))}
+}
+@keyframes rocketWindowPulse{
+  0%,100%{transform:scale(.96);filter:brightness(.94)}
+  50%{transform:scale(1.05);filter:brightness(1.20)}
+}
+@keyframes rocketGroundPulse{
+  0%{opacity:.08}
+  100%{opacity:.22}
+}
+@keyframes rocketStarDrift{
+  0%{transform:translate3d(0,0,0);opacity:.78}
+  50%{transform:translate3d(-8px,4px,0);opacity:.92}
+  100%{transform:translate3d(0,0,0);opacity:.78}
+}
+@media(max-width:680px){
+  #crash .rocket-inline-art{width:188px!important}
+  #crash .countdown-bubble{right:12px!important;top:12px!important;width:42px!important;height:42px!important}
+}
+@media(max-width:430px){
+  #crash .rocket-inline-art{width:178px!important}
+  #crash .rocket-top-left-badge{left:11px!important;top:11px!important}
+  #crash .countdown-bubble{right:11px!important;top:11px!important}
+}
+@media(prefers-reduced-motion:reduce){
+  #crash .rocket-inline-art .rocket-main-flame,
+  #crash .rocket-inline-art .rocket-fin,
+  #crash .rocket-inline-art .rocket-window-core,
+  #crash .rocket-inline-art .rocket-ground-glow,
+  #crash .rocket-scene:before{animation:none!important}
+}
