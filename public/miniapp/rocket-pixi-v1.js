@@ -123,6 +123,7 @@ export async function createBikaRocketScene(container, options = {}) {
     crisp.moveTo(pts[0].x,pts[0].y);
     pts.slice(1).forEach(p=>{glow.lineTo(p.x,p.y);crisp.lineTo(p.x,p.y);});
     glow.stroke({color:0xd83cff,width:10,alpha:0.06});
+    glow.filters = [new PIXI.BlurFilter({ strength: 8, quality: 3 })];
     graphLayer.addChild(glow);
     glow = new PIXI.Graphics();
     glow.moveTo(pts[0].x,pts[0].y);
