@@ -227,6 +227,10 @@ function renderGameHistory(game, items = []) {
 
 async function loadHistory(game = 'all') {
   if (!initData) return;
+  if (game === 'rocket') {
+    await pollCrash();
+    return;
+  }
   const data = await api('/api/mini/history', { game, limit: 12 });
   renderGameHistory(game, data.items || []);
 }
@@ -351,7 +355,7 @@ function renderRocket(status) {
   liveRound = { ...round, serverNowMs: status.serverNowMs, receivedAtMs: Date.now() };
   setText('onlineCountText', status.onlineCount ?? '—');
   setBalance(status.balance ?? 0);
-  setText('roundTitle', `Round #${round.no || '—'} / 100`);
+  setText('roundTitle', `#${round.no || '—'} / 100`);
   setText('phaseChip', String(round.state || 'idle').toUpperCase());
   setText('playerCount', fmt(round.playerCount || 0));
   setText('totalBet', `${fmt(round.totalBet || 0)} ${coin()}`);
