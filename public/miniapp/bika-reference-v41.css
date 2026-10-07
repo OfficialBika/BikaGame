@@ -1342,3 +1342,72 @@ body.bika-v41:before{
   #wheel .daily-btn{grid-column:1/-1;width:100%;margin-top:2px}
   #wheel .wheel-paid-controls{grid-template-columns:1fr 100px}
 }
+
+
+/* ===== Lucky Wheel V47 — Three.js viewport ===== */
+#wheel .wheel-showcase{
+  position:relative;
+  overflow:hidden;
+}
+#wheel .wheel-disk.wheel-3d-host{
+  position:absolute !important;
+  inset:0 !important;
+  width:100% !important;
+  height:100% !important;
+  border:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  border-radius:0 !important;
+  overflow:visible !important;
+  transform:none !important;
+  transition:none !important;
+}
+#wheel .bika-wheel3d-canvas{
+  display:block;
+  width:100%;
+  height:100%;
+  min-width:1px;
+  min-height:1px;
+  background:transparent !important;
+  image-rendering:auto;
+}
+#wheel .wheel-disk.wheel-3d-host.wheel-spinning{
+  filter:none !important;
+}
+#wheel .wheel-particle-vignette{
+  position:absolute;
+  inset:0;
+  z-index:2;
+  pointer-events:none;
+  background:
+    radial-gradient(circle at center,transparent 0 49%,rgba(255,255,255,.03) 55%,transparent 70%),
+    radial-gradient(ellipse at center bottom,rgba(255,211,82,.07),transparent 44%);
+  mix-blend-mode:screen;
+}
+#wheel .wheel-showcase .wheel-wrap{
+  z-index:5;
+}
+#wheel .wheel-showcase .wheel-wrap:before,
+#wheel .wheel-showcase .wheel-wrap:after{
+  pointer-events:none;
+}
+#wheel .wheel-center{
+  z-index:20 !important;
+}
+#wheel .wheel-pointer{
+  z-index:21 !important;
+}
+#wheel .wheel-brand-plate{
+  z-index:19 !important;
+}
+#wheel .wheel-2d-fallback{
+  background:conic-gradient(#ff3f73 0 36deg,#ff5d3b 36deg 72deg,#ffd158 72deg 108deg,#58e64f 108deg 144deg,#15cfc7 144deg 180deg,#229be8 180deg 216deg,#5363ff 216deg 252deg,#9347ff 252deg 288deg,#d83bc6 288deg 324deg,#f24970 324deg 360deg) !important;
+  border:10px solid #12182b !important;
+  border-radius:50% !important;
+}
+@media(max-width:760px){
+  #wheel .wheel-wrap{width:min(344px,84vw) !important;height:min(344px,84vw) !important}
+}
+@media(max-width:430px){
+  #wheel .wheel-wrap{width:294px !important;height:294px !important}
+}
