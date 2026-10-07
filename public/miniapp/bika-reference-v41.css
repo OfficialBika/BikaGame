@@ -2228,3 +2228,64 @@ body.bika-v41:before{
   #crash .rocket-history-list{grid-template-columns:repeat(5,1fr)}
   #crash .rocket-history-list>*{min-height:34px;font-size:7px!important}
 }
+
+
+/* ===== Rocket Crash V7 — data-accurate player table + recent multiplier rail ===== */
+#crash .rocket-player-list .player-row{
+  grid-template-columns:minmax(0,1fr) 74px 62px!important;
+}
+#crash .rocket-player-list .player-row span{
+  display:flex;align-items:center;min-width:0;gap:6px;
+}
+#crash .player-status-dot{
+  flex:0 0 6px;width:6px;height:6px;border-radius:50%;background:#43e8ff;box-shadow:0 0 9px rgba(67,232,255,.85);
+}
+#crash .player-status-dot.out{background:#ff5c90;box-shadow:0 0 9px rgba(255,92,144,.7)}
+#crash .player-bet-cell{color:#dce7ff!important;text-align:right}
+#crash .player-cash-cell{
+  font-style:normal!important;color:#536887!important;text-align:right;font-weight:1000!important;font-size:9px!important;
+}
+#crash .player-cash-cell.out{color:#ff67c3!important;text-shadow:0 0 12px rgba(255,65,187,.25)}
+#crash .rocket-history-section{
+  position:relative;overflow:hidden;
+  background:
+    radial-gradient(460px 100px at 50% 0%,rgba(40,112,255,.12),transparent 72%),
+    linear-gradient(145deg,#06101f,#030711)!important;
+}
+#crash .rocket-history-section:after{
+  content:"";position:absolute;left:0;right:0;top:48px;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(83,137,255,.18),transparent);
+}
+#crash .rocket-history-list{
+  grid-template-columns:repeat(10,minmax(68px,1fr))!important;
+  overflow-x:auto!important;
+  scrollbar-width:none;
+}
+#crash .rocket-history-list::-webkit-scrollbar{display:none}
+#crash .rocket-history-list .odd{
+  min-height:42px!important;display:grid!important;place-items:center!important;
+  border-radius:11px!important;font-size:10px!important;font-weight:1000!important;
+  letter-spacing:-.02em;
+  border:1px solid rgba(94,121,193,.24)!important;
+  background:linear-gradient(180deg,#0d1933,#071021)!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.04),0 7px 18px rgba(0,0,0,.20)!important;
+}
+#crash .rocket-history-list .odd.red{
+  color:#ff67a2!important;border-color:rgba(255,71,127,.44)!important;
+  background:linear-gradient(180deg,rgba(77,14,44,.50),#0b1122)!important;
+}
+#crash .rocket-history-list .odd.yellow{
+  color:#ffd65d!important;border-color:rgba(255,196,47,.42)!important;
+  background:linear-gradient(180deg,rgba(79,52,8,.44),#0c1322)!important;
+}
+#crash .rocket-history-list .odd.blue{
+  color:#50dcff!important;border-color:rgba(57,204,255,.42)!important;
+  background:linear-gradient(180deg,rgba(8,50,78,.46),#081323)!important;
+}
+#crash .rocket-history-list .odd.green{
+  color:#53efab!important;border-color:rgba(53,237,167,.42)!important;
+  background:linear-gradient(180deg,rgba(8,70,54,.44),#071522)!important;
+}
+@media(max-width:680px){
+  #crash .rocket-history-list{grid-template-columns:repeat(10,72px)!important}
+}
