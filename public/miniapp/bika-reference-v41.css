@@ -1995,3 +1995,67 @@ body.bika-v41:before{
     grid-template-columns:1fr 104px !important;
   }
 }
+
+
+/* ===== Lucky Wheel V53 — crisp HD casino finish / mobile scale ===== */
+#wheel .wheel-showcase{
+  isolation:isolate !important;
+  contain:layout paint !important;
+  background:
+    radial-gradient(260px 220px at 50% 42%,rgba(255,210,72,.18),transparent 64%),
+    radial-gradient(270px 230px at 16% 54%,rgba(0,234,255,.20),transparent 72%),
+    radial-gradient(270px 230px at 84% 54%,rgba(255,31,194,.18),transparent 72%),
+    linear-gradient(180deg,#070817 0%,#040611 58%,#090511 100%) !important;
+}
+#wheel .wheel-wrap{
+  transform:translateZ(0) !important;
+  backface-visibility:hidden !important;
+  filter:
+    drop-shadow(0 28px 42px rgba(0,0,0,.68))
+    drop-shadow(0 0 26px rgba(35,220,255,.10))
+    drop-shadow(0 0 26px rgba(255,50,192,.08)) !important;
+}
+#wheel .bika-wheel3d-canvas{
+  display:block !important;
+  width:100% !important;
+  height:100% !important;
+  transform:translateZ(0) !important;
+  backface-visibility:hidden !important;
+  -webkit-font-smoothing:antialiased;
+}
+#wheel .wheel-pointer{
+  filter:drop-shadow(0 5px 10px rgba(0,0,0,.56)) drop-shadow(0 0 13px rgba(255,220,92,.40)) !important;
+}
+#wheel .wheel-center{
+  background:
+    radial-gradient(circle at 36% 28%,#fffbd0 0%,#ffe979 27%,#ffca36 62%,#d78209 100%) !important;
+}
+#wheel .wheel-brand-plate{
+  background:
+    linear-gradient(180deg,rgba(52,27,12,.99),rgba(10,8,15,.99)) !important;
+}
+@media(max-width:760px){
+  #wheel .wheel-showcase{
+    min-height:455px !important;
+    height:455px !important;
+    padding:4px 2px 48px !important;
+  }
+  #wheel .wheel-wrap{
+    width:min(390px,90vw) !important;
+    height:min(390px,90vw) !important;
+  }
+}
+@media(max-width:430px){
+  #wheel .wheel-showcase{
+    min-height:420px !important;
+    height:420px !important;
+  }
+  #wheel .wheel-wrap{
+    width:min(374px,92vw) !important;
+    height:min(374px,92vw) !important;
+  }
+  #wheel .wheel-center{
+    width:92px !important;
+    height:92px !important;
+  }
+}
