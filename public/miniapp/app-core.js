@@ -314,8 +314,10 @@ function updateRocketVector(progress, phase = 'betting') {
   const glow = $('rocketTrajectoryGlow');
   if (path && glow) {
     const visible = phase === 'betting' ? Math.max(0, u * 100) : Math.max(4, u * 100);
-    path.style.strokeDasharray = `${visible} 100`;
-    glow.style.strokeDasharray = `${visible} 100`;
+    path.style.strokeDasharray = '100';
+    glow.style.strokeDasharray = '100';
+    path.style.strokeDashoffset = String(100 - visible);
+    glow.style.strokeDashoffset = String(100 - visible);
     const endX = 6 + (88 - 6) * u;
     const endY = 87 + (15 - 87) * u - 18 * u * (1 - u);
     path.dataset.endX = String(endX);
