@@ -2361,3 +2361,16 @@ body.bika-v41:before{
 @media(max-width:680px){
   #crash .rocket-trajectory{inset:0!important}
 }
+
+
+/* ===== Rocket Crash V10 — state-aware overlays and compact reference layout ===== */
+#crash .rocket-run-tag{opacity:.55!important}
+#crash .rocket-scene.running .rocket-run-tag{opacity:1!important;color:#7fe8ff!important}
+#crash .rocket-scene.crashed .rocket-run-tag{opacity:.85!important;color:#ff7594!important;border-color:rgba(255,84,120,.22)!important}
+#crash .rocket-scene.crashed .rocket-live-dot{display:none!important}
+#crash .rocket-scene.betting .rocket-live-dot{opacity:.42!important}
+#crash .rocket-scene.crashed .rocket-art{filter:grayscale(.08) saturate(.8) drop-shadow(0 0 11px rgba(255,67,94,.22))!important}
+#crash .rocket-stage-status{font-variant-numeric:tabular-nums!important}
+@media(max-width:680px){
+  #crash .rocket-stage-status{font-size:6px!important;letter-spacing:.11em!important}
+}
