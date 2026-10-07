@@ -368,6 +368,8 @@ function renderRocket(status) {
   if (betBtn) betBtn.disabled = !(round.state === 'betting') || !!round.me?.inRound;
 
   const state = round.state;
+  setText('rocketStageStatus', state === 'running' ? 'LIVE ROUND • AUTO' : state === 'crashed' ? 'ROUND ENDED • NEXT' : 'BETTING OPEN • AUTO');
+  setText('rocketRunTag', state === 'running' ? '● ROCKET ASCENDING' : state === 'crashed' ? '✦ ROUND CRASHED' : '● WAITING FOR LAUNCH');
   const nextAudioKey = `${round.no || ''}:${state || ''}`;
   if (nextAudioKey && nextAudioKey !== prevAudioKey) {
     if (state === 'betting') AudioFX.sfx('open');
