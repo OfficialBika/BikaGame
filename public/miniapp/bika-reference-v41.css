@@ -1203,3 +1203,142 @@ body.bika-v41:before{
   #wheel .wheel-center-crown{font-size:19px}
   #wheel .wheel-brand-plate{min-width:132px}
 }
+
+
+/* ===== Lucky Wheel V46 — tighter CTA, richer premium stage, closer to reference ===== */
+#wheel .wheel-showcase{
+  background:
+    radial-gradient(280px 150px at 50% 18%,rgba(255,221,102,.09),transparent 70%),
+    radial-gradient(220px 180px at 8% 50%,rgba(38,225,255,.10),transparent 70%),
+    radial-gradient(240px 180px at 92% 52%,rgba(255,45,185,.10),transparent 70%);
+}
+#wheel .wheel-showcase:after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:
+    linear-gradient(90deg,rgba(36,88,181,.16),transparent 16%,transparent 84%,rgba(255,47,170,.12)),
+    linear-gradient(180deg,transparent 65%,rgba(255,182,43,.10) 78%,transparent 100%);
+  mix-blend-mode:screen;
+  opacity:.5;
+}
+#wheel .wheel-stage-grid{opacity:.24}
+#wheel .wheel-wrap{
+  width:min(560px,73vw) !important;
+  height:min(560px,73vw) !important;
+  margin-top:0 !important;
+}
+#wheel .wheel-center{
+  width:clamp(98px,16vw,138px) !important;
+  height:clamp(98px,16vw,138px) !important;
+  border-width:8px !important;
+}
+#wheel .wheel-center-crown{font-size:clamp(18px,3vw,26px)}
+#wheel .wheel-center b{font-size:clamp(22px,3.8vw,32px)}
+#wheel .wheel-center small{font-size:7px;letter-spacing:.20em}
+#wheel .wheel-center.is-busy > *{opacity:0}
+#wheel .wheel-center.is-busy:after{
+  content:"SPINNING…";
+  position:absolute;
+  inset:0;
+  display:grid;
+  place-items:center;
+  color:#2a1908;
+  font-size:clamp(10px,2vw,14px);
+  font-weight:1000;
+  letter-spacing:.11em;
+}
+#wheel .wheel-center.is-busy{
+  cursor:wait;
+  filter:brightness(.98) saturate(.92);
+}
+#wheel .wheel-pointer{
+  width:39px !important;
+  height:63px !important;
+  top:-11px !important;
+}
+#wheel .wheel-brand-plate{
+  bottom:12px;
+  min-width:178px;
+  padding:7px 25px 6px;
+}
+#wheel .wheel-brand-plate strong{font-size:20px}
+#wheel .wheel-brand-plate span{font-size:6.5px}
+#wheel .wheel-paid-controls{
+  grid-template-columns:minmax(0,1fr) auto;
+}
+#wheel .wheel-paid-controls .primary-btn{
+  min-width:108px;
+  height:40px;
+  padding:0 14px;
+  border-radius:12px;
+  font-size:9px !important;
+  letter-spacing:.04em;
+}
+#wheel .daily-btn{
+  min-width:148px;
+  height:45px;
+  padding:0 17px;
+  border-radius:13px;
+  font-size:9px !important;
+  letter-spacing:.02em;
+}
+#wheel .daily-spin-copy b{font-size:15px}
+#wheel .daily-spin-copy strong{font-size:17px}
+#wheel .wheel-target{font-size:10px !important}
+#wheel .wheel-legend span{
+  height:44px;
+  font-size:9px;
+}
+#wheel .wheel-spark{font-size:20px}
+#wheel .wheel-gift{font-size:40px}
+#wheel .wheel-coin{width:28px;height:28px;font-size:10px}
+@media(max-width:760px){
+  #wheel .wheel-showcase{
+    min-height:clamp(380px,103vw,470px);
+    padding:4px 6px 52px;
+  }
+  #wheel .wheel-wrap{
+    width:min(344px,84vw) !important;
+    height:min(344px,84vw) !important;
+  }
+  #wheel .wheel-center{
+    width:96px !important;
+    height:96px !important;
+  }
+  #wheel .wheel-center b{font-size:25px}
+  #wheel .wheel-center-crown{font-size:20px}
+  #wheel .wheel-center.is-busy:after{font-size:9px}
+  #wheel .wheel-pointer{width:30px !important;height:49px !important;top:-8px !important}
+  #wheel .wheel-brand-plate{bottom:12px;min-width:142px;padding:6px 18px}
+  #wheel .wheel-brand-plate strong{font-size:17px}
+  #wheel .wheel-spark{font-size:16px}
+  #wheel .wheel-gift{font-size:32px}
+  #wheel .wheel-coin{width:23px;height:23px;font-size:8px}
+  #wheel .wheel-info h3{font-size:24px}
+  #wheel .wheel-legend span{height:40px;font-size:8.5px}
+  #wheel .daily-btn{min-width:0;width:auto;height:43px;font-size:8.5px !important;padding:0 14px}
+  #wheel .daily-spin{
+    grid-template-columns:auto 1fr auto;
+  }
+  #wheel .daily-gift{width:54px;height:54px;font-size:29px}
+  #wheel .daily-spin-copy b{font-size:13px}
+  #wheel .daily-spin-copy small{font-size:8px}
+  #wheel .daily-spin-copy strong{font-size:15px}
+  #wheel .wheel-paid-controls{grid-template-columns:minmax(0,1fr) 112px}
+  #wheel .wheel-paid-controls .primary-btn{min-width:0;height:40px;font-size:8.5px !important}
+}
+@media(max-width:430px){
+  #wheel .wheel-showcase{min-height:350px}
+  #wheel .wheel-wrap{width:294px !important;height:294px !important}
+  #wheel .wheel-center{width:88px !important;height:88px !important}
+  #wheel .wheel-center b{font-size:22px}
+  #wheel .wheel-center-crown{font-size:17px}
+  #wheel .wheel-brand-plate{bottom:9px;min-width:128px}
+  #wheel .wheel-brand-plate strong{font-size:15px}
+  #wheel .wheel-brand-plate span{font-size:5.5px}
+  #wheel .daily-spin{grid-template-columns:52px 1fr}
+  #wheel .daily-btn{grid-column:1/-1;width:100%;margin-top:2px}
+  #wheel .wheel-paid-controls{grid-template-columns:1fr 100px}
+}
