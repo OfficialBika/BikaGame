@@ -303,15 +303,15 @@ function createScene(THREE, container, inputSegments, options) {
     if (delta < 0) delta += twoPi;
     // Always keep a clean, cinematic multi-turn motion.
     if (delta < twoPi * 0.35) delta += twoPi;
-    const turns = 5.5 + (Math.abs(Number(degrees || 0)) % 2) * 0.05;
+    const minTurns = 5.5;
+    const minEnd = current + twoPi * minTurns;
+    const laps = Math.ceil((minEnd - target) / twoPi);
     spin = {
       from: current,
-      to: target + twoPi * Math.floor(turns),
+      to: target + Math.max(0, laps) * twoPi,
       started: performance.now(),
       duration: Math.max(2600, Number(duration || 5200))
     };
-    // Preserve the requested exact final orientation.
-    spin.to = current + Math.max(delta, twoPi * 5.3);
   }
 
   function onPointerMove(e) {
