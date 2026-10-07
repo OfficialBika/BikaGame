@@ -4,6 +4,7 @@ const { col, withRequiredTx } = require('../config/database');
 const userModel = require('../models/userModel');
 const { env } = require('../config/env');
 const { logTx } = require('./transactionService');
+const treasuryModel = require('../models/treasuryModel');
 const { safeTelegram } = require('../utils/telegram');
 const { fmt, escHtml } = require('../utils/format');
 const logger = require('../utils/logger');
@@ -23,7 +24,7 @@ const positions = () => col('two_d_positions');
 const offdates = () => col('two_d_offdates');
 // The bot's real treasury/bank document is stored in the config collection via treasuryService.
 // Keep 2D settlement on the same ownerBalance used by /treasury and economyService.
-const treasury = () => col('treasury');
+const treasury = () => treasuryModel.collection();
 
 const USER_SETTLEMENT_KEYS = 'twoDSettlementKeys';
 function settlementKey(eventId, userId) { return String(eventId) + ':' + String(userId); }
