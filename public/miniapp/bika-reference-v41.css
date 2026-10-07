@@ -2289,3 +2289,50 @@ body.bika-v41:before{
 @media(max-width:680px){
   #crash .rocket-history-list{grid-template-columns:repeat(10,72px)!important}
 }
+
+
+/* ===== Rocket Crash V8 — guaranteed visible vector rocket / compact history rail ===== */
+#crash .rocket-pixi-host{display:none!important}
+#crash .rocket-art{
+  position:absolute!important;
+  left:0!important;top:0!important;
+  width:190px!important;height:auto!important;
+  z-index:9!important;
+  overflow:visible!important;
+  transform-origin:50% 50%!important;
+  pointer-events:none!important;
+  filter:
+    drop-shadow(0 0 9px rgba(61,221,255,.42))
+    drop-shadow(0 0 18px rgba(255,48,174,.22))
+    drop-shadow(0 13px 17px rgba(0,0,0,.58))!important;
+  will-change:transform,opacity!important;
+}
+#crash .rocket-art g{vector-effect:non-scaling-stroke}
+#crash .rocket-stage-status{white-space:nowrap}
+#crash .rocket-history-inline{
+  margin-top:10px;padding:10px 0 2px;border-top:1px solid rgba(68,102,185,.14)
+}
+#crash .rocket-history-inline .rocket-history-title{
+  padding:0 2px;display:flex;justify-content:space-between;align-items:center
+}
+#crash .rocket-history-inline .rocket-history-title h3{
+  margin:1px 0 0;font-size:13px;color:#e7efff
+}
+#crash .rocket-history-inline .rocket-history-title button{
+  height:27px;padding:0 9px;border-radius:8px;border:1px solid rgba(72,110,204,.24);background:#0b1630;color:#8fa8d1;font-size:7px
+}
+#crash .rocket-history-list{
+  display:grid!important;grid-template-columns:repeat(10,minmax(54px,1fr))!important;
+  gap:6px!important;margin-top:7px!important;overflow-x:auto!important;scrollbar-width:none!important
+}
+#crash .rocket-history-list::-webkit-scrollbar{display:none}
+#crash .rocket-history-list .odd{min-height:32px!important;height:32px!important}
+@media(max-width:680px){
+  #crash .rocket-art{width:178px!important}
+  #crash .rocket-history-inline{margin-top:8px}
+  #crash .rocket-history-list{grid-template-columns:repeat(10,62px)!important}
+}
+@media(max-width:430px){
+  #crash .rocket-art{width:170px!important}
+  #crash .rocket-history-list{grid-template-columns:repeat(10,58px)!important}
+}
