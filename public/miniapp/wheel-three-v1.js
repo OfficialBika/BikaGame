@@ -36,7 +36,9 @@ function createScene(THREE, container, inputSegments, options) {
   renderer.setSize(100, 100, false);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.18;
+  renderer.toneMappingExposure = 1.12;
+  renderer.setClearColor(0x000000, 0);
+  renderer.setClearAlpha(0);
   renderer.shadowMap.enabled = false;
   renderer.domElement.className = 'bika-wheel3d-canvas';
   renderer.domElement.setAttribute('aria-hidden', 'true');
@@ -50,6 +52,36 @@ function createScene(THREE, container, inputSegments, options) {
 
   const wheel = new THREE.Group();
   root.add(wheel);
+
+  // Dark circular stage plates: these stay circular (never a gray canvas rectangle)
+  // and give the transparent WebGL canvas a premium floating surface.
+  const stageGlow = new THREE.Mesh(
+    new THREE.CircleGeometry(3.48, 128),
+    new THREE.MeshBasicMaterial({
+      color: 0x22324c,
+      transparent: true,
+      opacity: 0.58,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide
+    })
+  );
+  stageGlow.position.z = -0.55;
+  wheel.add(stageGlow);
+
+  const stagePlate = new THREE.Mesh(
+    new THREE.CircleGeometry(3.30, 128),
+    new THREE.MeshStandardMaterial({
+      color: 0x081224,
+      metalness: 0.68,
+      roughness: 0.34,
+      transparent: true,
+      opacity: 0.92,
+      side: THREE.DoubleSide
+    })
+  );
+  stagePlate.position.z = -0.45;
+  wheel.add(stagePlate);
 
   // High quality materials.
   const gold = new THREE.MeshStandardMaterial({
@@ -82,14 +114,27 @@ function createScene(THREE, container, inputSegments, options) {
   wheel.add(innerRim);
 
   const innerTrack = new THREE.Mesh(
-    new THREE.TorusGeometry(2.28, 0.022, 10, 96),
+    new THREE.TorusGeometry(2.34, 0.028, 12, 112),
     new THREE.MeshStandardMaterial({
       color: 0xc7d2ff, metalness: 0.75, roughness: 0.28,
       emissive: 0x233b7c, emissiveIntensity: 0.22
     })
   );
-  innerTrack.position.z = 0.18;
+  innerTrack.position.z = 0.34;
   wheel.add(innerTrack);
+
+  const innerGlow = new THREE.Mesh(
+    new THREE.TorusGeometry(2.52, 0.035, 10, 112),
+    new THREE.MeshBasicMaterial({
+      color: 0x58eaff,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  innerGlow.position.z = 0.31;
+  wheel.add(innerGlow);
 
   const segmentGroup = new THREE.Group();
   wheel.add(segmentGroup);
@@ -100,7 +145,7 @@ function createScene(THREE, container, inputSegments, options) {
   const leds = [];
   const ledColors = [0xfff4ac,0x58efff,0xff6edc,0xfff4ac];
 
-  const ledGeo = new THREE.SphereGeometry(0.052, 10, 10);
+  const ledGeo = new THREE.SphereGeometry(0.062, 12, 12);
   const ledRadius = 3.02;
   for (let i = 0; i < 28; i += 1) {
     const a = Math.PI / 2 + i * Math.PI * 2 / 28;
@@ -243,6 +288,11 @@ function createScene(THREE, container, inputSegments, options) {
       segmentGroup.remove(x.mesh);
       x.mesh.geometry.dispose();
       x.mesh.material.dispose();
+      if (x.shadowMesh) {
+        segmentGroup.remove(x.shadowMesh);
+        x.shadowMesh.geometry.dispose();
+        x.shadowMesh.material.dispose();
+      }
     }
     for (const x of labels) {
       labelGroup.remove(x.sprite);
@@ -277,13 +327,29 @@ function createScene(THREE, container, inputSegments, options) {
         clearcoat: 0.72,
         clearcoatRoughness: 0.18,
         emissive: new THREE.Color(color),
-        emissiveIntensity: 0.055
+        emissiveIntensity: 0.10,
+        side: THREE.DoubleSide,
+        flatShading: false
       });
       const mesh = new THREE.Mesh(geometry, material);
       mesh.castShadow = false;
       mesh.receiveShadow = false;
       segmentGroup.add(mesh);
-      built.push({ mesh });
+
+      // A slightly offset shadow duplicate makes the wheel read as a real 3D object
+      // even on low-power mobile WebViews where specular highlights are subtle.
+      const shadowMaterial = new THREE.MeshBasicMaterial({
+        color: 0x030713,
+        transparent: true,
+        opacity: 0.42,
+        depthWrite: false,
+        side: THREE.DoubleSide
+      });
+      const shadowMesh = new THREE.Mesh(geometry.clone(), shadowMaterial);
+      shadowMesh.position.z = -0.12;
+      shadowMesh.scale.setScalar(1.008);
+      segmentGroup.add(shadowMesh);
+      built.push({ mesh, shadowMesh });
 
       const mid = start + step / 2;
       const labelRadius = count <= 10 ? 1.77 : 1.92;
@@ -365,6 +431,9 @@ function createScene(THREE, container, inputSegments, options) {
       coin.position.y += Math.sin(t * 0.9 + coin.userData.phase) * 0.0008;
     });
 
+    // Explicit clear every frame prevents WebView backbuffer residue / gray canvases.
+    renderer.setClearColor(0x000000, 0);
+    renderer.clear(true, true, true);
     renderer.render(scene, camera);
     raf = requestAnimationFrame(tick);
   }
@@ -383,6 +452,8 @@ function createScene(THREE, container, inputSegments, options) {
   }
 
   build(segments);
+  renderer.setClearColor(0x000000, 0);
+  renderer.setClearAlpha(0);
   resize();
   window.addEventListener('resize', resize, { passive: true });
   container.addEventListener('pointermove', onPointerMove, { passive: true });
