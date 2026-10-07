@@ -32,6 +32,10 @@ function sendError(res, err) {
     USER_NOT_FOUND: [404, 'User data မတွေ့ပါ။ Bot ကို /start အရင်လုပ်ပါ။'],
     INVALID_BET: [400, 'Bet amount မမှန်ပါ။'],
     BET_RANGE: [400, 'Bet amount range မမှန်ပါ။'],
+    MONGO_TRANSACTIONS_REQUIRED: [503, 'Database transaction support မရသေးပါ။ MongoDB ကို transaction support ပါတဲ့ deployment နဲ့ ချိတ်ပါ။'],
+    TREASURY_NOT_READY: [503, 'Bot Bank မပြင်ဆင်ရသေးပါ။ ခဏစောင့်ပြီး ပြန်စမ်းပါ။'],
+    TREASURY_INSUFFICIENT: [400, 'Bot Bank balance မလုံလောက်ပါ။'],
+
     COOLDOWN: [429, 'Cooldown ခဏစောင့်ပါ။'],
     SPIN_RUNNING: [429, 'Slot spin လက်ရှိ run နေပါတယ်။'],
     CRASH_RUNNING: [400, 'Crash round လက်ရှိ run နေပါတယ်။'],
