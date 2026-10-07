@@ -3,6 +3,7 @@
 const { env } = require('../../config/env');
 const { COIN } = require('../../config/constants');
 const userModel = require('../../models/userModel');
+const treasuryModel = require('../../models/treasuryModel');
 const { col, withRequiredTx } = require('../../config/database');
 const { logTx } = require('../../services/transactionService');
 const { getUser } = require('../../services/economyService');
@@ -96,6 +97,7 @@ module.exports = (bot) => {
     const settlementId = `daily:${userId}:${today.toISOString()}`;
 
     try {
+      await ensureDailyUserDocument(userId, now);
       const result = await withRequiredTx(async (session) => {
         const opts = { session };
         const tx = col('transactions');
@@ -111,7 +113,7 @@ module.exports = (bot) => {
         const previous = unwrapFindOneAndUpdate(claim);
         if (!previous) throw new Error('DAILY_ALREADY_CLAIMED');
 
-        const treasury = await col('treasury').findOneAndUpdate(
+        const treasury = await treasuryModel.collection().findOneAndUpdate(
           { key:'treasury', ownerBalance:{$gte:amount} },
           { $inc:{ ownerBalance:-amount }, $set:{ updatedAt:now } },
           { session, returnDocument:'after' }
@@ -137,6 +139,7 @@ module.exports = (bot) => {
     } catch (err) {
       if (String(err?.message||err) === 'DAILY_ALREADY_CLAIMED') return replyHTML(ctx, '⏳ ဒီနေ့ claim လုပ်ပြီးပြီလေ! တစ်ရက် ဘယ်နှကြိမ်ယူချင်နေတာလဲ လစ်လစ် နောက်နေ့မှ ပြန်လုပ်', options);
       if (String(err?.message||err) === 'TREASURY_INSUFFICIENT') return replyHTML(ctx, '🏦 ဘဏ်ငွေလက်ကျန် မလုံလောက်လို့ daily claim မပေးနိုင်သေးပါ။', options);
+      if (String(err?.message||err) === 'MONGO_TRANSACTIONS_REQUIRED') return replyHTML(ctx, '⚠️ Database transaction support မရသေးလို့ daily claim မလုပ်နိုင်သေးပါ။', options);
       return replyHTML(ctx, '⚠️ Daily claim error ဖြစ်လို့ ပြန်စမ်းကြည့်ပါ။', options);
     }
   }
