@@ -64,11 +64,11 @@ function randomFrame() {
 function initialSlotText() {
   // First message: a distinct, compact set of closed reels.
   return (
-    `${SLOT_EMOJI} <b>BIKA Pro Slot</b>\\n` +
-    `━━━━━━━━━━━\\n` +
-    `<pre>┌────────────────────┐\\n` +
-    `│    ▣    ▣    ▣     │\\n` +
-    `└────────────────────┘</pre>\\n` +
+    `${SLOT_EMOJI} <b>BIKA Pro Slot</b>\n` +
+    `━━━━━━━━━━━\n` +
+    `<pre>┌────────────────────┐\n` +
+    `│    ▣    ▣    ▣     │\n` +
+    `└────────────────────┘</pre>\n` +
     `<b>READY</b>`
   );
 }
@@ -296,7 +296,6 @@ module.exports = (bot) => {
             promoExpiresAt,
           },
         });
-        betTaken = false;
       } catch (settlementErr) {
         await rollingEditPromise;
         const message = String(settlementErr?.message || '');
