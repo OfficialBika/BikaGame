@@ -12,8 +12,8 @@ function bool(name, fallback = false) {
   return ['1', 'true', 'yes', 'on'].includes(String(raw).toLowerCase());
 }
 
-const telegramApiRoot = (process.env.TELEGRAM_API_ROOT || 'https://api.telegram.org').replace(/\\/+$/, '');
-if (!/^https?:\\/\\//i.test(telegramApiRoot)) {
+const telegramApiRoot = (process.env.TELEGRAM_API_ROOT || 'https://api.telegram.org').replace(/\/+$/, '');
+if (!/^https?:\/\//i.test(telegramApiRoot)) {
   throw new Error('Invalid TELEGRAM_API_ROOT: must be an http(s) URL');
 }
 
