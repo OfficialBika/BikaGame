@@ -70,7 +70,8 @@ async function replyHTML(ctx, html, extra = {}) {
 async function editHTML(ctx, html, extra = {}) {
   const chatId = ctx.chat?.id ?? ctx.callbackQuery?.message?.chat?.id;
   const messageId = ctx.callbackQuery?.message?.message_id ?? ctx.message?.message_id;
-  const operation = () => safeQueuedEdit(() => ctx.editMessageText(html, {
+  const editRunner = editQueue.ENABLED ? safeQueuedEdit : safeTelegram;
+  const operation = () => editRunner(() => ctx.editMessageText(html, {
     parse_mode: 'HTML',
     disable_web_page_preview: true,
     ...extra,
@@ -89,7 +90,8 @@ async function editHTML(ctx, html, extra = {}) {
 }
 
 async function editByIds(bot, chatId, messageId, html, extra = {}) {
-  const operation = () => safeQueuedEdit(() => bot.telegram.editMessageText(
+  const editRunner = editQueue.ENABLED ? safeQueuedEdit : safeTelegram;
+  const operation = () => editRunner(() => bot.telegram.editMessageText(
     chatId, messageId, undefined, html,
     { parse_mode: 'HTML', disable_web_page_preview: true, ...extra }
   ));
@@ -105,7 +107,8 @@ async function editByIds(bot, chatId, messageId, html, extra = {}) {
 }
 
 async function editMarkupByIds(bot, chatId, messageId, replyMarkup, extra = {}) {
-  const operation = () => safeQueuedEdit(() => bot.telegram.editMessageReplyMarkup(
+  const editRunner = editQueue.ENABLED ? safeQueuedEdit : safeTelegram;
+  const operation = () => editRunner(() => bot.telegram.editMessageReplyMarkup(
     chatId, messageId, undefined, replyMarkup, extra
   ));
   try {
@@ -120,7 +123,8 @@ async function editMarkupByIds(bot, chatId, messageId, replyMarkup, extra = {}) 
 }
 
 async function editMediaByIds(bot, chatId, messageId, media, extra = {}) {
-  const operation = () => safeQueuedEdit(() => bot.telegram.editMessageMedia(
+  const editRunner = editQueue.ENABLED ? safeQueuedEdit : safeTelegram;
+  const operation = () => editRunner(() => bot.telegram.editMessageMedia(
     chatId, messageId, undefined, media, extra
   ));
   try {
