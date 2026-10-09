@@ -6,6 +6,17 @@ function num(name, fallback = null) {
   return n;
 }
 
+function bool(name, fallback = false) {
+  const raw = process.env[name];
+  if (raw == null || raw === '') return fallback;
+  return ['1', 'true', 'yes', 'on'].includes(String(raw).toLowerCase());
+}
+
+const telegramApiRoot = (process.env.TELEGRAM_API_ROOT || 'https://api.telegram.org').replace(/\/+$/, '');
+if (!/^https?:\/\//i.test(telegramApiRoot)) {
+  throw new Error('Invalid TELEGRAM_API_ROOT: must be an http(s) URL');
+}
+
 const env = {
   BOT_TOKEN: process.env.BOT_TOKEN,
   MONGO_URI: process.env.MONGO_URI,
@@ -17,6 +28,10 @@ const env = {
   WEBHOOK_SECRET: process.env.WEBHOOK_SECRET || '',
   WEB_ORIGIN: process.env.WEB_ORIGIN || 'https://officialbika.github.io',
   WEB_API_KEY: process.env.WEB_API_KEY || '',
+  TELEGRAM_API_ROOT: telegramApiRoot,
+  TELEGRAM_EDIT_QUEUE_ENABLED: bool('TELEGRAM_EDIT_QUEUE_ENABLED', false),
+  TELEGRAM_EDIT_MAX_CONCURRENT: num('TELEGRAM_EDIT_MAX_CONCURRENT', 5),
+  TELEGRAM_EDIT_RETRIES: num('TELEGRAM_EDIT_RETRIES', 3),
   START_BONUS: num('START_BONUS', 300),
   DAILY_MIN: num('DAILY_MIN', 500),
   DAILY_MAX: num('DAILY_MAX', 2000),
