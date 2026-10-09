@@ -106,6 +106,27 @@ async function editByIds(bot, chatId, messageId, html, extra = {}) {
   }
 }
 
+async function editSlotByIds(bot, chatId, messageId, html, extra = {}) {
+  const operation = () => safeQueuedEdit(() => bot.telegram.editMessageText(
+    chatId, messageId, undefined, html,
+    { parse_mode: 'HTML', disable_web_page_preview: true, ...extra }
+  ));
+  try {
+    const result = await editQueue.enqueueMessageEdit(
+      chatId,
+      messageId,
+      operation,
+      { kind: 'text', forceQueue: true }
+    );
+    if (result) editQueue.trackMessage(chatId, messageId, { kind: 'text' });
+    return result;
+  } catch (err) {
+    const message = String(err?.message || err);
+    if (!message.includes('message is not modified')) logger.warn('editSlotByIds', message);
+    return null;
+  }
+}
+
 async function editMarkupByIds(bot, chatId, messageId, replyMarkup, extra = {}) {
   const editRunner = editQueue.ENABLED ? safeQueuedEdit : safeTelegram;
   const operation = () => editRunner(() => bot.telegram.editMessageReplyMarkup(
@@ -143,6 +164,7 @@ module.exports = {
   replyHTML,
   editHTML,
   editByIds,
+  editSlotByIds,
   editMarkupByIds,
   editMediaByIds,
   getRetryAfterSec,
