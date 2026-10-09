@@ -21,7 +21,7 @@ function sleep(ms) {
 function getRetryAfterSec(err) {
   const retry = err?.response?.parameters?.retry_after;
   const message = String(err?.message || err);
-  const match = message.match(/retry after (\\d+)/i);
+  const match = message.match(/retry after (\d+)/i);
   if (typeof retry === 'number' && Number.isFinite(retry)) return retry;
   return match ? Number(match[1]) || 0 : 0;
 }
