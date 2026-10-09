@@ -8,7 +8,7 @@ const {
 const { getTreasury } = require('../../services/treasuryService');
 const { checkCooldown } = require('../../services/cooldownService');
 const engine = require('../../games/slotEngine');
-const { replyHTML, editByIds } = require('../../utils/telegram');
+const { replyHTML, editSlotByIds: editByIds } = require('../../utils/telegram');
 const { fmt } = require('../../utils/format');
 
 let getActivePromoRtp = null;
@@ -59,6 +59,18 @@ function randomSymbolFromReel(reel) {
 
 function randomFrame() {
   return engine.SLOT_DATA.reels.map(randomSymbolFromReel);
+}
+
+function initialSlotText() {
+  // First message: a distinct, compact set of closed reels.
+  return (
+    `${SLOT_EMOJI} <b>BIKA Pro Slot</b>\\n` +
+    `━━━━━━━━━━━\\n` +
+    `<pre>┌────────────────────┐\\n` +
+    `│    ▣    ▣    ▣     │\\n` +
+    `└────────────────────┘</pre>\\n` +
+    `<b>READY</b>`
+  );
 }
 
 function animationText(reels, note) {
@@ -199,15 +211,15 @@ module.exports = (bot) => {
     incGroupActive(chatId);
 
     const spinId = `slot:${chatId}:${ctx.message?.message_id || Date.now()}`;
-    let betTaken = false;
     let sent = null;
+    let rollingEditPromise = Promise.resolve();
 
     try {
       // Fast visible response first.
       // Expensive DB operations run after this message already appears.
       sent = await replyHTML(
         ctx,
-        animationText(randomFrame(), `${START_ROLLING_EMOJI} Start Rolling...`),
+        initialSlotText(),
         options
       );
 
@@ -215,10 +227,20 @@ module.exports = (bot) => {
         throw new Error('SLOT_ANIMATION_MESSAGE_FAILED');
       }
 
-      // DB work starts here after user already sees slot response.
+      // Start the one rolling-frame edit immediately. Database work runs in parallel;
+      // the result edit waits for this promise so the visible stages never race.
+      rollingEditPromise = editByIds(
+        bot,
+        chatId,
+        sent.message_id,
+        animationText(randomFrame(), `${START_ROLLING_EMOJI} <b>REELS MOVING...</b>`)
+      );
+
+      // DB work starts while the rolling-frame edit is in flight.
       const user = await getUser(userId);
 
       if (!user) {
+        await rollingEditPromise;
         return editByIds(
           bot,
           chatId,
@@ -276,6 +298,7 @@ module.exports = (bot) => {
         });
         betTaken = false;
       } catch (settlementErr) {
+        await rollingEditPromise;
         const message = String(settlementErr?.message || '');
 
         if (message === 'USER_INSUFFICIENT') {
@@ -294,10 +317,9 @@ module.exports = (bot) => {
         );
       }
 
-      betTaken = false;
-
-      // Keep a brief visual pause without making every spin feel slow.
-      await sleep(300);
+      // The rolling edit overlaps DB work. Wait only if it has not finished yet,
+      // then send the final result as the second and last edit.
+      await rollingEditPromise;
       return editByIds(
         bot,
         chatId,
@@ -309,6 +331,7 @@ module.exports = (bot) => {
       // the bet is rolled back automatically, so no manual refund is needed.
 
       if (sent?.message_id) {
+        await rollingEditPromise;
         return editByIds(
           bot,
           chatId,
