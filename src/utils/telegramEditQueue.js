@@ -59,7 +59,7 @@ async function runWithLimit(task) {
 }
 
 function enqueueMessageEdit(chatId, messageId, task, metadata = {}) {
-  if (!ENABLED) return Promise.resolve().then(task);
+  if (!ENABLED && metadata.forceQueue !== true) return Promise.resolve().then(task);
   const key = messageKey(chatId, messageId);
   const previous = perMessage.get(key) || Promise.resolve();
   const current = previous.catch(() => undefined).then(() => runWithLimit(task));
