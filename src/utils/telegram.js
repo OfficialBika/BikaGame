@@ -6,7 +6,7 @@ const editQueue = require('./telegramEditQueue');
 function getRetryAfterSec(err) {
   const retry = err?.response?.parameters?.retry_after;
   const m = String(err?.message || err);
-  const match = m.match(/retry after (\\d+)/i);
+  const match = m.match(/retry after (\d+)/i);
   return typeof retry === 'number' ? retry : (match ? Number(match[1]) || 0 : 0);
 }
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
