@@ -20,6 +20,7 @@ const env = {
   START_BONUS: num('START_BONUS', 300),
   DAILY_MIN: num('DAILY_MIN', 500),
   DAILY_MAX: num('DAILY_MAX', 2000),
+  BAL_PER_STAR: num('BAL_PER_STAR', 1000),
   TWO_D_CHANNEL_ID: process.env.TWO_D_CHANNEL_ID || '',
   TWO_D_DISCUSSION_CHAT_ID: process.env.TWO_D_DISCUSSION_CHAT_ID || '',
   AUCTION_CHANNEL_ID: process.env.AUCTION_CHANNEL_ID || '',
@@ -29,5 +30,6 @@ const env = {
 if (!env.BOT_TOKEN) throw new Error('Missing BOT_TOKEN');
 if (!env.MONGO_URI) throw new Error('Missing MONGO_URI');
 if (!env.OWNER_ID) throw new Error('Missing/Invalid OWNER_ID');
+if (!Number.isSafeInteger(env.BAL_PER_STAR) || env.BAL_PER_STAR <= 0) throw new Error('Invalid BAL_PER_STAR: must be a positive integer');
 const USE_WEBHOOK = Boolean(env.PUBLIC_URL && env.WEBHOOK_SECRET);
 module.exports = { env, USE_WEBHOOK };
