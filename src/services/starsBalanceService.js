@@ -45,7 +45,7 @@ async function creditSuccessfulPayment({ userId, stars, bal, chargeId, payload }
     if (existing) return { ok: true, duplicate: true, stars, bal: amount };
 
     const user = await userModel.collection().findOneAndUpdate(
-      { userId: { $in: [String(userId), /^\d+$/.test(String(userId)) ? Number(userId) : null].filter((v) => v !== null) } },
+      { userId: { $in: [String(userId), /^\\d+$/.test(String(userId)) ? Number(userId) : null].filter((v) => v !== null) } },
       { $inc: { balance: amount }, $set: { updatedAt: new Date() } },
       { session, returnDocument: 'after' }
     );
@@ -66,9 +66,12 @@ async function creditSuccessfulPayment({ userId, stars, bal, chargeId, payload }
       },
     }, opts);
 
+    // Keep the idempotency marker distinct from the user-facing ledger row.
+    // Both writes share the same Mongo transaction, so the balance and marker
+    // commit atomically and a duplicate charge cannot credit the user twice.
     await tx.insertOne({
       _id: markerId,
-      type: 'stars_bal_purchase',
+      type: '__stars_purchase_marker',
       userId: actualUser.userId,
       stars,
       bal: amount,
