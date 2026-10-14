@@ -64,9 +64,15 @@ async function payKeyboard(ctx) {
     }
   }
 
-  // Telegram Stars Bal purchase is intentionally exposed only in private bot chat.
+  // In groups, open the bot's private chat and resume the purchase flow there.
   if (isPrivateChat(ctx)) {
     rows.push([{ text: '⭐ Bal ဝယ်ရန်', style: 'success', callback_data: ownerCallback('bal:buy', userId) }]);
+  } else if (username) {
+    rows.push([{
+      text: '⭐ Bal ဝယ်ရန်',
+      style: 'success',
+      url: 'https://t.me/' + username + '?start=buybal',
+    }]);
   }
 
   return rows.length ? { inline_keyboard: rows } : undefined;
@@ -400,6 +406,15 @@ function registerStarsHandlers(bot) {
   ));
 }
 
+async function openStarsPurchaseMenu(ctx) {
+  if (!isPrivateChat(ctx)) return null;
+  const userId = ownerId(ctx);
+  return ctx.reply(packageText(), {
+    parse_mode: 'HTML',
+    reply_markup: packageKeyboard(userId),
+  });
+}
+
 module.exports = (bot) => {
   bot.command(['bal', 'balance', 'mybalance'], sendBalance);
   bot.hears(/^\.(bal|balance|mybalance)\s*$/i, sendBalance);
@@ -407,3 +422,4 @@ module.exports = (bot) => {
 };
 
 module.exports.getBalanceRankLabel = () => '';
+module.exports.openStarsPurchaseMenu = openStarsPurchaseMenu;
