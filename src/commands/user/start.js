@@ -7,8 +7,10 @@ const { logTx } = require('../../services/transactionService');
 const { replyHTML } = require('../../utils/telegram');
 const { fmt } = require('../../utils/format');
 const { mentionHtml } = require('../../utils/helpers');
+const { openStarsPurchaseMenu } = require('./balance');
 
 module.exports = (bot) => bot.start(async (ctx) => {
+  const requestedStarsPurchase = String(ctx.startPayload || '') === 'buybal';
   await ensureTreasury();
   const u = await ensureUser(ctx.from);
   await markStarted(ctx.from.id);
@@ -40,9 +42,12 @@ module.exports = (bot) => bot.start(async (ctx) => {
         return { duplicate: false, balance: Number(user.balance || 0) };
       });
       const user = await getUser(ctx.from.id);
-      return replyHTML(ctx, '🎉 <b>Welcome Bonus</b>\n━━━━━━━━━━━━━━━\n👤 ' + mentionHtml(ctx.from) + '\n➕ Bonus: <b>' + fmt(env.START_BONUS) + '</b> ' + COIN + '\n💼 Balance: <b>' + fmt(user?.balance ?? result.balance) + '</b> ' + COIN + '\n━━━━━━━━━━━━━━\nCommands: <code>/dailyclaim</code>, <code>.slot 100</code>, <code>.dice 200</code>, <code>.shan 500</code>, <code>.mybalance</code>, <code>.top10</code>, <code>/shop</code>');
+      await replyHTML(ctx, '🎉 <b>Welcome Bonus</b>\n━━━━━━━━━━━━━━━\n👤 ' + mentionHtml(ctx.from) + '\n➕ Bonus: <b>' + fmt(env.START_BONUS) + '</b> ' + COIN + '\n💼 Balance: <b>' + fmt(user?.balance ?? result.balance) + '</b> ' + COIN + '\n━━━━━━━━━━━━━━\nCommands: <code>/dailyclaim</code>, <code>.slot 100</code>, <code>.dice 200</code>, <code>.shan 500</code>, <code>.mybalance</code>, <code>.top10</code>, <code>/shop</code>');
+      if (requestedStarsPurchase) return openStarsPurchaseMenu(ctx);
+      return;
     } catch (_) {}
   }
 
+  if (requestedStarsPurchase) return openStarsPurchaseMenu(ctx);
   return replyHTML(ctx, '👋 <b>Welcome to BIKA Bot</b>\n━━━━━━━━━━━━━━━\nCommands: <code>/dailyclaim</code>, <code>.slot 100</code>, <code>.dice 200</code>, <code>.shan 500</code>, <code>.blackjack 500</code>, <code>.mybalance</code>, <code>.top10</code>, <code>/shop</code>');
 });
