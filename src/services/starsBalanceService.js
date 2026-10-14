@@ -16,15 +16,33 @@ function isValidPackage(stars) {
   return Number.isInteger(Number(stars)) && PACKAGES.includes(Number(stars));
 }
 
-function payloadFor(stars, userId) {
-  return JSON.stringify({ v: 1, kind: 'bal_purchase', stars: Number(stars), userId: String(userId) });
+function payloadFor(stars, userId, screenMessageId) {
+  const data = {
+    v: 1,
+    kind: 'bal_purchase',
+    stars: Number(stars),
+    userId: String(userId),
+  };
+  const messageId = Number(screenMessageId);
+  if (Number.isSafeInteger(messageId) && messageId > 0) {
+    data.screenMessageId = messageId;
+  }
+  return JSON.stringify(data);
 }
 
 function parsePayload(payload) {
   try {
     const data = JSON.parse(String(payload || ''));
-    if (data?.v !== 1 || data?.kind !== 'bal_purchase' || !isValidPackage(data?.stars) || !data?.userId) return null;
-    return { stars: Number(data.stars), userId: String(data.userId) };
+    if (data?.v !== 1 || data?.kind !== 'bal_purchase' || !isValidPackage(data?.stars) || !data?.userId) {
+      return null;
+    }
+
+    const messageId = Number(data.screenMessageId);
+    return {
+      stars: Number(data.stars),
+      userId: String(data.userId),
+      screenMessageId: Number.isSafeInteger(messageId) && messageId > 0 ? messageId : null,
+    };
   } catch (_) {
     return null;
   }
@@ -36,7 +54,7 @@ async function creditSuccessfulPayment({ userId, stars, bal, chargeId, payload }
   }
 
   const amount = packageBal(stars);
-  const markerId = `__stars_purchase:${String(chargeId)}`;
+  const markerId = '__stars_purchase:' + String(chargeId);
 
   return withRequiredTx(async (session) => {
     const opts = { session };
@@ -50,7 +68,7 @@ async function creditSuccessfulPayment({ userId, stars, bal, chargeId, payload }
     const user = await userModel.collection().findOneAndUpdate(
       { userId: { $in: userIds } },
       { $inc: { balance: amount }, $set: { updatedAt: new Date() } },
-      { session, returnDocument: 'after' }
+      { session, returnDocument: 'after' },
     );
     const actualUser = user?.value !== undefined ? user.value : user;
     if (!actualUser) throw new Error('STARS_USER_NOT_FOUND');
@@ -86,4 +104,12 @@ async function creditSuccessfulPayment({ userId, stars, bal, chargeId, payload }
   });
 }
 
-module.exports = { STAR_TO_BAL, PACKAGES, packageBal, isValidPackage, payloadFor, parsePayload, creditSuccessfulPayment };
+module.exports = {
+  STAR_TO_BAL,
+  PACKAGES,
+  packageBal,
+  isValidPackage,
+  payloadFor,
+  parsePayload,
+  creditSuccessfulPayment,
+};
