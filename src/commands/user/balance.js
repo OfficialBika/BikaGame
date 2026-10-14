@@ -28,7 +28,6 @@ function invoiceNonce() {
 
 function rememberIssuedInvoice(key) {
   issuedInvoices.add(key);
-  // Bound memory while keeping recent callback idempotency protection.
   if (issuedInvoices.size > 5000) {
     const oldest = issuedInvoices.values().next().value;
     issuedInvoices.delete(oldest);
@@ -48,6 +47,10 @@ function ownerCallback(action, userId) {
   return action + ':' + String(userId);
 }
 
+function isPrivateChat(ctx) {
+  return ctx.chat?.type === 'private' || ctx.callbackQuery?.message?.chat?.type === 'private';
+}
+
 async function payKeyboard(ctx) {
   const userId = ownerId(ctx);
   const username = String(getBotInfo()?.username || process.env.BOT_USERNAME || '').replace(/^@/, '');
@@ -61,9 +64,12 @@ async function payKeyboard(ctx) {
     }
   }
 
-  // Keep Stars purchase available even if a wallet deep link is not configured.
-  rows.push([{ text: '⭐ Bal ဝယ်ရန်', style: 'success', callback_data: ownerCallback('bal:buy', userId) }]);
-  return { inline_keyboard: rows };
+  // Telegram Stars Bal purchase is intentionally exposed only in private bot chat.
+  if (isPrivateChat(ctx)) {
+    rows.push([{ text: '⭐ Bal ဝယ်ရန်', style: 'success', callback_data: ownerCallback('bal:buy', userId) }]);
+  }
+
+  return rows.length ? { inline_keyboard: rows } : undefined;
 }
 
 function balanceText(ctx, user) {
@@ -89,7 +95,7 @@ async function sendBalance(ctx) {
   const keyboard = await payKeyboard(ctx);
   return replyHTML(ctx, balanceText(ctx, user), {
     ...replyOptions(ctx),
-    reply_markup: keyboard,
+    ...(keyboard ? { reply_markup: keyboard } : {}),
   });
 }
 
@@ -103,10 +109,6 @@ function packageKeyboard(userId) {
     inline_keyboard: [
       rowFor([10, 20, 30]),
       rowFor([40, 50, 100]),
-      [
-        { text: '📜 Terms', callback_data: ownerCallback('bal:terms:packages', userId) },
-        { text: '🆘 Payment Support', callback_data: ownerCallback('bal:support', userId) },
-      ],
       [{ text: '⬅️ Back to Balance', callback_data: ownerCallback('bal:back:balance', userId) }],
     ],
   };
@@ -134,15 +136,14 @@ function confirmText(stars) {
     'You receive: <b>' + fmt(packageBal(stars)) + ' Bal</b>',
     'Rate: <b>1 Star = ' + fmt(STAR_TO_BAL) + ' Bal</b>',
     '',
-    'Please review the purchase terms before continuing.',
+    'Confirm the package below to open the Telegram Stars payment invoice.',
   ].join('\n');
 }
 
 function confirmKeyboard(stars, userId) {
   return {
     inline_keyboard: [
-      [{ text: '📜 Read Terms', callback_data: ownerCallback('bal:terms:confirm:' + stars, userId) }],
-      [{ text: '✅ I Agree & Pay ' + stars + ' Stars', style: 'success', callback_data: 'bal:invoice:' + stars + ':' + String(userId) + ':' + invoiceNonce() }],
+      [{ text: '⭐ Pay ' + stars + ' Stars', style: 'success', callback_data: 'bal:invoice:' + stars + ':' + String(userId) + ':' + invoiceNonce() }],
       [{ text: '⬅️ Back to Packages', callback_data: ownerCallback('bal:back:packages', userId) }],
     ],
   };
@@ -177,6 +178,12 @@ async function editScreen(ctx, text, keyboard) {
   }
 }
 
+async function assertPrivatePurchase(ctx) {
+  if (isPrivateChat(ctx)) return true;
+  await answerCallback(ctx, 'Bal ဝယ်ယူရန်ကို Bot DM မှာသာ အသုံးပြုနိုင်ပါတယ်။', true);
+  return false;
+}
+
 async function assertMenuOwner(ctx, requestedOwnerId) {
   const expected = String(requestedOwnerId || ctx.from?.id || '');
   if (expected !== String(ctx.from?.id || '')) {
@@ -187,6 +194,7 @@ async function assertMenuOwner(ctx, requestedOwnerId) {
 }
 
 async function showPackages(ctx, requestedOwnerId) {
+  if (!(await assertPrivatePurchase(ctx))) return;
   const userId = ownerId(ctx, requestedOwnerId);
   if (!(await assertMenuOwner(ctx, userId))) return;
   await answerCallback(ctx);
@@ -202,6 +210,7 @@ async function backToBalance(ctx, requestedOwnerId) {
 }
 
 async function confirmPackage(ctx, stars, requestedOwnerId) {
+  if (!(await assertPrivatePurchase(ctx))) return;
   const userId = ownerId(ctx, requestedOwnerId);
   if (!(await assertMenuOwner(ctx, userId))) return;
   if (!Number.isInteger(stars) || !PACKAGES.includes(stars)) {
@@ -212,49 +221,8 @@ async function confirmPackage(ctx, stars, requestedOwnerId) {
   return editScreen(ctx, confirmText(stars), confirmKeyboard(stars, userId));
 }
 
-function termsText() {
-  return [
-    '<b>BIKA Bal Purchase Terms</b>',
-    '',
-    'Telegram Stars are used to purchase digital Bal inside BIKA.',
-    'Bal is credited only after Telegram sends a successful payment confirmation.',
-    'For payment problems, use /paysupport.',
-    '',
-    'Please confirm the amount shown on Telegram’s payment screen before paying.',
-  ].join('\n');
-}
-
-async function answerTerms(ctx, source, stars, requestedOwnerId) {
-  const userId = ownerId(ctx, requestedOwnerId);
-  if (!(await assertMenuOwner(ctx, userId))) return;
-  await answerCallback(ctx);
-  const back = source === 'confirm' && PACKAGES.includes(Number(stars))
-    ? [{ text: '⬅️ Back to Confirmation', callback_data: ownerCallback('bal:back:confirm:' + Number(stars), userId) }]
-    : [{ text: '⬅️ Back to Packages', callback_data: ownerCallback('bal:back:packages', userId) }];
-
-  return editScreen(ctx, termsText(), { inline_keyboard: [back] });
-}
-
-async function answerSupport(ctx, requestedOwnerId) {
-  const userId = ownerId(ctx, requestedOwnerId);
-  if (!(await assertMenuOwner(ctx, userId))) return;
-  await answerCallback(ctx);
-  const text = [
-    '🆘 <b>Payment Support</b>',
-    '',
-    'If your Stars payment succeeded but Bal was not credited, keep the Telegram payment receipt and contact BIKA support.',
-    'Never send your Telegram login code or bot token.',
-    '',
-    'You can return to the purchase packages below.',
-  ].join('\n');
-  return editScreen(ctx, text, {
-    inline_keyboard: [
-      [{ text: '⬅️ Back to Packages', callback_data: ownerCallback('bal:back:packages', userId) }],
-    ],
-  });
-}
-
 async function sendStarsInvoice(ctx, stars, requestedOwnerId, requestNonce) {
+  if (!(await assertPrivatePurchase(ctx))) return;
   const userId = ownerId(ctx, requestedOwnerId);
   if (!(await assertMenuOwner(ctx, userId))) return;
   if (!Number.isInteger(stars) || !PACKAGES.includes(stars)) {
@@ -278,7 +246,6 @@ async function sendStarsInvoice(ctx, stars, requestedOwnerId, requestNonce) {
 
   const bal = packageBal(stars);
   try {
-    // Remove the pay callback before creating the invoice to prevent rapid repeated taps.
     await editScreen(
       ctx,
       '⏳ <b>Preparing your Stars invoice…</b>\n\nPlease wait. Your balance will only change after Telegram confirms payment.',
@@ -306,7 +273,7 @@ async function sendStarsInvoice(ctx, stars, requestedOwnerId, requestNonce) {
 
     return await editScreen(
       ctx,
-      '🧾 <b>Stars invoice created</b>\n\nComplete the payment using the Telegram invoice message. Bal is credited only after Telegram confirms the payment.',
+      '🧾 <b>Stars invoice created</b>\n\nComplete the payment with stars. Bal is credited only after Telegram confirms the payment.',
       backToPackagesKeyboard(userId),
     );
   } finally {
@@ -332,7 +299,6 @@ async function showPaymentResult(ctx, parsed, statusText) {
     } catch (err) {
       const description = String(err?.description || err?.message || '');
       if (/message is not modified/i.test(description)) return;
-      // The screen may have been deleted or become uneditable; fall back to a receipt notice.
     }
   }
 
@@ -340,7 +306,6 @@ async function showPaymentResult(ctx, parsed, statusText) {
 }
 
 function registerStarsHandlers(bot) {
-  // New callbacks carry the screen owner's Telegram ID; older buttons remain supported during rollout.
   bot.action(/^bal:buy(?::(\d+))?$/, async (ctx) => {
     const target = ctx.match[1] || ctx.from.id;
     return showPackages(ctx, target);
@@ -360,20 +325,6 @@ function registerStarsHandlers(bot) {
     return sendStarsInvoice(ctx, Number(ctx.match[1]), target, 'legacy');
   });
 
-  bot.action(/^bal:terms:packages(?::(\d+))?$/, async (ctx) => {
-    return answerTerms(ctx, 'packages', null, ctx.match[1] || ctx.from.id);
-  });
-
-  bot.action(/^bal:terms:confirm:(10|20|30|40|50|100):(\d+)$/, async (ctx) => {
-    return answerTerms(ctx, 'confirm', Number(ctx.match[1]), ctx.match[2]);
-  });
-
-  bot.action('bal:terms', (ctx) => answerTerms(ctx, 'packages', null, ctx.from.id));
-
-  bot.action(/^bal:support(?::(\d+))?$/, async (ctx) => {
-    return answerSupport(ctx, ctx.match[1] || ctx.from.id);
-  });
-
   bot.action(/^bal:back:balance(?::(\d+))?$/, async (ctx) => {
     return backToBalance(ctx, ctx.match[1] || ctx.from.id);
   });
@@ -382,13 +333,22 @@ function registerStarsHandlers(bot) {
     return showPackages(ctx, ctx.match[1] || ctx.from.id);
   });
 
-  bot.action(/^bal:back:confirm:(10|20|30|40|50|100):(\d+)$/, async (ctx) => {
-    return confirmPackage(ctx, Number(ctx.match[1]), ctx.match[2]);
-  });
-
-  // Retain compatibility with messages from the previous confirmation screen.
   bot.action('bal:cancel', (ctx) => showPackages(ctx, ctx.from.id));
 
+  bot.on('pre_checkout_query', async (ctx) => {
+    const query = ctx.update.pre_checkout_query;
+    const parsed = parsePayload(query.invoice_payload);
+    const valid = parsed
+      && String(parsed.userId) === String(ctx.from.id)
+      && query.currency === 'XTR'
+      && Number(query.total_amount) === parsed.stars
+      && Number(query.total_amount) > 0;
+
+    if (!valid) {
+      return ctx.answerPreCheckoutQuery(false, 'Invalid or expired Bal purchase. Please start again.');
+    }
+    return ctx.answerPreCheckoutQuery(true);
+  });
 
   bot.on('successful_payment', async (ctx) => {
     const payment = ctx.message?.successful_payment;
