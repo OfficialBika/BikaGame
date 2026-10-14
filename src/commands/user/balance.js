@@ -389,20 +389,6 @@ function registerStarsHandlers(bot) {
   // Retain compatibility with messages from the previous confirmation screen.
   bot.action('bal:cancel', (ctx) => showPackages(ctx, ctx.from.id));
 
-  bot.on('pre_checkout_query', async (ctx) => {
-    const query = ctx.update.pre_checkout_query;
-    const parsed = parsePayload(query.invoice_payload);
-    const valid = parsed
-      && String(parsed.userId) === String(ctx.from.id)
-      && query.currency === 'XTR'
-      && Number(query.total_amount) === parsed.stars
-      && Number(query.total_amount) > 0;
-
-    if (!valid) {
-      return ctx.answerPreCheckoutQuery(false, 'Invalid or expired Bal purchase. Please start again.');
-    }
-    return ctx.answerPreCheckoutQuery(true);
-  });
 
   bot.on('successful_payment', async (ctx) => {
     const payment = ctx.message?.successful_payment;
