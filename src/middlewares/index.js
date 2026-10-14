@@ -38,6 +38,11 @@ module.exports = (bot) => {
   // Payment confirmation is deliberately registered first to avoid DB latency.
   registerPreCheckoutHandler(bot);
 
+  // Direct numeric RTP aliases run before the general maintenance gate.
+  // They only consume /rtp <number> and /bjrtp <number>; all other commands
+  // continue through the existing middleware chain unchanged.
+  bot.use(require('./rtpCommands'));
+
   // Maintenance gate runs first so blocked non-owner commands do not trigger
   // user/group DB checks or other downstream middleware.
   bot.use(require('./maintenance'));
