@@ -515,6 +515,10 @@ module.exports = (bot) => {
   });
 
   bot.command('bjrtp', async (ctx) => {
+    // The current Blackjack RTP is owner-only; do not expose the configured
+    // win rate to regular users even when they invoke the command directly.
+    if (!(await requireOwner(ctx))) return;
+
     const rate = await getBjRtp();
 
     return replyHTML(
