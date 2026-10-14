@@ -8,15 +8,15 @@ const { fmt } = require('../../utils/format');
 const { mentionHtml } = require('../../utils/helpers');
 const { getBalanceRank } = require('../../utils/ranking');
 const { getBotInfo } = require('../../config/bot');
-const { walletIdForUserId, getWallet } = require('../../services/walletService');
+const { getWallet } = require('../../services/walletService');
 
 const STAR_PACKAGES = [10, 20, 30, 40, 50, 100];
 const STAR_PAYLOAD_PREFIX = 'bika_bal_v1';
 
 function replyOptions(ctx){const messageId=ctx.message?.message_id;return messageId?{reply_to_message_id:messageId,allow_sending_without_reply:true}:{};}
-function payKeyboard(ctx){const username=String(getBotInfo()?.username||process.env.BOT_USERNAME||'').replace(/^@/,'');if(!username||!ctx.from?.id)return undefined;return {inline_keyboard:[[{text:'💸 Pay Bal',style:'primary',url:`https://t.me/${username}?startapp=${encodeURIComponent(`pay_${walletIdForUserId(ctx.from.id)}`)}`}],[{text:'⭐ Bal ဝယ်ယူရန်',callback_data:'stars:menu'}]]};}
+async function payKeyboard(ctx){const username=String(getBotInfo()?.username||process.env.BOT_USERNAME||'').replace(/^@/,'');if(!username||!ctx.from?.id)return undefined;const wallet=await getWallet(ctx.from.id);if(!wallet?.walletId)return undefined;const deep=`https://t.me/${username}?startapp=${encodeURIComponent(`pay_${wallet.walletId}`)}`;return {inline_keyboard:[[{text:'💸 Pay Bal',style:'primary',url:deep}],[{text:'⭐ Bal ဝယ်ယူရန်',callback_data:'stars:menu'}]]};}
 function balanceText(ctx,u){const balance=Number(u?.balance||0),totalWon=Number(u?.totalWon||0),totalLost=Number(u?.totalLost||0),r=getBalanceRank(u?.balance);return `${r.badge} <b>BIKA Wallet</b>\n━━━━━━━━━━━━━━\n👤 ${mentionHtml(ctx.from)}\n💰 Balance: <b>${fmt(balance)}</b> ${COIN}\n🏆 Total Won: <b>${fmt(totalWon)}</b> ${COIN}\n💸 Total Lost: <b>${fmt(totalLost)}</b> ${COIN}\n🏷️ Rank: <b>${r.title}</b>\n━━━━━━━━━━━━━━`;}
-async function sendBalance(ctx){const u=await getUser(ctx.from.id);return replyHTML(ctx,balanceText(ctx,u),{...replyOptions(ctx),reply_markup:payKeyboard(ctx)});}
+async function sendBalance(ctx){const u=await getUser(ctx.from.id);return replyHTML(ctx,balanceText(ctx,u),{...replyOptions(ctx),reply_markup:await payKeyboard(ctx)});}
 function packageKeyboard(){return {inline_keyboard:[[10,20,30].map(stars=>({text:`⭐ ${stars} Stars`,callback_data:`stars:buy:${stars}`})),[40,50,100].map(stars=>({text:`⭐ ${stars} Stars`,callback_data:`stars:buy:${stars}`}))],[{text:'❌ Close',callback_data:'stars:close'}]]};}
 function packageText(){return `⭐ <b>BIKA Balance Store</b>\n━━━━━━━━━━━━━━\nရွေးချယ်ပြီး Telegram Stars နဲ့ Balance ဝယ်ယူနိုင်ပါတယ်။\n\n<b>Package</b>\n⭐ 10 Stars\n⭐ 20 Stars\n⭐ 30 Stars\n⭐ 40 Stars\n⭐ 50 Stars\n⭐ 100 Stars\n\n💡 <b>Rate:</b> 1 Star = ${fmt(env.BAL_PER_STAR)} ${COIN}`;}
 function parsePayload(payload){const parts=String(payload||'').split(':');if(parts.length!==3||parts[0]!==STAR_PAYLOAD_PREFIX)return null;const stars=Number(parts[2]);const userId=String(parts[1]);return STAR_PACKAGES.includes(stars)&&/^\d+$/.test(userId)?{stars,userId}:null;}
@@ -63,15 +63,17 @@ module.exports=bot=>{
         paymentChargeId:payment.telegram_payment_charge_id,
         stars:order.stars,
         currency:payment.currency,
-        telegramPaymentId:payment.telegram_payment_charge_id,
       });
       if(result.duplicate)return;
       const user=await getUser(ctx.from.id);
-      await ctx.reply(`✅ <b>Balance ဝယ်ယူမှု အောင်မြင်ပါပြီ</b>\n━━━━━━━━━━━━━━\n⭐ Paid: <b>${order.stars} Stars</b>\n💰 Added: <b>${fmt(balanceAmount)}</b> ${COIN}\n💳 Balance: <b>${fmt(user?.balance||0)}</b> ${COIN}\n━━━━━━━━━━━━━━` ,{parse_mode:'HTML'});
+      await ctx.reply(`✅ <b>Balance ဝယ်ယူမှု အောင်မြင်ပါပြီ</b>\n━━━━━━━━━━━━━━\n⭐ Paid: <b>${order.stars} Stars</b>\n💰 Added: <b>${fmt(balanceAmount)}</b> ${COIN}\n💳 Balance: <b>${fmt(user?.balance||0)}</b> ${COIN}\n━━━━━━━━━━━━━━`,{parse_mode:'HTML'});
     }catch(err){
       console.error('[STARS_BALANCE_CREDIT_ERROR]',err);
       await ctx.reply('⚠️ Payment ရရှိပြီးပါပြီ။ Balance credit လုပ်ရာမှာ ခဏအခက်အခဲရှိနေပါတယ်။ Receipt ကို မဖျက်ပါနဲ့။');
     }
   });
+
+  bot.command('paysupport',ctx=>ctx.reply('💳 BIKA Balance / Telegram Stars payment အတွက် အကူအညီလိုပါက ဒီ bot မှာ payment receipt ကိုပေးပြီး support ကို ဆက်သွယ်နိုင်ပါတယ်။'));
+  bot.command('terms',ctx=>ctx.reply('📜 BIKA Balance Terms\n\nTelegram Stars ဖြင့်ဝယ်ယူသော Balance သည် BIKA bot အတွင်း digital game balance အဖြစ်သာ အသုံးပြုနိုင်ပါသည်။ Payment အောင်မြင်ကြောင်း Telegram က confirm လုပ်ပြီးမှ Balance ကို credit လုပ်ပါမည်။ Payment issue ဖြစ်ပါက /paysupport မှတစ်ဆင့် ဆက်သွယ်ပါ။'));
 };
 module.exports.getBalanceRankLabel=()=>'';
