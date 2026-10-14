@@ -17,7 +17,23 @@ const {
   creditSuccessfulPayment,
 } = require('../../services/starsBalanceService');
 
+let invoiceNonceCounter = 0;
 const pendingInvoices = new Set();
+const issuedInvoices = new Set();
+
+function invoiceNonce() {
+  invoiceNonceCounter = (invoiceNonceCounter + 1) % 1000000;
+  return Date.now().toString(36) + invoiceNonceCounter.toString(36);
+}
+
+function rememberIssuedInvoice(key) {
+  issuedInvoices.add(key);
+  // Bound memory while keeping recent callback idempotency protection.
+  if (issuedInvoices.size > 5000) {
+    const oldest = issuedInvoices.values().next().value;
+    issuedInvoices.delete(oldest);
+  }
+}
 
 function replyOptions(ctx) {
   const messageId = ctx.message?.message_id;
@@ -126,7 +142,7 @@ function confirmKeyboard(stars, userId) {
   return {
     inline_keyboard: [
       [{ text: '📜 Read Terms', callback_data: ownerCallback('bal:terms:confirm:' + stars, userId) }],
-      [{ text: '✅ I Agree & Pay ' + stars + ' Stars', style: 'success', callback_data: ownerCallback('bal:invoice:' + stars, userId) }],
+      [{ text: '✅ I Agree & Pay ' + stars + ' Stars', style: 'success', callback_data: 'bal:invoice:' + stars + ':' + String(userId) + ':' + invoiceNonce() }],
       [{ text: '⬅️ Back to Packages', callback_data: ownerCallback('bal:back:packages', userId) }],
     ],
   };
@@ -238,7 +254,7 @@ async function answerSupport(ctx, requestedOwnerId) {
   });
 }
 
-async function sendStarsInvoice(ctx, stars, requestedOwnerId) {
+async function sendStarsInvoice(ctx, stars, requestedOwnerId, requestNonce) {
   const userId = ownerId(ctx, requestedOwnerId);
   if (!(await assertMenuOwner(ctx, userId))) return;
   if (!Number.isInteger(stars) || !PACKAGES.includes(stars)) {
@@ -247,7 +263,11 @@ async function sendStarsInvoice(ctx, stars, requestedOwnerId) {
   }
 
   const screenMessageId = Number(ctx.callbackQuery?.message?.message_id);
-  const lockKey = [ctx.chat?.id, screenMessageId, userId, stars].join(':');
+  const lockKey = [ctx.chat?.id, screenMessageId, userId, stars, String(requestNonce || 'legacy')].join(':');
+  if (issuedInvoices.has(lockKey)) {
+    await answerCallback(ctx, 'This invoice has already been created. Use Back to Packages to start again.');
+    return;
+  }
   if (pendingInvoices.has(lockKey)) {
     await answerCallback(ctx, 'Your invoice is already being prepared.');
     return;
@@ -278,6 +298,7 @@ async function sendStarsInvoice(ctx, stars, requestedOwnerId) {
           inline_keyboard: [[{ text: '⭐ Pay ' + stars + ' Stars', pay: true }]],
         },
       });
+      rememberIssuedInvoice(lockKey);
     } catch (err) {
       await editScreen(ctx, confirmText(stars), confirmKeyboard(stars, userId)).catch(() => {});
       throw err;
@@ -330,9 +351,13 @@ function registerStarsHandlers(bot) {
     return confirmPackage(ctx, Number(ctx.match[1]), target);
   });
 
+  bot.action(/^bal:invoice:(10|20|30|40|50|100):(\d+):([a-z0-9]+)$/, async (ctx) => {
+    return sendStarsInvoice(ctx, Number(ctx.match[1]), ctx.match[2], ctx.match[3]);
+  });
+
   bot.action(/^bal:invoice:(10|20|30|40|50|100)(?::(\d+))?$/, async (ctx) => {
     const target = ctx.match[2] || ctx.from.id;
-    return sendStarsInvoice(ctx, Number(ctx.match[1]), target);
+    return sendStarsInvoice(ctx, Number(ctx.match[1]), target, 'legacy');
   });
 
   bot.action(/^bal:terms:packages(?::(\d+))?$/, async (ctx) => {
