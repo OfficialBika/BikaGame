@@ -44,8 +44,11 @@ async function creditSuccessfulPayment({ userId, stars, bal, chargeId, payload }
     const existing = await tx.findOne({ _id: markerId }, opts);
     if (existing) return { ok: true, duplicate: true, stars, bal: amount };
 
+    const userIdText = String(userId);
+    const userIds = [userIdText];
+    if (/^\d+$/.test(userIdText)) userIds.push(Number(userIdText));
     const user = await userModel.collection().findOneAndUpdate(
-      { userId: { $in: [String(userId), /^\\d+$/.test(String(userId)) ? Number(userId) : null].filter((v) => v !== null) } },
+      { userId: { $in: userIds } },
       { $inc: { balance: amount }, $set: { updatedAt: new Date() } },
       { session, returnDocument: 'after' }
     );
