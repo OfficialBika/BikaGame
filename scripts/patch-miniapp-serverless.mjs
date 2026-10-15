@@ -1,11 +1,30 @@
 import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = new URL('..', import.meta.url);
-const files = [
-  new URL('public/miniapp/index.html', root),
-  new URL('public/miniapp/app.js', root),
-  new URL('public/miniapp/app-core.js', root),
-];
+const rootUrl = new URL('..', import.meta.url);
+const rootPath = fileURLToPath(rootUrl);
+const staticRoot = path.join(rootPath, 'public', 'miniapp');
+const appFile = path.join(staticRoot, 'app.js');
+const coreFile = path.join(staticRoot, 'app-core.js');
+
+function collectStaticFiles(directory) {
+  const files = [];
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const full = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...collectStaticFiles(full));
+    } else if (entry.isFile() && /\.(?:html|js|css)$/i.test(entry.name)) {
+      files.push(full);
+    }
+  }
+  return files;
+}
+
+const files = collectStaticFiles(staticRoot);
+if (!files.includes(appFile) || !files.includes(coreFile) || !files.includes(path.join(staticRoot, 'index.html'))) {
+  throw new Error('Mini App source is incomplete: expected index.html, app.js and app-core.js.');
+}
 
 const endpointMap = {
   '/api/mini/config': 'getConfig',
@@ -77,7 +96,7 @@ for (const file of files) {
   const original = fs.readFileSync(file, 'utf8');
   let text = original;
 
-  if (file.pathname.endsWith('/app-core.js')) {
+  if (file === coreFile) {
     if (!text.includes('async function serverlessCall(path')) {
       if (!text.includes(oldCoreApi)) {
         throw new Error('Cannot safely patch app-core.js: expected the legacy API helper or an existing Serverless adapter.');
@@ -91,7 +110,7 @@ for (const file of files) {
     } else if (!text.includes("serverlessCall('/api/mini/config')")) {
       throw new Error('Cannot safely patch app-core.js: the config request has changed and must be reviewed.');
     }
-  } else if (file.pathname.endsWith('/app.js')) {
+  } else if (file === appFile) {
     if (!text.includes('Serverless?.call')) {
       if (!text.includes(oldAppApi)) {
         throw new Error('Cannot safely patch app.js: expected the legacy API helper or an existing Serverless adapter.');
@@ -108,12 +127,13 @@ for (const file of files) {
     }
   }
 
-  // Serverless static hosting serves this directory from the domain root.
-  // Legacy Express used /miniapp/ as a URL prefix.
+  // Serverless static hosting serves the Mini App directory from the domain root.
+  // Legacy Express used /miniapp/ as a URL prefix. Rewrite root asset paths in
+  // HTML, JS and CSS while keeping /api/mini/* API identifiers unchanged.
   text = text.replaceAll('/miniapp/', '/');
 
   if (/fetch\s*\(\s*["']\/api\/mini\//.test(text)) {
-    throw new Error('Legacy direct API fetch remains after patch: ' + file.pathname);
+    throw new Error('Legacy direct API fetch remains after patch: ' + path.relative(rootPath, file));
   }
 
   if (text !== original) {
@@ -122,15 +142,15 @@ for (const file of files) {
   }
 }
 
-const app = fs.readFileSync(files[1], 'utf8');
-const core = fs.readFileSync(files[2], 'utf8');
+const app = fs.readFileSync(appFile, 'utf8');
+const core = fs.readFileSync(coreFile, 'utf8');
 if (!app.includes('Serverless?.call') || !core.includes('Serverless?.call')) {
   throw new Error('Mini App Serverless adapter verification failed.');
 }
 for (const file of files) {
   const text = fs.readFileSync(file, 'utf8');
   if (/["']\/miniapp\/[^"']+\.(?:js|css|png|svg|webp|woff2?)(?:[?#][^"']*)?["']/i.test(text)) {
-    throw new Error('Legacy /miniapp/ static asset path remains in ' + file.pathname);
+    throw new Error('Legacy /miniapp/ static asset path remains in ' + path.relative(rootPath, file));
   }
 }
 
