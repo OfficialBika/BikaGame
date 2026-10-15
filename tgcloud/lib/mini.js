@@ -1,4 +1,5 @@
-import { EndpointError } from 'sdk';
+import { db, EndpointError } from 'sdk';
+import { and, desc, eq, or } from 'sdk/db';
 import {
   ensurePreviewUser, userById, history, playSlot, playPlinko, wheelSpin,
   dailyWheel, crashStart, crashStatus, crashCashout, minesStart, minesStatus,
@@ -6,6 +7,7 @@ import {
   shanCreate, shanJoin, shanStatus, shanDeal,
 } from './game.js';
 import { listTopUsers } from './users.js';
+import { transactions } from '../schema.js';
 import { miniConfig } from './config.js';
 
 function requireVerifiedUser(ctx) {
@@ -84,6 +86,36 @@ export async function dispatch(action, input, ctx) {
         throw new EndpointError('ဒီ Wallet ID ပိုင်ရှင်ကို မတွေ့ပါ။', { code: 'WALLET_NOT_FOUND' });
       }
       return { ok: true, wallet: walletView(target) };
+    }
+
+    case 'walletTransfers': {
+      const requestedLimit = Math.floor(Number(body.limit) || 50);
+      const limit = Math.max(1, Math.min(100, requestedLimit));
+      const rows = await db.select().from(transactions)
+        .where(and(
+          eq(transactions.type, 'gift'),
+          or(
+            eq(transactions.fromUserId, String(userId)),
+            eq(transactions.toUserId, String(userId)),
+          ),
+        ))
+        .orderBy(desc(transactions.createdAt))
+        .limit(limit)
+        .all();
+      return {
+        ok: true,
+        items: rows.map((row) => {
+          const sent = String(row.fromUserId) === String(userId);
+          return {
+            id: String(row.id),
+            direction: sent ? 'sent' : 'received',
+            amount: Number(row.amount || 0),
+            otherUserId: sent ? row.toUserId : row.fromUserId,
+            source: row.meta && typeof row.meta === 'object' ? row.meta.source || null : null,
+            createdAt: row.createdAt,
+          };
+        }),
+      };
     }
 
     // Keep preview transfers disabled until the platform exposes a supported
