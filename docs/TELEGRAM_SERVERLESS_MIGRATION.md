@@ -45,14 +45,14 @@ The CLI credentials are stored under .tgcloud/, which is ignored by Git. Never c
 
 Run these from the repository root after linking the test bot:
 
-    npx --yes @tgcloud/cli status
-    npx --yes @tgcloud/cli run handlers/message '{ message_id: 1, chat: { id: 10001, type: "private" }, from: { id: 10001, first_name: "Preview", is_bot: false }, text: "/start" }' --ctx '{ update: { update_id: 1 } }'
-    npx --yes @tgcloud/cli run handlers/message '{ message_id: 2, chat: { id: 10001, type: "private" }, from: { id: 10001, first_name: "Preview", is_bot: false }, text: "/balance" }' --ctx '{ update: { update_id: 2 } }'
-    npx --yes @tgcloud/cli run handlers/message '{ message_id: 3, chat: { id: 10001, type: "private" }, from: { id: 10001, first_name: "Preview", is_bot: false }, text: "/top10" }' --ctx '{ update: { update_id: 3 } }'
+    npx tgcloud status
+    npx tgcloud run handlers/message '{ message_id: 1, chat: { id: 10001, type: "private" }, from: { id: 10001, first_name: "Preview", is_bot: false }, text: "/start" }' --ctx '{ update: { update_id: 1 } }'
+    npx tgcloud run handlers/message '{ message_id: 2, chat: { id: 10001, type: "private" }, from: { id: 10001, first_name: "Preview", is_bot: false }, text: "/balance" }' --ctx '{ update: { update_id: 2 } }'
+    npx tgcloud run handlers/message '{ message_id: 3, chat: { id: 10001, type: "private" }, from: { id: 10001, first_name: "Preview", is_bot: false }, text: "/top10" }' --ctx '{ update: { update_id: 3 } }'
 
 The platform-run checks require a configured Serverless test bot. Local repository CI checks only syntax and contract boundaries; they do not claim to validate a live Telegram deployment.
 
-When ready to test schema changes, review npx --yes @tgcloud/cli diff, then use npx --yes @tgcloud/cli push and explicitly review npx --yes @tgcloud/cli migrate --dry-run before applying any migration. Never use --force as a substitute for reviewing state. Deployment and database migration are separate actions.
+When ready to test schema changes, review npx tgcloud diff, then use npx tgcloud push and explicitly review npx tgcloud migrate --dry-run before applying any migration. Never use --force as a substitute for reviewing state. Deployment and database migration are separate actions.
 
 ## Production data migration plan
 
