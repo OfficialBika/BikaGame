@@ -28,7 +28,9 @@ jobs:
           node -e "require('./src/games/slotEngine'); require('./src/games/blackjackEngine'); require('./src/games/diceEngine'); require('./src/games/shanEngine'); console.log('legacy game engines OK')"
 
       - name: Patch Mini App for Serverless host and endpoints
-        run: node scripts/patch-miniapp-serverless.mjs
+        run: |
+          node scripts/patch-miniapp-serverless.mjs
+          node scripts/patch-miniapp-serverless.mjs
 
       - name: Check Mini App JavaScript syntax
         shell: bash
