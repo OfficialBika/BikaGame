@@ -31,7 +31,8 @@ The Serverless preview currently contains:
 Serverless endpoint modules exist for the preview Mini App surface:
 
 - Config, profile, history and leaderboard
-- Wallet, wallet lookup and wallet transfer
+- Wallet, wallet lookup and read-only transfer history
+- Wallet transfer endpoint is intentionally disabled; it must not make separate balance and ledger writes
 - Slot, Plinko, Lucky Wheel and daily wheel
 - Rocket Crash start/bet/status/cashout
 - Mines start/status/open/cashout
