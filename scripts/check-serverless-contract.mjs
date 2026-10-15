@@ -98,6 +98,17 @@ for (const file of ['public/miniapp/app.js', 'public/miniapp/app-core.js']) {
   assert.match(source, /Serverless\?\.call/, file + ' must invoke Telegram.WebApp.Serverless.call');
 }
 
+const appSource = await readFile(path.join(staticRoot, 'app.js'), 'utf8');
+const coreSource = await readFile(path.join(staticRoot, 'app-core.js'), 'utf8');
+const appMapMatch = appSource.match(/const m=(\{[^}]*\}),name=m\[path\];/);
+const coreMapMatch = coreSource.match(/const endpointMap\s*=\s*(\{[^;]*\});/);
+assert.ok(appMapMatch, 'app.js must contain its synchronized Serverless endpoint map');
+assert.ok(coreMapMatch, 'app-core.js must contain its synchronized Serverless endpoint map');
+assert.deepEqual(JSON.parse(appMapMatch[1]), Object.fromEntries(endpointMap),
+  'app.js endpoint map must match scripts/patch-miniapp-serverless.mjs');
+assert.deepEqual(JSON.parse(coreMapMatch[1]), Object.fromEntries(endpointMap),
+  'app-core.js endpoint map must match scripts/patch-miniapp-serverless.mjs');
+
 const allFrontendApiPaths = new Set();
 for (const item of frontendSources) {
   for (const match of item.source.matchAll(/['"]\/api\/mini\/[^'"]+['"]/g)) {
