@@ -1,7 +1,5 @@
 import { table, integer, text, boolean, json, index } from 'sdk/db';
 
-// Serverless preview schema only. It is separate from the existing MongoDB database.
-// Do not apply a production migration until the migration plan has been reviewed.
 export const users = table('users', {
   tgId: integer('tg_id').primaryKey(),
   username: text('username'),
@@ -47,3 +45,58 @@ export const settings = table('settings', {
   value: json('value'),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 });
+
+// Serverless-native state. These tables are intentionally independent from MongoDB.
+export const gameSessions = table('game_sessions', {
+  id: text('id').primaryKey(),
+  userId: integer('user_id').notNull(),
+  game: text('game').notNull(),
+  status: text('status').notNull(),
+  state: json('state'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+}, (t) => ({
+  userGameIdx: index('idx_game_sessions_user_game').on(t.userId, t.game),
+  statusIdx: index('idx_game_sessions_status').on(t.game, t.status),
+}));
+
+export const gameHistory = table('game_history', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull(),
+  game: text('game').notNull(),
+  bet: integer('bet').notNull().default(0),
+  payout: integer('payout').notNull().default(0),
+  multiplier: integer('multiplier').notNull().default(0),
+  result: json('result'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+}, (t) => ({
+  userTimeIdx: index('idx_game_history_user_created').on(t.userId, t.createdAt),
+  gameTimeIdx: index('idx_game_history_game_created').on(t.game, t.createdAt),
+}));
+
+export const paymentEvents = table('payment_events', {
+  id: text('id').primaryKey(),
+  userId: integer('user_id').notNull(),
+  stars: integer('stars').notNull().default(0),
+  amount: integer('amount').notNull().default(0),
+  status: text('status').notNull(),
+  payload: json('payload'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+}, (t) => ({
+  userTimeIdx: index('idx_payment_events_user_created').on(t.userId, t.createdAt),
+}));
+
+export const orders = table('orders', {
+  id: text('id').primaryKey(),
+  userId: integer('user_id').notNull(),
+  kind: text('kind').notNull(),
+  status: text('status').notNull(),
+  amount: integer('amount').notNull().default(0),
+  meta: json('meta'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+}, (t) => ({
+  userTimeIdx: index('idx_orders_user_created').on(t.userId, t.createdAt),
+  statusIdx: index('idx_orders_status').on(t.status, t.createdAt),
+}));
