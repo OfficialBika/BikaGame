@@ -2,93 +2,92 @@
 
 ## Current status
 
-This branch remains an isolated Serverless migration/test branch. It is **not a production cutover**.
+This branch is an isolated Serverless migration and test branch, not a production cutover.
 
-- Branch: `feat/telegram-serverless`
-- Legacy Express/Telegraf/MongoDB production code is intentionally unchanged.
-- Telegram Serverless modules live under `tgcloud/`.
-- The Serverless project is linked to the dedicated test bot and the first preview database migration was applied successfully.
-- Mini App hosting is configured to serve `public/miniapp`.
-- A migration patch script is included to replace the legacy `/api/mini/*` calls with `Telegram.WebApp.Serverless.call()`.
+- Branch: \`feat/telegram-serverless\`
+- Existing Express/Telegraf/MongoDB production files are intentionally preserved.
+- Telegram Serverless modules live under \`tgcloud/\`.
+- The Serverless app is linked to a dedicated test bot; the first preview database migration created the original four tables.
+- \`tgcloud.jsonc\` configures \`public/miniapp\` for static hosting. Telegram Serverless serves this directory from the domain root, while the legacy Express app used the \`/miniapp/\` URL prefix. The patch script rewrites those static asset paths for the Serverless host.
+- The patch script also routes Mini App API calls through \`Telegram.WebApp.Serverless.call()\`.
 
-## Ported in this migration slice
+## Ported preview surface
 
-### Bot
+### Bot commands
 
-- `/start`
-- `/help`
-- `/balance` / `/mybalance`
-- `/top10`
-- `/daily`
-- `/wallet`
-- `/transfer <wallet_id> <amount>` (preview wallet IDs are Telegram user IDs)
-- `/slot <bet>`
-- `/plinko <bet>`
-- `/wheel <bet>`
-- `/mines <bet>` plus callback controls
-- `/crash <bet>` plus cash-out callback
-- `/blackjack <bet> [room]` plus hit/stand callbacks
-- `/shan <bet> [room]` plus draw/stay callbacks
-- `/serverlessstatus`
+The Serverless preview currently contains:
 
-### Mini App endpoint surface
+- \`/start\`, \`/help\`, \`/serverlessstatus\`
+- \`/balance\` / \`/mybalance\`, \`/top10\`, \`/wallet\`
+- \`/daily\`, \`/transfer\` (preview currency only)
+- \`/slot <bet>\`, \`/plinko <bet>\`, \`/wheel <bet>\`
+- \`/mines <bet>\` with callback controls
+- \`/crash <bet>\` with cash-out callback
+- \`/blackjack <bet> [room]\` with hit/stand callbacks
+- \`/shan <bet> [room]\` with action callbacks
 
-The Serverless branch now contains endpoint modules corresponding to the existing Mini App game surface:
+### Mini App endpoint files
 
-- config/profile/history/leaderboard
-- wallet/lookup/transfer
-- slot
-- Plinko
-- Lucky Wheel and daily wheel
+Serverless endpoint modules exist for the preview Mini App surface:
+
+- Config, profile, history and leaderboard
+- Wallet, wallet lookup and wallet transfer
+- Slot, Plinko, Lucky Wheel and daily wheel
 - Rocket Crash start/bet/status/cashout
 - Mines start/status/open/cashout
 - Web Blackjack status/join/hit/stand
 - Web Shan create/status/join/draw/stay/deal
-- background-music compatibility endpoint
+- Background-music compatibility response
 
-The endpoint layer uses the isolated Serverless SQLite database and never reads the production MongoDB database.
+These modules use the independent Serverless SQLite database. They do not read or write production MongoDB.
 
-## Important parity boundary
+## Production parity boundary
 
-The branch is **not yet an exact behavioral replacement for every production subsystem**. The following require separate parity work and must remain disabled for production cutover until their MongoDB logic, idempotency, concurrency and reconciliation behavior has been ported and tested:
+The migration is **not yet a complete behavioral replacement of all production systems**. Preview game/economy logic is for isolated testing and must not be treated as production-money code. Do not cut over the live bot or live Mini App until these are ported and tested with the existing business rules:
 
-- Production MongoDB data import/reconciliation.
-- Telegram Stars purchase/refund/payment reconciliation.
+- Source MongoDB import and reconciliation of users, balances, treasury and transaction ledgers.
+- Telegram Stars purchases/refunds and payment reconciliation.
 - Character/card shop, sell and inventory systems.
-- 2D betting and settlement.
-- Sports betting/event feeds.
-- Auctions and tournaments.
-- Promo RTP controls and scheduled/background jobs.
-- Broadcast/group/admin systems.
-- Any production treasury operation.
+- 2D betting and settlement, sports betting/event feeds.
+- Auctions, tournaments, Promo RTP controls and scheduled/background jobs.
+- Broadcast, group approval, admin/maintenance and owner-only operations.
+- Exact game result, multiplayer-room, payout and settlement parity.
 
-Do not treat the preview game implementations as production-money logic. They are isolated test implementations used to validate the Serverless runtime and Mini App wiring first.
+Any balance-changing transaction must be safe under retries and concurrent requests, with durable idempotency and all-or-nothing settlement. Do not expose a partially ported economy in production. Keep the legacy production runtime unchanged as the rollback path.
 
-## Mini App migration
+## Mini App patch
 
-The existing frontend calls Express paths such as `/api/mini/me` and `/api/mini/slot/spin`. Telegram Serverless endpoints are invoked by name through `Telegram.WebApp.Serverless.call()` instead. The repository includes:
+Run this from the repository root after pulling the branch:
 
-    scripts/patch-miniapp-serverless.mjs
-
-Run it once after pulling the branch. It patches the existing `public/miniapp/app.js` and `public/miniapp/app-core.js` without replacing the existing UI.
-
-## Validation order
-
-From the repository root:
-
-    npm run check
-    node scripts/check-serverless-contract.mjs
     node scripts/patch-miniapp-serverless.mjs
+
+The script is idempotent. It modifies the working copies of \`public/miniapp/index.html\`, \`app.js\`, \`app-core.js\`, and any HTML/JS/CSS file that contains legacy \`/miniapp/\` asset URLs. It preserves the existing UI, changes the API adapter to Serverless endpoint calls, and rewrites static asset paths to work from the Serverless domain root. These local generated changes are expected for a Serverless test deployment.
+
+Do not configure the production Mini App URL to the test app. Use only the dedicated test bot while validating this branch.
+
+## Validation and test order
+
+Run from the repository root:
+
     npm run check
+    node scripts/patch-miniapp-serverless.mjs
+    node scripts/patch-miniapp-serverless.mjs
     node scripts/check-serverless-contract.mjs
+    find public/miniapp -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+    npx tgcloud status
     npx tgcloud diff
+
+The second patch invocation verifies idempotency. The contract checker checks module imports, endpoint file coverage, API-to-endpoint mappings, Serverless call adapters, static configuration and root asset paths.
+
+Only after those checks pass, deploy to the linked **test bot**:
+
     npx tgcloud push
     npx tgcloud migrate --dry-run
 
-Review the migration output before applying it. For the test bot, additive tables are expected. Never use `--force` to bypass a concurrency conflict.
+Review the full diff and migration output. The current database already has the original four preview tables, so additional schema changes may be pending. Apply them only after verifying they are additive and expected. Code deployment and database migration are separate actions. Never use \`--force\` to bypass a deployment-state conflict.
 
 ## Production cutover rule
 
-Do not switch the live BIKA bot or Mini App yet. Before production cutover, freeze a MongoDB snapshot, reconcile users/balances/treasury/ledger/payments/open bets/events, port the remaining subsystems, test retry/replay and concurrent settlement behavior, and obtain explicit approval for the cutover.
+Do not switch the live BIKA bot or Mini App yet. Before any production cutover, freeze a MongoDB snapshot, reconcile user counts and aggregate balances, treasury, ledger/payment markers, open bets and events; port the remaining systems; test retries, replays, concurrent settlement and failure recovery; and obtain explicit approval for a planned cutover with a rollback point.
 
-Telegram Serverless uses an isolated SQLite-backed database and runs JavaScript in an isolated runtime with the platform SDK; it does not provide the existing Node/npm/MongoDB environment. The production application therefore remains the fallback until parity testing is complete.
+Telegram Serverless runs JavaScript in an isolated runtime with the platform SDK and its own SQLite-backed database. It does not provide the existing Express, Telegraf, npm-package or MongoDB runtime. The original production application remains the fallback until the remaining features pass parity testing.
