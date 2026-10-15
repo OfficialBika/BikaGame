@@ -33,6 +33,7 @@ const endpointMap = {
   '/api/mini/wallet': 'wallet',
   '/api/mini/wallet/lookup': 'walletLookup',
   '/api/mini/wallet/transfer': 'walletTransfer',
+  '/api/mini/wallet/transfers': 'walletTransfers',
   '/api/mini/slot/spin': 'slotSpin',
   '/api/mini/plinko/drop': 'plinkoDrop',
   '/api/mini/wheel/daily-status': 'wheelDailyStatus',
