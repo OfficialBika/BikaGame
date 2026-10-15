@@ -105,6 +105,13 @@ for (const file of files) {
       text = text.replace(oldCoreApi, helper + '\nasync function api(path, body = {}) { return serverlessCall(path, body); }');
     }
 
+    // Keep already-patched local worktrees in sync when the endpoint map grows.
+    const coreMapPattern = /const endpointMap\s*=\s*\{[^;]*\};/;
+    if (!coreMapPattern.test(text)) {
+      throw new Error('Cannot safely update app-core.js: the embedded endpoint map was not found.');
+    }
+    text = text.replace(coreMapPattern, 'const endpointMap = ' + mapLiteral + ';');
+
     const oldConfigFetch = "const res = await fetch('/api/mini/config', { cache: 'no-store' });\n  config = await res.json();";
     if (text.includes(oldConfigFetch)) {
       text = text.replace(oldConfigFetch, "config = await serverlessCall('/api/mini/config');");
@@ -119,6 +126,13 @@ for (const file of files) {
       const replacement = 'serverlessCall=async(path,body={})=>{const m=' + mapLiteral + ',name=m[path];if(!name)throw new Error("Serverless endpoint not mapped: "+path);return new Promise((resolve,reject)=>{const call=window.Telegram?.WebApp?.Serverless?.call;if(typeof call!=="function")return reject(new Error("Telegram Serverless API unavailable"));call(name,body,(e,d)=>{if(e){const x=new Error(e.message||"Serverless request failed");x.type=e.type;x.status=e.status;x.payload=e.parameters||{};reject(x)}else resolve(d)})})},api=async(path,body={})=>serverlessCall(path,body)';
       text = text.replace(oldAppApi, replacement);
     }
+
+    // Update an adapter that was patched by an earlier version of this script.
+    const appMapPattern = /const m=\{[^}]*\},name=m\[path\];/;
+    if (!appMapPattern.test(text)) {
+      throw new Error('Cannot safely update app.js: the embedded endpoint map was not found.');
+    }
+    text = text.replace(appMapPattern, 'const m=' + mapLiteral + ',name=m[path];');
 
     const oldMusicFetch = "fetch('/api/mini/background-music',{headers:{'X-Telegram-Init-Data':initData}})";
     if (text.includes(oldMusicFetch)) {
