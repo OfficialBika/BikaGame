@@ -1,50 +1,192 @@
 import { EndpointError } from 'sdk';
-import { ensurePreviewUser, userById, history, playSlot, playPlinko, wheelSpin, dailyWheel, crashStart, crashStatus, crashCashout, minesStart, minesStatus, minesOpen, minesCashout, blackjackJoin, blackjackStatus, blackjackAction, shanCreate, shanJoin, shanStatus, shanDeal, debit, credit } from './game.js';
+import {
+  ensurePreviewUser, userById, history, playSlot, playPlinko, wheelSpin,
+  dailyWheel, crashStart, crashStatus, crashCashout, minesStart, minesStatus,
+  minesOpen, minesCashout, blackjackJoin, blackjackStatus, blackjackAction,
+  shanCreate, shanJoin, shanStatus, shanDeal,
+} from './game.js';
 import { listTopUsers } from './users.js';
 import { miniConfig } from './config.js';
 
-function user(ctx) {
-  const u = ctx?.initData?.user;
-  if (!u?.id) throw new EndpointError('A verified Telegram Mini App user is required.', { code: 'AUTH_REQUIRED' });
-  return u;
+function requireVerifiedUser(ctx) {
+  const telegramUser = ctx?.initData?.user;
+  if (!telegramUser?.id) {
+    throw new EndpointError('A verified Telegram Mini App user is required.', { code: 'AUTH_REQUIRED' });
+  }
+  return telegramUser;
 }
-function walletView(u) {
-  const walletId=String(u.tgId);
-  return { walletId, maskedWalletId:walletId.length>4?`${walletId.slice(0,2)}••••${walletId.slice(-2)}`:walletId, balance:Number(u.balance||0), username:u.username||null, firstName:u.firstName, lastName:u.lastName, photoUrl:u.photoUrl||null };
+
+function walletView(user) {
+  const walletId = String(user.tgId);
+  return {
+    walletId,
+    maskedWalletId: walletId.length > 4
+      ? walletId.slice(0, 2) + '••••' + walletId.slice(-2)
+      : walletId,
+    balance: Number(user.balance || 0),
+    username: user.username || null,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    photoUrl: user.photoUrl || null,
+  };
 }
+
 export async function dispatch(action, input, ctx) {
-  const tg=user(ctx); const id=Number(tg.id); await ensurePreviewUser(tg); const body=input&&typeof input==='object'?input:{};
-  switch(action){
-    case 'config': return miniConfig();
-    case 'me': { const u=await userById(id); return {ok:true,user:{id:u.tgId,username:u.username,firstName:u.firstName,lastName:u.lastName,languageCode:u.languageCode,balance:u.balance},profile:{id:u.tgId,username:u.username,firstName:u.firstName,lastName:u.lastName,languageCode:u.languageCode},wallet:{...walletView(u),currency:'$',environment:'serverless-preview'},productionDataImported:false}; }
-    case 'wallet': { const u=await userById(id); return {ok:true,wallet:walletView(u)}; }
-    case 'walletLookup': { const targetId=Number(String(body.walletId||'')); if(!Number.isSafeInteger(targetId)||targetId<=0)throw new EndpointError('Wallet ID မမှန်ပါ။',{code:'WALLET_INVALID'}); const u=await userById(targetId); if(!u)throw new EndpointError('ဒီ Wallet ID ပိုင်ရှင်ကို မတွေ့ပါ။',{code:'WALLET_NOT_FOUND'}); return {ok:true,wallet:walletView(u)}; }
-    case 'walletTransfer': { const targetId=Number(String(body.walletId||'')); const amount=Math.floor(Number(body.amount)); if(!Number.isSafeInteger(targetId)||targetId<=0)throw new EndpointError('Wallet ID မမှန်ပါ။',{code:'WALLET_INVALID'}); if(!Number.isFinite(amount)||amount<=0)throw new EndpointError('Transfer amount မမှန်ပါ။',{code:'INVALID_TRANSFER_AMOUNT'}); if(targetId===id)throw new EndpointError('ကိုယ့် Wallet ကိုယ် ပြန်လွှဲလို့မရပါ။',{code:'TRANSFER_SELF'}); const target=await userById(targetId); if(!target)throw new EndpointError('ဒီ Wallet ID ပိုင်ရှင်ကို မတွေ့ပါ။',{code:'WALLET_NOT_FOUND'}); const key=`preview-transfer:${id}:${targetId}:${Date.now()}`; await debit(id,amount,'gift',{source:'mini_wallet',toUserId:targetId},key+':debit'); await credit(targetId,amount,'gift',{source:'mini_wallet',fromUserId:id},key+':credit'); const sender=await userById(id); return {ok:true,amount,senderBalance:sender.balance,recipientUserId:targetId,recipientWalletId:String(targetId)}; }
-    case 'history': return {ok:true,items:await history(id,body.game||'all',body.limit||20)};
-    case 'leaderboard': return {ok:true,items:await listTopUsers(body.limit||10)};
-    case 'slotSpin': return playSlot(id,body.bet);
-    case 'plinkoDrop': return playPlinko(id,body.bet);
-    case 'wheelSpin': return wheelSpin(id,body.bet);
-    case 'wheelDailyStatus': {const u=await userById(id);const today=new Date().toISOString().slice(0,10);const last=u.dailyClaimedAt?new Date(u.dailyClaimedAt).toISOString().slice(0,10):'';return {ok:true,available:today!==last,claimed:today===last,date:today,baseReward:100};}
-    case 'wheelDailySpin': return dailyWheel(id);
-    case 'crashStart': case 'crashBet': return crashStart(id,body.bet);
-    case 'crashStatus': return crashStatus(id);
-    case 'crashCashout': return crashCashout(id);
-    case 'minesStart': return minesStart(id,body.bet);
-    case 'minesStatus': return minesStatus(id);
-    case 'minesOpen': return minesOpen(id,body.index);
-    case 'minesCashout': return minesCashout(id);
-    case 'blackjackStatus': return blackjackStatus(id,body.roomId);
-    case 'blackjackJoin': return blackjackJoin(id,body.roomId,body.bet);
-    case 'blackjackHit': return blackjackAction(id,body.roomId,'hit');
-    case 'blackjackStand': return blackjackAction(id,body.roomId,'stand');
-    case 'shanCreate': return shanCreate(id,body.title);
-    case 'shanStatus': return shanStatus(id,body.roomId);
-    case 'shanJoin': return shanJoin(id,body.roomId,body.bet);
-    case 'shanDraw': return shanDeal(id,body.roomId,'draw');
-    case 'shanStay': return shanDeal(id,body.roomId,'stay');
-    case 'shanDeal': return shanDeal(id,body.roomId,'deal');
-    case 'backgroundMusic': return {ok:true,enabled:false};
-    default: throw new EndpointError('This Serverless feature is not available.',{code:'NOT_PORTED',action});
+  const telegramUser = requireVerifiedUser(ctx);
+  const userId = Number(telegramUser.id);
+  await ensurePreviewUser(telegramUser);
+  const body = input && typeof input === 'object' ? input : {};
+
+  switch (action) {
+    case 'config':
+      return miniConfig();
+
+    case 'me': {
+      const user = await userById(userId);
+      return {
+        ok: true,
+        user: {
+          id: user.tgId,
+          username: user.username,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          languageCode: user.languageCode,
+          balance: user.balance,
+        },
+        profile: {
+          id: user.tgId,
+          username: user.username,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          languageCode: user.languageCode,
+        },
+        wallet: {
+          ...walletView(user),
+          currency: '$',
+          environment: 'serverless-preview',
+        },
+        productionDataImported: false,
+      };
+    }
+
+    case 'wallet': {
+      const user = await userById(userId);
+      return { ok: true, wallet: walletView(user) };
+    }
+
+    case 'walletLookup': {
+      const targetId = Number(String(body.walletId || ''));
+      if (!Number.isSafeInteger(targetId) || targetId <= 0) {
+        throw new EndpointError('Wallet ID မမှန်ပါ။', { code: 'WALLET_INVALID' });
+      }
+      const target = await userById(targetId);
+      if (!target) {
+        throw new EndpointError('ဒီ Wallet ID ပိုင်ရှင်ကို မတွေ့ပါ။', { code: 'WALLET_NOT_FOUND' });
+      }
+      return { ok: true, wallet: walletView(target) };
+    }
+
+    // Keep preview transfers disabled until the platform exposes a supported
+    // atomic settlement primitive. Two independent balance writes can partially
+    // succeed, even in an isolated preview database.
+    case 'walletTransfer':
+      throw new EndpointError(
+        'Wallet transfers are disabled in this preview until atomic balance and ledger settlement is implemented.',
+        { code: 'PREVIEW_TRANSFER_DISABLED' },
+      );
+
+    case 'history':
+      return { ok: true, items: await history(userId, body.game || 'all', body.limit || 20) };
+
+    case 'leaderboard':
+      return { ok: true, items: await listTopUsers(body.limit || 10) };
+
+    case 'slotSpin':
+      return playSlot(userId, body.bet);
+
+    case 'plinkoDrop':
+      return playPlinko(userId, body.bet);
+
+    case 'wheelSpin':
+      return wheelSpin(userId, body.bet);
+
+    case 'wheelDailyStatus': {
+      const user = await userById(userId);
+      const today = new Date().toISOString().slice(0, 10);
+      const lastClaim = user.dailyClaimedAt
+        ? new Date(user.dailyClaimedAt).toISOString().slice(0, 10)
+        : '';
+      return {
+        ok: true,
+        available: today !== lastClaim,
+        claimed: today === lastClaim,
+        date: today,
+        baseReward: 100,
+      };
+    }
+
+    case 'wheelDailySpin':
+      return dailyWheel(userId);
+
+    case 'crashStart':
+    case 'crashBet':
+      return crashStart(userId, body.bet);
+
+    case 'crashStatus':
+      return crashStatus(userId);
+
+    case 'crashCashout':
+      return crashCashout(userId);
+
+    case 'minesStart':
+      return minesStart(userId, body.bet);
+
+    case 'minesStatus':
+      return minesStatus(userId);
+
+    case 'minesOpen':
+      return minesOpen(userId, body.index);
+
+    case 'minesCashout':
+      return minesCashout(userId);
+
+    case 'blackjackStatus':
+      return blackjackStatus(userId, body.roomId);
+
+    case 'blackjackJoin':
+      return blackjackJoin(userId, body.roomId, body.bet);
+
+    case 'blackjackHit':
+      return blackjackAction(userId, body.roomId, 'hit');
+
+    case 'blackjackStand':
+      return blackjackAction(userId, body.roomId, 'stand');
+
+    case 'shanCreate':
+      return shanCreate(userId, body.title);
+
+    case 'shanStatus':
+      return shanStatus(userId, body.roomId);
+
+    case 'shanJoin':
+      return shanJoin(userId, body.roomId, body.bet);
+
+    case 'shanDraw':
+      return shanDeal(userId, body.roomId, 'draw');
+
+    case 'shanStay':
+      return shanDeal(userId, body.roomId, 'stay');
+
+    case 'shanDeal':
+      return shanDeal(userId, body.roomId, 'deal');
+
+    case 'backgroundMusic':
+      return { ok: true, enabled: false };
+
+    default:
+      throw new EndpointError('This Serverless feature is not available.', {
+        code: 'NOT_PORTED',
+        action,
+      });
   }
 }
