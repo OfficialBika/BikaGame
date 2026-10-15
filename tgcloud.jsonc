@@ -1,5 +1,10 @@
 {
-  "$schema": "./node_modules/@tgcloud/cli/schema/tgcloud.json"
-  // Intentionally no "static" setting yet. The current Mini App still depends on
-  // Express routes and must not be hosted here until every required endpoint is ported.
+  "$schema": "./node_modules/@tgcloud/cli/schema/tgcloud.json",
+  "static": {
+    "source": "public/miniapp",
+    "spa": true,
+    "headers": [
+      { "path": "/*", "set": { "Referrer-Policy": "no-referrer" } }
+    ]
+  }
 }
