@@ -12,6 +12,8 @@ const required = [
   'handlers/callback_query.js',
   'endpoints/getProfile.js',
   'endpoints/getLeaderboard.js',
+  'endpoints/featureStatus.js',
+  'lib/featureStatus.js',
 ];
 
 async function walk(directory) {
@@ -118,7 +120,23 @@ for (const item of frontendSources) {
 const unmapped = [...allFrontendApiPaths].filter((apiPath) => !endpointMap.has(apiPath));
 assert.deepEqual(unmapped, [], 'all Mini App /api/mini/* references must exist in the Serverless endpoint map');
 
+const featureStatus = await readFile(path.join(cloudRoot, 'lib/featureStatus.js'), 'utf8');
+assert.match(featureStatus, /productionDataImported:\s*false/, 'feature status must mark data as not imported');
+assert.match(featureStatus, /Telegram Stars purchase\/refund/, 'unported payment work must be visible');
+assert.match(featureStatus, /2D betting/, 'unported 2D system must be visible');
+
+const gameSource = await readFile(path.join(cloudRoot, 'lib/game.js'), 'utf8');
+assert.match(gameSource, /function betOf\(value\)/, 'game bets must be validated instead of silently clamped');
+assert.match(gameSource, /or\(isNull\(users\.dailyClaimedAt\), lt\(users\.dailyClaimedAt, startOfToday\)\)/,
+  'daily reward must use a conditional claim update to prevent concurrent duplicate claims');
+
 const handler = await readFile(path.join(cloudRoot, 'handlers/message.js'), 'utf8');
+assert.match(handler, /command\.name === 'history' \|\| command\.name === 'myhistory'/,
+  'preview history command must be connected');
+assert.match(handler, /command\.name === 'features'/,
+  'feature status command must be connected');
+assert.match(handler, /command\.name === 'play' \|\| command\.name === 'app' \|\| command\.name === 'webapp'/,
+  'preview Mini App launch command must be connected');
 assert.match(handler, /command\.name\s*===?\s*['"]balance['"]|c\.name\s*===?\s*['"]balance['"]|c\.name\s*===\s*['"]balance['"]/,
   'read-only balance preview command must be present');
 assert.match(handler, /preview database|Preview database|Production balances and history have not been imported|Production MongoDB is never read/i,

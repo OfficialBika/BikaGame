@@ -28,6 +28,7 @@ if (!files.includes(appFile) || !files.includes(coreFile) || !files.includes(pat
 
 const endpointMap = {
   '/api/mini/config': 'getConfig',
+  '/api/mini/features': 'featureStatus',
   '/api/mini/me': 'me',
   '/api/mini/history': 'history',
   '/api/mini/wallet': 'wallet',

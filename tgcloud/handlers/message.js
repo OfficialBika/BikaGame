@@ -1,8 +1,9 @@
 import { api } from 'sdk';
 import { ensureUser, formatCoin, displayName, listTopUsers } from '../lib/users.js';
+import { getFeatureStatus } from '../lib/featureStatus.js';
 import {
   playSlot, playPlinko, wheelSpin, dailyWheel, crashStart, minesStart,
-  blackjackJoin, shanCreate, shanJoin,
+  blackjackJoin, shanCreate, shanJoin, history as getGameHistory,
 } from '../lib/game.js';
 
 function parseCommand(text) {
@@ -27,6 +28,7 @@ async function send(chatId, text, replyToMessageId, replyMarkup) {
 }
 
 const keyboard = (rows) => ({ inline_keyboard: rows });
+const SERVERLESS_MINIAPP_URL = 'https://app8694856110.tgcloud.ai/';
 const tileRow = (start, end) => Array.from({ length: end - start + 1 }, (_, offset) => {
   const index = start + offset;
   return { text: String(index + 1), callback_data: 'mines:open:' + index };
@@ -54,6 +56,9 @@ function helpText() {
     '/blackjack <bet> [room] — Blackjack preview',
     '/shan <bet> [room] — Shan Koe Mee preview',
     '/wallet — preview wallet ID and balance',
+    '/history — recent preview game history',
+    '/features — preview and migration status by feature',
+    '/play — open the Serverless test Mini App',
     '/serverlessstatus — migration status',
     '',
     '⚠️ This is isolated preview currency; production MongoDB is never read or modified.',
@@ -82,6 +87,29 @@ export default async function (message) {
         '• Production MongoDB import: NOT RUN',
         '• Production cutover: NOT APPROVED',
       ].join('\n'), message.message_id);
+    }
+    if (command.name === 'features') {
+      const status = getFeatureStatus();
+      const lines = status.groups.map((group) =>
+        group.label + ' [' + group.status + ']\\n' + group.features.map((feature) => '  • ' + feature).join('\\n')
+      );
+      return send(
+        chatId,
+        '🧭 BIKA Serverless Feature Status\\n\\n' + lines.join('\\n\\n') +
+          '\\n\\n⚠️ Preview database only. Production cutover is not approved.',
+        message.message_id,
+      );
+    }
+    if (command.name === 'play' || command.name === 'app' || command.name === 'webapp') {
+      if (message.chat?.type !== 'private') {
+        return send(chatId, 'Open the Mini App from the bot private chat.', message.message_id);
+      }
+      return send(
+        chatId,
+        '🎮 BIKA Game Serverless Test Mini App\\n\\nThis is an isolated preview, not the production wallet or game backend.',
+        message.message_id,
+        keyboard([[{ text: '🚀 Open BIKA Game Preview', web_app: { url: SERVERLESS_MINIAPP_URL } }]]),
+      );
     }
     if (command.name === 'transfer') {
       return send(
@@ -123,7 +151,25 @@ export default async function (message) {
         message.message_id,
       );
     }
-    if (command.name === 'top10') {
+    if (command.name === 'history' || command.name === 'myhistory') {
+      const rows = await getGameHistory(user.tgId, 'all', 10);
+      if (!rows.length) {
+        return send(chatId, '📜 Preview History\\n\\nNo preview games recorded yet.', message.message_id);
+      }
+      const lines = rows.map((row) => {
+        const betAmount = Number(row.bet || 0);
+        const payout = Number(row.payout || 0);
+        const net = payout - betAmount;
+        const date = row.createdAt ? new Date(row.createdAt).toISOString().slice(0, 16).replace('T', ' ') : '—';
+        return '• ' + String(row.game || 'game').toUpperCase() +
+          ' | Bet ' + formatCoin(betAmount) +
+          ' | Payout ' + formatCoin(payout) +
+          ' | Net ' + (net > 0 ? '+' : '') + formatCoin(net) +
+          ' | ' + date;
+      });
+      return send(chatId, '📜 Last 10 Preview Results\\n\\n' + lines.join('\\n'), message.message_id);
+    }
+    if (command.name === 'top10' || command.name === 'leaderboard') {
       const ranking = await listTopUsers(10);
       const lines = ranking.length
         ? ranking.map((player, index) => (index + 1) + '. ' + displayName(player) + ' — ' + formatCoin(player.balance) + ' $').join('\n')
@@ -236,6 +282,7 @@ export default async function (message) {
     });
     const messageByCode = {
       USER_INSUFFICIENT: 'Balance မလုံလောက်ပါ။',
+      INVALID_BET: 'Bet amount ကို 1 မှ 1,000,000 အတွင်း ကိန်းပြည့်ထည့်ပါ။',
       WHEEL_DAILY_USED: 'Daily reward ကို ဒီနေ့ claim လုပ်ပြီးသားပါ။',
       CRASH_RUNNING: 'Crash round လက်ရှိ run နေပါတယ်။',
       MINES_ACTIVE: 'Mines round လက်ရှိ run နေပါတယ်။',

@@ -1,5 +1,5 @@
 import { db } from 'sdk';
-import { and, desc, eq, gt } from 'sdk/db';
+import { and, desc, eq, gte, isNull, lt, or, sql } from 'sdk/db';
 import { gameHistory, gameSessions, transactions, users } from '../schema.js';
 
 const MIN_BET = 1;
@@ -7,7 +7,13 @@ const MAX_BET = 1000000;
 const now = () => new Date();
 const uid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 const n = (v, fallback = 0) => Number.isFinite(Number(v)) ? Number(v) : fallback;
-const betOf = (v) => Math.max(MIN_BET, Math.min(MAX_BET, Math.floor(n(v))));
+function betOf(value) {
+  const amount = Number(value);
+  if (!Number.isSafeInteger(amount) || amount < MIN_BET || amount > MAX_BET) {
+    throw new Error('INVALID_BET');
+  }
+  return amount;
+}
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 export async function userById(userId) {
@@ -44,15 +50,42 @@ export async function ensurePreviewUser(tgUser) {
 async function changeBalance(userId, delta, type, meta = {}, key = uid()) {
   const amount = Math.floor(n(delta));
   if (!amount) return userById(userId);
-  const user = await userById(userId);
-  if (!user) throw new Error('USER_NOT_FOUND');
-  if (amount < 0 && Number(user.balance) < -amount) throw new Error('USER_INSUFFICIENT');
-  const updated = await db.update(users)
-    .set({ balance: Number(user.balance) + amount, updatedAt: now(), totalWon: amount > 0 ? Number(user.totalWon || 0) + amount : Number(user.totalWon || 0), totalLost: amount < 0 ? Number(user.totalLost || 0) + Math.abs(amount) : Number(user.totalLost || 0) })
-    .where(eq(users.tgId, Number(userId))).run();
-  if (!updated?.rowsAffected) throw new Error('BALANCE_UPDATE_FAILED');
-  await db.insert(transactions).values({ type, fromUserId: amount < 0 ? String(userId) : null, toUserId: amount > 0 ? String(userId) : null, amount: Math.abs(amount), idempotencyKey: key, meta, createdAt: now() }).run();
-  return userById(userId);
+
+  const id = Number(userId);
+  const t = now();
+  const changes = {
+    balance: sql`${users.balance} + ${amount}`,
+    updatedAt: t,
+  };
+  if (amount > 0) changes.totalWon = sql`${users.totalWon} + ${amount}`;
+  if (amount < 0) changes.totalLost = sql`${users.totalLost} + ${Math.abs(amount)}`;
+
+  // The balance guard is part of the UPDATE itself, so two concurrent debits
+  // cannot both spend the same remaining balance.
+  const where = amount < 0
+    ? and(eq(users.tgId, id), gte(users.balance, Math.abs(amount)))
+    : eq(users.tgId, id);
+  const updated = await db.update(users).set(changes).where(where).run();
+  if (!updated?.rowsAffected) {
+    const current = await userById(id);
+    if (!current) throw new Error('USER_NOT_FOUND');
+    if (amount < 0) throw new Error('USER_INSUFFICIENT');
+    throw new Error('BALANCE_UPDATE_FAILED');
+  }
+
+  // Ledger persistence is still a separate operation in this preview runtime.
+  // Production money flows remain disabled until an all-or-nothing settlement
+  // design is available and tested end-to-end.
+  await db.insert(transactions).values({
+    type,
+    fromUserId: amount < 0 ? String(id) : null,
+    toUserId: amount > 0 ? String(id) : null,
+    amount: Math.abs(amount),
+    idempotencyKey: key,
+    meta,
+    createdAt: t,
+  }).run();
+  return userById(id);
 }
 
 export async function debit(userId, amount, type = 'bet', meta = {}, key) {
@@ -141,17 +174,48 @@ export async function wheelSpin(userId, amount) {
 }
 
 export async function dailyWheel(userId) {
-  const user = await userById(userId);
-  if (!user) throw new Error('USER_NOT_FOUND');
-  const today = new Date().toISOString().slice(0, 10);
-  const last = user.dailyClaimedAt ? new Date(user.dailyClaimedAt).toISOString().slice(0, 10) : '';
-  if (today === last) throw new Error('WHEEL_DAILY_USED');
-  const reward = weighted([50,100,250,500,1000].map((v) => ({ v, w: v === 1000 ? 1 : 5 })));
+  const id = Number(userId);
+  const existing = await userById(id);
+  if (!existing) throw new Error('USER_NOT_FOUND');
+
   const t = now();
-  await db.update(users).set({ balance: Number(user.balance) + reward, dailyClaimedAt: t, updatedAt: t }).where(eq(users.tgId, Number(userId))).run();
-  await db.insert(transactions).values({ type: 'daily_reward', fromUserId: null, toUserId: String(userId), amount: reward, idempotencyKey: `daily:${userId}:${today}`, meta: { game: 'wheel' }, createdAt: t }).onConflictDoNothing().run();
-  await recordGame(userId, 'wheel_daily', 0, reward, { reward }, reward);
-  const updated = await userById(userId);
+  const today = t.toISOString().slice(0, 10);
+  const startOfToday = new Date(today + 'T00:00:00.000Z');
+  const reward = weighted([50,100,250,500,1000].map((v) => ({ v, w: v === 1000 ? 1 : 5 })));
+
+  // Single conditional UPDATE provides a compare-and-set claim guard. Concurrent
+  // requests for the same user/date cannot both receive the daily reward.
+  const claim = await db.update(users)
+    .set({
+      balance: sql`${users.balance} + ${reward}`,
+      dailyClaimedAt: t,
+      updatedAt: t,
+    })
+    .where(and(
+      eq(users.tgId, id),
+      or(isNull(users.dailyClaimedAt), lt(users.dailyClaimedAt, startOfToday)),
+    ))
+    .returning()
+    .run();
+  const updated = Array.isArray(claim) ? claim[0] : null;
+  if (!updated) {
+    const current = await userById(id);
+    if (!current) throw new Error('USER_NOT_FOUND');
+    throw new Error('WHEEL_DAILY_USED');
+  }
+
+  // The preview ledger/history is retained for audit visibility. Live payouts
+  // are not enabled: the platform path needs a verified all-or-nothing write.
+  await db.insert(transactions).values({
+    type: 'daily_reward',
+    fromUserId: null,
+    toUserId: String(id),
+    amount: reward,
+    idempotencyKey: 'daily:' + id + ':' + today,
+    meta: { game: 'wheel' },
+    createdAt: t,
+  }).onConflictDoNothing().run();
+  await recordGame(id, 'wheel_daily', 0, reward, { reward }, reward);
   return { ok: true, reward, balance: updated.balance, claimed: true, date: today };
 }
 

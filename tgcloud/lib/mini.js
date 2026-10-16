@@ -9,6 +9,7 @@ import {
 import { listTopUsers } from './users.js';
 import { transactions } from '../schema.js';
 import { miniConfig } from './config.js';
+import { getFeatureStatus } from './featureStatus.js';
 
 function requireVerifiedUser(ctx) {
   const telegramUser = ctx?.initData?.user;
@@ -40,6 +41,9 @@ export async function dispatch(action, input, ctx) {
   const body = input && typeof input === 'object' ? input : {};
 
   switch (action) {
+    case 'features':
+      return getFeatureStatus();
+
     case 'config':
       return miniConfig();
 
