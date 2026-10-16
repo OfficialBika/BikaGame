@@ -91,12 +91,12 @@ export default async function (message) {
     if (command.name === 'features') {
       const status = getFeatureStatus();
       const lines = status.groups.map((group) =>
-        group.label + ' [' + group.status + ']\\n' + group.features.map((feature) => '  • ' + feature).join('\\n')
+        group.label + ' [' + group.status + ']\n' + group.features.map((feature) => '  • ' + feature).join('\n')
       );
       return send(
         chatId,
-        '🧭 BIKA Serverless Feature Status\\n\\n' + lines.join('\\n\\n') +
-          '\\n\\n⚠️ Preview database only. Production cutover is not approved.',
+        '🧭 BIKA Serverless Feature Status\n\n' + lines.join('\n\n') +
+          '\n\n⚠️ Preview database only. Production cutover is not approved.',
         message.message_id,
       );
     }
@@ -106,7 +106,7 @@ export default async function (message) {
       }
       return send(
         chatId,
-        '🎮 BIKA Game Serverless Test Mini App\\n\\nThis is an isolated preview, not the production wallet or game backend.',
+        '🎮 BIKA Game Serverless Test Mini App\n\nThis is an isolated preview, not the production wallet or game backend.',
         message.message_id,
         keyboard([[{ text: '🚀 Open BIKA Game Preview', web_app: { url: SERVERLESS_MINIAPP_URL } }]]),
       );
@@ -154,7 +154,7 @@ export default async function (message) {
     if (command.name === 'history' || command.name === 'myhistory') {
       const rows = await getGameHistory(user.tgId, 'all', 10);
       if (!rows.length) {
-        return send(chatId, '📜 Preview History\\n\\nNo preview games recorded yet.', message.message_id);
+        return send(chatId, '📜 Preview History\n\nNo preview games recorded yet.', message.message_id);
       }
       const lines = rows.map((row) => {
         const betAmount = Number(row.bet || 0);
@@ -167,7 +167,7 @@ export default async function (message) {
           ' | Net ' + (net > 0 ? '+' : '') + formatCoin(net) +
           ' | ' + date;
       });
-      return send(chatId, '📜 Last 10 Preview Results\\n\\n' + lines.join('\\n'), message.message_id);
+      return send(chatId, '📜 Last 10 Preview Results\n\n' + lines.join('\n'), message.message_id);
     }
     if (command.name === 'top10' || command.name === 'leaderboard') {
       const ranking = await listTopUsers(10);
