@@ -22,7 +22,7 @@ This is an isolated migration/test branch, not a production cutover. The existin
 - `/shan <bet> [room]` with draw/stay callbacks
 
 ### Mini App endpoint surface
-The endpoint modules are mapped to `Telegram.WebApp.Serverless.call()` for profile, config, history, leaderboard, feature status, wallet read/lookup/history, Slot, Plinko, Wheel, Daily Wheel, Crash, Mines, Blackjack, Shan and the background-music compatibility response.
+The endpoint modules are mapped to `Telegram.WebApp.Serverless.call()` for profile, config, history, leaderboard, feature status, wallet read/lookup/history, Slot, Plinko, Wheel, Daily Wheel, Crash, Mines, Blackjack, Shan and the background-music compatibility response. The Mini App navigation exposes a Features view that reads the same feature registry as the bot's `/features` command.
 
 These are **preview implementations**, not a replacement for production game math, multiplayer settlement or production balances. Bet validation now rejects invalid inputs; debits use a conditional balance update to stop concurrent overspend; Daily Wheel uses a conditional claim update to stop duplicate daily claims. Ledger writes still follow the balance write as a separate operation in the preview runtime, so money-moving production features remain disabled pending a verified all-or-nothing design.
 

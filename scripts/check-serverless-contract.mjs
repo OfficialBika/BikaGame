@@ -102,6 +102,8 @@ for (const file of ['public/miniapp/app.js', 'public/miniapp/app-core.js']) {
 
 const appSource = await readFile(path.join(staticRoot, 'app.js'), 'utf8');
 const coreSource = await readFile(path.join(staticRoot, 'app-core.js'), 'utf8');
+assert.match(appSource, /data-b=\"features\"/, 'Mini App navigation must expose the feature status page');
+assert.match(appSource, /api\(['\"]\/api\/mini\/features['\"]\)/, 'Mini App feature status page must call the featureStatus endpoint');
 const appMapMatch = appSource.match(/const m=(\{[^}]*\}),name=m\[path\];/);
 const coreMapMatch = coreSource.match(/const endpointMap\s*=\s*(\{[^;]*\});/);
 assert.ok(appMapMatch, 'app.js must contain its synchronized Serverless endpoint map');
