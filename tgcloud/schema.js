@@ -1,4 +1,4 @@
-import { table, integer, text, boolean, json, index, uniqueIndex } from 'sdk/db';
+import { table, integer, text, boolean, json, index, uniqueIndex, sql } from 'sdk/db';
 
 export const users = table('users', {
   tgId: integer('tg_id').primaryKey(),
@@ -104,5 +104,5 @@ export const orders = table('orders', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 }, (t) => ({
   userTimeIdx: index('idx_orders_user_created').on(t.userId, t.createdAt),
-  statusIdx: index('idx_orders_status_created').on(t.status, t.createdAt),
+  statusIdx: index('idx_orders_status').on(t.status, t.createdAt),
 }));
