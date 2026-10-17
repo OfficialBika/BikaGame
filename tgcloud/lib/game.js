@@ -186,21 +186,8 @@ export async function crashStart(userId, amount) {
   return { ok: true, sessionId: session.id, phase: 'running', multiplier: 1, balance: (await userById(userId)).balance };
 }
 export async function crashStatus(userId) {
-  const s = await activeSession(userId, 'crash');
-  const user = await userById(userId);
-  if (!s) return { ok: true, active: false, balance: Number(user?.balance || 0) };
-  const elapsed = Date.now() - new Date(s.createdAt).getTime();
-  const multiplier = Math.min(s.state.point, 1 + elapsed / 2500);
-  if (multiplier >= s.state.point) {
-    const settled = await db.update(gameSessions)
-      .set({ state: { ...s.state, crashedAt: Date.now() }, status: 'lost', updatedAt: now() })
-      .where(and(eq(gameSessions.id, s.id), eq(gameSessions.status, 'active'))).run();
-    if (settled?.rowsAffected) {
-      await recordGame(userId, 'crash', s.state.bet, 0, { point: s.state.point, crashed: true }, 0);
-    }
-    return { ok: true, active: false, crashed: true, multiplier: s.state.point, balance: Number((await userById(userId))?.balance || 0) };
-  }
-  return { ok: true, active: true, phase: 'running', multiplier: Number(multiplier.toFixed(2)), balance: Number(user?.balance || 0) };
+  void userId;
+  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
 export async function crashCashout(userId) {
   void userId;
@@ -227,18 +214,56 @@ export async function minesCashout(userId) {
 function deck() { const suits=['♠','♥','♦','♣']; const ranks=['A','2','3','4','5','6','7','8','9','10','J','Q','K']; return suits.flatMap(s=>ranks.map(r=>({r,s}))).sort(()=>Math.random()-0.5); }
 function cardValue(cards) { let total=0, aces=0; for(const c of cards){ if(c.r==='A'){total+=11;aces++;} else total += ['K','Q','J'].includes(c.r)?10:Number(c.r); } while(total>21&&aces--) total-=10; return total; }
 export async function blackjackJoin(userId, roomId, amount) {
-  const id = String(roomId || 'solo'); const existing = await db.select().from(gameSessions).where(eq(gameSessions.id, `bj:${id}`)).get();
-  const bet=betOf(amount);
-  if (!existing) { await debit(userId,bet,'blackjack_bet',{game:'blackjack',room:id},`bj:${id}:${userId}`); const d=deck(); const state={players:[{id:Number(userId),bet,cards:[d.pop(),d.pop()]}],dealer:[d.pop(),d.pop()],deck:d,started:true}; await db.insert(gameSessions).values({id:`bj:${id}`,userId:Number(userId),game:'blackjack',status:'active',state,createdAt:now(),updatedAt:now()}).run(); return blackjackStatus(userId,id); }
-  const state=existing.state||{}; if(state.players.some(p=>p.id===Number(userId))) return blackjackStatus(userId,id); if(state.players.length>=5) throw new Error('BJ_TABLE_FULL'); await debit(userId,bet,'blackjack_bet',{game:'blackjack',room:id},`bj:${id}:${userId}`); state.players.push({id:Number(userId),bet,cards:[state.deck.pop(),state.deck.pop()]}); await updateSession(existing.id,state); return blackjackStatus(userId,id);
+  void userId;
+  void roomId;
+  void amount;
+  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
-export async function blackjackStatus(userId, roomId) { const s=await db.select().from(gameSessions).where(eq(gameSessions.id,`bj:${String(roomId||'solo')}`)).get(); if(!s) return {ok:true,roomId:String(roomId||'solo'),active:false}; const me=s.state.players.find(p=>p.id===Number(userId)); return {ok:true,roomId:String(roomId||'solo'),active:s.status==='active',player:me||null,dealer:s.state.dealer.map((c,i)=>i===0&&s.state.players.some(p=>p.id===Number(userId))?c:{r:'?',s:'?'}),players:s.state.players.map(p=>({id:p.id,value:cardValue(p.cards)}))}; }
-export async function blackjackAction(userId, roomId, action) { const s=await db.select().from(gameSessions).where(eq(gameSessions.id,`bj:${String(roomId||'solo')}`)).get(); if(!s) throw new Error('BJ_ROOM_NOT_FOUND'); const st=s.state; const me=st.players.find(p=>p.id===Number(userId)); if(!me) throw new Error('BJ_NOT_JOINED'); if(action==='hit'){me.cards.push(st.deck.pop()); if(cardValue(me.cards)>21) action='stand';} if(action==='stand'){me.stood=true;} if(!['hit','stand'].includes(action)) throw new Error('BJ_NOT_PLAYING'); if(st.players.every(p=>p.stood||cardValue(p.cards)>21)){while(cardValue(st.dealer)<17) st.dealer.push(st.deck.pop()); for(const p of st.players){const pv=cardValue(p.cards), dv=cardValue(st.dealer); let payout=0; if(pv<=21&&(dv>21||pv>dv)) payout=Math.floor(p.bet*2); else if(pv===dv) payout=p.bet; if(payout) await credit(p.id,payout,'blackjack_win',{game:'blackjack',roomId},`bj-win:${s.id}:${p.id}`); await recordGame(p.id,'blackjack',p.bet,payout,{player:pv,dealer:dv},payout/p.bet);} await updateSession(s.id,st,'settled');} else await updateSession(s.id,st); return blackjackStatus(userId,roomId); }
+export async function blackjackStatus(userId, roomId) {
+  void userId;
+  void roomId;
+  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
+}
+export async function blackjackAction(userId, roomId, action) {
+  void userId;
+  void roomId;
+  void action;
+  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
+}
 
 function shanCards() { const d=deck(); return [d.pop(),d.pop(),d.pop()]; }
-export async function shanCreate(userId,title='Bika Shan Koe Mee Pro Table') { const id=`shan:${uid()}`; await db.insert(gameSessions).values({id,userId:Number(userId),game:'shan',status:'waiting',state:{title,players:[]},createdAt:now(),updatedAt:now()}).run(); return {ok:true,roomId:id.replace(/^shan:/,''),title}; }
-export async function shanJoin(userId,roomId,amount){const id=`shan:${String(roomId||'').replace(/^shan:/,'')}`;const s=await db.select().from(gameSessions).where(eq(gameSessions.id,id)).get();if(!s)throw new Error('SHAN_ROOM_NOT_FOUND');const st=s.state||{};if(st.players.some(p=>p.id===Number(userId)))return shanStatus(userId,roomId);if(st.players.length>=6)throw new Error('SHAN_TABLE_FULL');const bet=betOf(amount);await debit(userId,bet,'shan_bet',{game:'shan',roomId},`shan:${id}:${userId}`);st.players.push({id:Number(userId),bet,cards:[]});await updateSession(id,st,'waiting');return shanStatus(userId,roomId);}
-export async function shanStatus(userId,roomId){const id=`shan:${String(roomId||'').replace(/^shan:/,'')}`;const s=await db.select().from(gameSessions).where(eq(gameSessions.id,id)).get();if(!s)return {ok:true,active:false};const me=(s.state?.players||[]).find(p=>p.id===Number(userId));return {ok:true,active:s.status!=='settled',roomId:String(roomId||''),title:s.state.title,players:(s.state.players||[]).map(p=>({id:p.id,bet:p.bet,cards:p.cards,value:cardValue(p.cards)})),player:me||null};}
-export async function shanDeal(userId,roomId,action='deal'){const id=`shan:${String(roomId||'').replace(/^shan:/,'')}`;const s=await db.select().from(gameSessions).where(eq(gameSessions.id,id)).get();if(!s)throw new Error('SHAN_ROOM_NOT_FOUND');const st=s.state||{};const me=st.players.find(p=>p.id===Number(userId));if(!me)throw new Error('SHAN_NOT_JOINED');if(action==='draw'&&me.cards.length<3)me.cards.push(...shanCards().slice(0,1));else if(action==='deal'&&!me.cards.length)me.cards=shanCards();else if(action==='stay')me.stayed=true;else if(action==='draw'&&me.cards.length>=3)throw new Error('SHAN_MAX_CARDS');if(st.players.every(p=>p.stayed||p.cards.length>=3)){const max=Math.max(...st.players.map(p=>cardValue(p.cards)));for(const p of st.players){const payout=cardValue(p.cards)===max?Math.floor(p.bet*2):0;if(payout)await credit(p.id,payout,'shan_win',{game:'shan',roomId},`shan-win:${id}:${p.id}`);await recordGame(p.id,'shan',p.bet,payout,{value:cardValue(p.cards)},payout/p.bet);}await updateSession(id,st,'settled');}else await updateSession(id,st);return shanStatus(userId,roomId);}
+export async function shanCreate(userId, title = 'Bika Shan Koe Mee Pro Table') {
+  void userId;
+  void title;
+  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
+}
+export async function shanJoin(userId, roomId, amount) {
+  void userId;
+  void roomId;
+  void amount;
+  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
+}
+export async function shanStatus(userId, roomId) {
+  void userId;
+  void roomId;
+  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
+}
+export async function shanDeal(userId, roomId, action = 'deal') {
+  void userId;
+  void roomId;
+  void action;
+  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
+}
 
-export async function config() { return { ok:true, coin:'$', games:['crash','slot','blackjack','shan','plinko','wheel','mines'], serverless:true, productionDataImported:false }; }
+export async function config() {
+  return {
+    ok: true,
+    coin: '
+,
+    games: ['crash', 'slot', 'blackjack', 'shan', 'plinko', 'wheel', 'mines'],
+    serverless: true,
+    productionDataImported: false,
+    liveEconomyEnabled: false,
+    disabledReason: 'ATOMIC_SETTLEMENT_UNAVAILABLE',
+  };
+}
