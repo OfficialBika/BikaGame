@@ -141,35 +141,22 @@ function slotSpin() {
 }
 
 export async function playSlot(userId, amount) {
-  const bet = betOf(amount);
-  await debit(userId, bet, 'slot_bet', { game: 'slot' }, `slot:${userId}:${uid()}`);
-  const result = slotSpin();
-  const payout = Math.floor(bet * result.multiplier);
-  if (payout) await credit(userId, payout, 'slot_win', { game: 'slot', reels: result.reels }, `slot-win:${userId}:${uid()}`);
-  const user = await recordGame(userId, 'slot', bet, payout, result.reels, result.multiplier);
-  return { ok: true, game: 'slot', reels: result.reels, multiplier: result.multiplier, payout, balance: user.balance };
+  void userId;
+  void amount;
+  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
 
 export async function playPlinko(userId, amount) {
-  const bet = betOf(amount);
-  await debit(userId, bet, 'plinko_bet', { game: 'plinko' }, `plinko:${userId}:${uid()}`);
-  const multipliers = [0,0.5,0.8,1,1.2,1.5,2,3,5,10];
-  const multiplier = weighted(multipliers.map((v) => ({ v, w: v === 0 ? 12 : v >= 5 ? 1 : 8 })));
-  const payout = Math.floor(bet * multiplier);
-  if (payout) await credit(userId, payout, 'plinko_win', { game: 'plinko', multiplier }, `plinko-win:${userId}:${uid()}`);
-  const user = await recordGame(userId, 'plinko', bet, payout, { multiplier }, multiplier);
-  return { ok: true, game: 'plinko', multiplier, payout, balance: user.balance };
+  void userId;
+  void amount;
+  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
 
 const wheelSegments = [0, 50, 100, 250, 500, 1000, 2500, 5000];
 export async function wheelSpin(userId, amount) {
-  const bet = betOf(amount);
-  await debit(userId, bet, 'wheel_bet', { game: 'wheel' }, `wheel:${userId}:${uid()}`);
-  const reward = weighted(wheelSegments.map((v) => ({ v, w: v >= 2500 ? 1 : 6 })));
-  const payout = Math.floor(bet * reward / 100);
-  if (payout) await credit(userId, payout, 'wheel_win', { game: 'wheel', reward }, `wheel-win:${userId}:${uid()}`);
-  const user = await recordGame(userId, 'wheel', bet, payout, { reward }, reward);
-  return { ok: true, game: 'wheel', reward, payout, balance: user.balance, segments: wheelSegments };
+  void userId;
+  void amount;
+  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
 
 export async function dailyWheel(userId) {
@@ -179,11 +166,9 @@ export async function dailyWheel(userId) {
 
 function crashPoint() { return Math.max(1.01, Math.floor((1.01 + Math.random() * Math.random() * 7) * 100) / 100); }
 export async function crashStart(userId, amount) {
-  const bet = betOf(amount);
-  if (await activeSession(userId, 'crash')) throw new Error('CRASH_RUNNING');
-  await debit(userId, bet, 'crash_bet', { game: 'crash' }, `crash:${userId}:${uid()}`);
-  const session = await createSession(userId, 'crash', { bet, point: crashPoint(), startedAt: Date.now(), cashedOut: false });
-  return { ok: true, sessionId: session.id, phase: 'running', multiplier: 1, balance: (await userById(userId)).balance };
+  void userId;
+  void amount;
+  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
 export async function crashStatus(userId) {
   void userId;
