@@ -152,6 +152,20 @@ const safetyStatus = await readFile(path.join(cloudRoot, 'lib/featureStatus.js')
 assert.match(safetyStatus, /liveEconomyEnabled:\s*false/,
   'feature registry must not advertise live economy while settlement is unsupported');
 
+const callbackHandler = await readFile(path.join(cloudRoot, 'handlers/callback_query.js'), 'utf8');
+assert.match(callbackHandler, /ATOMIC_SETTLEMENT_UNAVAILABLE/,
+  'Telegram game callbacks must fail closed until atomic settlement is available');
+for (const action of ['crash', 'mines', 'bj', 'shan']) {
+  assert.match(callbackHandler, new RegExp("game === '" + action + "'"),
+    action + ' callbacks must be covered by the settlement safety gate');
+}
+const messageHandler = await readFile(path.join(cloudRoot, 'handlers/message.js'), 'utf8');
+assert.match(messageHandler, /balanceMovingCommands/,
+  'Telegram money-moving commands must be disabled at the handler boundary');
+assert.match(messageHandler, /ATOMIC_SETTLEMENT_UNAVAILABLE|Live money movement is disabled/,
+  'Telegram command guard must communicate the current settlement gate');
+
+
 
 const handler = await readFile(path.join(cloudRoot, 'handlers/message.js'), 'utf8');
 assert.match(handler, /command\.name === 'history' \|\| command\.name === 'myhistory'/,
