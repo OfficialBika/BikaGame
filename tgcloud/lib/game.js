@@ -1,19 +1,8 @@
 import { db } from 'sdk';
-import { and, desc, eq, gte, sql } from 'sdk/db';
-import { gameHistory, gameSessions, transactions, users } from '../schema.js';
+import { desc, eq } from 'sdk/db';
+import { gameHistory, users } from '../schema.js';
 
-const MIN_BET = 1;
-const MAX_BET = 1000000;
 const now = () => new Date();
-const uid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-const n = (v, fallback = 0) => Number.isFinite(Number(v)) ? Number(v) : fallback;
-function betOf(value) {
-  const amount = Number(value);
-  if (!Number.isSafeInteger(amount) || amount < MIN_BET || amount > MAX_BET) {
-    throw new Error('INVALID_BET');
-  }
-  return amount;
-}
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 export async function userById(userId) {
@@ -47,46 +36,16 @@ export async function ensurePreviewUser(tgUser) {
   return userById(id);
 }
 
-async function changeBalance(userId, delta, type, meta = {}, key = uid()) {
-  const amount = Math.floor(n(delta));
-  if (!Number.isSafeInteger(amount) || amount === 0) return userById(userId);
-  if (!Number.isSafeInteger(Number(userId)) || Number(userId) <= 0) throw new Error('INVALID_USER');
-  if (typeof key !== 'string' || !key || key.length > 200) throw new Error('IDEMPOTENCY_KEY_REQUIRED');
-
-  const id = Number(userId);
-  const existing = await db.select().from(transactions)
-    .where(eq(transactions.idempotencyKey, key)).get();
-  if (existing) {
-    const same = existing.type === type && Number(existing.amount) === Math.abs(amount) &&
-      String(existing.fromUserId || '') === (amount < 0 ? String(id) : '') &&
-      String(existing.toUserId || '') === (amount > 0 ? String(id) : '');
-    if (!same) throw new Error('IDEMPOTENCY_KEY_CONFLICT');
-    return userById(id);
-  }
-
-  const t = now();
-  const where = amount < 0
-    ? and(eq(users.tgId, id), gte(users.balance, Math.abs(amount)))
-    : eq(users.tgId, id);
-  const changes = {
-    balance: sql`${users.balance} + ${amount}`,
-    updatedAt: t,
-  };
-  if (amount > 0) changes.totalWon = sql`${users.totalWon} + ${amount}`;
-  if (amount < 0) changes.totalLost = sql`${users.totalLost} + ${Math.abs(amount)}`;
-
-  // The platform preview SDK does not expose a verified multi-statement
-  // transaction primitive here. Refuse real balance mutations rather than risk
-  // balance/ledger divergence if the process stops between statements.
+async function changeBalance() {
   throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
 
-export async function debit(userId, amount, type = 'bet', meta = {}, key) {
-  return changeBalance(userId, -betOf(amount), type, meta, key);
+export async function debit() {
+  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
 
-export async function credit(userId, amount, type = 'win', meta = {}, key) {
-  return changeBalance(userId, Math.max(0, Math.floor(n(amount))), type, meta, key);
+export async function credit() {
+  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
 
 export async function recordGame(userId, game, bet, payout, result, multiplier = 0) {
@@ -101,45 +60,6 @@ export async function history(userId, game = 'all', limit = 20) {
   return game === 'all' ? rows : rows.filter((x) => x.game === game).slice(0, take);
 }
 
-async function activeSession(userId, game) {
-  return db.select().from(gameSessions).where(and(eq(gameSessions.userId, Number(userId)), eq(gameSessions.game, game), eq(gameSessions.status, 'active'))).get();
-}
-
-async function createSession(userId, game, state) {
-  const t = now();
-  const id = uid();
-  await db.insert(gameSessions).values({ id, userId: Number(userId), game, status: 'active', state, createdAt: t, updatedAt: t }).run();
-  return db.select().from(gameSessions).where(eq(gameSessions.id, id)).get();
-}
-
-async function updateSession(id, state, status = 'active') {
-  await db.update(gameSessions).set({ state, status, updatedAt: now() }).where(eq(gameSessions.id, id)).run();
-  return db.select().from(gameSessions).where(eq(gameSessions.id, id)).get();
-}
-
-async function settleSession(id, status) {
-  const result = await db.update(gameSessions).set({ status, updatedAt: now() })
-    .where(and(eq(gameSessions.id, id), eq(gameSessions.status, 'active'))).run();
-  return Boolean(result?.rowsAffected);
-}
-
-function weighted(items) {
-  const total = items.reduce((a, x) => a + x.w, 0);
-  let r = Math.random() * total;
-  for (const x of items) { r -= x.w; if (r < 0) return x.v; }
-  return items[items.length - 1].v;
-}
-
-const slotSymbols = ['🍒','🍋','🍉','🔔','⭐','BAR','7'];
-const slotPays = { '7,7,7':20, 'BAR,BAR,BAR':15, '⭐,⭐,⭐':12, '🔔,🔔,🔔':9, '🍉,🍉,🍉':7, '🍋,🍋,🍋':5, '🍒,🍒,🍒':3 };
-function slotSpin() {
-  const reels = [0,1,2].map(() => weighted(slotSymbols.map((v, i) => ({ v, w: [3200,2200,1500,900,450,200,100][i] }))));
-  const key = reels.join(',');
-  let multiplier = slotPays[key] || 0;
-  if (!multiplier && new Set(reels).size === 2) multiplier = 1.5;
-  return { reels, multiplier, payoutMultiplier: multiplier };
-}
-
 export async function playSlot(userId, amount) {
   void userId;
   void amount;
@@ -152,7 +72,6 @@ export async function playPlinko(userId, amount) {
   throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
 
-const wheelSegments = [0, 50, 100, 250, 500, 1000, 2500, 5000];
 export async function wheelSpin(userId, amount) {
   void userId;
   void amount;
@@ -164,7 +83,6 @@ export async function dailyWheel(userId) {
   throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
 
-function crashPoint() { return Math.max(1.01, Math.floor((1.01 + Math.random() * Math.random() * 7) * 100) / 100); }
 export async function crashStart(userId, amount) {
   void userId;
   void amount;
@@ -179,7 +97,6 @@ export async function crashCashout(userId) {
   throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
 
-function minesLayout(count = 3) { const set = new Set(); while (set.size < count) set.add(Math.floor(Math.random() * 25)); return [...set]; }
 export async function minesStart(userId, amount) {
   void userId;
   void amount;
@@ -196,8 +113,6 @@ export async function minesCashout(userId) {
   throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
 
-function deck() { const suits=['♠','♥','♦','♣']; const ranks=['A','2','3','4','5','6','7','8','9','10','J','Q','K']; return suits.flatMap(s=>ranks.map(r=>({r,s}))).sort(()=>Math.random()-0.5); }
-function cardValue(cards) { let total=0, aces=0; for(const c of cards){ if(c.r==='A'){total+=11;aces++;} else total += ['K','Q','J'].includes(c.r)?10:Number(c.r); } while(total>21&&aces--) total-=10; return total; }
 export async function blackjackJoin(userId, roomId, amount) {
   void userId;
   void roomId;
@@ -216,7 +131,6 @@ export async function blackjackAction(userId, roomId, action) {
   throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
 
-function shanCards() { const d=deck(); return [d.pop(),d.pop(),d.pop()]; }
 export async function shanCreate(userId, title = 'Bika Shan Koe Mee Pro Table') {
   void userId;
   void title;
