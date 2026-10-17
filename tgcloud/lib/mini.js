@@ -92,7 +92,10 @@ export async function dispatch(action, input, ctx) {
       return { ok: true, wallet: walletView(target) };
     }
 
-    case 'walletTransfers': {
+    case 'walletTransfers':
+      throw new EndpointError('Transfer history is unavailable until ledger settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
+
+    case 'walletTransfersLegacyDisabled': {
       const requestedLimit = Math.floor(Number(body.limit) || 50);
       const limit = Math.max(1, Math.min(100, requestedLimit));
       const rows = await db.select().from(transactions)
@@ -169,7 +172,7 @@ export async function dispatch(action, input, ctx) {
       throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'crashStatus':
-      return crashStatus(userId);
+      throw new EndpointError('Active game sessions are disabled until settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'crashCashout':
       throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
@@ -178,7 +181,7 @@ export async function dispatch(action, input, ctx) {
       throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'minesStatus':
-      return minesStatus(userId);
+      throw new EndpointError('Active game sessions are disabled until settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'minesOpen':
       throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
@@ -187,7 +190,7 @@ export async function dispatch(action, input, ctx) {
       throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'blackjackStatus':
-      return blackjackStatus(userId, body.roomId);
+      throw new EndpointError('Active game sessions are disabled until settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'blackjackJoin':
       throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
@@ -199,10 +202,10 @@ export async function dispatch(action, input, ctx) {
       throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'shanCreate':
-      return shanCreate(userId, body.title);
+      throw new EndpointError('Multiplayer tables are disabled until settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'shanStatus':
-      return shanStatus(userId, body.roomId);
+      throw new EndpointError('Multiplayer tables are disabled until settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'shanJoin':
       throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
