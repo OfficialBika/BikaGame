@@ -146,4 +146,9 @@ assert.match(handler, /command\.name\s*===?\s*['"]balance['"]|c\.name\s*===?\s*[
 assert.match(handler, /preview database|Preview database|Production balances and history have not been imported|Production MongoDB is never read/i,
   'preview must warn that production data is not migrated');
 
+const legacyIndex = await readFile(path.join(root, 'index.js'), 'utf8');
+assert.match(legacyIndex, /MINIAPP_ALLOWED_ORIGINS/, 'Render API CORS must use an explicit origin allowlist');
+const productionMiniRoutes = await readFile(path.join(root, 'src', 'web', 'miniAppRoutes.js'), 'utf8');
+assert.match(productionMiniRoutes, /app\\.post\\(['"]\\/api\\/mini\\/features['"]/, 'Render Mini App must expose its production API feature status route');
+
 console.log('Serverless contract checks passed (' + modules.length + ' modules, ' + endpointMap.size + ' endpoint mappings, ' + frontendFiles.length + ' static files checked).');
