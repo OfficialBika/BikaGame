@@ -2,9 +2,9 @@ name: serverless-migration-check
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, feat/telegram-serverless]
   push:
-    branches: [feat/telegram-serverless]
+    branches: [feat/telegram-serverless, feat/telegram-serverless-hardening]
 
 jobs:
   check-serverless-preview:
