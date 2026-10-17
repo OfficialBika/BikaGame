@@ -128,17 +128,22 @@ assert.match(featureStatus, /Telegram Stars purchase\/refund/, 'unported payment
 assert.match(featureStatus, /2D betting/, 'unported 2D system must be visible');
 
 const gameSource = await readFile(path.join(cloudRoot, 'lib/game.js'), 'utf8');
-assert.match(gameSource, /function betOf\(value\)/, 'game bets must be validated instead of silently clamped');
-assert.match(gameSource, /or\(isNull\(users\.dailyClaimedAt\), lt\(users\.dailyClaimedAt, startOfToday\)\)/,
-  'daily reward must use a conditional claim update to prevent concurrent duplicate claims');
 assert.match(gameSource, /ATOMIC_SETTLEMENT_UNAVAILABLE/,
   'balance mutations must fail closed until atomic settlement is verified');
-assert.match(gameSource, /async function settleSession/,
-  'multi-step game cashouts must guard session settlement with a conditional update');
-assert.match(gameSource, /CRASH_ALREADY_SETTLED/,
-  'Crash cashout must reject repeated settlement');
-assert.match(gameSource, /MINES_ALREADY_SETTLED/,
-  'Mines cashout must reject repeated settlement');
+for (const action of [
+  'playSlot', 'playPlinko', 'wheelSpin', 'dailyWheel',
+  'crashStart', 'crashStatus', 'crashCashout',
+  'minesStart', 'minesStatus', 'minesOpen', 'minesCashout',
+  'blackjackJoin', 'blackjackStatus', 'blackjackAction',
+  'shanCreate', 'shanJoin', 'shanStatus', 'shanDeal',
+]) {
+  const body = gameSource.match(new RegExp('export async function ' + action + '\\b([\\s\\S]*?)(?=\\nexport async function|\\nexport function|\\nexport const|\\n$)'));
+  assert.ok(body, action + ' must have an explicit Serverless contract');
+  assert.match(body[1], /ATOMIC_SETTLEMENT_UNAVAILABLE/,
+    action + ' must remain disabled until atomic settlement is verified');
+}
+assert.match(gameSource, /liveEconomyEnabled:\s*false/,
+  'game configuration must not enable a live economy');
 
 const miniSource = await readFile(path.join(cloudRoot, 'lib/mini.js'), 'utf8');
 assert.match(miniSource, /ATOMIC_SETTLEMENT_UNAVAILABLE/,
