@@ -173,49 +173,8 @@ export async function wheelSpin(userId, amount) {
 }
 
 export async function dailyWheel(userId) {
-  const id = Number(userId);
-  const existing = await userById(id);
-  if (!existing) throw new Error('USER_NOT_FOUND');
-
-  const t = now();
-  const today = t.toISOString().slice(0, 10);
-  const startOfToday = new Date(today + 'T00:00:00.000Z');
-  const reward = weighted([50,100,250,500,1000].map((v) => ({ v, w: v === 1000 ? 1 : 5 })));
-
-  // Single conditional UPDATE provides a compare-and-set claim guard. Concurrent
-  // requests for the same user/date cannot both receive the daily reward.
-  const claim = await db.update(users)
-    .set({
-      balance: sql`${users.balance} + ${reward}`,
-      dailyClaimedAt: t,
-      updatedAt: t,
-    })
-    .where(and(
-      eq(users.tgId, id),
-      or(isNull(users.dailyClaimedAt), lt(users.dailyClaimedAt, startOfToday)),
-    ))
-    .returning()
-    .run();
-  const updated = Array.isArray(claim) ? claim[0] : null;
-  if (!updated) {
-    const current = await userById(id);
-    if (!current) throw new Error('USER_NOT_FOUND');
-    throw new Error('WHEEL_DAILY_USED');
-  }
-
-  // The preview ledger/history is retained for audit visibility. Live payouts
-  // are not enabled: the platform path needs a verified all-or-nothing write.
-  await db.insert(transactions).values({
-    type: 'daily_reward',
-    fromUserId: null,
-    toUserId: String(id),
-    amount: reward,
-    idempotencyKey: 'daily:' + id + ':' + today,
-    meta: { game: 'wheel' },
-    createdAt: t,
-  }).onConflictDoNothing().run();
-  await recordGame(id, 'wheel_daily', 0, reward, { reward }, reward);
-  return { ok: true, reward, balance: updated.balance, claimed: true, date: today };
+  void userId;
+  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
 
 function crashPoint() { return Math.max(1.01, Math.floor((1.01 + Math.random() * Math.random() * 7) * 100) / 100); }
