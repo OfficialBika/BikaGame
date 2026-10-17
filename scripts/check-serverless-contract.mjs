@@ -151,9 +151,15 @@ assert.match(gameSource, /liveEconomyEnabled:\s*false/,
 const miniSource = await readFile(path.join(cloudRoot, 'lib/mini.js'), 'utf8');
 assert.match(miniSource, /ATOMIC_SETTLEMENT_UNAVAILABLE/,
   'Mini App balance-changing endpoints must fail closed until settlement is atomic');
-for (const action of ['slotSpin', 'plinkoDrop', 'wheelSpin', 'wheelDailySpin', 'crashStart', 'crashCashout', 'minesStart', 'minesOpen', 'minesCashout', 'blackjackJoin', 'blackjackHit', 'blackjackStand', 'shanJoin', 'shanDraw', 'shanStay', 'shanDeal']) {
-  assert.ok(miniSource.includes("case '" + action + "':"),
-    action + ' must be disabled until atomic balance settlement is implemented');
+for (const action of [
+  'slotSpin', 'plinkoDrop', 'wheelSpin', 'wheelDailySpin', 'crashStart', 'crashCashout',
+  'minesStart', 'minesOpen', 'minesCashout', 'blackjackJoin', 'blackjackHit', 'blackjackStand',
+  'shanJoin', 'shanDraw', 'shanStay', 'shanDeal', 'walletTransfer', 'walletTransfers',
+  'daily', 'dailyClaim', 'claimDaily', 'buy', 'purchase', 'starsPurchase', 'gift', 'transfer',
+  'shopBuy', 'sell', 'cardSell', 'orderCreate', 'auctionBid', 'tournamentJoin', 'bet2d', 'sportsBet',
+]) {
+  assert.match(miniSource, new RegExp("case '" + action + "':\\s*throw new EndpointError"),
+    action + ' must be explicitly disabled before production parity is verified');
 }
 
 const safetyStatus = await readFile(path.join(cloudRoot, 'lib/featureStatus.js'), 'utf8');
