@@ -258,7 +258,13 @@ export async function shanDeal(userId, roomId, action = 'deal') {
 export async function config() {
   return {
     ok: true,
-    coin: '
+    coin: '    games: ['crash', 'slot', 'blackjack', 'shan', 'plinko', 'wheel', 'mines'],
+    serverless: true,
+    productionDataImported: false,
+    liveEconomyEnabled: false,
+    disabledReason: 'ATOMIC_SETTLEMENT_UNAVAILABLE',
+  };
+}
 ,
     games: ['crash', 'slot', 'blackjack', 'shan', 'plinko', 'wheel', 'mines'],
     serverless: true,
