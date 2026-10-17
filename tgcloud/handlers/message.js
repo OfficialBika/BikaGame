@@ -41,28 +41,21 @@ const minesKeyboard = () => keyboard([
 
 function helpText() {
   return [
-    '🎮 BIKA Game — Serverless preview',
+    '🎮 BIKA Game — Serverless migration test',
     '',
-    '/start — initialize preview profile',
+    '/start — create isolated test profile',
     '/help — commands',
-    '/balance — preview balance',
-    '/daily — preview daily reward',
-    '/top10 — preview leaderboard',
-    '/slot <bet> — slot preview',
-    '/plinko <bet> — Plinko preview',
-    '/wheel <bet> — lucky wheel preview',
-    '/mines <bet> — Mines preview',
-    '/crash <bet> — Rocket Crash preview',
-    '/blackjack <bet> [room] — Blackjack preview',
-    '/shan <bet> [room] — Shan Koe Mee preview',
-    '/wallet — preview wallet ID and balance',
-    '/history — recent preview game history',
-    '/features — preview and migration status by feature',
+    '/balance — test database balance (not production)',
+    '/top10 — test database leaderboard',
+    '/wallet — test wallet identity',
+    '/history — test-game history',
+    '/features — migrated/disabled feature status',
     '/play — open the Serverless test Mini App',
-    '/serverlessstatus — migration status',
+    '/serverlessstatus — migration gate status',
     '',
-    '⚠️ This is isolated preview currency; production MongoDB is never read or modified.',
-    'Wallet transfers are disabled until an atomic transfer/ledger operation is implemented.',
+    '⚠️ Live balances, wagers, payments, transfers and game payouts are disabled.',
+    'Production MongoDB data has not been imported or reconciled.',
+    'This bot is for interface/handler validation only; do not use it for live play.',
   ].join('\n');
 }
 
@@ -115,6 +108,17 @@ export default async function (message) {
       return send(
         chatId,
         '⚠️ Wallet transfer is temporarily disabled in this preview. It will remain disabled until sender balance, recipient balance and ledger writes can be committed atomically.',
+        message.message_id,
+      );
+    }
+
+    const balanceMovingCommands = new Set([
+      'daily', 'slot', 'plinko', 'wheel', 'crash', 'mines', 'blackjack', 'shan',
+    ]);
+    if (balanceMovingCommands.has(command.name)) {
+      return send(
+        chatId,
+        '⛔ Live money movement is disabled until atomic settlement, data reconciliation and production parity tests pass.',
         message.message_id,
       );
     }
