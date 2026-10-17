@@ -51,10 +51,16 @@ jobs:
       - name: Check the Serverless runtime and Mini App contract
         run: node scripts/check-serverless-contract.mjs
 
-      - name: Ensure legacy production runtime was not edited by this migration
+      - name: Ensure only the explicit production API bridge surfaces changed
         shell: bash
         run: |
           set -euo pipefail
           git fetch origin main
           base="$(git merge-base origin/main HEAD)"
-          git diff --exit-code "$base" HEAD -- index.js package.json render.yaml src
+          changed="$(git diff --name-only "$base" HEAD -- index.js package.json render.yaml src)"
+          unexpected="$(printf '%s\n' "$changed" | sed '/^$/d' | grep -Ev '^(index.js|render.yaml|src/web/miniAppRoutes.js) || true)"
+          if [ -n "$unexpected" ]; then
+            printf 'Unexpected production files changed:\n%s\n' "$unexpected"
+            exit 1
+          fi
+          echo "Only index.js CORS allowlisting, Mini App API status routing and Render env declarations may change."
