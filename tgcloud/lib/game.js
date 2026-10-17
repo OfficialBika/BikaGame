@@ -49,9 +49,20 @@ export async function ensurePreviewUser(tgUser) {
 
 async function changeBalance(userId, delta, type, meta = {}, key = uid()) {
   const amount = Math.floor(n(delta));
-  if (!amount) return userById(userId);
+  if (!Number.isSafeInteger(amount) || amount === 0) return userById(userId);
+  if (!Number.isSafeInteger(Number(userId)) || Number(userId) <= 0) throw new Error('INVALID_USER');
+  if (typeof key !== 'string' || !key || key.length > 200) throw new Error('IDEMPOTENCY_KEY_REQUIRED');
 
   const id = Number(userId);
+  const existing = await db.select().from(transactions)
+    .where(eq(transactions.idempotencyKey, key)).get();
+  if (existing) {
+    if (existing.type !== type || Number(existing.amount) !== Math.abs(amount)) {
+      throw new Error('IDEMPOTENCY_KEY_CONFLICT');
+    }
+    return userById(id);
+  }
+
   const t = now();
   const changes = {
     balance: sql`${users.balance} + ${amount}`,
@@ -60,8 +71,6 @@ async function changeBalance(userId, delta, type, meta = {}, key = uid()) {
   if (amount > 0) changes.totalWon = sql`${users.totalWon} + ${amount}`;
   if (amount < 0) changes.totalLost = sql`${users.totalLost} + ${Math.abs(amount)}`;
 
-  // The balance guard is part of the UPDATE itself, so two concurrent debits
-  // cannot both spend the same remaining balance.
   const where = amount < 0
     ? and(eq(users.tgId, id), gte(users.balance, Math.abs(amount)))
     : eq(users.tgId, id);
@@ -73,9 +82,6 @@ async function changeBalance(userId, delta, type, meta = {}, key = uid()) {
     throw new Error('BALANCE_UPDATE_FAILED');
   }
 
-  // Ledger persistence is still a separate operation in this preview runtime.
-  // Production money flows remain disabled until an all-or-nothing settlement
-  // design is available and tested end-to-end.
   await db.insert(transactions).values({
     type,
     fromUserId: amount < 0 ? String(id) : null,
@@ -124,6 +130,12 @@ async function updateSession(id, state, status = 'active') {
   return db.select().from(gameSessions).where(eq(gameSessions.id, id)).get();
 }
 
+async function settleSession(id, status) {
+  const result = await db.update(gameSessions).set({ status, updatedAt: now() })
+    .where(and(eq(gameSessions.id, id), eq(gameSessions.status, 'active'))).run();
+  return Boolean(result?.rowsAffected);
+}
+
 function weighted(items) {
   const total = items.reduce((a, x) => a + x.w, 0);
   let r = Math.random() * total;
@@ -143,21 +155,21 @@ function slotSpin() {
 
 export async function playSlot(userId, amount) {
   const bet = betOf(amount);
-  await debit(userId, bet, 'slot_bet', { game: 'slot' }, `slot:${userId}:${Date.now()}`);
+  await debit(userId, bet, 'slot_bet', { game: 'slot' }, `slot:${userId}:${uid()}`);
   const result = slotSpin();
   const payout = Math.floor(bet * result.multiplier);
-  if (payout) await credit(userId, payout, 'slot_win', { game: 'slot', reels: result.reels });
+  if (payout) await credit(userId, payout, 'slot_win', { game: 'slot', reels: result.reels }, `slot-win:${userId}:${uid()}`);
   const user = await recordGame(userId, 'slot', bet, payout, result.reels, result.multiplier);
   return { ok: true, game: 'slot', reels: result.reels, multiplier: result.multiplier, payout, balance: user.balance };
 }
 
 export async function playPlinko(userId, amount) {
   const bet = betOf(amount);
-  await debit(userId, bet, 'plinko_bet', { game: 'plinko' }, `plinko:${userId}:${Date.now()}`);
+  await debit(userId, bet, 'plinko_bet', { game: 'plinko' }, `plinko:${userId}:${uid()}`);
   const multipliers = [0,0.5,0.8,1,1.2,1.5,2,3,5,10];
   const multiplier = weighted(multipliers.map((v) => ({ v, w: v === 0 ? 12 : v >= 5 ? 1 : 8 })));
   const payout = Math.floor(bet * multiplier);
-  if (payout) await credit(userId, payout, 'plinko_win', { game: 'plinko', multiplier });
+  if (payout) await credit(userId, payout, 'plinko_win', { game: 'plinko', multiplier }, `plinko-win:${userId}:${uid()}`);
   const user = await recordGame(userId, 'plinko', bet, payout, { multiplier }, multiplier);
   return { ok: true, game: 'plinko', multiplier, payout, balance: user.balance };
 }
@@ -165,10 +177,10 @@ export async function playPlinko(userId, amount) {
 const wheelSegments = [0, 50, 100, 250, 500, 1000, 2500, 5000];
 export async function wheelSpin(userId, amount) {
   const bet = betOf(amount);
-  await debit(userId, bet, 'wheel_bet', { game: 'wheel' }, `wheel:${userId}:${Date.now()}`);
+  await debit(userId, bet, 'wheel_bet', { game: 'wheel' }, `wheel:${userId}:${uid()}`);
   const reward = weighted(wheelSegments.map((v) => ({ v, w: v >= 2500 ? 1 : 6 })));
   const payout = Math.floor(bet * reward / 100);
-  if (payout) await credit(userId, payout, 'wheel_win', { game: 'wheel', reward });
+  if (payout) await credit(userId, payout, 'wheel_win', { game: 'wheel', reward }, `wheel-win:${userId}:${uid()}`);
   const user = await recordGame(userId, 'wheel', bet, payout, { reward }, reward);
   return { ok: true, game: 'wheel', reward, payout, balance: user.balance, segments: wheelSegments };
 }
@@ -223,7 +235,7 @@ function crashPoint() { return Math.max(1.01, Math.floor((1.01 + Math.random() *
 export async function crashStart(userId, amount) {
   const bet = betOf(amount);
   if (await activeSession(userId, 'crash')) throw new Error('CRASH_RUNNING');
-  await debit(userId, bet, 'crash_bet', { game: 'crash' }, `crash:${userId}:${Date.now()}`);
+  await debit(userId, bet, 'crash_bet', { game: 'crash' }, `crash:${userId}:${uid()}`);
   const session = await createSession(userId, 'crash', { bet, point: crashPoint(), startedAt: Date.now(), cashedOut: false });
   return { ok: true, sessionId: session.id, phase: 'running', multiplier: 1, balance: (await userById(userId)).balance };
 }
@@ -246,8 +258,8 @@ export async function crashCashout(userId) {
   const status = await crashStatus(userId);
   if (!status.active) throw new Error('CRASHED');
   const payout = Math.floor(s.state.bet * status.multiplier);
+  if (!(await settleSession(s.id, 'settled'))) throw new Error('CRASH_ALREADY_SETTLED');
   await credit(userId, payout, 'crash_win', { game: 'crash', multiplier: status.multiplier }, `crash-win:${s.id}`);
-  await updateSession(s.id, { ...s.state, cashedOut: true, multiplier: status.multiplier }, 'settled');
   const user = await recordGame(userId, 'crash', s.state.bet, payout, { multiplier: status.multiplier }, status.multiplier);
   return { ok: true, cashedOut: true, multiplier: status.multiplier, payout, balance: user.balance };
 }
@@ -255,7 +267,7 @@ export async function crashCashout(userId) {
 function minesLayout(count = 3) { const set = new Set(); while (set.size < count) set.add(Math.floor(Math.random() * 25)); return [...set]; }
 export async function minesStart(userId, amount) {
   if (await activeSession(userId, 'mines')) throw new Error('MINES_ACTIVE');
-  const bet = betOf(amount); await debit(userId, bet, 'mines_bet', { game: 'mines' }, `mines:${userId}:${Date.now()}`);
+  const bet = betOf(amount); await debit(userId, bet, 'mines_bet', { game: 'mines' }, `mines:${userId}:${uid()}`);
   const s = await createSession(userId, 'mines', { bet, mines: minesLayout(3), opened: [], multiplier: 1 });
   return { ok: true, sessionId: s.id, active: true, opened: [], multiplier: 1, balance: (await userById(userId)).balance };
 }
@@ -270,11 +282,14 @@ export async function minesOpen(userId, index) {
   return { ok:true, active:true, opened, multiplier, balance:(await userById(userId)).balance };
 }
 export async function minesCashout(userId) {
-  const s = await activeSession(userId, 'mines'); if (!s) throw new Error('NO_ACTIVE_MINES');
+  const s = await activeSession(userId, 'mines');
+  if (!s) throw new Error('NO_ACTIVE_MINES');
   if (!s.state.opened.length) throw new Error('MINES_CASHOUT_LOCKED');
-  const payout = Math.floor(s.state.bet * s.state.multiplier); await credit(userId,payout,'mines_win',{game:'mines',multiplier:s.state.multiplier},`mines-win:${s.id}`);
-  await updateSession(s.id,{...s.state,payout},'settled'); const u=await recordGame(userId,'mines',s.state.bet,payout,{opened:s.state.opened},s.state.multiplier);
-  return {ok:true,active:false,payout,multiplier:s.state.multiplier,balance:u.balance};
+  const payout = Math.floor(s.state.bet * s.state.multiplier);
+  if (!(await settleSession(s.id, 'settled'))) throw new Error('MINES_ALREADY_SETTLED');
+  await credit(userId, payout, 'mines_win', { game: 'mines', multiplier: s.state.multiplier }, `mines-win:${s.id}`);
+  const u = await recordGame(userId, 'mines', s.state.bet, payout, { opened: s.state.opened }, s.state.multiplier);
+  return { ok: true, active: false, payout, multiplier: s.state.multiplier, balance: u.balance };
 }
 
 function deck() { const suits=['♠','♥','♦','♣']; const ranks=['A','2','3','4','5','6','7','8','9','10','J','Q','K']; return suits.flatMap(s=>ranks.map(r=>({r,s}))).sort(()=>Math.random()-0.5); }
