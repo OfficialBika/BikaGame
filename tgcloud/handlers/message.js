@@ -95,6 +95,19 @@ export default async function (message) {
       );
     }
 
+    const disabledMoneyCommands = new Set([
+      'daily', 'slot', 'plinko', 'wheel', 'crash', 'mines', 'blackjack', 'shan',
+      'addbalance', 'setbalance', 'give', 'pay', 'gift', 'buy', 'sell',
+      'stars', 'purchase', 'refund', '2d', 'bet2d',
+    ]);
+    if (disabledMoneyCommands.has(command.name)) {
+      return send(
+        chatId,
+        '⛔ This money-moving feature is disabled in the Serverless preview. Atomic settlement, payment verification and production data reconciliation are not complete.',
+        message.message_id,
+      );
+    }
+
     const user = await ensureUser(from);
 
     if (command.name === 'start') {
