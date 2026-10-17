@@ -1,0 +1,10 @@
+{
+  "$schema": "./node_modules/@tgcloud/cli/schema/tgcloud.json",
+  "static": {
+    "source": "public/miniapp",
+    "spa": true,
+    "headers": [
+      { "path": "/*", "set": { "Referrer-Policy": "no-referrer" } }
+    ]
+  }
+}
