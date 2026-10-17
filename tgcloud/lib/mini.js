@@ -122,13 +122,13 @@ export async function dispatch(action, input, ctx) {
       };
     }
 
-    // Keep preview transfers disabled until the platform exposes a supported
-    // atomic settlement primitive. Two independent balance writes can partially
-    // succeed, even in an isolated preview database.
+    // The current Serverless SDK contract has no verified transactional
+    // settlement primitive. Keep any balance-moving call disabled until a
+    // single-operation atomic balance + ledger settlement is tested.
     case 'walletTransfer':
       throw new EndpointError(
-        'Wallet transfers are disabled in this preview until atomic balance and ledger settlement is implemented.',
-        { code: 'PREVIEW_TRANSFER_DISABLED' },
+        'Wallet transfers are disabled until atomic balance and ledger settlement is verified.',
+        { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' },
       );
 
     case 'history':
@@ -138,13 +138,13 @@ export async function dispatch(action, input, ctx) {
       return { ok: true, items: await listTopUsers(body.limit || 10) };
 
     case 'slotSpin':
-      return playSlot(userId, body.bet);
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'plinkoDrop':
-      return playPlinko(userId, body.bet);
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'wheelSpin':
-      return wheelSpin(userId, body.bet);
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'wheelDailyStatus': {
       const user = await userById(userId);
@@ -162,41 +162,41 @@ export async function dispatch(action, input, ctx) {
     }
 
     case 'wheelDailySpin':
-      return dailyWheel(userId);
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'crashStart':
     case 'crashBet':
-      return crashStart(userId, body.bet);
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'crashStatus':
       return crashStatus(userId);
 
     case 'crashCashout':
-      return crashCashout(userId);
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'minesStart':
-      return minesStart(userId, body.bet);
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'minesStatus':
       return minesStatus(userId);
 
     case 'minesOpen':
-      return minesOpen(userId, body.index);
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'minesCashout':
-      return minesCashout(userId);
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'blackjackStatus':
       return blackjackStatus(userId, body.roomId);
 
     case 'blackjackJoin':
-      return blackjackJoin(userId, body.roomId, body.bet);
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'blackjackHit':
-      return blackjackAction(userId, body.roomId, 'hit');
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'blackjackStand':
-      return blackjackAction(userId, body.roomId, 'stand');
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'shanCreate':
       return shanCreate(userId, body.title);
@@ -205,16 +205,16 @@ export async function dispatch(action, input, ctx) {
       return shanStatus(userId, body.roomId);
 
     case 'shanJoin':
-      return shanJoin(userId, body.roomId, body.bet);
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'shanDraw':
-      return shanDeal(userId, body.roomId, 'draw');
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'shanStay':
-      return shanDeal(userId, body.roomId, 'stay');
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'shanDeal':
-      return shanDeal(userId, body.roomId, 'deal');
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'backgroundMusic':
       return { ok: true, enabled: false };
