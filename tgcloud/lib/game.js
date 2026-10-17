@@ -4,7 +4,6 @@ import { gameHistory, users } from '../schema.js';
 
 const now = () => new Date();
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const now = () => new Date();
 const n = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 export async function userById(userId) {
