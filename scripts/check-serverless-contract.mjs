@@ -168,7 +168,7 @@ assert.match(callbackHandler, /\['crash', 'mines', 'bj', 'shan'\]/,
 const messageHandler = await readFile(path.join(cloudRoot, 'handlers/message.js'), 'utf8');
 assert.match(messageHandler, /disabledMoneyCommands/,
   'Telegram money-moving commands must be disabled at the handler boundary');
-assert.match(messageHandler, /ATOMIC_SETTLEMENT_UNAVAILABLE|Live money movement is disabled/,
+assert.match(messageHandler, /disabled in the Serverless preview|ATOMIC_SETTLEMENT_UNAVAILABLE/,
   'Telegram command guard must communicate the current settlement gate');
 
 
