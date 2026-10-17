@@ -137,17 +137,10 @@ for (const action of [
   'blackjackJoin', 'blackjackStatus', 'blackjackAction',
   'shanCreate', 'shanJoin', 'shanStatus', 'shanDeal',
 ]) {
-  assert.match(gameSource, new RegExp('export async function ' + action + '\\('),
+  assert.match(gameSource, new RegExp('export async function ' + action + '\\s*\\('),
     action + ' must keep an explicit Serverless entry point');
-  const fnStart = gameSource.indexOf('export async function ' + action + '(');
-  const nextAsync = gameSource.indexOf('\nexport async function ', fnStart + 1);
-  const nextConfig = gameSource.indexOf('\nexport function ', fnStart + 1);
-  const nextConst = gameSource.indexOf('\nexport const ', fnStart + 1);
-  const candidates = [nextAsync, nextConfig, nextConst].filter((position) => position >= 0);
-  const fnEnd = candidates.length ? Math.min(...candidates) : -1;
-  const body = gameSource.slice(fnStart, fnEnd < 0 ? gameSource.length : fnEnd);
-  assert.match(body, /ATOMIC_SETTLEMENT_UNAVAILABLE/,
-    action + ' must remain disabled until atomic settlement is verified');
+  assert.match(gameSource, new RegExp('export async function ' + action + '[\\s\\S]{0,240}ATOMIC_SETTLEMENT_UNAVAILABLE'),
+    action + ' must fail closed until atomic settlement is verified');
 }
 assert.match(gameSource, /liveEconomyEnabled:\s*false/,
   'game configuration must not enable a live economy');
