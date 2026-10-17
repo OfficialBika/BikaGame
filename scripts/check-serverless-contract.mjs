@@ -137,12 +137,15 @@ for (const action of [
   'blackjackJoin', 'blackjackStatus', 'blackjackAction',
   'shanCreate', 'shanJoin', 'shanStatus', 'shanDeal',
 ]) {
-  const body = gameSource.match(new RegExp('export async function ' + action + '\\b([\\s\\S]*?)(?=\\nexport async function|\\nexport function|\\nexport const|\\n$)'));
-  assert.ok(body, action + ' must have an explicit Serverless contract');
-  assert.match(body[1], /ATOMIC_SETTLEMENT_UNAVAILABLE/,
+  assert.match(gameSource, new RegExp('export async function ' + action + '\\('),
+    action + ' must keep an explicit Serverless entry point');
+  const fnStart = gameSource.indexOf('export async function ' + action + '(');
+  const fnEnd = gameSource.indexOf('\\nexport async function ', fnStart + 1);
+  const body = gameSource.slice(fnStart, fnEnd < 0 ? gameSource.length : fnEnd);
+  assert.match(body, /ATOMIC_SETTLEMENT_UNAVAILABLE/,
     action + ' must remain disabled until atomic settlement is verified');
 }
-assert.match(gameSource, /liveEconomyEnabled:\s*false/,
+assert.match(gameSource, /liveEconomyEnabled:\\s*false/,
   'game configuration must not enable a live economy');
 
 const miniSource = await readFile(path.join(cloudRoot, 'lib/mini.js'), 'utf8');
