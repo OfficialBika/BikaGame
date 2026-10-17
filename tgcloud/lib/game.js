@@ -4,6 +4,8 @@ import { gameHistory, users } from '../schema.js';
 
 const now = () => new Date();
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const now = () => new Date();
+const n = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 export async function userById(userId) {
   return db.select().from(users).where(eq(users.tgId, Number(userId))).get();
@@ -34,10 +36,6 @@ export async function ensurePreviewUser(tgUser) {
     set: { username: tgUser.username || null, firstName: tgUser.first_name || 'Player', lastName: tgUser.last_name || null, photoUrl: tgUser.photo_url || null, languageCode: tgUser.language_code || null, startedBot: true, updatedAt: t },
   }).run();
   return userById(id);
-}
-
-async function changeBalance() {
-  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
 
 export async function debit() {
