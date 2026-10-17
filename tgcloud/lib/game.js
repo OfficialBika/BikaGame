@@ -75,41 +75,10 @@ async function changeBalance(userId, delta, type, meta = {}, key = uid()) {
   if (amount > 0) changes.totalWon = sql`${users.totalWon} + ${amount}`;
   if (amount < 0) changes.totalLost = sql`${users.totalLost} + ${Math.abs(amount)}`;
 
-  // Insert a pending ledger marker before changing the balance. The unique
-  // idempotency key arbitrates concurrent retries. A marker that remains
-  // pending means settlement stopped mid-flight: fail closed for retries and
-  // require reconciliation instead of silently applying the amount twice.
-  try {
-    await db.insert(transactions).values({
-      type, fromUserId: amount < 0 ? String(id) : null,
-      toUserId: amount > 0 ? String(id) : null, amount: Math.abs(amount),
-      idempotencyKey: key, meta: { ...meta, settlementState: 'pending' }, createdAt: t,
-    }).run();
-  } catch (error) {
-    const raced = await db.select().from(transactions)
-      .where(eq(transactions.idempotencyKey, key)).get();
-    if (!raced) throw error;
-    if (raced.type === type && Number(raced.amount) === Math.abs(amount) &&
-        String(raced.fromUserId || '') === (amount < 0 ? String(id) : '') &&
-        String(raced.toUserId || '') === (amount > 0 ? String(id) : '')) {
-      throw new Error('SETTLEMENT_PENDING_RECONCILIATION');
-    }
-    throw new Error('IDEMPOTENCY_KEY_CONFLICT');
-  }
-
-  const updated = await db.update(users).set(changes).where(where).run();
-  if (!updated?.rowsAffected) {
-    await db.delete(transactions).where(eq(transactions.idempotencyKey, key)).run();
-    const current = await userById(id);
-    if (!current) throw new Error('USER_NOT_FOUND');
-    if (amount < 0) throw new Error('USER_INSUFFICIENT');
-    throw new Error('BALANCE_UPDATE_FAILED');
-  }
-
-  // Mark the ledger record as settled only after verifying the balance update.
-  await db.update(transactions).set({ meta: { ...meta, settlementState: 'committed' } })
-    .where(eq(transactions.idempotencyKey, key)).run();
-  return userById(id);
+  // The platform preview SDK does not expose a verified multi-statement
+  // transaction primitive here. Refuse real balance mutations rather than risk
+  // balance/ledger divergence if the process stops between statements.
+  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
 
 export async function debit(userId, amount, type = 'bet', meta = {}, key) {
