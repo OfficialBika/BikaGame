@@ -18,6 +18,10 @@ services:
         sync: false
       - key: WEBHOOK_SECRET
         sync: false
+      - key: MINIAPP_URL
+        sync: false
+      - key: MINIAPP_ALLOWED_ORIGINS
+        sync: false
       - key: TZ
         value: Asia/Yangon
       - key: START_BONUS
