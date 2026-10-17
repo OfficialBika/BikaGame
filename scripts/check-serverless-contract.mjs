@@ -131,6 +131,27 @@ const gameSource = await readFile(path.join(cloudRoot, 'lib/game.js'), 'utf8');
 assert.match(gameSource, /function betOf\(value\)/, 'game bets must be validated instead of silently clamped');
 assert.match(gameSource, /or\(isNull\(users\.dailyClaimedAt\), lt\(users\.dailyClaimedAt, startOfToday\)\)/,
   'daily reward must use a conditional claim update to prevent concurrent duplicate claims');
+assert.match(gameSource, /ATOMIC_SETTLEMENT_UNAVAILABLE/,
+  'balance mutations must fail closed until atomic settlement is verified');
+assert.match(gameSource, /async function settleSession/,
+  'multi-step game cashouts must guard session settlement with a conditional update');
+assert.match(gameSource, /CRASH_ALREADY_SETTLED/,
+  'Crash cashout must reject repeated settlement');
+assert.match(gameSource, /MINES_ALREADY_SETTLED/,
+  'Mines cashout must reject repeated settlement');
+
+const miniSource = await readFile(path.join(cloudRoot, 'lib/mini.js'), 'utf8');
+assert.match(miniSource, /ATOMIC_SETTLEMENT_UNAVAILABLE/,
+  'Mini App balance-changing endpoints must fail closed until settlement is atomic');
+for (const action of ['slotSpin', 'plinkoDrop', 'wheelSpin', 'wheelDailySpin', 'crashStart', 'crashCashout', 'minesStart', 'minesOpen', 'minesCashout', 'blackjackJoin', 'blackjackHit', 'blackjackStand', 'shanJoin', 'shanDraw', 'shanStay', 'shanDeal']) {
+  assert.match(miniSource, new RegExp("case '" + action + "':\\s*throw new EndpointError"),
+    action + ' must be disabled until atomic balance settlement is implemented');
+}
+
+const safetyStatus = await readFile(path.join(cloudRoot, 'lib/featureStatus.js'), 'utf8');
+assert.match(safetyStatus, /liveEconomyEnabled:\s*false/,
+  'feature registry must not advertise live economy while settlement is unsupported');
+
 
 const handler = await readFile(path.join(cloudRoot, 'handlers/message.js'), 'utf8');
 assert.match(handler, /command\.name === 'history' \|\| command\.name === 'myhistory'/,
