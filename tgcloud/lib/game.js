@@ -1,5 +1,5 @@
 import { db } from 'sdk';
-import { and, desc, eq, gte, isNull, lt, or, sql } from 'sdk/db';
+import { and, desc, eq, gte, sql } from 'sdk/db';
 import { gameHistory, gameSessions, transactions, users } from '../schema.js';
 
 const MIN_BET = 1;
@@ -203,43 +203,25 @@ export async function crashStatus(userId) {
   return { ok: true, active: true, phase: 'running', multiplier: Number(multiplier.toFixed(2)), balance: Number(user?.balance || 0) };
 }
 export async function crashCashout(userId) {
-  const s = await activeSession(userId, 'crash');
-  if (!s) throw new Error('NO_ACTIVE_CRASH');
-  const status = await crashStatus(userId);
-  if (!status.active) throw new Error('CRASHED');
-  const payout = Math.floor(s.state.bet * status.multiplier);
-  if (!(await settleSession(s.id, 'settled'))) throw new Error('CRASH_ALREADY_SETTLED');
-  await credit(userId, payout, 'crash_win', { game: 'crash', multiplier: status.multiplier }, `crash-win:${s.id}`);
-  const user = await recordGame(userId, 'crash', s.state.bet, payout, { multiplier: status.multiplier }, status.multiplier);
-  return { ok: true, cashedOut: true, multiplier: status.multiplier, payout, balance: user.balance };
+  void userId;
+  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
 
 function minesLayout(count = 3) { const set = new Set(); while (set.size < count) set.add(Math.floor(Math.random() * 25)); return [...set]; }
 export async function minesStart(userId, amount) {
-  if (await activeSession(userId, 'mines')) throw new Error('MINES_ACTIVE');
-  const bet = betOf(amount); await debit(userId, bet, 'mines_bet', { game: 'mines' }, `mines:${userId}:${uid()}`);
-  const s = await createSession(userId, 'mines', { bet, mines: minesLayout(3), opened: [], multiplier: 1 });
-  return { ok: true, sessionId: s.id, active: true, opened: [], multiplier: 1, balance: (await userById(userId)).balance };
+  void userId;
+  void amount;
+  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
 export async function minesStatus(userId) { const s = await activeSession(userId, 'mines'); const u = await userById(userId); return s ? { ok:true, active:true, opened:s.state.opened, multiplier:s.state.multiplier, balance:u.balance } : { ok:true, active:false, balance:u?.balance||0 }; }
 export async function minesOpen(userId, index) {
-  const s = await activeSession(userId, 'mines'); if (!s) throw new Error('NO_ACTIVE_MINES');
-  const i = Math.floor(n(index, -1)); if (i < 0 || i >= 25) throw new Error('INVALID_TILE');
-  if (s.state.opened.includes(i)) throw new Error('TILE_OPENED');
-  if (s.state.mines.includes(i)) { await updateSession(s.id, { ...s.state, hitMine:i }, 'lost'); await recordGame(userId,'mines',s.state.bet,0,{mine:i},0); return { ok:true, active:false, mine:i, exploded:true, payout:0, balance:(await userById(userId)).balance }; }
-  const opened = [...s.state.opened, i]; const multiplier = Number((1 + opened.length * 0.35).toFixed(2));
-  await updateSession(s.id, { ...s.state, opened, multiplier });
-  return { ok:true, active:true, opened, multiplier, balance:(await userById(userId)).balance };
+  void userId;
+  void index;
+  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
 export async function minesCashout(userId) {
-  const s = await activeSession(userId, 'mines');
-  if (!s) throw new Error('NO_ACTIVE_MINES');
-  if (!s.state.opened.length) throw new Error('MINES_CASHOUT_LOCKED');
-  const payout = Math.floor(s.state.bet * s.state.multiplier);
-  if (!(await settleSession(s.id, 'settled'))) throw new Error('MINES_ALREADY_SETTLED');
-  await credit(userId, payout, 'mines_win', { game: 'mines', multiplier: s.state.multiplier }, `mines-win:${s.id}`);
-  const u = await recordGame(userId, 'mines', s.state.bet, payout, { opened: s.state.opened }, s.state.multiplier);
-  return { ok: true, active: false, payout, multiplier: s.state.multiplier, balance: u.balance };
+  void userId;
+  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
 
 function deck() { const suits=['♠','♥','♦','♣']; const ranks=['A','2','3','4','5','6','7','8','9','10','J','Q','K']; return suits.flatMap(s=>ranks.map(r=>({r,s}))).sort(()=>Math.random()-0.5); }
