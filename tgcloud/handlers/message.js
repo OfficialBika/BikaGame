@@ -8,10 +8,6 @@ function parseCommand(text) {
   return match ? { name: match[1].toLowerCase(), args: (match[2] || '').trim() } : null;
 }
 
-function args(text) {
-  return String(text || '').trim().split(/\s+/).filter(Boolean);
-}
-
 async function send(chatId, text, replyToMessageId, replyMarkup) {
   const params = { chat_id: chatId, text };
   if (replyToMessageId) {
@@ -95,17 +91,6 @@ export default async function (message) {
       return send(
         chatId,
         '⚠️ Wallet transfer is temporarily disabled in this preview. It will remain disabled until sender balance, recipient balance and ledger writes can be committed atomically.',
-        message.message_id,
-      );
-    }
-
-    const balanceMovingCommands = new Set([
-      'daily', 'slot', 'plinko', 'wheel', 'crash', 'mines', 'blackjack', 'shan',
-    ]);
-    if (balanceMovingCommands.has(command.name)) {
-      return send(
-        chatId,
-        '⛔ Live money movement is disabled until atomic settlement, data reconciliation and production parity tests pass.',
         message.message_id,
       );
     }
