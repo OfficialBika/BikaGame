@@ -246,9 +246,13 @@ export async function crashStatus(userId) {
   const elapsed = Date.now() - new Date(s.createdAt).getTime();
   const multiplier = Math.min(s.state.point, 1 + elapsed / 2500);
   if (multiplier >= s.state.point) {
-    await updateSession(s.id, { ...s.state, crashedAt: Date.now() }, 'lost');
-    await recordGame(userId, 'crash', s.state.bet, 0, { point: s.state.point, crashed: true }, 0);
-    return { ok: true, active: false, crashed: true, multiplier: s.state.point, balance: Number(user?.balance || 0) };
+    const settled = await db.update(gameSessions)
+      .set({ state: { ...s.state, crashedAt: Date.now() }, status: 'lost', updatedAt: now() })
+      .where(and(eq(gameSessions.id, s.id), eq(gameSessions.status, 'active'))).run();
+    if (settled?.rowsAffected) {
+      await recordGame(userId, 'crash', s.state.bet, 0, { point: s.state.point, crashed: true }, 0);
+    }
+    return { ok: true, active: false, crashed: true, multiplier: s.state.point, balance: Number((await userById(userId))?.balance || 0) };
   }
   return { ok: true, active: true, phase: 'running', multiplier: Number(multiplier.toFixed(2)), balance: Number(user?.balance || 0) };
 }
