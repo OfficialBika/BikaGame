@@ -167,7 +167,7 @@ assert.match(safetyStatus, /liveEconomyEnabled:\s*false/,
 const callbackHandler = await readFile(path.join(cloudRoot, 'handlers/callback_query.js'), 'utf8');
 assert.match(callbackHandler, /ATOMIC_SETTLEMENT_UNAVAILABLE/,
   'Telegram game callbacks must fail closed until atomic settlement is available');
-assert.match(callbackHandler, /crash.*mines.*bj.*shan/s,
+assert.match(callbackHandler, /\['crash', 'mines', 'bj', 'shan'\]/,
   'Telegram game callbacks must be limited to a known list of disabled game actions');
 const messageHandler = await readFile(path.join(cloudRoot, 'handlers/message.js'), 'utf8');
 assert.match(messageHandler, /balanceMovingCommands/,
