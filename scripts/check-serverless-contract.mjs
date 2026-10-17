@@ -130,16 +130,19 @@ assert.match(featureStatus, /2D betting/, 'unported 2D system must be visible');
 const gameSource = await readFile(path.join(cloudRoot, 'lib/game.js'), 'utf8');
 assert.match(gameSource, /ATOMIC_SETTLEMENT_UNAVAILABLE/,
   'balance mutations must fail closed until atomic settlement is verified');
-for (const action of [
+const disabledGameActions = [
   'playSlot', 'playPlinko', 'wheelSpin', 'dailyWheel',
   'crashStart', 'crashStatus', 'crashCashout',
   'minesStart', 'minesStatus', 'minesOpen', 'minesCashout',
   'blackjackJoin', 'blackjackStatus', 'blackjackAction',
   'shanCreate', 'shanJoin', 'shanStatus', 'shanDeal',
-]) {
-  assert.match(gameSource, new RegExp('export async function ' + action + '\\s*\\('),
-    action + ' must keep an explicit Serverless entry point');
-  assert.match(gameSource, new RegExp('export async function ' + action + '[\\s\\S]{0,240}ATOMIC_SETTLEMENT_UNAVAILABLE'),
+];
+for (const action of disabledGameActions) {
+  const declaration = gameSource.indexOf('export async function ' + action + '(');
+  assert.ok(declaration >= 0, action + ' must keep an explicit Serverless entry point');
+  const nextExport = gameSource.indexOf('export async function ', declaration + 1);
+  const body = gameSource.slice(declaration, nextExport < 0 ? gameSource.length : nextExport);
+  assert.match(body, /ATOMIC_SETTLEMENT_UNAVAILABLE/,
     action + ' must fail closed until atomic settlement is verified');
 }
 assert.match(gameSource, /liveEconomyEnabled:\s*false/,
