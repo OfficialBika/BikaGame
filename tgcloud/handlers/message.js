@@ -1,10 +1,7 @@
 import { api } from 'sdk';
 import { ensureUser, formatCoin, displayName, listTopUsers } from '../lib/users.js';
 import { getFeatureStatus } from '../lib/featureStatus.js';
-import {
-  playSlot, playPlinko, wheelSpin, dailyWheel, crashStart, minesStart,
-  blackjackJoin, shanCreate, shanJoin, history as getGameHistory,
-} from '../lib/game.js';
+import { history as getGameHistory } from '../lib/game.js';
 
 function parseCommand(text) {
   const match = String(text || '').trim().match(/^\/([a-z0-9_]+)(?:@[a-z0-9_]+)?(?:\s+([\s\S]*))?$/i);
@@ -29,16 +26,6 @@ async function send(chatId, text, replyToMessageId, replyMarkup) {
 
 const keyboard = (rows) => ({ inline_keyboard: rows });
 const SERVERLESS_MINIAPP_URL = 'https://app8694856110.tgcloud.ai/';
-const tileRow = (start, end) => Array.from({ length: end - start + 1 }, (_, offset) => {
-  const index = start + offset;
-  return { text: String(index + 1), callback_data: 'mines:open:' + index };
-});
-const minesKeyboard = () => keyboard([
-  tileRow(0, 4),
-  tileRow(5, 9),
-  [{ text: '💰 CASH OUT', callback_data: 'mines:cashout' }],
-]);
-
 function helpText() {
   return [
     '🎮 BIKA Game — Serverless migration test',
@@ -180,99 +167,10 @@ export default async function (message) {
         : 'No preview players yet.';
       return send(chatId, '🏆 BIKA Preview Top 10\n\n' + lines, message.message_id);
     }
-    if (command.name === 'daily') {
-      const result = await dailyWheel(user.tgId);
-      return send(
-        chatId,
-        '🎁 Daily preview reward: +' + formatCoin(result.reward) + ' $\n' +
-          'Balance: ' + formatCoin(result.balance) + ' $',
-        message.message_id,
-      );
-    }
+
 
     const parsedArgs = args(command.args);
     const bet = parsedArgs[0];
-
-    if (command.name === 'slot') {
-      const result = await playSlot(user.tgId, bet);
-      return send(
-        chatId,
-        '🎰 SLOT\n\n' + result.reels.join(' | ') +
-          '\nMultiplier: x' + result.multiplier +
-          '\nPayout: ' + formatCoin(result.payout) + ' $' +
-          '\nBalance: ' + formatCoin(result.balance) + ' $',
-        message.message_id,
-      );
-    }
-    if (command.name === 'plinko') {
-      const result = await playPlinko(user.tgId, bet);
-      return send(
-        chatId,
-        '🟡 PLINKO\nMultiplier: x' + result.multiplier +
-          '\nPayout: ' + formatCoin(result.payout) + ' $' +
-          '\nBalance: ' + formatCoin(result.balance) + ' $',
-        message.message_id,
-      );
-    }
-    if (command.name === 'wheel') {
-      const result = await wheelSpin(user.tgId, bet);
-      return send(
-        chatId,
-        '🎡 LUCKY WHEEL\nReward: ' + result.reward + '%' +
-          '\nPayout: ' + formatCoin(result.payout) + ' $' +
-          '\nBalance: ' + formatCoin(result.balance) + ' $',
-        message.message_id,
-      );
-    }
-    if (command.name === 'crash') {
-      const result = await crashStart(user.tgId, bet);
-      return send(
-        chatId,
-        '🚀 ROCKET CRASH\nRound started.\nCurrent: x1.00\n\nPress Cash Out before the rocket crashes.',
-        message.message_id,
-        keyboard([[{ text: '💰 CASH OUT', callback_data: 'crash:cashout:' + result.sessionId }]]),
-      );
-    }
-    if (command.name === 'mines') {
-      await minesStart(user.tgId, bet);
-      return send(
-        chatId,
-        '💣 MINES\nRound started. Multiplier x1.00\nChoose a tile.',
-        message.message_id,
-        minesKeyboard(),
-      );
-    }
-    if (command.name === 'blackjack') {
-      const room = parsedArgs[1] || 'solo';
-      const result = await blackjackJoin(user.tgId, room, bet);
-      const cards = (result.player?.cards || []).map((card) => card.r + card.s).join(' ');
-      return send(
-        chatId,
-        '🂡 BLACKJACK\nRoom: ' + room + '\nYour cards: ' + cards,
-        message.message_id,
-        keyboard([[
-          { text: 'HIT', callback_data: 'bj:hit:' + room },
-          { text: 'STAND', callback_data: 'bj:stand:' + room },
-        ]]),
-      );
-    }
-    if (command.name === 'shan') {
-      const room = parsedArgs[1];
-      if (room) {
-        const result = await shanJoin(user.tgId, room, bet);
-        return send(
-          chatId,
-          '🎴 SHAN KOE MEE\nRoom: ' + room + '\nPlayers: ' + (result.players?.length || 0),
-          message.message_id,
-        );
-      }
-      const result = await shanCreate(user.tgId);
-      return send(
-        chatId,
-        '🎴 Shan table created\nRoom ID: ' + result.roomId + '\nJoin with /shan <bet> ' + result.roomId,
-        message.message_id,
-      );
-    }
 
     return send(
       chatId,
