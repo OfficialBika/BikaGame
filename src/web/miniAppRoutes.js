@@ -196,6 +196,28 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
     });
   });
 
+  app.post('/api/mini/features', authMiddleware, (req, res) => {
+    return res.json({
+      ok: true,
+      environment: 'mongo-production-api',
+      productionDataImported: false,
+      groups: [
+        {
+          label: 'Live MongoDB API',
+          status: 'active',
+          detail: 'The Mini App reads the existing Render backend. MongoDB remains the source of truth for user balances and game transactions.',
+          features: ['Telegram Mini App initData verification', 'User profile and balance', 'Wallet and transfer history', 'Slot, Crash, Plinko, Wheel, Mines, Blackjack and Shan APIs'],
+        },
+        {
+          label: 'Telegram Serverless native DB',
+          status: 'separate',
+          detail: 'The Serverless database remains isolated for Serverless bot preview handlers and is not the live wallet balance source.',
+          features: ['Do not use preview balances for production play', 'No production MongoDB data has been copied into this database'],
+        },
+      ],
+    });
+  });
+
   app.post('/api/mini/me', authMiddleware, async (req, res) => {
     try {
       const tgUser = normalizeTelegramUser(req.telegramUser);
