@@ -2,21 +2,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const rootUrl = new URL('..', import.meta.url);
-const rootPath = fileURLToPath(rootUrl);
+const rootPath = fileURLToPath(new URL('..', import.meta.url));
 const staticRoot = path.join(rootPath, 'public', 'miniapp');
 const appFile = path.join(staticRoot, 'app.js');
 const coreFile = path.join(staticRoot, 'app-core.js');
+const renderApiBase = 'https://bikagamebot.onrender.com';
 
 function collectStaticFiles(directory) {
   const files = [];
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
     const full = path.join(directory, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...collectStaticFiles(full));
-    } else if (entry.isFile() && /\.(?:html|js|css)$/i.test(entry.name)) {
-      files.push(full);
-    }
+    if (entry.isDirectory()) files.push(...collectStaticFiles(full));
+    else if (entry.isFile() && /\.(?:html|js|css)$/i.test(entry.name)) files.push(full);
   }
   return files;
 }
@@ -60,38 +57,25 @@ const endpointMap = {
   '/api/mini/shan/deal': 'shanDeal',
   '/api/mini/background-music': 'backgroundMusic',
 };
-
 const mapLiteral = JSON.stringify(endpointMap);
-const helper = [
-  '',
-  'async function serverlessCall(path, body = {}) {',
-  '  const endpointMap = __ENDPOINT_MAP__;',
-  '  const name = endpointMap[path];',
-  '  if (!name) throw new Error("Serverless endpoint not mapped: " + path);',
-  '  return new Promise((resolve, reject) => {',
-  '    const call = window.Telegram?.WebApp?.Serverless?.call;',
-  '    if (typeof call !== "function") {',
-  '      reject(new Error("Telegram Serverless API unavailable"));',
-  '      return;',
-  '    }',
-  '    call(name, body, (error, result) => {',
-  '      if (error) {',
-  '        const e = new Error(error.message || "Serverless request failed");',
-  '        e.type = error.type;',
-  '        e.status = error.status;',
-  '        e.payload = error.parameters || {};',
-  '        reject(e);',
-  '        return;',
-  '      }',
-  '      resolve(result);',
-  '    });',
-  '  });',
-  '}',
-  ''
-].join('\n').replace('__ENDPOINT_MAP__', mapLiteral);
+const bridgeInit = "window.BIKA_MINIAPP_API_BASE = window.BIKA_MINIAPP_API_BASE || '" + renderApiBase + "';";
+
+const coreApi = [
+  'async function api(path, body = {}) {',
+  '  if (!Object.prototype.hasOwnProperty.call(miniAppEndpointMap, path)) throw new Error("Mini App API not mapped: " + path);',
+  "  const method = path === '/api/mini/config' ? 'GET' : 'POST';",
+  "  const options = method === 'GET' ? { method, cache: 'no-store' } : { method, headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': initData }, body: JSON.stringify(body) };",
+  '  const base = window.BIKA_MINIAPP_API_BASE || "' + renderApiBase + '";',
+  '  const res = await fetch(base + path, options);',
+  '  const data = await res.json().catch(() => ({}));',
+  "  if (!res.ok || data.ok === false) { const err = new Error(data.message || data.error || 'Request failed'); err.payload = data; throw err; }",
+  '  return data;',
+  '}'
+].join('\n');
 
 const oldCoreApi = "async function api(path, body = {}) {\n  const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': initData }, body: JSON.stringify(body) });\n  const data = await res.json().catch(() => ({}));\n  if (!res.ok || data.ok === false) { const err = new Error(data.message || data.error || 'Request failed'); err.payload = data; throw err; }\n  return data;\n}";
 const oldAppApi = "api=async(path,body={})=>{const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json','X-Telegram-Init-Data':initData},body:JSON.stringify(body)}),d=await r.json();if(!r.ok||d.ok===false)throw new Error(d.message||d.error||'Request failed');return d}";
+const appApi = "api=async(path,body={})=>{if(!Object.prototype.hasOwnProperty.call(miniAppEndpointMap,path))throw new Error('Mini App API not mapped: '+path);const method=path==='/api/mini/config'?'GET':'POST',base=window.BIKA_MINIAPP_API_BASE||'" + renderApiBase + "',options=method==='GET'?{method,cache:'no-store'}:{method,headers:{'Content-Type':'application/json','X-Telegram-Init-Data':initData},body:JSON.stringify(body)},r=await fetch(base+path,options),d=await r.json().catch(()=>({}));if(!r.ok||d.ok===false)throw new Error(d.message||d.error||'Request failed');return d}";
 
 let changed = false;
 for (const file of files) {
@@ -99,57 +83,54 @@ for (const file of files) {
   let text = original;
 
   if (file === coreFile) {
-    if (!text.includes('async function serverlessCall(path')) {
-      if (!text.includes(oldCoreApi)) {
-        throw new Error('Cannot safely patch app-core.js: expected the legacy API helper or an existing Serverless adapter.');
-      }
-      text = text.replace(oldCoreApi, helper + '\nasync function api(path, body = {}) { return serverlessCall(path, body); }');
+    if (text.includes('Serverless?.call')) {
+      throw new Error('Old Serverless adapter is present in app-core.js. Restore public/miniapp tracked files, then rerun this bridge patch.');
+    }
+    if (!text.includes(bridgeInit)) {
+      text = bridgeInit + '\nconst miniAppEndpointMap = ' + mapLiteral + ';\n' + text;
+    } else {
+      text = text.replace(/const miniAppEndpointMap\s*=\s*\{[^;]*\};/, 'const miniAppEndpointMap = ' + mapLiteral + ';');
     }
 
-    // Keep already-patched local worktrees in sync when the endpoint map grows.
-    const coreMapPattern = /const endpointMap\s*=\s*\{[^;]*\};/;
-    if (!coreMapPattern.test(text)) {
-      throw new Error('Cannot safely update app-core.js: the embedded endpoint map was not found.');
+    if (text.includes(oldCoreApi)) {
+      text = text.replace(oldCoreApi, coreApi);
+    } else {
+      const apiBlock = text.match(/async function api\(path, body = \{\}\) \{[\s\S]*?\n\}/);
+      if (!apiBlock) throw new Error('Cannot safely patch app-core.js: API helper not found.');
+      text = text.replace(apiBlock[0], coreApi);
     }
-    text = text.replace(coreMapPattern, 'const endpointMap = ' + mapLiteral + ';');
 
-    const oldConfigFetch = "const res = await fetch('/api/mini/config', { cache: 'no-store' });\n  config = await res.json();";
-    if (text.includes(oldConfigFetch)) {
-      text = text.replace(oldConfigFetch, "config = await serverlessCall('/api/mini/config');");
-    } else if (!text.includes("serverlessCall('/api/mini/config')")) {
-      throw new Error('Cannot safely patch app-core.js: the config request has changed and must be reviewed.');
-    }
+    text = text.replaceAll("fetch('/api/mini/config'", "fetch((window.BIKA_MINIAPP_API_BASE || '" + renderApiBase + "') + '/api/mini/config'");
   } else if (file === appFile) {
-    if (!text.includes('Serverless?.call')) {
-      if (!text.includes(oldAppApi)) {
-        throw new Error('Cannot safely patch app.js: expected the legacy API helper or an existing Serverless adapter.');
-      }
-      const replacement = 'serverlessCall=async(path,body={})=>{const m=' + mapLiteral + ',name=m[path];if(!name)throw new Error("Serverless endpoint not mapped: "+path);return new Promise((resolve,reject)=>{const call=window.Telegram?.WebApp?.Serverless?.call;if(typeof call!=="function")return reject(new Error("Telegram Serverless API unavailable"));call(name,body,(e,d)=>{if(e){const x=new Error(e.message||"Serverless request failed");x.type=e.type;x.status=e.status;x.payload=e.parameters||{};reject(x)}else resolve(d)})})},api=async(path,body={})=>serverlessCall(path,body)';
-      text = text.replace(oldAppApi, replacement);
+    if (text.includes('Serverless?.call')) {
+      throw new Error('Old Serverless adapter is present in app.js. Restore public/miniapp tracked files, then rerun this bridge patch.');
+    }
+    if (text.includes('(()=>{const tg=')) {
+      text = text.replace('(()=>{const tg=', '(()=>{' + bridgeInit + 'const miniAppEndpointMap=' + mapLiteral + ';const tg=');
+    } else {
+      if (!text.includes('miniAppEndpointMap=')) throw new Error('Cannot safely patch app.js: initialization point not found.');
+      text = text.replace(/const miniAppEndpointMap=\{[^;]*\};/, 'const miniAppEndpointMap=' + mapLiteral + ';');
     }
 
-    // Update an adapter that was patched by an earlier version of this script.
-    const appMapPattern = /const m=\{[^}]*\},name=m\[path\];/;
-    if (!appMapPattern.test(text)) {
-      throw new Error('Cannot safely update app.js: the embedded endpoint map was not found.');
+    if (text.includes(oldAppApi)) {
+      text = text.replace(oldAppApi, appApi);
+    } else if (!text.includes('fetch(base+path,options)') && !text.includes('fetch(base+path,options)')) {
+      if (!text.includes("fetch(base+path,options)")) {
+        throw new Error('Cannot safely patch app.js: the legacy API helper is not present. Restore public/miniapp/app.js and rerun this bridge patch.');
+      }
     }
-    text = text.replace(appMapPattern, 'const m=' + mapLiteral + ',name=m[path];');
 
     const oldMusicFetch = "fetch('/api/mini/background-music',{headers:{'X-Telegram-Init-Data':initData}})";
     if (text.includes(oldMusicFetch)) {
-      text = text.replace(oldMusicFetch, "serverlessCall('/api/mini/background-music').then(d=>({ok:true,json:async()=>d}))");
-    } else if (/fetch\(\s*["']\/api\/mini\/background-music/.test(text)) {
-      throw new Error('Cannot safely patch app.js: legacy background-music fetch remains in an unexpected form.');
+      text = text.replace(oldMusicFetch, "fetch((window.BIKA_MINIAPP_API_BASE||'" + renderApiBase + "')+'/api/mini/background-music',{headers:{'X-Telegram-Init-Data':initData}})");
     }
   }
 
-  // Serverless static hosting serves the Mini App directory from the domain root.
-  // Legacy Express used /miniapp/ as a URL prefix. Rewrite root asset paths in
-  // HTML, JS and CSS while keeping /api/mini/* API identifiers unchanged.
+  // Telegram Serverless static hosting serves this folder from the domain root.
   text = text.replaceAll('/miniapp/', '/');
 
   if (/fetch\s*\(\s*["']\/api\/mini\//.test(text)) {
-    throw new Error('Legacy direct API fetch remains after patch: ' + path.relative(rootPath, file));
+    throw new Error('Relative Mini App API fetch remains after patch: ' + path.relative(rootPath, file));
   }
 
   if (text !== original) {
@@ -160,8 +141,13 @@ for (const file of files) {
 
 const app = fs.readFileSync(appFile, 'utf8');
 const core = fs.readFileSync(coreFile, 'utf8');
-if (!app.includes('Serverless?.call') || !core.includes('Serverless?.call')) {
-  throw new Error('Mini App Serverless adapter verification failed.');
+for (const [name, source] of [['app.js', app], ['app-core.js', core]]) {
+  if (!source.includes('BIKA_MINIAPP_API_BASE') || !source.includes(renderApiBase)) {
+    throw new Error(name + ' is not configured for the production Render API bridge.');
+  }
+  if (source.includes('Serverless?.call')) {
+    throw new Error(name + ' still calls the preview Serverless API.');
+  }
 }
 for (const file of files) {
   const text = fs.readFileSync(file, 'utf8');
@@ -171,5 +157,5 @@ for (const file of files) {
 }
 
 console.log(changed
-  ? 'Mini App Serverless API and root asset paths patched and verified.'
-  : 'Mini App Serverless API and root asset paths already patched.');
+  ? 'Mini App patched to use the MongoDB-backed Render API; root asset paths verified.'
+  : 'Mini App Render API bridge and root asset paths already patched.');
