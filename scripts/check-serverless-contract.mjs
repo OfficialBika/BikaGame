@@ -128,9 +128,56 @@ assert.match(featureStatus, /Telegram Stars purchase\/refund/, 'unported payment
 assert.match(featureStatus, /2D betting/, 'unported 2D system must be visible');
 
 const gameSource = await readFile(path.join(cloudRoot, 'lib/game.js'), 'utf8');
-assert.match(gameSource, /function betOf\(value\)/, 'game bets must be validated instead of silently clamped');
-assert.match(gameSource, /or\(isNull\(users\.dailyClaimedAt\), lt\(users\.dailyClaimedAt, startOfToday\)\)/,
-  'daily reward must use a conditional claim update to prevent concurrent duplicate claims');
+assert.match(gameSource, /ATOMIC_SETTLEMENT_UNAVAILABLE/,
+  'balance mutations must fail closed until atomic settlement is verified');
+const disabledGameActions = [
+  'playSlot', 'playPlinko', 'wheelSpin', 'dailyWheel',
+  'crashStart', 'crashStatus', 'crashCashout',
+  'minesStart', 'minesStatus', 'minesOpen', 'minesCashout',
+  'blackjackJoin', 'blackjackStatus', 'blackjackAction',
+  'shanCreate', 'shanJoin', 'shanStatus', 'shanDeal',
+];
+for (const action of disabledGameActions) {
+  const declaration = gameSource.indexOf('export async function ' + action + '(');
+  assert.ok(declaration >= 0, action + ' must keep an explicit Serverless entry point');
+  const nextExport = gameSource.indexOf('export async function ', declaration + 1);
+  const body = gameSource.slice(declaration, nextExport < 0 ? gameSource.length : nextExport);
+  assert.match(body, /ATOMIC_SETTLEMENT_UNAVAILABLE/,
+    action + ' must fail closed until atomic settlement is verified');
+}
+assert.match(gameSource, /liveEconomyEnabled:\s*false/,
+  'game configuration must not enable a live economy');
+
+const miniSource = await readFile(path.join(cloudRoot, 'lib/mini.js'), 'utf8');
+assert.match(miniSource, /ATOMIC_SETTLEMENT_UNAVAILABLE/,
+  'Mini App balance-changing endpoints must fail closed until settlement is atomic');
+for (const action of [
+  'slotSpin', 'plinkoDrop', 'wheelSpin', 'wheelDailySpin', 'crashStart', 'crashCashout',
+  'minesStart', 'minesOpen', 'minesCashout', 'blackjackJoin', 'blackjackHit', 'blackjackStand',
+  'shanJoin', 'shanDraw', 'shanStay', 'shanDeal', 'walletTransfer', 'walletTransfers',
+  'daily', 'dailyClaim', 'claimDaily', 'buy', 'purchase', 'starsPurchase', 'gift', 'transfer',
+  'shopBuy', 'sell', 'cardSell', 'orderCreate', 'auctionBid', 'tournamentJoin', 'bet2d', 'sportsBet',
+]) {
+  assert.match(miniSource, new RegExp("case '" + action + "':\\s*throw new EndpointError"),
+    action + ' must be explicitly disabled before production parity is verified');
+}
+
+const safetyStatus = await readFile(path.join(cloudRoot, 'lib/featureStatus.js'), 'utf8');
+assert.match(safetyStatus, /liveEconomyEnabled:\s*false/,
+  'feature registry must not advertise live economy while settlement is unsupported');
+
+const callbackHandler = await readFile(path.join(cloudRoot, 'handlers/callback_query.js'), 'utf8');
+assert.match(callbackHandler, /ATOMIC_SETTLEMENT_UNAVAILABLE/,
+  'Telegram game callbacks must fail closed until atomic settlement is available');
+assert.match(callbackHandler, /\['crash', 'mines', 'bj', 'shan'\]/,
+  'Telegram game callbacks must be limited to a known list of disabled game actions');
+const messageHandler = await readFile(path.join(cloudRoot, 'handlers/message.js'), 'utf8');
+assert.match(messageHandler, /disabledMoneyCommands/,
+  'Telegram money-moving commands must be disabled at the handler boundary');
+assert.match(messageHandler, /disabled in the Serverless preview|ATOMIC_SETTLEMENT_UNAVAILABLE/,
+  'Telegram command guard must communicate the current settlement gate');
+
+
 
 const handler = await readFile(path.join(cloudRoot, 'handlers/message.js'), 'utf8');
 assert.match(handler, /command\.name === 'history' \|\| command\.name === 'myhistory'/,

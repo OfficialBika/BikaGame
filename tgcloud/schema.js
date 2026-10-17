@@ -1,4 +1,4 @@
-import { table, integer, text, boolean, json, index } from 'sdk/db';
+import { table, integer, text, boolean, json, index, uniqueIndex, sql } from 'sdk/db';
 
 export const users = table('users', {
   tgId: integer('tg_id').primaryKey(),
@@ -58,6 +58,12 @@ export const gameSessions = table('game_sessions', {
 }, (t) => ({
   userGameIdx: index('idx_game_sessions_user_game').on(t.userId, t.game),
   statusIdx: index('idx_game_sessions_status').on(t.game, t.status),
+  // Crash/Mines use status=active. This partial unique index makes the
+  // single-active-round invariant database-enforced instead of relying only
+  // on a read-then-insert race-prone check in application code.
+  activeUserGameUidx: uniqueIndex('uidx_game_sessions_active_user_game')
+    .on(t.userId, t.game)
+    .where(sql`status = 'active'`),
 }));
 
 export const gameHistory = table('game_history', {

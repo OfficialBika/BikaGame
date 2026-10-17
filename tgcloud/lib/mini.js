@@ -1,13 +1,8 @@
-import { db, EndpointError } from 'sdk';
-import { and, desc, eq, or } from 'sdk/db';
+import { EndpointError } from 'sdk';
 import {
-  ensurePreviewUser, userById, history, playSlot, playPlinko, wheelSpin,
-  dailyWheel, crashStart, crashStatus, crashCashout, minesStart, minesStatus,
-  minesOpen, minesCashout, blackjackJoin, blackjackStatus, blackjackAction,
-  shanCreate, shanJoin, shanStatus, shanDeal,
+  ensurePreviewUser, userById, history,
 } from './game.js';
 import { listTopUsers } from './users.js';
-import { transactions } from '../schema.js';
 import { miniConfig } from './config.js';
 import { getFeatureStatus } from './featureStatus.js';
 
@@ -46,6 +41,129 @@ export async function dispatch(action, input, ctx) {
 
     case 'config':
       return miniConfig();
+
+    case 'status':
+      return { ok: true, environment: 'serverless-preview', liveEconomyEnabled: false, productionDataImported: false };
+
+    case 'walletTransfers':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'walletTransfer':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'slotSpin':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'plinkoDrop':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'wheelSpin':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'wheelDailySpin':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'crashStart':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'crashBet':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'crashStatus':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'crashCashout':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'minesStart':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'minesStatus':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'minesOpen':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'minesCashout':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'blackjackStatus':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'blackjackJoin':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'blackjackHit':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'blackjackStand':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'shanCreate':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'shanStatus':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'shanJoin':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'shanDraw':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'shanStay':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'shanDeal':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'daily':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'dailyClaim':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'claimDaily':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'buy':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'purchase':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'starsPurchase':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'gift':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'transfer':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'shopBuy':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'sell':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'cardSell':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'orderCreate':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'auctionBid':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'tournamentJoin':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'bet2d':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'sportsBet':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
 
     case 'me': {
       const user = await userById(userId);
@@ -92,43 +210,16 @@ export async function dispatch(action, input, ctx) {
       return { ok: true, wallet: walletView(target) };
     }
 
-    case 'walletTransfers': {
-      const requestedLimit = Math.floor(Number(body.limit) || 50);
-      const limit = Math.max(1, Math.min(100, requestedLimit));
-      const rows = await db.select().from(transactions)
-        .where(and(
-          eq(transactions.type, 'gift'),
-          or(
-            eq(transactions.fromUserId, String(userId)),
-            eq(transactions.toUserId, String(userId)),
-          ),
-        ))
-        .orderBy(desc(transactions.createdAt))
-        .limit(limit)
-        .all();
-      return {
-        ok: true,
-        items: rows.map((row) => {
-          const sent = String(row.fromUserId) === String(userId);
-          return {
-            id: String(row.id),
-            direction: sent ? 'sent' : 'received',
-            amount: Number(row.amount || 0),
-            otherUserId: sent ? row.toUserId : row.fromUserId,
-            source: row.meta && typeof row.meta === 'object' ? row.meta.source || null : null,
-            createdAt: row.createdAt,
-          };
-        }),
-      };
-    }
+    case 'walletTransfers':
+      throw new EndpointError('Transfer history is unavailable until ledger settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
-    // Keep preview transfers disabled until the platform exposes a supported
-    // atomic settlement primitive. Two independent balance writes can partially
-    // succeed, even in an isolated preview database.
+    // The current Serverless SDK contract has no verified transactional
+    // settlement primitive. Keep any balance-moving call disabled until a
+    // single-operation atomic balance + ledger settlement is tested.
     case 'walletTransfer':
       throw new EndpointError(
-        'Wallet transfers are disabled in this preview until atomic balance and ledger settlement is implemented.',
-        { code: 'PREVIEW_TRANSFER_DISABLED' },
+        'Wallet transfers are disabled until atomic balance and ledger settlement is verified.',
+        { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' },
       );
 
     case 'history':
@@ -138,13 +229,13 @@ export async function dispatch(action, input, ctx) {
       return { ok: true, items: await listTopUsers(body.limit || 10) };
 
     case 'slotSpin':
-      return playSlot(userId, body.bet);
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'plinkoDrop':
-      return playPlinko(userId, body.bet);
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'wheelSpin':
-      return wheelSpin(userId, body.bet);
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'wheelDailyStatus': {
       const user = await userById(userId);
@@ -162,59 +253,59 @@ export async function dispatch(action, input, ctx) {
     }
 
     case 'wheelDailySpin':
-      return dailyWheel(userId);
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'crashStart':
     case 'crashBet':
-      return crashStart(userId, body.bet);
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'crashStatus':
-      return crashStatus(userId);
+      throw new EndpointError('Active game sessions are disabled until settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'crashCashout':
-      return crashCashout(userId);
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'minesStart':
-      return minesStart(userId, body.bet);
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'minesStatus':
-      return minesStatus(userId);
+      throw new EndpointError('Active game sessions are disabled until settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'minesOpen':
-      return minesOpen(userId, body.index);
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'minesCashout':
-      return minesCashout(userId);
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'blackjackStatus':
-      return blackjackStatus(userId, body.roomId);
+      throw new EndpointError('Active game sessions are disabled until settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'blackjackJoin':
-      return blackjackJoin(userId, body.roomId, body.bet);
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'blackjackHit':
-      return blackjackAction(userId, body.roomId, 'hit');
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'blackjackStand':
-      return blackjackAction(userId, body.roomId, 'stand');
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'shanCreate':
-      return shanCreate(userId, body.title);
+      throw new EndpointError('Multiplayer tables are disabled until settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'shanStatus':
-      return shanStatus(userId, body.roomId);
+      throw new EndpointError('Multiplayer tables are disabled until settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'shanJoin':
-      return shanJoin(userId, body.roomId, body.bet);
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'shanDraw':
-      return shanDeal(userId, body.roomId, 'draw');
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'shanStay':
-      return shanDeal(userId, body.roomId, 'stay');
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'shanDeal':
-      return shanDeal(userId, body.roomId, 'deal');
+      throw new EndpointError('This balance-moving game is disabled until atomic settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
     case 'backgroundMusic':
       return { ok: true, enabled: false };

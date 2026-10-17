@@ -2,59 +2,50 @@
 
 ## Status
 
-This is an isolated migration/test branch, not a production cutover. The existing Express/Telegraf/MongoDB files and deployment config remain unchanged.
+This branch is an isolated migration and hardening branch. It is **not live-economy capable and not approved for production cutover**. The production Express/Telegraf/MongoDB runtime and all existing deployment settings remain unchanged.
 
-- Branch: `feat/telegram-serverless`
-- Bot handlers and API endpoints live under `tgcloud/`; Mini App static hosting is configured in `tgcloud.jsonc`.
-- The test bot has a separate Serverless SQLite database. No production MongoDB data has been imported.
-- CI checks production syntax, the Serverless runtime import contract, Mini App static-root paths, API endpoint mappings and patch idempotency.
+- Preview app: `app8694856110`
+- Working branch: `feat/telegram-serverless-hardening`
+- Serverless handlers/modules remain under `tgcloud/`; the existing Mini App UI stays under `public/miniapp/`.
+- The Serverless app uses its own platform database. Production MongoDB records, balances, treasury, transactions, payment history and open bets have not been imported or reconciled.
+- Read-only account/profile/feature screens can be validated in isolation. Any endpoint/command that changes a balance is currently deliberately disabled.
 
-## Connected preview surface
+## Safety hardening applied
 
-### Telegram commands
-- `/start`, `/help`, `/serverlessstatus`, `/features`, `/play` (opens the test Mini App)
-- `/balance` / `/mybalance`, `/wallet`, `/top10` / `/leaderboard`, `/history`
-- `/daily` (preview reward only)
-- `/slot <bet>`, `/plinko <bet>`, `/wheel <bet>`
-- `/crash <bet>` with cash-out callback
-- `/mines <bet>` with tile/cash-out callbacks
-- `/blackjack <bet> [room]` with hit/stand callbacks
-- `/shan <bet> [room]` with draw/stay callbacks
+- Bet arguments are rejected unless they are safe positive integers inside configured limits.
+- Daily claim uses a conditional update so a duplicate same-day claim is rejected.
+- Crash and Mines cashout use conditional active-session transitions, preventing concurrent requests from both winning the same session transition.
+- Idempotency keys are used for game debit/payout ledger entries.
+- The balance-mutating settlement helper fails closed with `ATOMIC_SETTLEMENT_UNAVAILABLE`: the supported preview SDK path has not been proven to provide a single atomic operation for balance + ledger + game result. It must not be bypassed or silently treated as production-safe.
+- Mini App balance-changing endpoints and Telegram game commands are disabled until a verified atomic settlement primitive exists. This is intentional safety behavior, not a missing UI wiring bug.
+- CI contract assertions check that disabled actions stay disabled and the live-economy flag remains false.
 
-### Mini App endpoint surface
-The endpoint modules are mapped to `Telegram.WebApp.Serverless.call()` for profile, config, history, leaderboard, feature status, wallet read/lookup/history, Slot, Plinko, Wheel, Daily Wheel, Crash, Mines, Blackjack, Shan and the background-music compatibility response. The Mini App navigation exposes a Features view that reads the same feature registry as the bot's `/features` command.
+## Not yet migrated / not ready for real funds
 
-These are **preview implementations**, not a replacement for production game math, multiplayer settlement or production balances. Bet validation now rejects invalid inputs; debits use a conditional balance update to stop concurrent overspend; Daily Wheel uses a conditional claim update to stop duplicate daily claims. Ledger writes still follow the balance write as a separate operation in the preview runtime, so money-moving production features remain disabled pending a verified all-or-nothing design.
+- A verified production data export/import pipeline and reconciliation of user IDs, balances, VIP/bonus/daily state, treasury, ledger, payments, orders, inventory, 2D/sports bets and open sessions.
+- A truly atomic settlement mechanism covering balance, transaction ledger, treasury, game result/history and the state transition, with idempotent retries and recovery after interrupted operations.
+- Telegram Stars invoice generation, successful-payment verification, payload/charge ID validation, duplicate charge protection, refund handling and reconciliation.
+- Wallet transfers/gifts with atomic sender debit + recipient credit + one ledger settlement.
+- Production-equivalent Slot/Plinko/Wheel/Crash/Mines/Blackjack/Shan logic and multiplayer lifecycle, including race/replay tests.
+- Card shop/inventory/sell/orders, 2D betting, sports, auctions, tournaments, Promo RTP, admin/owner actions, broadcast/group approval and background/scheduled tasks.
+- Cutover plan with a frozen source snapshot, independent target audit, rollback path and explicit single-writer switchover.
 
-## Explicitly not migrated / disabled
+## Verification commands
 
-- Production MongoDB user/balance/treasury/ledger data import and reconciliation.
-- Telegram Stars purchase/refund and payment replay reconciliation.
-- Wallet transfers and gifts pending atomic sender + recipient + ledger settlement.
-- Character/card shop, inventory, sell, and order processing.
-- 2D betting/events/settlement and sports event feeds/betting.
-- Auctions, tournaments, Promo RTP controls and scheduled/background jobs.
-- Broadcasts, group approval, admin/owner controls and maintenance operations.
-- Exact parity for all production bot commands and game outcomes.
-
-The `/features` command and the authenticated Mini App `featureStatus` endpoint report these statuses rather than returning fake success for unported features.
-
-## Mini App patch and test commands
-
-Run these from the repository root after pulling:
+Run from the repository root after pulling this branch:
 
     npm run check
     node scripts/patch-miniapp-serverless.mjs
     node scripts/patch-miniapp-serverless.mjs
     node scripts/check-serverless-contract.mjs
+    find tgcloud -type f -name '*.js' -print0 | xargs -0 -n1 sh -c 'node --input-type=module --check < "$0"'
     find public/miniapp -type f -name '*.js' -print0 | xargs -0 -n1 node --check
     npx tgcloud status
     npx tgcloud diff
+    npx tgcloud migrate --dry-run
 
-The patch script rewrites legacy `/miniapp/` asset paths for the Serverless domain root and adapts `/api/mini/*` calls to Serverless endpoint calls without replacing the UI. The second run checks idempotency.
-
-For test deployment only, review `npx tgcloud diff`, then run `npx tgcloud push`, and inspect `npx tgcloud migrate --dry-run`. Do not apply schema changes until the full additive diff is understood. Do not use `--force` to bypass deployment state conflicts.
+Do not run `npx tgcloud migrate` or deploy updated modules until reviewing the complete schema diff and confirming the intended app/database. Do not link the production bot token to a test/preview app. Do not point the preview runtime at production MongoDB credentials.
 
 ## Production cutover gate
 
-Do not connect the live bot/Mini App to this branch yet. Before cutover, import a frozen MongoDB snapshot into a separate target, reconcile users/balances/treasury/transactions/payments/open bets/events, port the remaining subsystems, test duplicate updates and concurrent settlement, and perform a planned cutover with rollback. Never run two writable economies in parallel.
+Do not switch production traffic to this branch yet. A successful syntax/contract CI run only verifies the stated contract; it does not prove transactional behavior in the live Serverless runtime, production data parity, payment correctness or load behavior. Before a cutover, complete the work above, validate duplicate updates and concurrent settlements against an isolated target, run end-to-end payment/reconciliation tests, compare source/target financial totals, and then cut over once with a tested rollback plan. Never run two writable economies in parallel.

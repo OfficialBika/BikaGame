@@ -1,18 +1,11 @@
 import { api } from 'sdk';
 import { ensureUser, formatCoin, displayName, listTopUsers } from '../lib/users.js';
 import { getFeatureStatus } from '../lib/featureStatus.js';
-import {
-  playSlot, playPlinko, wheelSpin, dailyWheel, crashStart, minesStart,
-  blackjackJoin, shanCreate, shanJoin, history as getGameHistory,
-} from '../lib/game.js';
+import { history as getGameHistory } from '../lib/game.js';
 
 function parseCommand(text) {
   const match = String(text || '').trim().match(/^\/([a-z0-9_]+)(?:@[a-z0-9_]+)?(?:\s+([\s\S]*))?$/i);
   return match ? { name: match[1].toLowerCase(), args: (match[2] || '').trim() } : null;
-}
-
-function args(text) {
-  return String(text || '').trim().split(/\s+/).filter(Boolean);
 }
 
 async function send(chatId, text, replyToMessageId, replyMarkup) {
@@ -29,40 +22,23 @@ async function send(chatId, text, replyToMessageId, replyMarkup) {
 
 const keyboard = (rows) => ({ inline_keyboard: rows });
 const SERVERLESS_MINIAPP_URL = 'https://app8694856110.tgcloud.ai/';
-const tileRow = (start, end) => Array.from({ length: end - start + 1 }, (_, offset) => {
-  const index = start + offset;
-  return { text: String(index + 1), callback_data: 'mines:open:' + index };
-});
-const minesKeyboard = () => keyboard([
-  tileRow(0, 4),
-  tileRow(5, 9),
-  [{ text: '💰 CASH OUT', callback_data: 'mines:cashout' }],
-]);
-
 function helpText() {
   return [
-    '🎮 BIKA Game — Serverless preview',
+    '🎮 BIKA Game — Serverless migration test',
     '',
-    '/start — initialize preview profile',
+    '/start — create isolated test profile',
     '/help — commands',
-    '/balance — preview balance',
-    '/daily — preview daily reward',
-    '/top10 — preview leaderboard',
-    '/slot <bet> — slot preview',
-    '/plinko <bet> — Plinko preview',
-    '/wheel <bet> — lucky wheel preview',
-    '/mines <bet> — Mines preview',
-    '/crash <bet> — Rocket Crash preview',
-    '/blackjack <bet> [room] — Blackjack preview',
-    '/shan <bet> [room] — Shan Koe Mee preview',
-    '/wallet — preview wallet ID and balance',
-    '/history — recent preview game history',
-    '/features — preview and migration status by feature',
+    '/balance — test database balance (not production)',
+    '/top10 — test database leaderboard',
+    '/wallet — test wallet identity',
+    '/history — test-game history',
+    '/features — migrated/disabled feature status',
     '/play — open the Serverless test Mini App',
-    '/serverlessstatus — migration status',
+    '/serverlessstatus — migration gate status',
     '',
-    '⚠️ This is isolated preview currency; production MongoDB is never read or modified.',
-    'Wallet transfers are disabled until an atomic transfer/ledger operation is implemented.',
+    '⚠️ Live balances, wagers, payments, transfers and game payouts are disabled.',
+    'Production MongoDB data has not been imported or reconciled.',
+    'This bot is for interface/handler validation only; do not use it for live play.',
   ].join('\n');
 }
 
@@ -115,6 +91,19 @@ export default async function (message) {
       return send(
         chatId,
         '⚠️ Wallet transfer is temporarily disabled in this preview. It will remain disabled until sender balance, recipient balance and ledger writes can be committed atomically.',
+        message.message_id,
+      );
+    }
+
+    const disabledMoneyCommands = new Set([
+      'daily', 'slot', 'plinko', 'wheel', 'crash', 'mines', 'blackjack', 'shan',
+      'addbalance', 'setbalance', 'give', 'pay', 'gift', 'buy', 'sell',
+      'stars', 'purchase', 'refund', '2d', 'bet2d',
+    ]);
+    if (disabledMoneyCommands.has(command.name)) {
+      return send(
+        chatId,
+        '⛔ This money-moving feature is disabled in the Serverless preview. Atomic settlement, payment verification and production data reconciliation are not complete.',
         message.message_id,
       );
     }
@@ -176,99 +165,7 @@ export default async function (message) {
         : 'No preview players yet.';
       return send(chatId, '🏆 BIKA Preview Top 10\n\n' + lines, message.message_id);
     }
-    if (command.name === 'daily') {
-      const result = await dailyWheel(user.tgId);
-      return send(
-        chatId,
-        '🎁 Daily preview reward: +' + formatCoin(result.reward) + ' $\n' +
-          'Balance: ' + formatCoin(result.balance) + ' $',
-        message.message_id,
-      );
-    }
 
-    const parsedArgs = args(command.args);
-    const bet = parsedArgs[0];
-
-    if (command.name === 'slot') {
-      const result = await playSlot(user.tgId, bet);
-      return send(
-        chatId,
-        '🎰 SLOT\n\n' + result.reels.join(' | ') +
-          '\nMultiplier: x' + result.multiplier +
-          '\nPayout: ' + formatCoin(result.payout) + ' $' +
-          '\nBalance: ' + formatCoin(result.balance) + ' $',
-        message.message_id,
-      );
-    }
-    if (command.name === 'plinko') {
-      const result = await playPlinko(user.tgId, bet);
-      return send(
-        chatId,
-        '🟡 PLINKO\nMultiplier: x' + result.multiplier +
-          '\nPayout: ' + formatCoin(result.payout) + ' $' +
-          '\nBalance: ' + formatCoin(result.balance) + ' $',
-        message.message_id,
-      );
-    }
-    if (command.name === 'wheel') {
-      const result = await wheelSpin(user.tgId, bet);
-      return send(
-        chatId,
-        '🎡 LUCKY WHEEL\nReward: ' + result.reward + '%' +
-          '\nPayout: ' + formatCoin(result.payout) + ' $' +
-          '\nBalance: ' + formatCoin(result.balance) + ' $',
-        message.message_id,
-      );
-    }
-    if (command.name === 'crash') {
-      const result = await crashStart(user.tgId, bet);
-      return send(
-        chatId,
-        '🚀 ROCKET CRASH\nRound started.\nCurrent: x1.00\n\nPress Cash Out before the rocket crashes.',
-        message.message_id,
-        keyboard([[{ text: '💰 CASH OUT', callback_data: 'crash:cashout:' + result.sessionId }]]),
-      );
-    }
-    if (command.name === 'mines') {
-      await minesStart(user.tgId, bet);
-      return send(
-        chatId,
-        '💣 MINES\nRound started. Multiplier x1.00\nChoose a tile.',
-        message.message_id,
-        minesKeyboard(),
-      );
-    }
-    if (command.name === 'blackjack') {
-      const room = parsedArgs[1] || 'solo';
-      const result = await blackjackJoin(user.tgId, room, bet);
-      const cards = (result.player?.cards || []).map((card) => card.r + card.s).join(' ');
-      return send(
-        chatId,
-        '🂡 BLACKJACK\nRoom: ' + room + '\nYour cards: ' + cards,
-        message.message_id,
-        keyboard([[
-          { text: 'HIT', callback_data: 'bj:hit:' + room },
-          { text: 'STAND', callback_data: 'bj:stand:' + room },
-        ]]),
-      );
-    }
-    if (command.name === 'shan') {
-      const room = parsedArgs[1];
-      if (room) {
-        const result = await shanJoin(user.tgId, room, bet);
-        return send(
-          chatId,
-          '🎴 SHAN KOE MEE\nRoom: ' + room + '\nPlayers: ' + (result.players?.length || 0),
-          message.message_id,
-        );
-      }
-      const result = await shanCreate(user.tgId);
-      return send(
-        chatId,
-        '🎴 Shan table created\nRoom ID: ' + result.roomId + '\nJoin with /shan <bet> ' + result.roomId,
-        message.message_id,
-      );
-    }
 
     return send(
       chatId,
