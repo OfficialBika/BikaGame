@@ -95,36 +95,6 @@ export async function dispatch(action, input, ctx) {
     case 'walletTransfers':
       throw new EndpointError('Transfer history is unavailable until ledger settlement is verified.', { code: 'ATOMIC_SETTLEMENT_UNAVAILABLE' });
 
-    case 'walletTransfersLegacyDisabled': {
-      const requestedLimit = Math.floor(Number(body.limit) || 50);
-      const limit = Math.max(1, Math.min(100, requestedLimit));
-      const rows = await db.select().from(transactions)
-        .where(and(
-          eq(transactions.type, 'gift'),
-          or(
-            eq(transactions.fromUserId, String(userId)),
-            eq(transactions.toUserId, String(userId)),
-          ),
-        ))
-        .orderBy(desc(transactions.createdAt))
-        .limit(limit)
-        .all();
-      return {
-        ok: true,
-        items: rows.map((row) => {
-          const sent = String(row.fromUserId) === String(userId);
-          return {
-            id: String(row.id),
-            direction: sent ? 'sent' : 'received',
-            amount: Number(row.amount || 0),
-            otherUserId: sent ? row.toUserId : row.fromUserId,
-            source: row.meta && typeof row.meta === 'object' ? row.meta.source || null : null,
-            createdAt: row.createdAt,
-          };
-        }),
-      };
-    }
-
     // The current Serverless SDK contract has no verified transactional
     // settlement primitive. Keep any balance-moving call disabled until a
     // single-operation atomic balance + ledger settlement is tested.
