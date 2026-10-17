@@ -102,7 +102,10 @@ export async function minesStart(userId, amount) {
   void amount;
   throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
-export async function minesStatus(userId) { const s = await activeSession(userId, 'mines'); const u = await userById(userId); return s ? { ok:true, active:true, opened:s.state.opened, multiplier:s.state.multiplier, balance:u.balance } : { ok:true, active:false, balance:u?.balance||0 }; }
+export async function minesStatus(userId) {
+  void userId;
+  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
+}
 export async function minesOpen(userId, index) {
   void userId;
   void index;
