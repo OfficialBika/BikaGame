@@ -58,7 +58,7 @@ jobs:
           git fetch origin main
           base="$(git merge-base origin/main HEAD)"
           changed="$(git diff --name-only "$base" HEAD -- index.js package.json render.yaml src)"
-          unexpected="$(printf '%s\n' "$changed" | sed '/^$/d' | grep -Ev '^(index.js|render.yaml|src/web/miniAppRoutes.js) || true)"
+          unexpected="$(printf '%s\n' "$changed" | sed '/^$/d' | grep -Ev '^(index\.js|render\.yaml|src/web/miniAppRoutes\.js)$' || true)"
           if [ -n "$unexpected" ]; then
             printf 'Unexpected production files changed:\n%s\n' "$unexpected"
             exit 1
