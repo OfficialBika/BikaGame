@@ -42,6 +42,129 @@ export async function dispatch(action, input, ctx) {
     case 'config':
       return miniConfig();
 
+    case 'status':
+      return { ok: true, environment: 'serverless-preview', liveEconomyEnabled: false, productionDataImported: false };
+
+    case 'walletTransfers':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'walletTransfer':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'slotSpin':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'plinkoDrop':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'wheelSpin':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'wheelDailySpin':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'crashStart':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'crashBet':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'crashStatus':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'crashCashout':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'minesStart':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'minesStatus':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'minesOpen':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'minesCashout':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'blackjackStatus':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'blackjackJoin':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'blackjackHit':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'blackjackStand':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'shanCreate':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'shanStatus':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'shanJoin':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'shanDraw':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'shanStay':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'shanDeal':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'daily':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'dailyClaim':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'claimDaily':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'buy':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'purchase':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'starsPurchase':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'gift':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'transfer':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'shopBuy':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'sell':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'cardSell':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'orderCreate':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'auctionBid':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'tournamentJoin':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'bet2d':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
+    case 'sportsBet':
+      throw new EndpointError('This operation is disabled in the Serverless preview until production parity, payment validation and atomic settlement are verified.', { code: 'FEATURE_NOT_ENABLED' });
+
     case 'me': {
       const user = await userById(userId);
       return {
