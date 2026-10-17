@@ -149,7 +149,7 @@ for (const action of [
   assert.match(body, /ATOMIC_SETTLEMENT_UNAVAILABLE/,
     action + ' must remain disabled until atomic settlement is verified');
 }
-assert.match(gameSource, /liveEconomyEnabled:\\s*false/,
+assert.match(gameSource, /liveEconomyEnabled:\s*false/,
   'game configuration must not enable a live economy');
 
 const miniSource = await readFile(path.join(cloudRoot, 'lib/mini.js'), 'utf8');
