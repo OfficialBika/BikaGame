@@ -97,17 +97,19 @@ for (const file of frontendFiles) {
 
 for (const file of ['public/miniapp/app.js', 'public/miniapp/app-core.js']) {
   const source = await readFile(path.join(root, file), 'utf8');
-  assert.match(source, /Serverless\?\.call/, file + ' must invoke Telegram.WebApp.Serverless.call');
+  assert.match(source, /BIKA_MINIAPP_API_BASE/, file + ' must use the configured Render API bridge');
+  assert.match(source, /https:\/\/bikagamebot\.onrender\.com/, file + ' must point to the existing MongoDB-backed Render service');
+  assert.doesNotMatch(source, /Serverless\?\.call/, file + ' must not use the isolated preview database for Mini App wallet/game actions');
 }
 
 const appSource = await readFile(path.join(staticRoot, 'app.js'), 'utf8');
 const coreSource = await readFile(path.join(staticRoot, 'app-core.js'), 'utf8');
 assert.match(appSource, /data-b=\"features\"/, 'Mini App navigation must expose the feature status page');
 assert.match(appSource, /api\(['\"]\/api\/mini\/features['\"]\)/, 'Mini App feature status page must call the featureStatus endpoint');
-const appMapMatch = appSource.match(/const m=(\{[^}]*\}),name=m\[path\];/);
-const coreMapMatch = coreSource.match(/const endpointMap\s*=\s*(\{[^;]*\});/);
-assert.ok(appMapMatch, 'app.js must contain its synchronized Serverless endpoint map');
-assert.ok(coreMapMatch, 'app-core.js must contain its synchronized Serverless endpoint map');
+const appMapMatch = appSource.match(/const miniAppEndpointMap\s*=\s*(\{[^;]*\});/);
+const coreMapMatch = coreSource.match(/const miniAppEndpointMap\s*=\s*(\{[^;]*\});/);
+assert.ok(appMapMatch, 'app.js must contain its synchronized Render API endpoint allowlist');
+assert.ok(coreMapMatch, 'app-core.js must contain its synchronized Render API endpoint allowlist');
 assert.deepEqual(JSON.parse(appMapMatch[1]), Object.fromEntries(endpointMap),
   'app.js endpoint map must match scripts/patch-miniapp-serverless.mjs');
 assert.deepEqual(JSON.parse(coreMapMatch[1]), Object.fromEntries(endpointMap),
