@@ -169,9 +169,6 @@ export default async function (message) {
     }
 
 
-    const parsedArgs = args(command.args);
-    const bet = parsedArgs[0];
-
     return send(
       chatId,
       'This command is not ported to Serverless preview yet. No production data was changed.',
