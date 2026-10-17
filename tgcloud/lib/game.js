@@ -3,11 +3,13 @@ import { desc, eq } from 'sdk/db';
 import { gameHistory, users } from '../schema.js';
 
 const now = () => new Date();
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const n = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 
 export async function userById(userId) {
-  return db.select().from(users).where(eq(users.tgId, Number(userId))).get();
+  const id = Number(userId);
+  if (!Number.isSafeInteger(id) || id <= 0) return null;
+  return db.select().from(users).where(eq(users.tgId, id)).get();
 }
 
 export async function ensurePreviewUser(tgUser) {
@@ -32,11 +34,24 @@ export async function ensurePreviewUser(tgUser) {
     updatedAt: t,
   }).onConflictDoUpdate({
     target: users.tgId,
-    set: { username: tgUser.username || null, firstName: tgUser.first_name || 'Player', lastName: tgUser.last_name || null, photoUrl: tgUser.photo_url || null, languageCode: tgUser.language_code || null, startedBot: true, updatedAt: t },
+    set: {
+      username: tgUser.username || null,
+      firstName: tgUser.first_name || 'Player',
+      lastName: tgUser.last_name || null,
+      photoUrl: tgUser.photo_url || null,
+      languageCode: tgUser.language_code || null,
+      startedBot: true,
+      updatedAt: t,
+    },
   }).run();
-  return userById(id);
+  const user = await userById(id);
+  if (!user) throw new Error('USER_UPSERT_FAILED');
+  return user;
 }
 
+// The Serverless SDK surface currently used by this branch has no verified
+// atomic balance + ledger settlement primitive. These wrappers intentionally
+// fail closed so retries/crashes cannot make the balance diverge from history.
 export async function debit() {
   throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
@@ -46,113 +61,39 @@ export async function credit() {
 }
 
 export async function recordGame(userId, game, bet, payout, result, multiplier = 0) {
-  await db.insert(gameHistory).values({ userId: Number(userId), game, bet: Math.floor(n(bet)), payout: Math.floor(n(payout)), multiplier: Math.floor(n(multiplier)), result, createdAt: now() }).run();
-  return userById(userId);
+  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
 }
 
 export async function history(userId, game = 'all', limit = 20) {
+  const id = Number(userId);
+  if (!Number.isSafeInteger(id) || id <= 0) throw new Error('INVALID_USER');
   const take = clamp(Math.floor(n(limit, 20)), 1, 100);
-  const q = db.select().from(gameHistory).where(eq(gameHistory.userId, Number(userId))).orderBy(desc(gameHistory.createdAt)).limit(take);
-  const rows = await q.all();
-  return game === 'all' ? rows : rows.filter((x) => x.game === game).slice(0, take);
+  const rows = await db.select().from(gameHistory)
+    .where(eq(gameHistory.userId, id))
+    .orderBy(desc(gameHistory.createdAt))
+    .limit(take)
+    .all();
+  return game === 'all' ? rows : rows.filter((row) => row.game === game);
 }
 
-export async function playSlot(userId, amount) {
-  void userId;
-  void amount;
-  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
-}
-
-export async function playPlinko(userId, amount) {
-  void userId;
-  void amount;
-  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
-}
-
-export async function wheelSpin(userId, amount) {
-  void userId;
-  void amount;
-  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
-}
-
-export async function dailyWheel(userId) {
-  void userId;
-  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
-}
-
-export async function crashStart(userId, amount) {
-  void userId;
-  void amount;
-  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
-}
-export async function crashStatus(userId) {
-  void userId;
-  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
-}
-export async function crashCashout(userId) {
-  void userId;
-  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
-}
-
-export async function minesStart(userId, amount) {
-  void userId;
-  void amount;
-  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
-}
-export async function minesStatus(userId) {
-  void userId;
-  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
-}
-export async function minesOpen(userId, index) {
-  void userId;
-  void index;
-  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
-}
-export async function minesCashout(userId) {
-  void userId;
-  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
-}
-
-export async function blackjackJoin(userId, roomId, amount) {
-  void userId;
-  void roomId;
-  void amount;
-  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
-}
-export async function blackjackStatus(userId, roomId) {
-  void userId;
-  void roomId;
-  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
-}
-export async function blackjackAction(userId, roomId, action) {
-  void userId;
-  void roomId;
-  void action;
-  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
-}
-
-export async function shanCreate(userId, title = 'Bika Shan Koe Mee Pro Table') {
-  void userId;
-  void title;
-  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
-}
-export async function shanJoin(userId, roomId, amount) {
-  void userId;
-  void roomId;
-  void amount;
-  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
-}
-export async function shanStatus(userId, roomId) {
-  void userId;
-  void roomId;
-  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
-}
-export async function shanDeal(userId, roomId, action = 'deal') {
-  void userId;
-  void roomId;
-  void action;
-  throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE');
-}
+export async function playSlot() { throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE'); }
+export async function playPlinko() { throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE'); }
+export async function wheelSpin() { throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE'); }
+export async function dailyWheel() { throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE'); }
+export async function crashStart() { throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE'); }
+export async function crashStatus() { throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE'); }
+export async function crashCashout() { throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE'); }
+export async function minesStart() { throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE'); }
+export async function minesStatus() { throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE'); }
+export async function minesOpen() { throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE'); }
+export async function minesCashout() { throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE'); }
+export async function blackjackJoin() { throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE'); }
+export async function blackjackStatus() { throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE'); }
+export async function blackjackAction() { throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE'); }
+export async function shanCreate() { throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE'); }
+export async function shanJoin() { throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE'); }
+export async function shanStatus() { throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE'); }
+export async function shanDeal() { throw new Error('ATOMIC_SETTLEMENT_UNAVAILABLE'); }
 
 export async function config() {
   return {
