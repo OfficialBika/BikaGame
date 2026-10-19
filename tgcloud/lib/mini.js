@@ -125,9 +125,10 @@ export async function dispatch(action, input, ctx) {
       };
     }
 
-    // Keep preview transfers disabled until the platform exposes a supported
-    // atomic settlement primitive. Two independent balance writes can partially
-    // succeed, even in an isolated preview database.
+    // transferByWalletId creates one idempotent ledger row. SQLite validates
+    // sender funds and recipient existence before the insert; after-insert
+    // triggers move both balances in the same statement. Never split this into
+    // independent user updates.
     case 'walletTransfer': {
       const amount = Number(body.amount);
       const transferId = String(body.transferId || body.requestId || body.idempotencyKey || '');
