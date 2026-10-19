@@ -380,7 +380,7 @@ export default async function (query) {
         try { await recordDailyTournament({ chatId: message.chat.id, telegramUser: user, game: 'mines', bet: result.bet, payout: result.payout, multiplier: result.multiplier, result: { cashout: true } }); }
         catch (error) { console.warn('BIKA_DAILY_TOURNAMENT_RECORD_FAILED', String(error?.message || error)); }
       }
-      text = '💰 Mines Cash Out x' + result.multiplier + ' — +' + result.payout + ' 
+      text = '💰 Mines Cash Out x' + result.multiplier + ' — +' + result.payout + ' Bal';
     } else if (game === 'bj' && (action === 'hit' || action === 'stand')) {
       const result = await blackjackAction(user.id, arg, action);
       text = '🂡 Blackjack — ' + ((result.player?.cards || []).map((card) => card.r + card.s).join(' '));
