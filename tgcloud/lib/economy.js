@@ -2,6 +2,7 @@ import { db, EndpointError } from 'sdk';
 import { and, eq, isNull } from 'sdk/db';
 import { users, transactions, treasury, settings, idempotencyKeys, userCooldowns, broadcastJobs, broadcastTargets } from '../schema.js';
 import { walletIdForUserId, walletSuffix } from './walletPolicy.js';
+import { dailyRewardAmount, yangonDayBounds } from './dailyPolicy.js';
 import { buildDuelSettlementRow } from './duelSettlementPlan.js';
 
 const now = () => new Date();
@@ -51,6 +52,10 @@ BEGIN
   SELECT CASE WHEN COALESCE(NEW.required_treasury, 0) > 0
       AND COALESCE((SELECT owner_balance FROM treasury WHERE key = 'treasury'), 0) < NEW.required_treasury
     THEN RAISE(ABORT, 'TREASURY_INSUFFICIENT') END;
+  SELECT CASE WHEN NEW.type = 'daily_claim'
+      AND COALESCE((SELECT daily_claimed_at FROM users WHERE tg_id = NEW.account_user_id), 0) >=
+          CAST(json_extract(NEW.meta, '$.dayStartUnix') AS INTEGER)
+    THEN RAISE(ABORT, 'DAILY_ALREADY_CLAIMED') END;
   SELECT CASE WHEN NEW.payouts IS NOT NULL
       AND EXISTS (SELECT 1 FROM json_each(NEW.payouts) p
         WHERE NOT EXISTS (SELECT 1 FROM users WHERE tg_id = CAST(json_extract(p.value, '$.userId') AS INTEGER)))
@@ -69,6 +74,8 @@ BEGIN
     owner_balance = owner_balance + COALESCE(NEW.treasury_delta, 0),
     updated_at = NEW.created_at
     WHERE key = 'treasury' AND NEW.treasury_delta IS NOT NULL;
+  UPDATE users SET daily_claimed_at = NEW.created_at, updated_at = NEW.created_at
+    WHERE tg_id = NEW.account_user_id AND NEW.type = 'daily_claim';
   UPDATE users SET balance = balance - NEW.amount,
     total_lost = total_lost + CASE WHEN NEW.type = 'gift' THEN 0 ELSE NEW.amount END,
     updated_at = NEW.created_at
@@ -361,6 +368,72 @@ export async function credit(userId, amount, type = 'win', meta = {}, key) {
   });
   return db.select().from(users).where(eq(users.tgId, id)).get();
 }
+export async function claimDailyReward(userId) {
+  await ensureEconomy();
+  const id = userIdOf(userId);
+  const user = await db.select().from(users).where(eq(users.tgId, id)).get();
+  if (!user) throw new EndpointError('User data မတွေ့ပါ။', { code: 'USER_NOT_FOUND' });
+
+  const { dayKey, dayStartUnix } = yangonDayBounds(now());
+  const key = 'daily-claim:' + id + ':' + dayKey;
+  const prior = await getTransaction(key);
+  if (prior) {
+    const current = await db.select().from(users).where(eq(users.tgId, id)).get();
+    return { ok: true, duplicate: true, dayKey, reward: Number(prior.payoutAmount || prior.amount || 0), balance: Number(current?.balance || 0) };
+  }
+  if (await hasIdempotencyKey(key)) {
+    throw new EndpointError('ဒီနေ့ claim လုပ်ပြီးပါပြီ။ နောက်နေ့မှ ပြန်လုပ်ပါ။', { code: 'DAILY_ALREADY_CLAIMED' });
+  }
+
+  const min = Number(await getSetting('daily_reward_min', 500));
+  const max = Number(await getSetting('daily_reward_max', 2000));
+  let reward;
+  try {
+    reward = dailyRewardAmount(min, max);
+  } catch (_) {
+    throw new EndpointError('Daily reward setting မမှန်ပါ။', { code: 'DAILY_CONFIG_INVALID' });
+  }
+
+  let operation;
+  try {
+    operation = await insertOperation({
+      type: 'daily_claim',
+      fromUserId: 'TREASURY',
+      toUserId: String(id),
+      amount: reward,
+      accountUserId: id,
+      balanceDelta: reward,
+      requiredBalance: 0,
+      totalWonDelta: 0,
+      totalLostDelta: 0,
+      treasuryDelta: -reward,
+      requiredTreasury: reward,
+      betAmount: 0,
+      payoutAmount: reward,
+      idempotencyKey: key,
+      meta: { source: 'telegram_daily', dayKey, dayStartUnix },
+    });
+  } catch (error) {
+    const code = String(error?.code || error?.message || error);
+    if (code.includes('DAILY_ALREADY_CLAIMED')) {
+      throw new EndpointError('ဒီနေ့ claim လုပ်ပြီးပါပြီ။ နောက်နေ့မှ ပြန်လုပ်ပါ။', { code: 'DAILY_ALREADY_CLAIMED' });
+    }
+    throw error;
+  }
+
+  if (operation.duplicate && !operation.row) {
+    throw new EndpointError('ဒီနေ့ claim လုပ်ပြီးပါပြီ။ နောက်နေ့မှ ပြန်လုပ်ပါ။', { code: 'DAILY_ALREADY_CLAIMED' });
+  }
+  const current = await db.select().from(users).where(eq(users.tgId, id)).get();
+  return {
+    ok: true,
+    duplicate: Boolean(operation.duplicate),
+    dayKey,
+    reward: Number(operation.row?.payoutAmount || operation.row?.amount || reward),
+    balance: Number(current?.balance || 0),
+  };
+}
+
 export async function transferBalance(fromUserId, toUserId, amount, meta = {}, key) {
   const from = userIdOf(fromUserId), to = userIdOf(toUserId), n = amountOf(amount, 'INVALID_TRANSFER');
   if (from === to) throw new EndpointError('မိမိကိုယ်တိုင်ထံ လွှဲမရပါ။', { code: 'TRANSFER_SELF' });
