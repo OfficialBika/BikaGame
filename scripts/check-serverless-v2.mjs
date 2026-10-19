@@ -45,6 +45,8 @@ const groupApproval = await readFile(join(root, 'tgcloud/lib/groupApproval.js'),
 const groupApprovalPolicy = await readFile(join(root, 'tgcloud/lib/groupApprovalPolicy.js'), 'utf8');
 const broadcast = await readFile(join(root, 'tgcloud/lib/broadcast.js'), 'utf8');
 const broadcastPolicy = await readFile(join(root, 'tgcloud/lib/broadcastPolicy.js'), 'utf8');
+const walletPolicy = await readFile(join(root, 'tgcloud/lib/walletPolicy.js'), 'utf8');
+const usersModule = await readFile(join(root, 'tgcloud/lib/users.js'), 'utf8');
 
 // V2 must keep production cutover explicitly blocked until main parity and import are proven.
 assert.match(parity, /Production status: BLOCKED/);
@@ -142,6 +144,13 @@ assert.match(economy, /CREATE TRIGGER IF NOT EXISTS bika_transactions_after_inse
 assert.match(economy, /idempotencyKeys/);
 assert.match(economy, /required_balance/);
 assert.match(mini, /case 'walletTransfer':[\s\S]*transferByWalletId/);
+assert.match(walletPolicy, /walletIdForUserId/);
+assert.match(walletPolicy, /userIdFromWalletId/);
+assert.match(walletPolicy, /walletSuffix/);
+assert.match(usersModule, /WALLET_ID_ASSIGNMENT_FAILED/);
+assert.match(usersModule, /isNull\(users\.walletId\)/);
+assert.match(economy, /CASE WHEN NEW\.type = 'gift' THEN 0 ELSE NEW\.amount END/);
+assert.match(economy, /fromAccountUserId: from, toAccountUserId: to/);
 assert.match(schema, /table\('two_d_events'/);
 assert.match(schema, /table\('sports_bets'/);
 assert.match(schema, /table\('shop_cards'/);
