@@ -52,5 +52,7 @@ jobs:
         run: node scripts/test-maintenance-policy.mjs
       - name: Test actual SQLite ledger triggers
         run: python3 scripts/test-dice-ledger-triggers.py
+      - name: Test sports, auction and shop atomic ledger triggers
+        run: python3 scripts/test-event-market-triggers.py
       - name: Check V2 contracts
         run: node scripts/check-serverless-v2.mjs
