@@ -48,7 +48,7 @@ const broadcastPolicy = await readFile(join(root, 'tgcloud/lib/broadcastPolicy.j
 const walletPolicy = await readFile(join(root, 'tgcloud/lib/walletPolicy.js'), 'utf8');
 const usersModule = await readFile(join(root, 'tgcloud/lib/users.js'), 'utf8');
 const twoDPolicy = await readFile(join(root, 'tgcloud/lib/twoDPolicy.js'), 'utf8');
-const stars = await readFile(join(root, 'tgcloud/lib/stars.js'), 'utf8');
+
 const starsPolicy = await readFile(join(root, 'tgcloud/lib/starsPolicy.js'), 'utf8');
 const twoDService = await readFile(join(root, 'tgcloud/lib/twoD.js'), 'utf8');
 
