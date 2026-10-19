@@ -1,5 +1,5 @@
 import { api, db, EndpointError } from 'sdk';
-import { and, asc, eq, isNull, lt } from 'sdk/db';
+import { and, asc, eq, isNull, lt, or } from 'sdk/db';
 import {
   users, groups, broadcastJobs, broadcastTargets, broadcastLocks,
 } from '../schema.js';
@@ -75,7 +75,7 @@ async function acquireLock(jobId, ownerChatId) {
       }).where(and(
         eq(broadcastLocks.key, LOCK_KEY),
         eq(broadcastLocks.jobId, existing.jobId),
-        lt(broadcastLocks.heartbeatAt, staleBefore),
+        or(isNull(broadcastLocks.heartbeatAt), lt(broadcastLocks.heartbeatAt, staleBefore)),
       )).run();
       if (rowsAffected(claimed) > 0) {
         return { ok: true, recoveredJobId: String(existing.jobId) };
@@ -163,6 +163,7 @@ async function insertTargetSnapshot(jobId, targets) {
       updatedAt: timestamp,
     }));
     if (rows.length) await db.insert(broadcastTargets).values(rows).onConflictDoNothing().run();
+    await refreshLock(jobId);
   }
 }
 
@@ -349,9 +350,13 @@ export async function startBroadcast({ actorId, ownerChatId, text, mode, sourceM
   }
   try {
     if (lock.recoveredJobId && lock.recoveredJobId !== jobId) await recoverStaleJob(lock.recoveredJobId);
+    const broadcastText = String(text || '');
+    if (mode === 'text' && escapeHtml(broadcastText).length + 40 > 4096) {
+      throw new EndpointError('Broadcast text is too long after safe formatting; shorten it and retry.', { code: 'BROADCAST_TEXT_TOO_LONG' });
+    }
     const payload = {
       mode,
-      text: mode === 'text' ? String(text || '').slice(0, 4000) : '',
+      text: mode === 'text' ? broadcastText : '',
       sourceChatId: mode === 'copy' ? Number(ownerChatId) : null,
       sourceMessageId: mode === 'copy' ? Number(sourceMessage?.message_id) : null,
       replyMarkup: mode === 'copy' && sourceMessage?.reply_markup ? sourceMessage.reply_markup : null,
@@ -387,12 +392,12 @@ export async function startBroadcast({ actorId, ownerChatId, text, mode, sourceM
   }
 }
 
-export async function resumeBroadcast({ actorId, ownerChatId, jobId = null }) {
+export async function resumeBroadcast({ actorId, ownerChatId, jobId = null, progressMessageId = null }) {
   assertBroadcastOwner(actorId);
   let job = jobId
     ? await db.select().from(broadcastJobs).where(eq(broadcastJobs.id, jobId)).get()
     : await db.select().from(broadcastJobs)
-      .where(eq(broadcastJobs.status, 'paused'))
+      .where(or(eq(broadcastJobs.status, 'paused'), eq(broadcastJobs.status, 'running')))
       .orderBy(asc(broadcastJobs.createdAt))
       .all().then((rows) => rows[rows.length - 1] || null);
   if (!job || !['paused', 'running'].includes(job.status)) {
@@ -403,11 +408,11 @@ export async function resumeBroadcast({ actorId, ownerChatId, jobId = null }) {
   }
   const lock = await acquireLock(job.id, ownerChatId);
   if (!lock.ok) throw new EndpointError('Another broadcast is already running.', { code: 'BROADCAST_RUNNING' });
-  if (lock.recoveredJobId && lock.recoveredJobId !== job.id) await recoverStaleJob(lock.recoveredJobId);
+  if (lock.recoveredJobId) await recoverStaleJob(lock.recoveredJobId);
   job = await db.select().from(broadcastJobs).where(eq(broadcastJobs.id, job.id)).get();
   await db.update(broadcastJobs).set({
     status: 'running',
-    payload: { ...(job.payload || {}), ownerChatId: Number(ownerChatId), progressMessageId: job.payload?.progressMessageId || null },
+    payload: { ...(job.payload || {}), ownerChatId: Number(ownerChatId), progressMessageId: Number(progressMessageId) || job.payload?.progressMessageId || null },
     updatedAt: now(),
   }).where(eq(broadcastJobs.id, job.id)).run();
   return processBroadcastBatch(job.id, actorId, { lockAlreadyHeld: true });
@@ -464,7 +469,9 @@ async function processBroadcastBatch(jobId, actorId, { lockAlreadyHeld = false }
         }
       }
     }
-    await Promise.all(Array.from({ length: Math.min(SEND_CONCURRENCY, Math.max(1, pending.length)) }, () => worker()));
+    const workerResults = await Promise.allSettled(Array.from({ length: Math.min(SEND_CONCURRENCY, Math.max(1, pending.length)) }, () => worker()));
+    const workerError = workerResults.find((result) => result.status === 'rejected');
+    if (workerError) throw workerError.reason;
 
     const freshStatus = await db.select().from(broadcastJobs).where(eq(broadcastJobs.id, jobId)).get();
     if (freshStatus?.status === 'cancel_requested') {
@@ -485,6 +492,15 @@ async function processBroadcastBatch(jobId, actorId, { lockAlreadyHeld = false }
     job = await db.select().from(broadcastJobs).where(eq(broadcastJobs.id, jobId)).get();
     await editProgress(job, finalStatus);
     return { jobId, status: finalStatus, ...counters };
+  } catch (error) {
+    console.error('Broadcast batch paused after worker error:', String(error?.message || error));
+    await db.update(broadcastTargets).set({ status: 'pending', updatedAt: now() })
+      .where(and(eq(broadcastTargets.jobId, jobId), eq(broadcastTargets.status, 'sending'))).run().catch(() => {});
+    await db.update(broadcastJobs).set({ status: 'paused', updatedAt: now() })
+      .where(and(eq(broadcastJobs.id, jobId), eq(broadcastJobs.status, 'running'))).run().catch(() => {});
+    const currentJob = await db.select().from(broadcastJobs).where(eq(broadcastJobs.id, jobId)).get().catch(() => null);
+    if (currentJob) await editProgress(currentJob, 'paused').catch(() => {});
+    return { jobId, status: 'paused', error: 'BROADCAST_BATCH_FAILED' };
   } finally {
     if (lockOwned) await releaseLock(jobId).catch((error) => {
       console.warn('Broadcast lock release failed:', String(error?.message || error));
@@ -495,9 +511,7 @@ async function processBroadcastBatch(jobId, actorId, { lockAlreadyHeld = false }
 export async function cancelBroadcast({ actorId }) {
   assertBroadcastOwner(actorId);
   const active = await db.select().from(broadcastJobs)
-    .where(and(
-      eq(broadcastJobs.status, 'running'),
-    )).orderBy(asc(broadcastJobs.createdAt)).all();
+    .where(eq(broadcastJobs.status, 'running')).orderBy(asc(broadcastJobs.createdAt)).all();
   const job = active[active.length - 1];
   if (job) {
     await db.update(broadcastJobs).set({ status: 'cancel_requested', updatedAt: now() })
