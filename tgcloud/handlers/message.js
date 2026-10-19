@@ -14,6 +14,10 @@ import {
   playSlot, playPlinko, wheelSpin, dailyWheel, crashStart, minesStart,
   blackjackJoin, shanCreate, shanJoin, history as getGameHistory,
 } from '../lib/game.js';
+import {
+  reconcileTwoDOnUpdate, handleTwoDBet, settingsChannelIdForOwner,
+  closeTwoDEvent, settleTwoDResult, getTwoDStatus, getMyTwoDBet,
+} from '../lib/twoD.js';
 
 
 function args(text) {
@@ -61,6 +65,9 @@ function helpText() {
     '/blackjack <bet> [room] — Blackjack preview',
     '/shan <bet> [room] — Shan Koe Mee preview',
     '/wallet — preview wallet ID and balance',
+    '/2dchannel <channel_id> — Owner-only: configure the 2D posting channel (bot must be admin)',
+    '/2dstatus, /mybet, /betclose, /2dwin <00–99> — 2D preview controls',
+    '.2d 00.33.66 5000 — 2D bet by replying to the open post in its linked discussion',
     '/history — recent preview game history',
     '/features — preview and migration status by feature',
     '/play — open the Serverless test Mini App',
@@ -80,7 +87,16 @@ function helpText() {
 export default async function (message) {
   const chatId = message?.chat?.id;
   const from = message?.from;
-  if (!chatId || !from || from.is_bot) return;
+  if (!chatId || from?.is_bot) return;
+
+  // Serverless has no persistent timer process. Reconcile scheduled 2D state on
+  // inbound updates so overdue events close and an in-window session can open.
+  try {
+    if (message?.text || message?.is_automatic_forward) await reconcileTwoDOnUpdate(message);
+  } catch (error) {
+    console.warn('BIKA_2D_RECONCILE_FAILED', String(error?.message || error));
+  }
+  if (!from) return;
 
   // Only a successful_payment update can credit a Stars purchase.
   if (message?.successful_payment) {
@@ -98,7 +114,8 @@ export default async function (message) {
 
   const gameToggle = parseGameToggle(message.text);
   const command = parseCommand(message.text);
-  if (!command && !gameToggle) return;
+  const isTwoDBet = /^\\.2d(?:@\\w+)?(?:\\s|$)/i.test(String(message.text || '').trim());
+  if (!command && !gameToggle && !isTwoDBet) return;
 
   let broadcastProgressMessage = null;
   try {
@@ -134,6 +151,50 @@ export default async function (message) {
     if (isGroupChat(message.chat)) {
       const access = await checkGroupAccess(message.chat, from.id);
       if (!access.allowed) return send(chatId, groupAccessMessage(access.reason), message.message_id);
+    }
+
+    if (isTwoDBet) {
+      const result = await handleTwoDBet(message);
+      return send(chatId, result.text, message.message_id);
+    }
+
+    if (command?.name === '2dchannel') {
+      if (message.chat?.type !== 'private') {
+        return send(chatId, '/2dchannel ကို Owner ရဲ့ private chat ထဲမှာပဲ သုံးပါ။', message.message_id);
+      }
+      const result = await settingsChannelIdForOwner(from.id, command.args);
+      return send(chatId, '✅ 2D Channel configured\n' +
+        'Channel: ' + result.title + '\n' +
+        'Channel ID: ' + result.channelId + '\n' +
+        'Schedule: Yangon 08:00–11:50 and 13:00–15:59, Monday–Friday.\n' +
+        'Serverless opens/closes on inbound updates; exact-time external scheduler parity is still a deployment blocker.', message.message_id);
+    }
+    if (command?.name === '2dstatus') {
+      const status = await getTwoDStatus();
+      return send(chatId, '🎯 BIKA 2D Status\n' +
+        'State: ' + status.status + '\n' +
+        'Event: ' + (status.eventId || '—') + '\n' +
+        'Closes: ' + (status.closeAt || '—') + '\n' +
+        'Result: ' + (status.winningNumber || '—') + '\n' +
+        'Channel configured: ' + (status.channelConfigured ? 'YES' : 'NO'), message.message_id);
+    }
+    if (command?.name === 'mybet') {
+      const result = await getMyTwoDBet(from.id);
+      if (!result.items.length) return send(chatId, '🎯 ဒီ 2D Event မှာ Bet မရှိသေးပါ။', message.message_id);
+      return send(chatId, '🎯 BIKA 2D · ' + result.eventId + '\n' +
+        result.items.map(row => row.number + ' — ' + formatCoin(row.amount) + ' Bal (win up to ' + formatCoin(row.potentialWin) + ')').join('\n') +
+        '\nState: ' + result.status, message.message_id);
+    }
+    if (command?.name === 'betclose' || command?.name === '2dclose') {
+      const result = await closeTwoDEvent(from.id);
+      return send(chatId, result.ok ? '🔒 2D betting closed. Event: ' + result.eventId : 'ℹ️ Open 2D event မရှိပါ သို့မဟုတ် ပိတ်ပြီးသားပါ။', message.message_id);
+    }
+    if (command?.name === '2dwin') {
+      const result = await settleTwoDResult(from.id, command.args);
+      return send(chatId, (result.duplicate ? 'ℹ️ Result ကို အရင် settle လုပ်ပြီးသားပါ။' : '✅ 2D settlement complete.') +
+        '\nEvent: ' + result.eventId + '\nResult: ' + result.number +
+        '\nWinners: ' + Number(result.winnerCount || 0) +
+        '\nTotal paid: ' + formatCoin(result.totalPaid || 0) + ' Bal', message.message_id);
     }
 
     if (command && ['broadcast', 'broadcastend'].includes(command.name)) {
@@ -508,6 +569,26 @@ export default async function (message) {
       BROADCAST_TEXT_TOO_LONG: 'Broadcast စာသားရှည်လွန်းပါတယ်။ ပိုတိုအောင်ပြင်ပါ။',
       BROADCAST_BATCH_FAILED: 'Broadcast batch ကို pause လုပ်ထားပါတယ်။ /broadcast resume နဲ့ဆက်နိုင်ပါတယ်။',
       INVALID_GAME: 'Game အမည် မမှန်ပါ။',
+      TWO_D_CHANNEL_INVALID: 'Channel ID ကို -100... numeric ID ပုံစံဖြင့် ထည့်ပါ။',
+      TWO_D_CHANNEL_UNAVAILABLE: 'Channel မတွေ့ပါ။ Bot ကို admin ပေးပြီး Channel ID ပြန်စစ်ပါ။',
+      TWO_D_CHANNEL_REQUIRED: '2D အတွက် Telegram channel တစ်ခုကိုသာ သတ်မှတ်ပါ။',
+      TWO_D_CHANNEL_BOT_ADMIN_REQUIRED: 'Bot ကို 2D channel မှာ administrator လုပ်ပေးပါ။',
+      TWO_D_CHANNEL_NOT_CONFIGURED: 'Owner က private chat ထဲမှာ /2dchannel -100... ကို အရင်သတ်မှတ်ပါ။',
+      TWO_D_GROUP_REQUIRED: '.2d ကို linked discussion group ထဲမှာပဲ သုံးနိုင်ပါတယ်။',
+      TWO_D_AMOUNT_LIMIT: 'တစ်ဂဏန်းလျှင် 200 မှ 200,000 Bal အတွင်း ထိုးပါ။',
+      TWO_D_NUMBER_INVALID: 'ဂဏန်းပုံစံမမှန်ပါ။ 00–99 သို့မဟုတ် 00R ပုံစံ သုံးပါ။',
+      TWO_D_NUMBER_LIMIT: 'ဒီဂဏန်းအတွက် တစ်ဦးလျှင် စုစုပေါင်း 200,000 Bal ထက် မကျော်ရပါ။',
+      TWO_D_CLOSED: '2D ထိုးကြေးပိတ်ထားပါပြီ။',
+      TWO_D_BET_INVALID: '2D bet ပုံစံ မမှန်ပါ။',
+      TWO_D_SESSION_CLOSED: 'Yangon time AM 08:00–11:50 / PM 13:00–15:59 (Mon–Fri) အတွင်းသာ ထိုးနိုင်ပါသည်။',
+      TWO_D_EVENT_CLOSED: '2D Open post မဖွင့်ရသေးပါ။',
+      TWO_D_REPLY_REQUIRED: 'သက်ဆိုင်ရာ 2D Open Post ၏ linked discussion comment ကို reply လုပ်ပါ။',
+      TWO_D_FORMAT: 'ဥပမာ .2d 00.33.66 5000 သို့မဟုတ် .2d 45R 5000',
+      TWO_D_RESULT_INVALID: 'ပေါက်ဂဏန်းကို 00–99 နှစ်လုံးပုံစံပေးပါ။',
+      TWO_D_EVENT_NOT_CLOSED: 'ပိတ်ပြီးသား 2D Event မရှိပါ။ အရင် /betclose ပို့ပါ။',
+      TWO_D_RESULT_CONFLICT: 'ဒီ Event ကို အခြား result ဖြင့် settle လုပ်ပြီးသားပါ။',
+      TWO_D_SETTLEMENT_CONFLICT: 'Settlement အခြား process က လုပ်နေသည် သို့မဟုတ် result မတူပါ။',
+      TWO_D_PAYOUT_OVERFLOW: 'စုစုပေါင်း payout က ledger limit ကျော်နေပါသည်။',
     };
     const errorCode = error?.code || error?.parameters?.code || error?.details?.code || error?.error?.code;
     const safeMessage = messageByCode[errorCode] || messageByCode[error?.message] || 'Preview command failed safely. No production data was changed.';
