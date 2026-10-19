@@ -45,6 +45,7 @@ export const transactions = table('transactions', {
   historyUserId: integer('history_user_id'),
   gameResult: json('game_result'),
   payouts: json('payouts'),
+  refunds: json('refunds'),
   histories: json('histories'),
   meta: json('meta'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
