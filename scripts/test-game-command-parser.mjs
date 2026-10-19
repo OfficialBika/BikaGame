@@ -18,6 +18,10 @@ const cases = [
   ['.mine 100', { name: 'mines', args: '100' }],
   ['/mines 100', { name: 'mines', args: '100' }],
   ['.crash 100', { name: 'crash', args: '100' }],
+  ['/daily', { name: 'daily', args: '' }],
+  ['/dailyclaim', { name: 'daily', args: '' }],
+  ['.daily', { name: 'daily', args: '' }],
+  ['.dailyclaim', { name: 'daily', args: '' }],
 ];
 for (const [input, expected] of cases) assert.deepEqual(parseCommand(input), expected, input);
 for (const input of ['hello', '.broadcast all', '.admin']) {
