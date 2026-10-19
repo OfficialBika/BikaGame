@@ -48,6 +48,8 @@ const broadcastPolicy = await readFile(join(root, 'tgcloud/lib/broadcastPolicy.j
 const walletPolicy = await readFile(join(root, 'tgcloud/lib/walletPolicy.js'), 'utf8');
 const usersModule = await readFile(join(root, 'tgcloud/lib/users.js'), 'utf8');
 const twoDPolicy = await readFile(join(root, 'tgcloud/lib/twoDPolicy.js'), 'utf8');
+const stars = await readFile(join(root, 'tgcloud/lib/stars.js'), 'utf8');
+const starsPolicy = await readFile(join(root, 'tgcloud/lib/starsPolicy.js'), 'utf8');
 const twoDService = await readFile(join(root, 'tgcloud/lib/twoD.js'), 'utf8');
 
 // V2 must keep production cutover explicitly blocked until main parity and import are proven.
@@ -159,6 +161,10 @@ assert.match(twoDPolicy, /parseTwoDBet/);
 assert.match(twoDPolicy, /MAX_PER_NUMBER = 200000/);
 assert.match(twoDPolicy, /PAYOUT_MULTIPLIER = 40/);
 assert.match(twoDPolicy, /timeZone: 'Asia\/Yangon'/);
+assert.match(stars, /db\.insert\(paymentEvents\)/);
+assert.match(stars, /PAYMENT_RECORD_FAILED/);
+assert.match(stars, /PAYMENT_CHARGE_MISMATCH/);
+assert.match(starsPolicy, /paymentRecordMatches/);
 assert.match(schema, /table\('sports_bets'/);
 assert.match(schema, /table\('shop_cards'/);
 assert.match(schema, /table\('auctions'/);
