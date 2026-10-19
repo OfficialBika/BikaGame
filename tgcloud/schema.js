@@ -262,6 +262,23 @@ export const sellOrders = table('sell_orders', {
   statusUpdatedIdx: index('idx_sell_orders_status_updated').on(t.status, t.updatedAt),
 }));
 
+export const giftRequests = table('gift_requests', {
+  id: text('id').primaryKey(),
+  chatId: integer('chat_id').notNull(),
+  messageId: integer('message_id'),
+  fromUserId: integer('from_user_id').notNull(),
+  toUserId: integer('to_user_id').notNull(),
+  amount: integer('amount').notNull(),
+  status: text('status').notNull().default('pending'),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+  data: json('data'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+}, (t) => ({
+  senderCreatedIdx: index('idx_gift_requests_sender_created').on(t.fromUserId, t.createdAt),
+  statusExpiryIdx: index('idx_gift_requests_status_expiry').on(t.status, t.expiresAt),
+}));
+
 export const sellPrices = table('sell_prices', {
   key: text('key').primaryKey(), price: integer('price').notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
