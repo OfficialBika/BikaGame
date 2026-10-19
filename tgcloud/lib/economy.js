@@ -54,6 +54,10 @@ BEGIN
       AND EXISTS (SELECT 1 FROM json_each(NEW.payouts) p
         WHERE NOT EXISTS (SELECT 1 FROM users WHERE tg_id = CAST(json_extract(p.value, '$.userId') AS INTEGER)))
     THEN RAISE(ABORT, 'PAYOUT_USER_NOT_FOUND') END;
+  SELECT CASE WHEN NEW.refunds IS NOT NULL
+      AND EXISTS (SELECT 1 FROM json_each(NEW.refunds) r
+        WHERE NOT EXISTS (SELECT 1 FROM users WHERE tg_id = CAST(json_extract(r.value, '$.userId') AS INTEGER)))
+    THEN RAISE(ABORT, 'REFUND_USER_NOT_FOUND') END;
 END`,
 `CREATE TRIGGER IF NOT EXISTS bika_transactions_after_insert
 AFTER INSERT ON transactions
@@ -77,6 +81,10 @@ BEGIN
     total_won = total_won + COALESCE((SELECT SUM(CAST(json_extract(p.value, '$.amount') AS INTEGER)) FROM json_each(NEW.payouts) p WHERE CAST(json_extract(p.value, '$.userId') AS INTEGER) = users.tg_id), 0),
     updated_at = NEW.created_at
     WHERE NEW.payouts IS NOT NULL AND tg_id IN (SELECT CAST(json_extract(p.value, '$.userId') AS INTEGER) FROM json_each(NEW.payouts) p);
+  UPDATE users SET
+    balance = balance + COALESCE((SELECT SUM(CAST(json_extract(r.value, '$.amount') AS INTEGER)) FROM json_each(NEW.refunds) r WHERE CAST(json_extract(r.value, '$.userId') AS INTEGER) = users.tg_id), 0),
+    updated_at = NEW.created_at
+    WHERE NEW.refunds IS NOT NULL AND tg_id IN (SELECT CAST(json_extract(r.value, '$.userId') AS INTEGER) FROM json_each(NEW.refunds) r);
   INSERT INTO game_history(user_id, game, bet, payout, multiplier, result, title, outcome, net, settlement_id, created_at)
     SELECT NEW.history_user_id, NEW.game_key, COALESCE(NEW.bet_amount, 0), COALESCE(NEW.payout_amount, 0),
       COALESCE(NEW.multiplier, 0), NEW.game_result, json_extract(NEW.meta, '$.title'),
