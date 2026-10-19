@@ -19,9 +19,7 @@ function ownerId() {
 export async function getGroup(groupId) {
   const id = Number(groupId);
   if (!Number.isSafeInteger(id) || id >= 0) {
-    if (!Number.isSafeInteger(id) || id === 0) {
-      throw new EndpointError('Invalid group ID.', { code: 'GROUP_ID_INVALID' });
-    }
+    throw new EndpointError('Invalid Telegram group ID.', { code: 'GROUP_ID_INVALID' });
   }
   return db.select().from(groups).where(eq(groups.groupId, id)).get();
 }
