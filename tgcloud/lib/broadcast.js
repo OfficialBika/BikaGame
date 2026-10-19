@@ -530,8 +530,10 @@ export async function cancelBroadcast({ actorId }) {
 export async function getBroadcastStatus(actorId) {
   assertBroadcastOwner(actorId);
   const rows = await db.select().from(broadcastJobs)
-    .where(and(
+    .where(or(
       eq(broadcastJobs.status, 'running'),
+      eq(broadcastJobs.status, 'paused'),
+      eq(broadcastJobs.status, 'cancel_requested'),
     )).orderBy(asc(broadcastJobs.createdAt)).all();
   const job = rows[rows.length - 1];
   if (!job) return { status: 'idle' };
