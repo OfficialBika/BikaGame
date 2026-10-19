@@ -25,7 +25,7 @@ const groups = [
     label: 'Per-game controls',
     status: 'preview-controls-added',
     features: ['.slot on/off', '.bj on/off', '.shan on/off', '.dice on/off', '.mine on/off', '.mines alias'],
-    detail: 'Owner-only persisted controls are implemented in the V2 preview handler and enforce new game starts/entries through the bot handler and Mini App start routes. Set OWNER_ID in the serverless environment. Dice gameplay itself is not ported; active-session callbacks remain available so disabling a game does not block cashout/action callbacks.',
+    detail: 'Owner-only persisted controls are implemented in the V2 preview handler and enforce new game starts/entries through the bot handler and Mini App start routes. Set SERVERLESS_OWNER_TELEGRAM_ID in tgcloud/lib/config.js to the numeric production OWNER_ID before deploying; zero keeps writes disabled. Dice gameplay itself is not ported; active-session callbacks remain available so disabling a game does not block cashout/action callbacks.',
   },
   {
     id: 'payments-commerce',
