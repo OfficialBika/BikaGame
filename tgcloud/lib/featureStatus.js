@@ -35,11 +35,18 @@ const groups = [
     detail: 'Stars purchase path is wired but needs real Telegram payment tests. Refund, commerce, and reconciliation flows are not fully ported.',
   },
   {
-    id: 'two-d-auction',
-    label: '2D and Auction',
+    id: 'two-d',
+    label: '2D betting and settlement',
+    status: 'preview-implemented-schedule-limited-needs-runtime-test',
+    features: ['Yangon AM/PM betting windows', '00–99 and reverse-number parsing', 'One-ledger-row atomic bet debit and treasury credit', '200,000 Bal per-number cap', 'Owner close/result commands', 'Idempotent 40x result payouts', '3-day completed record retention'],
+    detail: 'The preview now has a 2D policy/service and SQLite trigger-backed debit/treasury/position writes, plus a single idempotent ledger settlement for all winners. Event opening/closing is reconciled only on inbound Telegram updates because this runtime has no persistent scheduler; strict exact-time parity, channel/thread compatibility, concurrency/restart, payout and real Telegram tests remain required.',
+  },
+  {
+    id: 'auction',
+    label: 'Auction',
     status: 'schema-only',
-    features: ['2D betting schedule and settlement', 'Auction creation and bids', 'Auction expiry/finalization/refunds'],
-    detail: 'Target tables exist, but main behavior, money-hold/state transitions, scheduled jobs, and exactly-once settlement are not ported and tested.',
+    features: ['Auction creation and bids', 'Escrow holds and bidder refunds', 'Auction expiry/finalization', 'Discussion thread bid handling'],
+    detail: 'Auction tables exist, but the creation, bid/escrow/refund workflow and retry-safe scheduled finalization are not ported. Exact timer parity needs a scheduler or a runtime with persistent workers.',
   },
   {
     id: 'group-approval',
