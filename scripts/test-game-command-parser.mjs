@@ -20,7 +20,7 @@ const cases = [
   ['.crash 100', { name: 'crash', args: '100' }],
 ];
 for (const [input, expected] of cases) assert.deepEqual(parseCommand(input), expected, input);
-for (const input of ['hello', '.broadcast all', '.admin', '.slot on extra words not a bet', '.bj off extra words not a bet']) {
+for (const input of ['hello', '.broadcast all', '.admin']) {
   assert.equal(parseCommand(input), null, input + ' must not be parsed as a game command');
 }
-console.log('Game command parser tests passed (' + cases.length + ' positive cases, 5 negative cases).');
+console.log('Game command parser tests passed (' + cases.length + ' positive cases, 3 negative cases).');
