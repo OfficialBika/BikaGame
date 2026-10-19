@@ -1,6 +1,6 @@
 import { db, api, EndpointError } from 'sdk';
 import { and, desc, eq } from 'sdk/db';
-import { auctions, auctionBids, sportsEvents, sportsBets, users } from '../schema.js';
+import { auctions, auctionBids, sportsEvents, sportsBets, users, settings } from '../schema.js';
 import {
   ensureEconomy, ensureUser, recordLedgerOperation, settleMultiPayouts,
   getTransaction, credit, getSetting, setSetting,
@@ -253,6 +253,7 @@ export async function finalizeAuction(auctionId, actorId = null, force = false) 
   const auction = await db.select().from(auctions).where(eq(auctions.auctionId, String(auctionId))).get();
   if (!auction) throw new EndpointError('Auction မတွေ့ပါ။', { code: 'AUCTION_NOT_FOUND' });
   if (auction.status === 'settled' || auction.status === 'closed') return { ok: true, duplicate: true, auction };
+  if (auction.status === 'cancelled') return { ok: false, duplicate: true, auction };
   if (!force && new Date(auction.endAt).getTime() > Date.now()) throw new EndpointError('Auction မပြီးသေးပါ။', { code: 'AUCTION_NOT_EXPIRED' });
   if (!['open', 'settling'].includes(auction.status)) throw new EndpointError('Auction state မမှန်ပါ။', { code: 'AUCTION_STATE' });
   if (auction.status === 'open') {
@@ -260,6 +261,7 @@ export async function finalizeAuction(auctionId, actorId = null, force = false) 
       .where(and(eq(auctions.auctionId, String(auctionId)), eq(auctions.status, 'open'))).run();
   }
   if (auction.highestBidderId && Number(auction.currentBid) > 0) {
+    await ensureUser({ id: Number(auction.data?.createdBy), first_name: 'Auction Creator' });
     await credit(Number(auction.data?.createdBy), Number(auction.currentBid), 'auction_seller_payout',
       { auctionId: auction.auctionId, winnerUserId: auction.highestBidderId }, 'auction-payout:' + auction.auctionId);
     await db.update(auctions).set({ status: 'settled', updatedAt: now() }).where(eq(auctions.auctionId, auction.auctionId)).run();
@@ -288,8 +290,9 @@ export async function cancelAuction(auctionId, actorId) {
 
 export async function reconcileEventMarketsOnUpdate() {
   await ensureEconomy();
-  const expired = await db.select().from(auctions).where(and(eq(auctions.status, 'open'))).all();
-  const due = expired.filter(a => new Date(a.endAt).getTime() <= Date.now()).slice(0, 20);
+  const expired = await db.select().from(auctions).where(eq(auctions.status, 'open')).all();
+  const settling = await db.select().from(auctions).where(eq(auctions.status, 'settling')).all();
+  const due = [...expired, ...settling].filter(a => new Date(a.endAt).getTime() <= Date.now() || a.status === 'settling').slice(0, 20);
   const out = [];
   for (const auction of due) {
     try { out.push(await finalizeAuction(auction.auctionId)); }
