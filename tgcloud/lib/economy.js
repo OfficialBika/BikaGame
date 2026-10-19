@@ -1,7 +1,6 @@
 import { db, EndpointError } from 'sdk';
 import { and, eq, isNull } from 'sdk/db';
 import { users, transactions, treasury, settings, idempotencyKeys, userCooldowns, broadcastJobs, broadcastTargets } from '../schema.js';
-import { and, isNull } from 'sdk/db';
 import { walletIdForUserId, walletSuffix } from './walletPolicy.js';
 import { buildDuelSettlementRow } from './duelSettlementPlan.js';
 
