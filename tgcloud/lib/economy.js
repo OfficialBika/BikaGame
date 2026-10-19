@@ -68,9 +68,13 @@ BEGIN
     owner_balance = owner_balance + COALESCE(NEW.treasury_delta, 0),
     updated_at = NEW.created_at
     WHERE key = 'treasury' AND NEW.treasury_delta IS NOT NULL;
-  UPDATE users SET balance = balance - NEW.amount, total_lost = total_lost + NEW.amount, updated_at = NEW.created_at
+  UPDATE users SET balance = balance - NEW.amount,
+    total_lost = total_lost + CASE WHEN NEW.type = 'gift' THEN 0 ELSE NEW.amount END,
+    updated_at = NEW.created_at
     WHERE tg_id = NEW.from_account_user_id;
-  UPDATE users SET balance = balance + NEW.amount, total_won = total_won + NEW.amount, updated_at = NEW.created_at
+  UPDATE users SET balance = balance + NEW.amount,
+    total_won = total_won + CASE WHEN NEW.type = 'gift' THEN 0 ELSE NEW.amount END,
+    updated_at = NEW.created_at
     WHERE tg_id = NEW.to_account_user_id;
   UPDATE users SET
     balance = balance + COALESCE((SELECT SUM(CAST(json_extract(p.value, '$.amount') AS INTEGER)) FROM json_each(NEW.payouts) p WHERE CAST(json_extract(p.value, '$.userId') AS INTEGER) = users.tg_id), 0),
