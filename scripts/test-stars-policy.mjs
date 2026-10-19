@@ -15,7 +15,7 @@ const record = {
   userId: 10001,
   stars: 20,
   amount: 900000,
-  status: 'credited',
+  status: 'completed',
   invoicePayload: expected.invoicePayload,
 };
 assert.equal(paymentRecordMatches(record, expected), true);
