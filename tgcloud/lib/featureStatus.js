@@ -3,8 +3,8 @@ const groups = [
     id: 'account',
     label: 'Account and core economy',
     status: 'foundation-added',
-    features: ['/start', '/help', '/balance', '/wallet', '/top10', '/history', 'atomic ledger settlement', 'Mini App wallet transfer with persistent wallet IDs'],
-    detail: 'The serverless preview uses its own database. Mini App wallet transfer now uses a single idempotent ledger row and generated wallet IDs; test-bot replay/concurrency smoke tests remain. The /transfer chat command stays disabled. Production data has not been imported.',
+    features: ['/start', '/help', '/balance', '/wallet', '/top10', '/history', '/daily and .dailyclaim', 'atomic ledger settlement', 'Mini App wallet transfer with persistent wallet IDs'],
+    detail: 'The serverless preview uses its own database. Telegram /daily and .daily claim now use Yangon-day guards and a treasury-funded atomic ledger row with 500–2,000 Bal defaults (settings can override the range). Mini App wallet transfer uses a single idempotent ledger row and generated wallet IDs; test-bot replay/concurrency smoke tests remain. The /transfer chat command stays disabled. Production data has not been imported.',
   },
   {
     id: 'single-round-games',
