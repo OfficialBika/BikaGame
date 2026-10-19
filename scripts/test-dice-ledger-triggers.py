@@ -7,13 +7,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (ROOT / "tgcloud/lib/economy.js").read_text(encoding="utf-8")
-    r"const triggerSql = \[\s*`(.*?)`,\s*`(.*?)`\s*\];",
-    r"const triggerSql = \[\s*\x60(.*?)\x60,\s*\x60(.*?)\x60\s*\];",
+MATCH = re.search(
+    r"const triggerSql = \\[\\s*`(.*?)`,\\s*`(.*?)`\\s*\\];",
     SOURCE,
     re.DOTALL,
-    r"const refundTriggerSql = \[\s*`(.*?)`,\s*`(.*?)`\s*\];",
+)
 REFUND_MATCH = re.search(
-    r"const refundTriggerSql = \[\s*\x60(.*?)\x60,\s*\x60(.*?)\x60\s*\];",
+    r"const refundTriggerSql = \\[\\s*`(.*?)`,\\s*`(.*?)`\\s*\\];",
     SOURCE,
     re.DOTALL,
 )
