@@ -1,6 +1,6 @@
 import { db, EndpointError } from 'sdk';
 import { and, eq, isNull } from 'sdk/db';
-import { users, transactions, treasury, settings, idempotencyKeys, userCooldowns } from '../schema.js';
+import { users, transactions, treasury, settings, idempotencyKeys, userCooldowns, broadcastJobs, broadcastTargets } from '../schema.js';
 import { buildDuelSettlementRow } from './duelSettlementPlan.js';
 
 const now = () => new Date();
@@ -144,6 +144,9 @@ async function cleanup() {
   await db.run("DELETE FROM orders WHERE updated_at < :cutoff AND status IN ('completed','cancelled','rejected','expired','sold')", { ':cutoff': cutoff });
   await db.run("DELETE FROM sell_orders WHERE updated_at < :cutoff AND status IN ('completed','cancelled','rejected','expired','sold')", { ':cutoff': cutoff });
   await db.run("UPDATE payment_events SET payload = NULL, stars = 0, amount = 0, invoice_payload = NULL, status = 'dedupe_only', updated_at = unixepoch() WHERE created_at < :cutoff AND payload IS NOT NULL", { ':cutoff': cutoff });
+  await db.run("UPDATE broadcast_jobs SET status = 'expired', payload = NULL, updated_at = unixepoch() WHERE created_at < :cutoff AND status IN ('pending', 'running', 'paused', 'cancel_requested')", { ':cutoff': cutoff });
+  await db.run("DELETE FROM broadcast_targets WHERE created_at < :cutoff", { ':cutoff': cutoff });
+  await db.run("DELETE FROM broadcast_jobs WHERE created_at < :cutoff AND status IN ('completed', 'cancelled', 'failed', 'expired')", { ':cutoff': cutoff });
 }
 export async function ensureEconomy() {
   if (!setupPromise) setupPromise = setup().catch((e) => { setupPromise = null; throw e; });
