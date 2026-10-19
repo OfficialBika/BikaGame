@@ -21,6 +21,13 @@ const groups = [
     detail: 'Preview implementations exist; exact main parity, durable lifecycle, concurrent-session, timeout/retry and payout-replay tests are not complete. Dice Duel has a persistent challenge flow and atomic idempotent settlement plan; isolated settlement-plan and real SQLite ledger-trigger tests now pass in CI, while Telegram runtime tests remain.',
   },
   {
+    id: 'maintenance-mode',
+    label: 'Global maintenance mode',
+    status: 'preview-implemented-needs-runtime-test',
+    features: ['/off enables maintenance', '/on disables maintenance', '/maintenance on|off|status', 'Persisted setting with read-after-write verification', 'Owner-only bypass for messages and callbacks', 'Successful-payment updates still credited'],
+    detail: 'Maintenance state is stored in the isolated settings table. Main-compatible /off turns maintenance ON and /on turns it OFF; explicit /maintenance on|off|status removes ambiguity. Non-owner commands and callbacks are blocked while ON, owner controls remain available, and successful Telegram payment updates are processed before the gate. Mini App HTTP endpoint-wide enforcement and test-bot runtime checks remain a release gate.',
+  },
+  {
     id: 'game-controls',
     label: 'Per-game controls',
     status: 'preview-controls-added',
