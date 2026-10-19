@@ -16,6 +16,9 @@ assert.equal(policy.isConfiguredOwner(9001, 9001), true);
 assert.equal(policy.isConfiguredOwner(9001, 0), false);
 assert.equal(policy.isConfiguredOwner(0, 9001), false);
 assert.equal(policy.isConfiguredOwner('9001', 9001), true);
+assert.equal(policy.isFreshBotAdminCheck({ data: { botAdminCheckedAt: new Date(100000).toISOString() } }, 120000, 60000), true);
+assert.equal(policy.isFreshBotAdminCheck({ data: { botAdminCheckedAt: new Date(100000).toISOString() } }, 160000, 60000), false);
+assert.equal(policy.isFreshBotAdminCheck({ data: { botAdminCheckedAt: 'not-a-date' } }, 120000, 60000), false);
 
 assert.deepEqual(policy.groupAccessDecision({ approvalStatus: 'pending', botIsAdmin: false }, 10, 9001),
   { allowed: false, reason: 'admin_required' });
@@ -24,7 +27,7 @@ assert.deepEqual(policy.groupAccessDecision({ approvalStatus: 'pending', botIsAd
 assert.deepEqual(policy.groupAccessDecision({ approvalStatus: 'rejected', botIsAdmin: true }, 10, 9001),
   { allowed: false, reason: 'rejected' });
 assert.deepEqual(policy.groupAccessDecision({ approvalStatus: 'approved', botIsAdmin: false }, 10, 9001),
-  { allowed: true, reason: 'approved' });
+  { allowed: false, reason: 'admin_required' });
 assert.deepEqual(policy.groupAccessDecision({ approvalStatus: 'pending', botIsAdmin: false }, 9001, 9001),
   { allowed: true, reason: 'owner' });
 assert.deepEqual(policy.groupAccessDecision({ approvalStatus: 'approved', botIsAdmin: true }, 9001, 0),
@@ -37,6 +40,8 @@ const message = await readFile(new URL('../tgcloud/handlers/message.js', import.
 const callbacks = await readFile(new URL('../tgcloud/handlers/callback_query.js', import.meta.url), 'utf8');
 assert.match(service, /api\.getMe\(\)/);
 assert.match(service, /api\.getChatMember\(/);
+assert.match(service, /isFreshBotAdminCheck\(group\)/);
+assert.match(service, /reason: 'admin_unverified'/);
 assert.match(service, /approvalStatus: 'pending'/);
 assert.match(service, /code: 'BOT_ADMIN_REQUIRED'/);
 assert.match(service, /SERVERLESS_OWNER_TELEGRAM_ID/);
