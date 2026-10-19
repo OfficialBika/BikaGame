@@ -290,3 +290,27 @@ export const broadcastJobs = table('broadcast_jobs', {
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 }, (t) => ({ statusUpdatedIdx: index('idx_broadcast_jobs_status_updated').on(t.status, t.updatedAt) }));
+
+export const broadcastTargets = table('broadcast_targets', {
+  id: text('id').primaryKey(),
+  jobId: text('job_id').notNull(),
+  targetChatId: integer('target_chat_id').notNull(),
+  kind: text('kind').notNull(),
+  status: text('status').notNull().default('pending'),
+  attempts: integer('attempts').notNull().default(0),
+  lastError: text('last_error'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+}, (t) => ({
+  jobStatusIdx: index('idx_broadcast_targets_job_status_created').on(t.jobId, t.status, t.createdAt),
+  chatIdx: index('idx_broadcast_targets_chat').on(t.targetChatId),
+}));
+
+// One durable lock row prevents simultaneous broadcast workers across V8 isolates.
+export const broadcastLocks = table('broadcast_locks', {
+  key: text('key').primaryKey(),
+  jobId: text('job_id'),
+  ownerChatId: integer('owner_chat_id'),
+  heartbeatAt: integer('heartbeat_at', { mode: 'timestamp' }),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+});
