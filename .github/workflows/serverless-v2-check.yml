@@ -25,6 +25,7 @@ jobs:
           node --check scripts/test-dice-settlement-plan.mjs
           node --check scripts/test-group-approval-policy.mjs
           node --check scripts/test-broadcast-policy.mjs
+          node --check scripts/test-wallet-policy.mjs
       - name: Test per-game control command parsing
         run: node scripts/test-game-control-names.mjs
       - name: Test slash and dot game command parser
@@ -35,6 +36,8 @@ jobs:
         run: node scripts/test-group-approval-policy.mjs
       - name: Test broadcast policy and worker wiring
         run: node scripts/test-broadcast-policy.mjs
+      - name: Test wallet ID policy
+        run: node scripts/test-wallet-policy.mjs
       - name: Test actual SQLite ledger triggers
         run: python3 scripts/test-dice-ledger-triggers.py
       - name: Check V2 contracts
