@@ -112,11 +112,101 @@ BEGIN
 END`,
 ];
 
+const DUEL_REFUND_TRIGGER_MIGRATION_KEY = 'internal:migration:duel_refunds_trigger_v1';
+
+function timestampMs(value) {
+  if (value instanceof Date) return value.getTime();
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return parsed < 100000000000 ? parsed * 1000 : parsed;
+}
+
+function changedRows(result) {
+  if (Array.isArray(result)) return result.length;
+  if (Array.isArray(result?.rows)) return result.rows.length;
+  return Number(result?.rowsAffected || 0);
+}
+
+async function claimDuelRefundTriggerMigration() {
+  let marker = await db.select().from(settings)
+    .where(eq(settings.key, DUEL_REFUND_TRIGGER_MIGRATION_KEY)).get();
+  if (marker?.value?.status === 'ready') return false;
+
+  let acquired = false;
+  if (!marker) {
+    const inserted = await db.insert(settings).values({
+      key: DUEL_REFUND_TRIGGER_MIGRATION_KEY,
+      value: { status: 'running', version: 1 },
+      updatedAt: now(),
+    }).onConflictDoNothing().returning().run();
+    acquired = changedRows(inserted) > 0;
+  }
+
+  if (!acquired) {
+    marker = await db.select().from(settings)
+      .where(eq(settings.key, DUEL_REFUND_TRIGGER_MIGRATION_KEY)).get();
+    if (marker?.value?.status === 'ready') return false;
+
+    const staleBefore = Math.floor(Date.now() / 1000) - 120;
+    const isFailed = marker?.value?.status === 'failed';
+    const isStale = timestampMs(marker?.updatedAt) < staleBefore * 1000;
+    if (isFailed || isStale) {
+      const result = await db.run(
+        "UPDATE settings SET value = :value, updated_at = :now " +
+        "WHERE key = :key AND (json_extract(value, '$.status') = 'failed' OR updated_at < :stale) RETURNING key",
+        {
+          ':value': JSON.stringify({ status: 'running', version: 1 }),
+          ':now': Math.floor(Date.now() / 1000),
+          ':key': DUEL_REFUND_TRIGGER_MIGRATION_KEY,
+          ':stale': staleBefore,
+        },
+      );
+      acquired = changedRows(result) > 0;
+    }
+  }
+
+  if (!acquired) {
+    marker = await db.select().from(settings)
+      .where(eq(settings.key, DUEL_REFUND_TRIGGER_MIGRATION_KEY)).get();
+    if (marker?.value?.status === 'ready') return false;
+    throw new EndpointError(
+      'Database schema/trigger migration is not ready. Apply the reviewed schema migration, then retry.',
+      { code: 'SCHEMA_MIGRATION_BUSY' },
+    );
+  }
+  return true;
+}
+
+async function ensureDuelRefundTriggers() {
+  const ownsMigration = await claimDuelRefundTriggerMigration();
+  if (!ownsMigration) return;
+
+  try {
+    // Existing triggers are not replaced by CREATE TRIGGER IF NOT EXISTS.
+    // The migration lock makes this drop/recreate a one-time, fail-closed upgrade.
+    await db.run('DROP TRIGGER IF EXISTS bika_transactions_before_insert');
+    await db.run('DROP TRIGGER IF EXISTS bika_transactions_after_insert');
+    for (const sqlText of triggerSql) await db.run(sqlText);
+    await db.update(settings).set({
+      value: { status: 'ready', version: 1 },
+      updatedAt: now(),
+    }).where(eq(settings.key, DUEL_REFUND_TRIGGER_MIGRATION_KEY)).run();
+  } catch (error) {
+    try {
+      await db.update(settings).set({
+        value: { status: 'failed', version: 1, reason: String(error?.message || error).slice(0, 180) },
+        updatedAt: now(),
+      }).where(eq(settings.key, DUEL_REFUND_TRIGGER_MIGRATION_KEY)).run();
+    } catch (_) {}
+    throw error;
+  }
+}
+
 async function setup() {
   await db.run("INSERT OR IGNORE INTO treasury(key, owner_balance, vip_win_rate, maintenance, updated_at) VALUES('treasury', 0, 90, 0, unixepoch())");
   await db.run("CREATE UNIQUE INDEX IF NOT EXISTS idx_shop_cards_bot_card_unique ON shop_cards(bot_key, card_id) WHERE bot_key IS NOT NULL AND card_id IS NOT NULL");
   await db.run("CREATE UNIQUE INDEX IF NOT EXISTS idx_active_crash_mines_per_user ON game_sessions(user_id, game) WHERE status = 'active' AND game IN ('crash', 'mines')");
-  for (const sqlText of triggerSql) await db.run(sqlText);
+  await ensureDuelRefundTriggers();
 }
 async function cleanup() {
   const ms = Date.now();
