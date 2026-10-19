@@ -5,5 +5,6 @@ export function paymentRecordMatches(record, expected) {
     String(record.userId ?? '') === String(expected.userId ?? '') &&
     Number(record.stars) === Number(expected.stars) &&
     Number(record.amount) === Number(expected.amount) &&
+    String(record.status ?? '') === String(expected.status ?? '') &&
     String(record.invoicePayload ?? '') === String(expected.invoicePayload ?? '');
 }
