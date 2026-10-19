@@ -34,11 +34,21 @@ const callbacks = await readFile(join(root, 'tgcloud/handlers/callback_query.js'
 const stars = await readFile(join(root, 'tgcloud/lib/stars.js'), 'utf8');
 const preCheckout = await readFile(join(root, 'tgcloud/handlers/pre_checkout_query.js'), 'utf8');
 const parity = await readFile(join(root, 'docs/SERVERLESS_V2_PARITY.md'), 'utf8');
+const featureStatus = await readFile(join(root, 'tgcloud/lib/featureStatus.js'), 'utf8');
 
 // V2 must keep production cutover explicitly blocked until main parity and import are proven.
 assert.match(parity, /Production status: BLOCKED/);
 for (const gameName of ['slot', 'bj', 'shan', 'dice', 'mine']) assert.ok(parity.includes('`/' + gameName + ' on|off`'), 'missing switch contract for ' + gameName);
 for (const phrase of ['Auction', '2D', 'Broadcast', 'Group approval', 'Data import', 'rollback']) assert.ok(parity.toLowerCase().includes(phrase.toLowerCase()), 'missing parity gate: ' + phrase);
+
+// Feature metadata must accurately mark unfinished domains and the non-production environment.
+assert.match(featureStatus, /productionDataImported: false/);
+assert.match(featureStatus, /productionCutoverApproved: false/);
+assert.match(featureStatus, /status: 'BLOCKED'/);
+for (const status of ['not-ported', 'schema-only', 'preview-only']) assert.ok(featureStatus.includes(status), 'missing explicit incomplete status: ' + status);
+assert.match(featureStatus, /\.dice on\/off/);
+assert.match(featureStatus, /Broadcast text\/copy/);
+assert.match(featureStatus, /2D betting schedule and settlement/);
 
 // Existing features must preserve one-write settlement and idempotency guards.
 assert.match(game, /settleSingleGame/);
