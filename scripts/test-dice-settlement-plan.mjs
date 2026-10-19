@@ -1,5 +1,12 @@
 import assert from 'node:assert/strict';
-import { buildDuelSettlementRow } from '../tgcloud/lib/duelSettlementPlan.js';
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const source = await readFile(resolve(root, 'tgcloud/lib/duelSettlementPlan.js'), 'utf8');
+const moduleUrl = 'data:text/javascript;base64,' + Buffer.from(source, 'utf8').toString('base64');
+const { buildDuelSettlementRow } = await import(moduleUrl);
 
 const bet = 100;
 const fullPotPayout = Math.floor(bet * 2 * 0.98);
