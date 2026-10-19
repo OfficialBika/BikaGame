@@ -62,8 +62,3 @@ export async function assertMaintenanceAccess(userId) {
   return state;
 }
 
-export function maintenanceCommandAction(command) {
-  if (command === 'off') return { action: 'on', legacy: true };
-  if (command === 'on') return { action: 'off', legacy: true };
-  return null;
-}
