@@ -41,6 +41,10 @@ const controls = await readFile(join(root, 'tgcloud/lib/gameControls.js'), 'utf8
 const config = await readFile(join(root, 'tgcloud/lib/config.js'), 'utf8');
 const controlNames = await readFile(join(root, 'tgcloud/lib/gameControlNames.js'), 'utf8');
 const miniHandler = await readFile(join(root, 'tgcloud/lib/mini.js'), 'utf8');
+const groupApproval = await readFile(join(root, 'tgcloud/lib/groupApproval.js'), 'utf8');
+const groupApprovalPolicy = await readFile(join(root, 'tgcloud/lib/groupApprovalPolicy.js'), 'utf8');
+const broadcast = await readFile(join(root, 'tgcloud/lib/broadcast.js'), 'utf8');
+const broadcastPolicy = await readFile(join(root, 'tgcloud/lib/broadcastPolicy.js'), 'utf8');
 
 // V2 must keep production cutover explicitly blocked until main parity and import are proven.
 assert.match(parity, /Production status: BLOCKED/);
@@ -89,6 +93,38 @@ assert.ok(callbacks.includes("await assertGameEnabled('dice')"), 'pending Dice c
 assert.match(duelPlan, /__settlement:/);
 assert.match(duelPlan, /fromAccountUserId: target/);
 assert.equal((message.match(/\\\\n(?:Stars|Added|Balance|Rate):/g) || []).length, 0, 'messages must not print escaped literal \\n sequences');
+
+// Group approval must fail closed, verify bot admin status, and gate callback entry points.
+assert.match(groupApproval, /api\.getChatMember\(/);
+assert.match(groupApproval, /approveCurrentGroup/);
+assert.match(groupApproval, /code: 'BOT_ADMIN_REQUIRED'/);
+assert.match(groupApprovalPolicy, /function groupAccessDecision/);
+assert.match(message, /checkGroupAccess/);
+assert.match(message, /command\.name === 'approve'/);
+assert.match(message, /command\.name === 'reject'/);
+assert.match(message, /command\.name === 'groupstatus'/);
+assert.match(callbacks, /checkGroupAccess/);
+
+// Broadcast must be bounded, resumable, persistent, owner-only and filter to approved groups.
+assert.match(broadcast, /BATCH_SIZE = 100/);
+assert.match(broadcast, /SENDS_PER_SECOND = 25/);
+assert.match(broadcast, /SEND_CONCURRENCY = 8/);
+assert.match(broadcast, /assertBroadcastOwner/);
+assert.match(broadcast, /eq\(groups\.approvalStatus, 'approved'\)/);
+assert.match(broadcast, /api\.copyMessage/);
+assert.match(broadcast, /broadcastRetryDelayMs/);
+assert.match(broadcast, /broadcastLocks/);
+assert.match(broadcast, /status: 'paused'/);
+assert.match(broadcast, /cancel_requested/);
+assert.match(broadcastPolicy, /parseBroadcastRequest/);
+assert.match(schema, /table\('broadcast_targets'/);
+assert.match(schema, /table\('broadcast_locks'/);
+assert.match(message, /startBroadcast\(/);
+assert.match(message, /resumeBroadcast\(/);
+assert.match(message, /cancelBroadcast\(/);
+assert.match(callbacks, /resumeBroadcast\(/);
+assert.match(economy, /DELETE FROM broadcast_targets/);
+assert.match(economy, /DELETE FROM broadcast_jobs/);
 
 // Existing features must preserve one-write settlement and idempotency guards.
 assert.match(game, /settleSingleGame/);
