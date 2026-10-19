@@ -52,10 +52,6 @@ BEGIN
   SELECT CASE WHEN COALESCE(NEW.required_treasury, 0) > 0
       AND COALESCE((SELECT owner_balance FROM treasury WHERE key = 'treasury'), 0) < NEW.required_treasury
     THEN RAISE(ABORT, 'TREASURY_INSUFFICIENT') END;
-  SELECT CASE WHEN NEW.type = 'daily_claim'
-      AND COALESCE((SELECT daily_claimed_at FROM users WHERE tg_id = NEW.account_user_id), 0) >=
-          CAST(json_extract(NEW.meta, '$.dayStartUnix') AS INTEGER)
-    THEN RAISE(ABORT, 'DAILY_ALREADY_CLAIMED') END;
   SELECT CASE WHEN NEW.payouts IS NOT NULL
       AND EXISTS (SELECT 1 FROM json_each(NEW.payouts) p
         WHERE NOT EXISTS (SELECT 1 FROM users WHERE tg_id = CAST(json_extract(p.value, '$.userId') AS INTEGER)))
@@ -74,8 +70,6 @@ BEGIN
     owner_balance = owner_balance + COALESCE(NEW.treasury_delta, 0),
     updated_at = NEW.created_at
     WHERE key = 'treasury' AND NEW.treasury_delta IS NOT NULL;
-  UPDATE users SET daily_claimed_at = NEW.created_at, updated_at = NEW.created_at
-    WHERE tg_id = NEW.account_user_id AND NEW.type = 'daily_claim';
   UPDATE users SET balance = balance - NEW.amount,
     total_lost = total_lost + CASE WHEN NEW.type = 'gift' THEN 0 ELSE NEW.amount END,
     updated_at = NEW.created_at
@@ -113,6 +107,32 @@ BEGIN
     SELECT NEW.idempotency_key, NEW.type,
       COALESCE(NEW.account_user_id, NEW.from_account_user_id, NEW.to_account_user_id, NEW.history_user_id),
       NEW.created_at WHERE NEW.idempotency_key IS NOT NULL AND NEW.type <> 'game_history';
+END`,
+];
+
+const dailyClaimTriggerSql = [
+`CREATE TRIGGER IF NOT EXISTS bika_transactions_daily_claim_before_insert
+BEFORE INSERT ON transactions
+WHEN NEW.type = 'daily_claim'
+BEGIN
+  SELECT CASE WHEN NOT EXISTS (
+      SELECT 1 FROM users WHERE tg_id = NEW.account_user_id
+    ) THEN RAISE(ABORT, 'USER_NOT_FOUND') END;
+  SELECT CASE WHEN COALESCE((
+      SELECT daily_claimed_at FROM users WHERE tg_id = NEW.account_user_id
+    ), 0) >= CAST(json_extract(NEW.meta, '$.dayStartUnix') AS INTEGER)
+    THEN RAISE(ABORT, 'DAILY_ALREADY_CLAIMED') END;
+  SELECT CASE WHEN COALESCE((
+      SELECT owner_balance FROM treasury WHERE key = 'treasury'
+    ), 0) < COALESCE(NEW.required_treasury, 0)
+    THEN RAISE(ABORT, 'TREASURY_INSUFFICIENT') END;
+END`,
+`CREATE TRIGGER IF NOT EXISTS bika_transactions_daily_claim_after_insert
+AFTER INSERT ON transactions
+WHEN NEW.type = 'daily_claim'
+BEGIN
+  UPDATE users SET daily_claimed_at = NEW.created_at, updated_at = NEW.created_at
+    WHERE tg_id = NEW.account_user_id;
 END`,
 ];
 
@@ -195,6 +215,7 @@ async function setup() {
   await db.run("CREATE UNIQUE INDEX IF NOT EXISTS idx_active_crash_mines_per_user ON game_sessions(user_id, game) WHERE status = 'active' AND game IN ('crash', 'mines')");
   for (const sqlText of triggerSql) await db.run(sqlText);
   for (const sqlText of refundTriggerSql) await db.run(sqlText);
+  for (const sqlText of dailyClaimTriggerSql) await db.run(sqlText);
   for (const sqlText of twoDTriggerSql) await db.run(sqlText);
 }
 async function cleanup() {
