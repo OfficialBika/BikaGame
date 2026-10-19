@@ -18,16 +18,16 @@ function diceResultText(session) {
   const result = state.rollResult || {};
   const payout = Number(state.settlement?.payout ?? Math.floor(Number(state.bet || 0) * 2 * 0.98));
   if (result.winner === 'TIE') {
-    return '🎲 DICE DUEL RESULT\\n━━━━━━━━━━━━\\n' +
-      state.challengerName + ': 🎲 ' + result.d1 + '\\n' +
-      state.targetName + ': 🎲 ' + result.d2 + '\\n' +
+    return '🎲 DICE DUEL RESULT\n━━━━━━━━━━━━\n' +
+      state.challengerName + ': 🎲 ' + result.d1 + '\n' +
+      state.targetName + ': 🎲 ' + result.d2 + '\n' +
       '🤝 TIE — both bets were refunded.';
   }
   const winnerName = result.winner === 'A' ? state.challengerName : state.targetName;
-  return '🎲 DICE DUEL RESULT\\n━━━━━━━━━━━━\\n' +
-    state.challengerName + ': 🎲 ' + result.d1 + '\\n' +
-    state.targetName + ': 🎲 ' + result.d2 + '\\n' +
-    '🏆 Winner: ' + winnerName + '\\n' +
+  return '🎲 DICE DUEL RESULT\n━━━━━━━━━━━━\n' +
+    state.challengerName + ': 🎲 ' + result.d1 + '\n' +
+    state.targetName + ': 🎲 ' + result.d2 + '\n' +
+    '🏆 Winner: ' + winnerName + '\n' +
     '✅ Winner receives: ' + payout.toLocaleString('en-US') + ' Bal';
 }
 
@@ -119,6 +119,17 @@ export default async function (query) {
           return;
         }
 
+        // Even the recovery/resume path is restricted to the intended target.
+        // A public inline button must not let unrelated users trigger settlement.
+        if (action === 'accept' && Number(user.id) !== Number(session.state?.targetUserId)) {
+          await api.answerCallbackQuery({
+            callback_query_id: query.id,
+            text: 'ဒီ duel ကို reply ထောက်ထားတဲ့သူပဲ Accept လုပ်နိုင်ပါတယ်။',
+            show_alert: true,
+          });
+          return;
+        }
+
         if (action === 'cancel') {
           const cancelled = await cancelDiceChallenge(arg, user.id);
           await api.answerCallbackQuery({
@@ -126,9 +137,9 @@ export default async function (query) {
             text: cancelled.ok ? 'Challenge cancelled.' : 'Challenge is no longer open.',
           });
           if (cancelled.ok) {
-            await editDiceMessage(message, '❌ DICE DUEL CANCELLED\\nNo bet was placed.');
+            await editDiceMessage(message, '❌ DICE DUEL CANCELLED\nNo bet was placed.');
           } else if (cancelled.status === 'expired' || session.status === 'expired') {
-            await editDiceMessage(message, '⌛ DICE DUEL EXPIRED\\nNo bet was placed.');
+            await editDiceMessage(message, '⌛ DICE DUEL EXPIRED\nNo bet was placed.');
           }
           return;
         }
@@ -143,10 +154,10 @@ export default async function (query) {
           await api.answerCallbackQuery({ callback_query_id: query.id, text: 'Challenge is no longer open.', show_alert: true });
           callbackAnswered = true;
           await editDiceMessage(message, session.status === 'expired'
-            ? '⌛ DICE DUEL EXPIRED\\nNo bet was placed.'
+            ? '⌛ DICE DUEL EXPIRED\nNo bet was placed.'
             : session.status === 'cancelled'
-              ? '❌ DICE DUEL CANCELLED\\nNo bet was placed.'
-              : '⚠️ DICE DUEL FAILED SAFELY\\nNo bet was placed.');
+              ? '❌ DICE DUEL CANCELLED\nNo bet was placed.'
+              : '⚠️ DICE DUEL FAILED SAFELY\nNo bet was placed.');
           return;
         }
 
@@ -163,7 +174,7 @@ export default async function (query) {
         if (claimed.expired) {
           await api.answerCallbackQuery({ callback_query_id: query.id, text: 'Challenge expired.', show_alert: true });
           callbackAnswered = true;
-          await editDiceMessage(message, '⌛ DICE DUEL EXPIRED\\nNo bet was placed.');
+          await editDiceMessage(message, '⌛ DICE DUEL EXPIRED\nNo bet was placed.');
           return;
         }
         if (!claimed.claimed) {
@@ -193,10 +204,10 @@ export default async function (query) {
           const latest = await getDiceChallenge(arg);
           if (!latest?.state?.rollResult) {
             await failDiceChallenge(arg);
-            await editDiceMessage(message, '⚠️ DICE DUEL FAILED SAFELY\\nTelegram dice could not be completed. No bet was placed.');
+            await editDiceMessage(message, '⚠️ DICE DUEL FAILED SAFELY\nTelegram dice could not be completed. No bet was placed.');
           } else if (error?.code === 'USER_INSUFFICIENT' || String(error?.message || '').includes('USER_INSUFFICIENT')) {
             await failDiceChallenge(arg, true);
-            await editDiceMessage(message, '⚠️ DICE DUEL CANCELLED SAFELY\\nA player no longer has enough balance. No bet was deducted.');
+            await editDiceMessage(message, '⚠️ DICE DUEL CANCELLED SAFELY\nA player no longer has enough balance. No bet was deducted.');
           } else {
             await editDiceMessage(
               message,
