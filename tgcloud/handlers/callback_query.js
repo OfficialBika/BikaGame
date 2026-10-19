@@ -1,5 +1,6 @@
 import { api } from 'sdk';
 import { ensureUser } from '../lib/users.js';
+import { createStarsInvoice, STAR_PACKAGES, packageBalance } from '../lib/stars.js';
 import {
   crashCashout, minesOpen, minesCashout, blackjackAction, shanDeal,
 } from '../lib/game.js';
@@ -33,7 +34,13 @@ export default async function (query) {
     let text = 'Done.';
     let markup;
 
-    if (game === 'crash' && action === 'cashout') {
+    if (game === 'stars' && action === 'buy') {
+      const stars = Number(arg);
+      if (message?.chat?.type !== 'private') throw new Error('STARS_PRIVATE_CHAT_REQUIRED');
+      if (!STAR_PACKAGES.includes(stars)) throw new Error('INVALID_STARS_PACKAGE');
+      await createStarsInvoice(user.id, stars);
+      text = '⭐ Invoice sent: ' + stars + ' Stars → ' + packageBalance(stars).toLocaleString() + ' Bal';
+    } else if (game === 'crash' && action === 'cashout') {
       const result = await crashCashout(user.id);
       text = '💰 Cash Out x' + result.multiplier + ' — +' + result.payout + ' $';
     } else if (game === 'mines' && action === 'open') {
