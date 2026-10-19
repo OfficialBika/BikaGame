@@ -87,7 +87,7 @@ function helpText() {
 export default async function (message) {
   const chatId = message?.chat?.id;
   const from = message?.from;
-  if (!chatId || from?.is_bot) return;
+  if (!chatId || (from?.is_bot && !message?.is_automatic_forward)) return;
 
   // Serverless has no persistent timer process. Reconcile scheduled 2D state on
   // inbound updates so overdue events close and an in-window session can open.
