@@ -102,7 +102,7 @@ assert.ok(callbacks.includes('Number(user.id) !== Number(session.state?.targetUs
 assert.ok(callbacks.includes("await assertGameEnabled('dice')"), 'pending Dice challenges must obey game disable state');
 assert.match(duelPlan, /__settlement:/);
 assert.match(duelPlan, /fromAccountUserId: target/);
-assert.equal((message.match(/\\n(?:Stars|Added|Balance|Rate):/g) || []).length, 0, 'messages must not print escaped literal \\n sequences');
+assert.equal((message.match(/\\\\n(?:Stars|Added|Balance|Rate):/g) || []).length, 0, 'messages must not print escaped literal \\n sequences');
 
 // Group approval must fail closed, verify bot admin status, and gate callback entry points.
 assert.match(groupApproval, /api\.getChatMember\(/);
