@@ -400,16 +400,31 @@ export async function resumeBroadcast({ actorId, ownerChatId, jobId = null, prog
       .where(or(eq(broadcastJobs.status, 'paused'), eq(broadcastJobs.status, 'running')))
       .orderBy(asc(broadcastJobs.createdAt))
       .all().then((rows) => rows[rows.length - 1] || null);
-  if (!job || !['paused', 'running'].includes(job.status)) {
+  if (!job || !['paused', 'running', 'cancel_requested'].includes(job.status)) {
     throw new EndpointError('No resumable broadcast job was found.', { code: 'BROADCAST_NOT_RESUMABLE' });
   }
   if (Number(job.payload?.createdBy) !== Number(actorId)) {
     throw new EndpointError('Only the original owner may resume this broadcast.', { code: 'OWNER_ONLY' });
   }
+  const previousStatus = job.status;
   const lock = await acquireLock(job.id, ownerChatId);
   if (!lock.ok) throw new EndpointError('Another broadcast is already running.', { code: 'BROADCAST_RUNNING' });
   if (lock.recoveredJobId) await recoverStaleJob(lock.recoveredJobId);
+  if (previousStatus === 'running' && lock.recoveredJobId !== job.id) {
+    // A running row with a free lock means the prior invocation released its
+    // lock without completing the state transition. Re-queue abandoned sends.
+    await db.update(broadcastTargets).set({ status: 'pending', updatedAt: now() })
+      .where(and(eq(broadcastTargets.jobId, job.id), eq(broadcastTargets.status, 'sending'))).run();
+  }
   job = await db.select().from(broadcastJobs).where(eq(broadcastJobs.id, job.id)).get();
+  if (job?.status === 'cancel_requested') {
+    await db.update(broadcastJobs).set({ status: 'cancelled', updatedAt: now() })
+      .where(eq(broadcastJobs.id, job.id)).run();
+    job = await db.select().from(broadcastJobs).where(eq(broadcastJobs.id, job.id)).get();
+    await editProgress(job, 'cancelled');
+    await releaseLock(job.id);
+    return { jobId: job.id, status: 'cancelled' };
+  }
   await db.update(broadcastJobs).set({
     status: 'running',
     payload: { ...(job.payload || {}), ownerChatId: Number(ownerChatId), progressMessageId: Number(progressMessageId) || job.payload?.progressMessageId || null },
