@@ -26,6 +26,13 @@ Setting `MONGO_URI` alone does not connect the V2 handlers to MongoDB: the V2 ha
 8. Test unauthorized users cannot toggle games; owner can enable/disable each supported control; settings survive invocations; Mini App routes reject starts for disabled games; active-round cashout/action callbacks remain available.
 9. Record the test bot's app ID, commit SHA, schema version, and test results before proceeding.
 
+## Broadcast preview implementation
+
+The Serverless preview now has a durable broadcast job, target snapshot, lock/heartbeat record, progress counters and resumable batches. Its current policy is bounded to 100 targets per invocation, 8 workers, at most 25 sends per second, and up to four attempts for retryable Telegram errors. It supports owner-only text broadcast and reply-copy (copyMessage) to users plus groups whose approval status is approved only.
+
+This is not yet identical to the production long-running worker: once the batch cap is reached, the owner must use `/broadcast resume` to continue. Verify this behavior and the SDK's DB/Telegram method return shapes against a separate Serverless test bot before relying on it. Do not execute `npx tgcloud push` or `npx tgcloud migrate` against the production-linked app.
+
+The Broadcast implementation adds the `broadcast_targets` and `broadcast_locks` tables. Review the generated schema migration before applying it to the test app, verify the target/lock indexes and JSON payload columns, and test a rollback plan. The existing `broadcast_jobs` table alone is not enough to run this worker.
 ## Phase 2 — feature parity before any real data
 
 The following are still blockers in V2 and must be implemented and tested against `main` contracts: complete slot/BJ/Shan/Mines game lifecycle parity, Dice gameplay, Auction state transitions and expiry, 2D schedules and settlement, broadcast text/copy/progress/cancel/429 handling, group approval, remaining admin/settings/commerce/sports/tournament/background jobs, and exact-once/concurrency/replay tests. See [SERVERLESS_V2_PARITY.md](SERVERLESS_V2_PARITY.md).
