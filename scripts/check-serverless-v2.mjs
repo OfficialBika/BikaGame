@@ -67,8 +67,8 @@ assert.match(featureStatus, /partial-resumable-batch-needs-runtime-test/);
 assert.match(featureStatus, /\.dice on\/off/);
 assert.match(featureStatus, /Owner-only text\/copy/);
 assert.match(featureStatus, /partial-resumable-batch-needs-runtime-test/);
-assert.match(featureStatus, /id: 'two-d'[\\s\\S]*atomic bet debit[\\s\\S]*inbound Telegram updates/);
-assert.match(featureStatus, /id: 'auction'[\\s\\S]*status: 'schema-only'/);
+assert.match(featureStatus, /id: 'two-d'[\s\S]*One-ledger-row atomic bet debit[\s\S]*inbound Telegram updates/);
+assert.match(featureStatus, /id: 'auction'[\s\S]*status: 'schema-only'/);
 
 // Owner-only switches must be persisted and enforced at both bot and Mini App entry points.
 assert.match(controls, /getSetting/);
@@ -102,7 +102,7 @@ assert.ok(callbacks.includes('Number(user.id) !== Number(session.state?.targetUs
 assert.ok(callbacks.includes("await assertGameEnabled('dice')"), 'pending Dice challenges must obey game disable state');
 assert.match(duelPlan, /__settlement:/);
 assert.match(duelPlan, /fromAccountUserId: target/);
-assert.equal((message.match(/\\\\n(?:Stars|Added|Balance|Rate):/g) || []).length, 0, 'messages must not print escaped literal \\n sequences');
+assert.equal((message.match(/\\n(?:Stars|Added|Balance|Rate):/g) || []).length, 0, 'messages must not print escaped literal \\n sequences');
 
 // Group approval must fail closed, verify bot admin status, and gate callback entry points.
 assert.match(groupApproval, /api\.getChatMember\(/);
