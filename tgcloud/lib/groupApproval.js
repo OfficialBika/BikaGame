@@ -6,6 +6,7 @@ import {
   groupAccessDecision,
   isBotAdministratorStatus,
   isConfiguredOwner,
+  isFreshBotAdminCheck,
   isGroupChat,
 } from './groupApprovalPolicy.js';
 
@@ -98,9 +99,25 @@ export async function refreshBotAdminStatus(chat) {
 
 export async function checkGroupAccess(chat, actorUserId) {
   if (!isGroupChat(chat)) return { allowed: true, reason: 'private', group: null };
+  const configuredOwner = ownerId();
   const group = await ensureGroup(chat);
-  const decision = groupAccessDecision(group, actorUserId, ownerId());
-  return { ...decision, group };
+
+  // Owner recovery commands must remain usable if the bot loses admin rights.
+  if (isConfiguredOwner(actorUserId, configuredOwner)) {
+    return { ...groupAccessDecision(group, actorUserId, configuredOwner), group };
+  }
+
+  let checked = { ok: true, botIsAdmin: Boolean(group?.botIsAdmin), group };
+  if (!isFreshBotAdminCheck(group)) {
+    checked = await refreshBotAdminStatus(chat);
+  }
+  if (!checked.ok) {
+    return { allowed: false, reason: 'admin_unverified', group: checked.group || group };
+  }
+
+  const freshGroup = checked.group || group;
+  const decision = groupAccessDecision(freshGroup, actorUserId, configuredOwner);
+  return { ...decision, group: freshGroup };
 }
 
 function requireOwner(actorUserId) {
