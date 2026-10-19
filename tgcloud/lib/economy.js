@@ -312,3 +312,27 @@ export async function recordGame({ userId, game, bet = 0, payout = 0, result = n
     meta: { ...meta, title: meta.title || String(game || 'Game'), outcome: meta.outcome || (p > b ? 'win' : p > 0 ? 'paid' : 'lose') },
   });
 }
+
+export async function creditExternalPurchase({ idempotencyKey, userId, amount, type = 'external_purchase', source = 'external', meta = {} }) {
+  const id = userIdOf(userId);
+  const creditAmount = amountOf(amount);
+  const key = String(idempotencyKey || '').trim();
+  if (!key) throw new EndpointError('An idempotency key is required for external credits.', { code: 'IDEMPOTENCY_REQUIRED' });
+  const op = await insertOperation({
+    type, fromUserId: String(source), toUserId: String(id), amount: creditAmount,
+    accountUserId: id, balanceDelta: creditAmount, requiredBalance: 0,
+    totalWonDelta: 0, totalLostDelta: 0,
+    // Paid-in funds are not house-funded rewards.
+    treasuryDelta: creditAmount, requiredTreasury: 0,
+    betAmount: 0, payoutAmount: creditAmount, idempotencyKey: key, meta,
+  });
+  const user = await db.select().from(users).where(eq(users.tgId, id)).get();
+  return { ok: true, duplicate: op.duplicate, amount: creditAmount, balance: Number(user?.balance || 0), idempotencyKey: op.key };
+}
+
+export async function getUserByWalletId(walletId) {
+  await ensureEconomy();
+  const value = String(walletId || '').trim();
+  if (!value) return null;
+  return db.select().from(users).where(eq(users.walletId, value)).get();
+}
