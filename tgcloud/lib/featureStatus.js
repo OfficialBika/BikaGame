@@ -18,7 +18,7 @@ const groups = [
     label: 'Session and multiplayer games',
     status: 'in-progress',
     features: ['Crash', 'Mines', 'Blackjack', 'Shan Koe Mee', 'Dice Duel'],
-    detail: 'Preview implementations exist; exact main parity, durable lifecycle, concurrent-session, timeout/retry and payout-replay tests are not complete. Dice Duel now has a persistent challenge flow and atomic idempotent settlement plan, but runtime tests remain.',
+    detail: 'Preview implementations exist; exact main parity, durable lifecycle, concurrent-session, timeout/retry and payout-replay tests are not complete. Dice Duel has a persistent challenge flow and atomic idempotent settlement plan; isolated settlement-plan and real SQLite ledger-trigger tests are added, but CI execution and Telegram runtime tests remain.',
   },
   {
     id: 'game-controls',
