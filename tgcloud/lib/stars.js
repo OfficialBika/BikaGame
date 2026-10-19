@@ -1,6 +1,6 @@
 import { api, EndpointError, db } from 'sdk';
 import { eq } from 'sdk/db';
-import { paymentEvents } from '../schema.js';
+import { paymentEvents, users } from '../schema.js';
 import { ensureEconomy, ensureUser, settleAward } from './economy.js';
 
 export const STAR_TO_BAL = 45000;
@@ -73,7 +73,10 @@ export async function creditSuccessfulStars(message) {
   if (!chargeId) throw new EndpointError('Telegram charge ID မရှိပါ။', { code: 'PAYMENT_CHARGE_REQUIRED' });
 
   const existing = await dbPayment(chargeId);
-  if (existing) return { ok: true, duplicate: true, stars: parsed.stars, balanceAmount: packageBalance(parsed.stars), balance: Number((await db.select().from(paymentEvents).where(eq(paymentEvents.id, chargeId)).get())?.amount || 0) };
+  if (existing) {
+    const user = await db.select().from(users).where(eq(users.tgId, userId)).get();
+    return { ok: true, duplicate: true, stars: parsed.stars, balanceAmount: packageBalance(parsed.stars), balance: Number(user?.balance || 0) };
+  }
 
   const result = await settleAward({
     idempotencyKey: '__stars_purchase:' + chargeId,
