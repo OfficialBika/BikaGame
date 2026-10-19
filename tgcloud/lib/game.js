@@ -76,6 +76,12 @@ async function startWagerSession(userId, game, amount, requestId, makeState) {
     try {
       await debit(id, bet, betType, { game, sessionId: session.id }, game + '-bet:' + session.id);
     } catch (error) {
+      // A timeout can happen after the debit committed. Check the stable ledger
+      // key before cancelling, otherwise a paid wager could be orphaned.
+      let committed;
+      try { committed = await getTransaction(game + '-bet:' + session.id); }
+      catch (_) { throw error; }
+      if (committed) return updateSession(session.id, { ...session.state, funded: true });
       try { await updateSession(session.id, { ...session.state, funded: false }, 'cancelled'); } catch (_) {}
       throw error;
     }
