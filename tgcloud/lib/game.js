@@ -3,6 +3,7 @@ import { and, desc, eq, gte, sql } from 'sdk/db';
 import { gameHistory, gameSessions, users } from '../schema.js';
 import { ensureEconomy, ensureUser, userById as accountUserById, debit as ledgerDebit, credit as ledgerCredit, settleSingleGame, settleAward, getTreasury, getSetting, consumeCooldown, getTransaction, hasIdempotencyKey, recordGame as ledgerRecordGame } from './economy.js';
 import { spin as slotSpinEngine, multiplier as slotMultiplier, art as slotArt } from './slotEngine.js';
+import { getActivePromoRtp } from './eventMarkets.js';
 
 const MIN_BET = 1;
 const MAX_BET = 1000000;
@@ -211,7 +212,7 @@ function slotResponse(row, userBalance) {
   const payout = Number(row.payoutAmount || meta.payout || 0);
   return { ok: true, duplicate: true, coin: '$', game: 'slot', bet, reels, art: slotArt(reels), multiplier: Number(row.multiplier || meta.multiplier || 0), rawPayout: Number(meta.rawPayout || payout), payout, net: payout - bet, balance: Number(userBalance || 0), result: payout > 0 ? 'WIN' : 'LOSE', rtp: Number(meta.rtp || meta.rtpWinRate || 65) };
 }
-export async function playSlot(userId, amount, spinId = null) {
+export async function playSlot(userId, amount, spinId = null, options = {}) {
   await ensureEconomy();
   const id = Number(userId);
   const user = await userById(id);
@@ -222,7 +223,11 @@ export async function playSlot(userId, amount, spinId = null) {
   if (prior) return slotResponse(prior, user.balance);
   await consumeCooldown(id, 'slot', 700);
   if (Number(user.balance || 0) < bet) throw new EndpointError('Balance မလုံလောက်ပါ။', { code: 'USER_INSUFFICIENT' });
-  const rtp = Number(await getSetting('web_game_rtp_slot', 65));
+  let rtp = Number(await getSetting('web_game_rtp_slot', 65));
+  if (options?.source === 'telegram') {
+    const promo = await getActivePromoRtp(options.groupId);
+    rtp = Number(promo?.rtp ?? await getSetting('legacy_slot_win_rate', 35));
+  }
   const house = await getTreasury();
   const reels = slotSpinEngine(user, Number(house?.vipWinRate ?? 90), Math.random, rtp);
   const multiplier = Number(slotMultiplier(reels)) || 0;
@@ -380,7 +385,7 @@ export async function minesOpen(userId, index) {
   if (s.state?.funded === false) throw new Error('SESSION_STARTING');
   const i = Math.floor(n(index, -1)); if (i < 0 || i >= 25) throw new Error('INVALID_TILE');
   if (s.state.opened.includes(i)) throw new Error('TILE_OPENED');
-  if (s.state.mines.includes(i)) { await updateSession(s.id, { ...s.state, hitMine:i }, 'lost'); await recordGame(userId,'mines',s.state.bet,0,{mine:i},0,'mines:'+s.id); return { ok:true, active:false, mine:i, exploded:true, payout:0, balance:(await userById(userId)).balance }; }
+  if (s.state.mines.includes(i)) { await updateSession(s.id, { ...s.state, hitMine:i }, 'lost'); await recordGame(userId,'mines',s.state.bet,0,{mine:i},0,'mines:'+s.id); return { ok:true, active:false, mine:i, exploded:true, bet:Number(s.state.bet||0), multiplier:0, payout:0, balance:(await userById(userId)).balance }; }
   const opened = [...s.state.opened, i]; const multiplier = Number((1 + opened.length * 0.35).toFixed(2));
   await updateSession(s.id, { ...s.state, opened, multiplier });
   return { ok:true, active:true, opened, multiplier, balance:(await userById(userId)).balance };
@@ -393,7 +398,7 @@ export async function minesCashout(userId) {
   await updateSession(s.id,{...s.state,payout},'settled');
   await recordGame(userId,'mines',s.state.bet,payout,{opened:s.state.opened},s.state.multiplier,'mines:'+s.id);
   const user = await userById(userId);
-  return {ok:true,active:false,payout,multiplier:s.state.multiplier,balance:Number(user?.balance || 0)};
+  return {ok:true,active:false,bet:Number(s.state.bet||0),payout,multiplier:s.state.multiplier,balance:Number(user?.balance || 0)};
 }
 
 function deck() { const suits=['♠','♥','♦','♣']; const ranks=['A','2','3','4','5','6','7','8','9','10','J','Q','K']; return suits.flatMap(s=>ranks.map(r=>({r,s}))).sort(()=>Math.random()-0.5); }
