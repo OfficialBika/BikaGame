@@ -35,6 +35,9 @@ const stars = await readFile(join(root, 'tgcloud/lib/stars.js'), 'utf8');
 const preCheckout = await readFile(join(root, 'tgcloud/handlers/pre_checkout_query.js'), 'utf8');
 const parity = await readFile(join(root, 'docs/SERVERLESS_V2_PARITY.md'), 'utf8');
 const featureStatus = await readFile(join(root, 'tgcloud/lib/featureStatus.js'), 'utf8');
+const controls = await readFile(join(root, 'tgcloud/lib/gameControls.js'), 'utf8');
+const controlNames = await readFile(join(root, 'tgcloud/lib/gameControlNames.js'), 'utf8');
+const miniHandler = await readFile(join(root, 'tgcloud/lib/mini.js'), 'utf8');
 
 // V2 must keep production cutover explicitly blocked until main parity and import are proven.
 assert.match(parity, /Production status: BLOCKED/);
@@ -49,6 +52,22 @@ for (const status of ['not-ported', 'schema-only', 'preview-only']) assert.ok(fe
 assert.match(featureStatus, /\.dice on\/off/);
 assert.match(featureStatus, /Broadcast text\/copy/);
 assert.match(featureStatus, /2D betting schedule and settlement/);
+
+// Owner-only switches must be persisted and enforced at both bot and Mini App entry points.
+assert.match(controls, /getSetting/);
+assert.match(controls, /setSetting/);
+assert.match(controls, /process\.env\.OWNER_ID/);
+assert.match(controls, /OWNER_ONLY/);
+assert.match(controlNames, /function parseGameToggle/);
+assert.match(controlNames, /blackjack/);
+assert.match(controlNames, /mines/);
+for (const gameName of ['slot', 'mines', 'blackjack', 'shan']) assert.ok(miniHandler.includes("assertGameEnabled('" + gameName + "')"), 'Mini App entry is missing the ' + gameName + ' switch');
+assert.ok(message.includes('parseGameToggle(message.text)'), 'bot handler must parse per-game controls');
+assert.ok(message.includes("assertGameEnabled('slot')"), 'slot command must honor its switch');
+assert.ok(message.includes("assertGameEnabled('mines')"), 'mines command must honor its switch');
+assert.ok(message.includes("assertGameEnabled('blackjack')"), 'blackjack command must honor its switch');
+assert.ok(message.includes("assertGameEnabled('shan')"), 'shan command must honor its switch');
+assert.equal((message.match(/\\\\n(?:Stars|Added|Balance|Rate):/g) || []).length, 0, 'messages must not print escaped literal \\n sequences');
 
 // Existing features must preserve one-write settlement and idempotency guards.
 assert.match(game, /settleSingleGame/);
