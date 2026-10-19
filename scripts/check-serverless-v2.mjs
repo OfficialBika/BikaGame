@@ -36,6 +36,7 @@ const preCheckout = await readFile(join(root, 'tgcloud/handlers/pre_checkout_que
 const parity = await readFile(join(root, 'docs/SERVERLESS_V2_PARITY.md'), 'utf8');
 const featureStatus = await readFile(join(root, 'tgcloud/lib/featureStatus.js'), 'utf8');
 const controls = await readFile(join(root, 'tgcloud/lib/gameControls.js'), 'utf8');
+const config = await readFile(join(root, 'tgcloud/lib/config.js'), 'utf8');
 const controlNames = await readFile(join(root, 'tgcloud/lib/gameControlNames.js'), 'utf8');
 const miniHandler = await readFile(join(root, 'tgcloud/lib/mini.js'), 'utf8');
 
@@ -56,7 +57,9 @@ assert.match(featureStatus, /2D betting schedule and settlement/);
 // Owner-only switches must be persisted and enforced at both bot and Mini App entry points.
 assert.match(controls, /getSetting/);
 assert.match(controls, /setSetting/);
-assert.match(controls, /process\.env\.OWNER_ID/);
+assert.doesNotMatch(controls, /process\.env/);
+assert.match(controls, /SERVERLESS_OWNER_TELEGRAM_ID/);
+assert.match(config, /SERVERLESS_OWNER_TELEGRAM_ID = 0/);
 assert.match(controls, /OWNER_ONLY/);
 assert.match(controlNames, /function parseGameToggle/);
 assert.match(controlNames, /blackjack/);
