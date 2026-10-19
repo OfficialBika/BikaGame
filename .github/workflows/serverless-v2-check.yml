@@ -29,6 +29,7 @@ jobs:
           node --check scripts/test-two-d-policy.mjs
           node --check scripts/test-stars-policy.mjs
           node --check scripts/test-daily-policy.mjs
+          node --check scripts/test-maintenance-policy.mjs
       - name: Test per-game control command parsing
         run: node scripts/test-game-control-names.mjs
       - name: Test slash and dot game command parser
@@ -47,6 +48,8 @@ jobs:
         run: node scripts/test-stars-policy.mjs
       - name: Test Yangon daily claim policy
         run: node scripts/test-daily-policy.mjs
+      - name: Test maintenance mode ON/OFF policy
+        run: node scripts/test-maintenance-policy.mjs
       - name: Test actual SQLite ledger triggers
         run: python3 scripts/test-dice-ledger-triggers.py
       - name: Check V2 contracts
