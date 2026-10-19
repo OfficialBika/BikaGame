@@ -33,10 +33,12 @@ export function buildDuelSettlementRow({
   if (winner !== null && reward <= 0) throw new TypeError('INVALID_DUEL_PAYOUT');
 
   const tie = winner === null;
-  const payouts = tie
+  const payouts = tie ? [] : [{ userId: winner, amount: reward }];
+  const refunds = tie
     ? [{ userId: challenger, amount }, { userId: target, amount }]
-    : [{ userId: winner, amount: reward }];
-  const totalPayout = payouts.reduce((sum, item) => sum + item.amount, 0);
+    : [];
+  const totalPayout = payouts.reduce((sum, item) => sum + item.amount, 0) +
+    refunds.reduce((sum, item) => sum + item.amount, 0);
   const result = meta?.result ?? null;
   const historyFor = (userId) => {
     const userWon = winner === userId;
@@ -67,6 +69,7 @@ export function buildDuelSettlementRow({
     treasuryDelta: amount * 2 - totalPayout,
     requiredTreasury: 0,
     payouts,
+    refunds,
     histories: [historyFor(challenger), historyFor(target)],
     idempotencyKey: '__settlement:' + prefix + ':' + id,
     meta: {
