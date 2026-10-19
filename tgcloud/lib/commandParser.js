@@ -1,7 +1,7 @@
 export function parseCommand(text) {
   const value = String(text || '').trim();
   const slash = value.match(/^\/([a-z0-9_]+)(?:@[a-z0-9_]+)?(?:\s+([\s\S]*))?$/i);
-  const dot = value.match(/^\.(slot|bj|blackjack|shan|dice|mine|mines|plinko|wheel|crash|daily|dailyclaim)(?:\s+([\s\S]*))?$/i);
+  const dot = value.match(/^\.(slot|bj|blackjack|shan|dice|mine|mines|plinko|wheel|crash|daily|dailyclaim|bet|bid|stopbet|betwin|tournament|dailytournament)(?:\s+([\s\S]*))?$/i);
   const match = slash || dot;
   if (!match) return null;
   let name = match[1].toLowerCase();
