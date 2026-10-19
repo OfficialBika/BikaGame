@@ -1,6 +1,7 @@
 import { api } from 'sdk';
 import { parseCommand } from '../lib/commandParser.js';
 import { ensureUser, formatCoin, displayName, listTopUsers } from '../lib/users.js';
+import { claimDailyReward } from '../lib/economy.js';
 import { getFeatureStatus } from '../lib/featureStatus.js';
 import { parseGameToggle, normalizeGameKey } from '../lib/gameControlNames.js';
 import { createDiceChallenge, activateDiceChallenge, failDiceChallengeCreation } from '../lib/diceDuel.js';
@@ -55,7 +56,7 @@ function helpText() {
     '/start — initialize preview profile',
     '/help — commands',
     '/balance — preview balance',
-    '/daily — preview daily reward',
+    '/daily — daily claim (500–2,000 Bal by default; group only)',
     '/top10 — preview leaderboard',
     '/slot <bet> — slot preview',
     '/plinko <bet> — Plinko preview',
@@ -385,13 +386,30 @@ export default async function (message) {
       return send(chatId, '🏆 BIKA Preview Top 10\n\n' + lines, message.message_id);
     }
     if (command.name === 'daily') {
-      const result = await dailyWheel(user.tgId);
-      return send(
-        chatId,
-        '🎁 Daily reward: +' + formatCoin(result.payout ?? result.reward ?? 0) + ' Bal\n' +
-          'Balance: ' + formatCoin(result.balance) + ' Bal',
-        message.message_id,
-      );
+      if (!isGroupChat(message.chat)) {
+        return send(chatId, 'ℹ️ /daily ကို group ထဲမှာပဲ အသုံးပြုနိုင်ပါတယ်။', message.message_id);
+      }
+      try {
+        const result = await claimDailyReward(user.tgId);
+        const note = result.duplicate ? '\n(ယနေ့ claim ကို အရင်က အောင်မြင်စွာ မှတ်တမ်းတင်ထားပြီးပါပြီ။)' : '';
+        return send(
+          chatId,
+          '🎁 Daily Claim Success\n━━━━━━━━━━━━━━\n' +
+            'Reward: +' + formatCoin(result.reward) + ' Bal\n' +
+            'Balance: ' + formatCoin(result.balance) + ' Bal\n' +
+            'Date: ' + result.dayKey + ' (Yangon)' + note,
+          message.message_id,
+        );
+      } catch (error) {
+        const code = String(error?.code || error?.message || error);
+        if (code.includes('DAILY_ALREADY_CLAIMED')) {
+          return send(chatId, '⏳ ဒီနေ့ claim လုပ်ပြီးပါပြီ။ Yangon time နဲ့ နောက်နေ့မှ ပြန်လုပ်ပါ။', message.message_id);
+        }
+        if (code.includes('TREASURY_INSUFFICIENT')) {
+          return send(chatId, '🏦 Bot Bank balance မလုံလောက်လို့ daily claim မပေးနိုင်သေးပါ။', message.message_id);
+        }
+        return send(chatId, '⚠️ Daily claim မအောင်မြင်ပါ။ ခဏနေပြီး ပြန်စမ်းပါ။', message.message_id);
+      }
     }
 
     const parsedArgs = args(command.args);
