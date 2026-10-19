@@ -6,6 +6,7 @@ const expected = {
   userId: '10001',
   stars: 20,
   amount: 900000,
+  status: 'credited',
   invoicePayload: '{"v":1,"kind":"bal_purchase","stars":20,"userId":"10001"}',
 };
 const record = {
@@ -14,6 +15,7 @@ const record = {
   userId: 10001,
   stars: 20,
   amount: 900000,
+  status: 'credited',
   invoicePayload: expected.invoicePayload,
 };
 assert.equal(paymentRecordMatches(record, expected), true);
@@ -21,6 +23,7 @@ assert.equal(paymentRecordMatches(null, expected), false);
 assert.equal(paymentRecordMatches({ ...record, userId: 10002 }, expected), false);
 assert.equal(paymentRecordMatches({ ...record, stars: 10 }, expected), false);
 assert.equal(paymentRecordMatches({ ...record, amount: 450000 }, expected), false);
+assert.equal(paymentRecordMatches({ ...record, status: 'pending' }, expected), false);
 assert.equal(paymentRecordMatches({ ...record, telegramPaymentChargeId: 'other' }, expected), false);
 assert.equal(paymentRecordMatches({ ...record, invoicePayload: 'tampered' }, expected), false);
 assert.equal(paymentRecordMatches({ ...record, id: 'other' }, expected), false);
