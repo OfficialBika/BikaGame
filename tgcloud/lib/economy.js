@@ -1,6 +1,8 @@
 import { db, EndpointError } from 'sdk';
 import { and, eq, isNull } from 'sdk/db';
 import { users, transactions, treasury, settings, idempotencyKeys, userCooldowns, broadcastJobs, broadcastTargets } from '../schema.js';
+import { and, isNull } from 'sdk/db';
+import { walletIdForUserId, walletSuffix } from './walletPolicy.js';
 import { buildDuelSettlementRow } from './duelSettlementPlan.js';
 
 const now = () => new Date();
@@ -178,16 +180,47 @@ export async function ensureUser(tgUser) {
   const photoUrl = safeText(tgUser?.photo_url ?? tgUser?.photoUrl);
   const languageCode = safeText(tgUser?.language_code ?? tgUser?.languageCode);
   const prior = await db.select().from(users).where(eq(users.tgId, id)).get();
-  const walletId = prior?.walletId || ('Bika' + id + token().replace(/[^a-z]/g, 'a').slice(0, 5));
-  await db.insert(users).values({
-    tgId: id, username, firstName, lastName, photoUrl, languageCode, walletId,
-    balance: 0, totalWon: 0, totalLost: 0, isVip: false, isBanned: false,
-    startBonusClaimed: false, dailyClaimedAt: null, startedBot: true, createdAt: now(), updatedAt: now(),
-  }).onConflictDoUpdate({
-    target: users.tgId,
-    set: { username, firstName, lastName, photoUrl, languageCode, startedBot: true, updatedAt: now() },
-  }).run();
-  return db.select().from(users).where(eq(users.tgId, id)).get();
+  // Keep wallet IDs stable once assigned. For new users, retry unique collisions;
+  // for legacy rows with NULL IDs, set only if another invocation has not won.
+  let walletId = prior?.walletId || null;
+  let inserted = false;
+  for (let attempt = 0; attempt < 8 && !inserted; attempt += 1) {
+    const candidate = walletId || walletIdForUserId(id, walletSuffix());
+    try {
+      await db.insert(users).values({
+        tgId: id, username, firstName, lastName, photoUrl, languageCode, walletId: candidate,
+        balance: 0, totalWon: 0, totalLost: 0, isVip: false, isBanned: false,
+        startBonusClaimed: false, dailyClaimedAt: null, startedBot: true, createdAt: now(), updatedAt: now(),
+      }).onConflictDoUpdate({
+        target: users.tgId,
+        set: { username, firstName, lastName, photoUrl, languageCode, startedBot: true, updatedAt: now() },
+      }).run();
+      inserted = true;
+      walletId = candidate;
+    } catch (error) {
+      const message = String(error?.message || error);
+      if (walletId || !/unique|constraint|sqlite_constraint/i.test(message) || attempt === 7) throw error;
+    }
+  }
+  let user = await db.select().from(users).where(eq(users.tgId, id)).get();
+  if (!user) throw new EndpointError('USER_UPSERT_FAILED', { code: 'USER_UPSERT_FAILED' });
+  if (!user.walletId) {
+    let assigned = false;
+    for (let attempt = 0; attempt < 8 && !assigned; attempt += 1) {
+      const candidate = walletIdForUserId(id, walletSuffix());
+      try {
+        await db.update(users).set({ walletId: candidate, updatedAt: now() })
+          .where(and(eq(users.tgId, id), isNull(users.walletId))).run();
+      } catch (error) {
+        const message = String(error?.message || error);
+        if (!/unique|constraint|sqlite_constraint/i.test(message) || attempt === 7) throw error;
+      }
+      user = await db.select().from(users).where(eq(users.tgId, id)).get();
+      assigned = Boolean(user?.walletId);
+    }
+  }
+  if (!user?.walletId) throw new EndpointError('WALLET_ID_ASSIGNMENT_FAILED', { code: 'WALLET_ID_ASSIGNMENT_FAILED' });
+  return user;
 }
 
 async function insertOperation(row) {
