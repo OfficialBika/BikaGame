@@ -40,7 +40,7 @@ function walletView(user) {
 export async function dispatch(action, input, ctx) {
   const telegramUser = requireVerifiedUser(ctx);
   const userId = Number(telegramUser.id);
-  await assertMaintenanceAccess(userId);
+  await assertMaintenanceAccess(userId, action);
   await ensureEconomy();
   await ensurePreviewUser(telegramUser);
   const body = input && typeof input === 'object' ? input : {};
