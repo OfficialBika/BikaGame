@@ -1,6 +1,6 @@
 import { db, EndpointError } from 'sdk';
 import { and, desc, eq, or } from 'sdk/db';
-import { ensureEconomy, transferByWalletId } from './economy.js';
+import { ensureEconomy, transferByWalletId, getUserByWalletId } from './economy.js';
 import {
   ensurePreviewUser, userById, history, playSlot, playPlinko, wheelSpin, wheelDailyStatus,
   dailyWheel, crashStart, crashStatus, crashCashout, minesStart, minesStatus,
@@ -21,7 +21,7 @@ function requireVerifiedUser(ctx) {
 }
 
 function walletView(user) {
-  const walletId = String(user.tgId);
+  const walletId = String(user.walletId || user.tgId);
   return {
     walletId,
     maskedWalletId: walletId.length > 4
@@ -71,7 +71,7 @@ export async function dispatch(action, input, ctx) {
         wallet: {
           ...walletView(user),
           currency: '$',
-          environment: 'serverless-preview',
+          environment: 'serverless-v2',
         },
         productionDataImported: false,
       };
@@ -83,14 +83,14 @@ export async function dispatch(action, input, ctx) {
     }
 
     case 'walletLookup': {
-      const targetId = Number(String(body.walletId || ''));
-      if (!Number.isSafeInteger(targetId) || targetId <= 0) {
+      const rawWalletId = String(body.walletId || '').trim();
+      if (!rawWalletId || rawWalletId.length > 80) {
         throw new EndpointError('Wallet ID မမှန်ပါ။', { code: 'WALLET_INVALID' });
       }
-      const target = await userById(targetId);
-      if (!target) {
-        throw new EndpointError('ဒီ Wallet ID ပိုင်ရှင်ကို မတွေ့ပါ။', { code: 'WALLET_NOT_FOUND' });
-      }
+      const target = /^\d+$/.test(rawWalletId)
+        ? (await userById(Number(rawWalletId))) || await getUserByWalletId(rawWalletId)
+        : await getUserByWalletId(rawWalletId);
+      if (!target) throw new EndpointError('ဒီ Wallet ID ပိုင်ရှင်ကို မတွေ့ပါ။', { code: 'WALLET_NOT_FOUND' });
       return { ok: true, wallet: walletView(target) };
     }
 
