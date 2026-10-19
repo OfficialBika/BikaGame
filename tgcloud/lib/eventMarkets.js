@@ -244,7 +244,29 @@ export async function placeAuctionBid({ auction, telegramUser, amount, messageId
   });
   const fresh = await db.select().from(auctions).where(eq(auctions.auctionId, auction.auctionId)).get();
   if (!fresh) throw new EndpointError('Auction update မတွေ့ပါ။', { code: 'AUCTION_NOT_FOUND' });
+  await updateAuctionPost(fresh);
   return { ok: true, duplicate: result.duplicate, auction: fresh, previousBidderId, balance: Number((await db.select().from(users).where(eq(users.tgId, user.tgId)).get())?.balance || 0) };
+}
+
+
+async function updateAuctionPost(auction) {
+  if (!auction?.channelId || !auction?.channelMessageId) return;
+  const data = auction.data || {};
+  const body = [
+    '🔥 <b>LIVE AUCTION</b>', '━━━━━━━━━━━━━━━━', '💎 <b>' + escapeHtml(data.title || 'Auction Item') + '</b>', '',
+    '💰 <b>CURRENT BID</b> ' + Number(auction.highestBidderId ? auction.currentBid : data.startingBid || 0).toLocaleString('en-US') + ' Bal',
+    '👑 <b>HIGHEST BIDDER</b> ' + escapeHtml(data.highestBidderName || 'No bids yet'),
+    '👥 <b>TOTAL BIDS</b> ' + Number(data.totalBids || 0),
+    '⏳ <b>ENDS</b> ' + (auction.endAt ? new Date(auction.endAt).toISOString() : '—'),
+    '', 'Reply with <code>.bid ' + Number(auction.highestBidderId ? Number(auction.currentBid) + Number(data.minIncrement || 1) : Number(data.startingBid || 1)) + '</code> or just the amount.'
+  ].join('\\n');
+  try {
+    const payload = { chat_id: Number(auction.channelId), message_id: Number(auction.channelMessageId), parse_mode: 'HTML', disable_web_page_preview: true };
+    if (data.mediaType === 'photo' || data.mediaType === 'video') await api.editMessageCaption({ ...payload, caption: body });
+    else await api.editMessageText({ ...payload, text: body });
+  } catch (error) {
+    console.warn('BIKA_AUCTION_POST_UPDATE_FAILED', auction.auctionId, String(error?.message || error));
+  }
 }
 
 export async function finalizeAuction(auctionId, actorId = null, force = false) {
@@ -288,7 +310,158 @@ export async function cancelAuction(auctionId, actorId) {
   return { ok: true, duplicate: false, auction: await db.select().from(auctions).where(eq(auctions.auctionId, auction.auctionId)).get() };
 }
 
-export async function reconcileEventMarketsOnUpdate() {
+
+const WEB_RTP_DEFAULTS = Object.freeze({ rocket: 76, slot: 65, plinko: 72, wheel: 70, mines: 68, blackjack: 68, shan: 68 });
+const WEB_RTP_LABELS = Object.freeze({ rocket: 'Rocket', slot: 'Premium Slot', plinko: 'Plinko', wheel: 'Lucky Wheel', mines: 'Mines', blackjack: 'Blackjack', shan: 'Shan Koe Mee' });
+function cleanRtpGame(value) {
+  const key = String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const aliases = { crash: 'rocket', webcrash: 'rocket', slots: 'slot', webslot: 'slot',
+    plink: 'plinko', luckywheel: 'wheel', spin: 'wheel', mine: 'mines', webmines: 'mines',
+    bj: 'blackjack', webblackjack: 'blackjack', shankoemee: 'shan', koemee: 'shan', skm: 'shan' };
+  const normalized = aliases[key] || key;
+  return WEB_RTP_LABELS[normalized] ? normalized : null;
+}
+export async function getWebGameRtp(gameKey) {
+  const key = cleanRtpGame(gameKey);
+  if (!key) throw new EndpointError('Unknown game RTP.', { code: 'WEB_GAME_UNKNOWN' });
+  const value = Number(await getSetting('web_game_rtp_' + key, WEB_RTP_DEFAULTS[key]));
+  return Number.isFinite(value) ? Math.max(40, Math.min(95, Math.floor(value))) : WEB_RTP_DEFAULTS[key];
+}
+export async function getAllWebGameRtps() {
+  const out = {};
+  for (const key of Object.keys(WEB_RTP_DEFAULTS)) out[key] = await getWebGameRtp(key);
+  return out;
+}
+export async function setWebGameRtp(actorId, gameKey, input) {
+  requireOwner(actorId);
+  const key = cleanRtpGame(gameKey);
+  const raw = Number(String(input ?? '').replace('%', '').trim());
+  if (!key || !Number.isFinite(raw) || raw < 40 || raw > 95) {
+    throw new EndpointError('RTP ကို 40–95 ကြား သတ်မှတ်ပါ။', { code: 'WEB_RTP_INVALID' });
+  }
+  const value = Math.floor(raw);
+  await setSetting('web_game_rtp_' + key, value);
+  return { game: key, label: WEB_RTP_LABELS[key], rtp: value };
+}
+function parsePromoDuration(input) {
+  const match = String(input || '').trim().toLowerCase().match(/^(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hour|hours)$/);
+  if (!match || Number(match[1]) <= 0) return null;
+  const amount = Number(match[1]), unit = match[2];
+  const multiplier = ['s','sec','secs','second','seconds'].includes(unit) ? 1000
+    : ['m','min','mins','minute','minutes'].includes(unit) ? 60000 : 3600000;
+  const ms = amount * multiplier;
+  return Number.isSafeInteger(ms) && ms <= 7 * 24 * 60 * 60 * 1000 ? ms : null;
+}
+export async function startPromoRtp({ actorId, chatId, chatTitle, rtpInput, durationText }) {
+  requireOwner(actorId);
+  const raw = Number(String(rtpInput || '').replace('%', '').trim());
+  const durationMs = parsePromoDuration(durationText);
+  if (!Number.isFinite(raw) || raw < 1 || raw > 100 || !durationMs) {
+    throw new EndpointError('Format: /promortp 85% 10mins (RTP 1–100, duration max 7 days).', { code: 'PROMO_RTP_INVALID' });
+  }
+  const key = 'promo_rtp:' + String(chatId);
+  const stamp = now();
+  const old = await getSetting(key, null);
+  const record = { groupId: String(chatId), chatId: Number(chatId), groupName: text(chatTitle, 200),
+    rtp: raw, durationText: String(durationText).replace(/\s+/g, ''),
+    startedAt: stamp.toISOString(), expiresAt: stamp.getTime() + durationMs,
+    ended: false, createdBy: Number(actorId), startMessageId: null };
+  await setSetting(key, record);
+  // A group-level promo applies to the Telegram /slot command only; Mini App games
+  // have no trusted group context and continue to use the global RTP setting.
+  return { ok: true, replaced: Boolean(old && !old.ended), ...record };
+}
+export async function getActivePromoRtp(groupId) {
+  if (!groupId) return null;
+  const key = 'promo_rtp:' + String(groupId);
+  const promo = await getSetting(key, null);
+  if (!promo || promo.ended) return null;
+  if (Number(promo.expiresAt || 0) <= Date.now()) {
+    await setSetting(key, { ...promo, ended: true, endedAt: now().toISOString(), endReason: 'expired' });
+    return null;
+  }
+  return promo;
+}
+export async function setShopEnabled(actorId, enabled) {
+  requireOwner(actorId);
+  await setSetting('shop_enabled', { enabled: Boolean(enabled), updatedBy: Number(actorId), updatedAt: now().toISOString() });
+  return Boolean(enabled);
+}
+export async function getShopEnabled() {
+  const value = await getSetting('shop_enabled', true);
+  return typeof value === 'object' ? value.enabled !== false : value !== false;
+}
+export async function recordDailyTournament({ chatId, telegramUser, game = 'mines', bet, payout, multiplier = 0, result = null }) {
+  await ensureEconomy();
+  const uid = Number(telegramUser?.id ?? telegramUser?.tgId);
+  const cid = Number(chatId);
+  const gameKey = String(game || 'mines').toLowerCase();
+  const wager = safeInt(bet, 0, 1000000000000);
+  const paid = safeInt(payout, 0, 1000000000000);
+  if (!Number.isSafeInteger(uid) || uid <= 0 || !Number.isSafeInteger(cid) || cid === 0 || wager == null || paid == null) return null;
+  const dayParts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Yangon', year: 'numeric', month: '2-digit', day: '2-digit' })
+    .formatToParts(now());
+  const part = (type) => dayParts.find(p => p.type === type)?.value || '';
+  const dayKey = part('year') + '-' + part('month') + '-' + part('day');
+  const rowId = [dayKey, gameKey, cid, uid].join(':');
+  const net = paid - wager, score = Math.max(0, net), bestWin = Math.max(0, net);
+  const stamp = Math.floor(Date.now() / 1000);
+  const data = JSON.stringify({ chatId: cid, game: gameKey, score, bestWin,
+    bestPayout: paid, bestMultiplier: Math.max(0, Number(multiplier) || 0),
+    totalBet: wager, totalPayout: paid, totalNet: net, games: 1,
+    positiveWins: net > 0 ? 1 : 0, losses: net <= 0 ? 1 : 0, lastResult: result || null });
+  await db.run(
+    `INSERT INTO daily_tournaments(id, day_key, user_id, wins, wagered, data, created_at, updated_at)
+     VALUES(:id, :day, :uid, :wins, :wagered, :data, :stamp, :stamp)
+     ON CONFLICT(id) DO UPDATE SET
+       wins = daily_tournaments.wins + excluded.wins,
+       wagered = daily_tournaments.wagered + excluded.wagered,
+       data = json_set(COALESCE(daily_tournaments.data, '{}'),
+         '$.score', COALESCE(CAST(json_extract(daily_tournaments.data, '$.score') AS INTEGER), 0) + CAST(json_extract(excluded.data, '$.score') AS INTEGER),
+         '$.bestWin', MAX(COALESCE(CAST(json_extract(daily_tournaments.data, '$.bestWin') AS INTEGER), 0), CAST(json_extract(excluded.data, '$.bestWin') AS INTEGER)),
+         '$.bestPayout', MAX(COALESCE(CAST(json_extract(daily_tournaments.data, '$.bestPayout') AS INTEGER), 0), CAST(json_extract(excluded.data, '$.bestPayout') AS INTEGER)),
+         '$.bestMultiplier', MAX(COALESCE(CAST(json_extract(daily_tournaments.data, '$.bestMultiplier') AS REAL), 0), CAST(json_extract(excluded.data, '$.bestMultiplier') AS REAL)),
+         '$.totalBet', COALESCE(CAST(json_extract(daily_tournaments.data, '$.totalBet') AS INTEGER), 0) + CAST(json_extract(excluded.data, '$.totalBet') AS INTEGER),
+         '$.totalPayout', COALESCE(CAST(json_extract(daily_tournaments.data, '$.totalPayout') AS INTEGER), 0) + CAST(json_extract(excluded.data, '$.totalPayout') AS INTEGER),
+         '$.totalNet', COALESCE(CAST(json_extract(daily_tournaments.data, '$.totalNet') AS INTEGER), 0) + CAST(json_extract(excluded.data, '$.totalNet') AS INTEGER),
+         '$.games', COALESCE(CAST(json_extract(daily_tournaments.data, '$.games') AS INTEGER), 0) + 1,
+         '$.positiveWins', COALESCE(CAST(json_extract(daily_tournaments.data, '$.positiveWins') AS INTEGER), 0) + CAST(json_extract(excluded.data, '$.positiveWins') AS INTEGER),
+         '$.losses', COALESCE(CAST(json_extract(daily_tournaments.data, '$.losses') AS INTEGER), 0) + CAST(json_extract(excluded.data, '$.losses') AS INTEGER),
+         '$.lastResult', json_extract(excluded.data, '$.lastResult')),
+       updated_at = excluded.updated_at`,
+    { ':id': rowId, ':day': dayKey, ':uid': uid, ':wins': net > 0 ? 1 : 0,
+      ':wagered': wager, ':data': data, ':stamp': stamp },
+  );
+  return { ok: true, dayKey, net, score };
+}
+export async function getDailyTournament({ game = 'mines', chatId, limit = 10 } = {}) {
+  await ensureEconomy();
+  const dayParts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Yangon', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now());
+  const part = (type) => dayParts.find(p => p.type === type)?.value || '';
+  const dayKey = part('year') + '-' + part('month') + '-' + part('day');
+  const cid = Number(chatId), key = String(game || 'mines').toLowerCase();
+  const all = await db.select().from(dailyTournaments).where(eq(dailyTournaments.dayKey, dayKey)).all();
+  return all.filter(row => Number(row.data?.chatId) === cid && String(row.data?.game || 'mines') === key)
+    .sort((a,b) => Number(b.data?.score || 0) - Number(a.data?.score || 0) ||
+      Number(b.data?.bestWin || 0) - Number(a.data?.bestWin || 0) ||
+      Number(b.data?.totalPayout || 0) - Number(a.data?.totalPayout || 0) ||
+      Number(a.updatedAt?.getTime?.() || 0) - Number(b.updatedAt?.getTime?.() || 0))
+    .slice(0, Math.max(1, Math.min(50, Number(limit) || 10)))
+    .map((row) => ({ userId: row.userId, ...row.data, updatedAt: row.updatedAt, dayKey }));
+}
+
+export async function showAuctionStatus(auctionId = null) {
+  await ensureEconomy();
+  const rows = auctionId
+    ? [await db.select().from(auctions).where(eq(auctions.auctionId, String(auctionId))).get()].filter(Boolean)
+    : await db.select().from(auctions).orderBy(desc(auctions.createdAt)).limit(10).all();
+  return rows.map(a => ({ auctionId: a.auctionId, status: a.status, title: a.data?.title || 'Auction',
+    currentBid: a.highestBidderId ? Number(a.currentBid) : 0, startingBid: Number(a.data?.startingBid || 0),
+    totalBids: Number(a.data?.totalBids || 0), highestBidderId: a.highestBidderId,
+    highestBidderName: a.data?.highestBidderName || null, endAt: a.endAt, creatorId: a.data?.createdBy }));
+}
+
+\nexport async function reconcileEventMarketsOnUpdate() {
   await ensureEconomy();
   const expired = await db.select().from(auctions).where(eq(auctions.status, 'open')).all();
   const settling = await db.select().from(auctions).where(eq(auctions.status, 'settling')).all();
