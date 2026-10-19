@@ -435,7 +435,7 @@ export async function claimDailyReward(userId) {
       meta: { source: 'telegram_daily', dayKey, dayStartUnix },
     });
   } catch (error) {
-    const code = String(error?.code || error?.message || error);
+    const code = String(error?.code || '') + ' ' + String(error?.message || error);
     if (code.includes('DAILY_ALREADY_CLAIMED')) {
       throw new EndpointError('ဒီနေ့ claim လုပ်ပြီးပါပြီ။ နောက်နေ့မှ ပြန်လုပ်ပါ။', { code: 'DAILY_ALREADY_CLAIMED' });
     }
