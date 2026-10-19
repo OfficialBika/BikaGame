@@ -54,10 +54,6 @@ BEGIN
       AND EXISTS (SELECT 1 FROM json_each(NEW.payouts) p
         WHERE NOT EXISTS (SELECT 1 FROM users WHERE tg_id = CAST(json_extract(p.value, '$.userId') AS INTEGER)))
     THEN RAISE(ABORT, 'PAYOUT_USER_NOT_FOUND') END;
-  SELECT CASE WHEN NEW.refunds IS NOT NULL
-      AND EXISTS (SELECT 1 FROM json_each(NEW.refunds) r
-        WHERE NOT EXISTS (SELECT 1 FROM users WHERE tg_id = CAST(json_extract(r.value, '$.userId') AS INTEGER)))
-    THEN RAISE(ABORT, 'REFUND_USER_NOT_FOUND') END;
 END`,
 `CREATE TRIGGER IF NOT EXISTS bika_transactions_after_insert
 AFTER INSERT ON transactions
@@ -81,10 +77,6 @@ BEGIN
     total_won = total_won + COALESCE((SELECT SUM(CAST(json_extract(p.value, '$.amount') AS INTEGER)) FROM json_each(NEW.payouts) p WHERE CAST(json_extract(p.value, '$.userId') AS INTEGER) = users.tg_id), 0),
     updated_at = NEW.created_at
     WHERE NEW.payouts IS NOT NULL AND tg_id IN (SELECT CAST(json_extract(p.value, '$.userId') AS INTEGER) FROM json_each(NEW.payouts) p);
-  UPDATE users SET
-    balance = balance + COALESCE((SELECT SUM(CAST(json_extract(r.value, '$.amount') AS INTEGER)) FROM json_each(NEW.refunds) r WHERE CAST(json_extract(r.value, '$.userId') AS INTEGER) = users.tg_id), 0),
-    updated_at = NEW.created_at
-    WHERE NEW.refunds IS NOT NULL AND tg_id IN (SELECT CAST(json_extract(r.value, '$.userId') AS INTEGER) FROM json_each(NEW.refunds) r);
   INSERT INTO game_history(user_id, game, bet, payout, multiplier, result, title, outcome, net, settlement_id, created_at)
     SELECT NEW.history_user_id, NEW.game_key, COALESCE(NEW.bet_amount, 0), COALESCE(NEW.payout_amount, 0),
       COALESCE(NEW.multiplier, 0), NEW.game_result, json_extract(NEW.meta, '$.title'),
@@ -112,101 +104,31 @@ BEGIN
 END`,
 ];
 
-const DUEL_REFUND_TRIGGER_MIGRATION_KEY = 'internal:migration:duel_refunds_trigger_v1';
-
-function timestampMs(value) {
-  if (value instanceof Date) return value.getTime();
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return 0;
-  return parsed < 100000000000 ? parsed * 1000 : parsed;
-}
-
-function changedRows(result) {
-  if (Array.isArray(result)) return result.length;
-  if (Array.isArray(result?.rows)) return result.rows.length;
-  return Number(result?.rowsAffected || 0);
-}
-
-async function claimDuelRefundTriggerMigration() {
-  let marker = await db.select().from(settings)
-    .where(eq(settings.key, DUEL_REFUND_TRIGGER_MIGRATION_KEY)).get();
-  if (marker?.value?.status === 'ready') return false;
-
-  let acquired = false;
-  if (!marker) {
-    const inserted = await db.insert(settings).values({
-      key: DUEL_REFUND_TRIGGER_MIGRATION_KEY,
-      value: { status: 'running', version: 1 },
-      updatedAt: now(),
-    }).onConflictDoNothing().returning().run();
-    acquired = changedRows(inserted) > 0;
-  }
-
-  if (!acquired) {
-    marker = await db.select().from(settings)
-      .where(eq(settings.key, DUEL_REFUND_TRIGGER_MIGRATION_KEY)).get();
-    if (marker?.value?.status === 'ready') return false;
-
-    const staleBefore = Math.floor(Date.now() / 1000) - 120;
-    const isFailed = marker?.value?.status === 'failed';
-    const isStale = timestampMs(marker?.updatedAt) < staleBefore * 1000;
-    if (isFailed || isStale) {
-      const result = await db.run(
-        "UPDATE settings SET value = :value, updated_at = :now " +
-        "WHERE key = :key AND (json_extract(value, '$.status') = 'failed' OR updated_at < :stale) RETURNING key",
-        {
-          ':value': JSON.stringify({ status: 'running', version: 1 }),
-          ':now': Math.floor(Date.now() / 1000),
-          ':key': DUEL_REFUND_TRIGGER_MIGRATION_KEY,
-          ':stale': staleBefore,
-        },
-      );
-      acquired = changedRows(result) > 0;
-    }
-  }
-
-  if (!acquired) {
-    marker = await db.select().from(settings)
-      .where(eq(settings.key, DUEL_REFUND_TRIGGER_MIGRATION_KEY)).get();
-    if (marker?.value?.status === 'ready') return false;
-    throw new EndpointError(
-      'Database schema/trigger migration is not ready. Apply the reviewed schema migration, then retry.',
-      { code: 'SCHEMA_MIGRATION_BUSY' },
-    );
-  }
-  return true;
-}
-
-async function ensureDuelRefundTriggers() {
-  const ownsMigration = await claimDuelRefundTriggerMigration();
-  if (!ownsMigration) return;
-
-  try {
-    // Existing triggers are not replaced by CREATE TRIGGER IF NOT EXISTS.
-    // The migration lock makes this drop/recreate a one-time, fail-closed upgrade.
-    await db.run('DROP TRIGGER IF EXISTS bika_transactions_before_insert');
-    await db.run('DROP TRIGGER IF EXISTS bika_transactions_after_insert');
-    for (const sqlText of triggerSql) await db.run(sqlText);
-    await db.update(settings).set({
-      value: { status: 'ready', version: 1 },
-      updatedAt: now(),
-    }).where(eq(settings.key, DUEL_REFUND_TRIGGER_MIGRATION_KEY)).run();
-  } catch (error) {
-    try {
-      await db.update(settings).set({
-        value: { status: 'failed', version: 1, reason: String(error?.message || error).slice(0, 180) },
-        updatedAt: now(),
-      }).where(eq(settings.key, DUEL_REFUND_TRIGGER_MIGRATION_KEY)).run();
-    } catch (_) {}
-    throw error;
-  }
-}
+const refundTriggerSql = [
+`CREATE TRIGGER IF NOT EXISTS bika_transactions_refunds_before_insert
+BEFORE INSERT ON transactions
+BEGIN
+  SELECT CASE WHEN NEW.refunds IS NOT NULL
+      AND EXISTS (SELECT 1 FROM json_each(NEW.refunds) r
+        WHERE NOT EXISTS (SELECT 1 FROM users WHERE tg_id = CAST(json_extract(r.value, '$.userId') AS INTEGER)))
+    THEN RAISE(ABORT, 'REFUND_USER_NOT_FOUND') END;
+END`,
+`CREATE TRIGGER IF NOT EXISTS bika_transactions_refunds_after_insert
+AFTER INSERT ON transactions
+BEGIN
+  UPDATE users SET
+    balance = balance + COALESCE((SELECT SUM(CAST(json_extract(r.value, '$.amount') AS INTEGER)) FROM json_each(NEW.refunds) r WHERE CAST(json_extract(r.value, '$.userId') AS INTEGER) = users.tg_id), 0),
+    updated_at = NEW.created_at
+    WHERE NEW.refunds IS NOT NULL AND tg_id IN (SELECT CAST(json_extract(r.value, '$.userId') AS INTEGER) FROM json_each(NEW.refunds) r);
+END`,
+];
 
 async function setup() {
   await db.run("INSERT OR IGNORE INTO treasury(key, owner_balance, vip_win_rate, maintenance, updated_at) VALUES('treasury', 0, 90, 0, unixepoch())");
   await db.run("CREATE UNIQUE INDEX IF NOT EXISTS idx_shop_cards_bot_card_unique ON shop_cards(bot_key, card_id) WHERE bot_key IS NOT NULL AND card_id IS NOT NULL");
   await db.run("CREATE UNIQUE INDEX IF NOT EXISTS idx_active_crash_mines_per_user ON game_sessions(user_id, game) WHERE status = 'active' AND game IN ('crash', 'mines')");
-  await ensureDuelRefundTriggers();
+  for (const sqlText of triggerSql) await db.run(sqlText);
+  for (const sqlText of refundTriggerSql) await db.run(sqlText);
 }
 async function cleanup() {
   const ms = Date.now();
