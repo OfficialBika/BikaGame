@@ -38,6 +38,9 @@ export function parseBroadcastRequest(rawText, hasReply) {
   if (/^(?:cancel|stop|end|--cancel|-cancel)$/i.test(raw)) {
     return { action: 'cancel' };
   }
+  if (/^(?:status|--status|-status)$/i.test(raw)) {
+    return { action: 'status' };
+  }
 
   const forceCopy = /(^|\s)(?:-copy|--copy)(?=\s|$)/i.test(raw);
   const text = raw.replace(/(^|\s)(?:-copy|--copy)(?=\s|$)/ig, ' ').trim();
