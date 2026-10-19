@@ -463,7 +463,7 @@ export async function showAuctionStatus(auctionId = null) {
     highestBidderName: a.data?.highestBidderName || null, endAt: a.endAt, creatorId: a.data?.createdBy }));
 }
 
-\nexport async function reconcileEventMarketsOnUpdate() {
+export async function reconcileEventMarketsOnUpdate() {
   await ensureEconomy();
   const expired = await db.select().from(auctions).where(eq(auctions.status, 'open')).all();
   const settling = await db.select().from(auctions).where(eq(auctions.status, 'settling')).all();
