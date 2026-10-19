@@ -1,4 +1,4 @@
-import { api, EndpointError } from 'sdk';
+import { api, EndpointError, db } from 'sdk';
 import { eq } from 'sdk/db';
 import { paymentEvents } from '../schema.js';
 import { ensureEconomy, ensureUser, settleAward } from './economy.js';
@@ -25,9 +25,8 @@ export function invoicePayload(stars, userId) {
 export function parseInvoicePayload(payload) {
   try {
     const data = JSON.parse(String(payload || ''));
-    const stars = validStars(data?.stars);
     if (data?.v !== 1 || data?.kind !== 'bal_purchase' || !data?.userId) return null;
-    return { stars, userId: String(data.userId) };
+    return { stars: validStars(data.stars), userId: String(data.userId) };
   } catch (_) {
     return null;
   }
@@ -74,7 +73,7 @@ export async function creditSuccessfulStars(message) {
   if (!chargeId) throw new EndpointError('Telegram charge ID မရှိပါ။', { code: 'PAYMENT_CHARGE_REQUIRED' });
 
   const existing = await dbPayment(chargeId);
-  if (existing) return { ok: true, duplicate: true, stars: parsed.stars, balanceAmount: packageBalance(parsed.stars) };
+  if (existing) return { ok: true, duplicate: true, stars: parsed.stars, balanceAmount: packageBalance(parsed.stars), balance: Number((await db.select().from(paymentEvents).where(eq(paymentEvents.id, chargeId)).get())?.amount || 0) };
 
   const result = await settleAward({
     idempotencyKey: '__stars_purchase:' + chargeId,
@@ -85,6 +84,7 @@ export async function creditSuccessfulStars(message) {
       stars: parsed.stars,
       exchangeRate: STAR_TO_BAL,
       telegramPaymentChargeId: chargeId,
+      chargeId,
       invoicePayload: payment.invoice_payload,
       providerPaymentChargeId: payment.provider_payment_charge_id || null,
     },
