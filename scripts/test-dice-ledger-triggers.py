@@ -88,7 +88,7 @@ def database():
         meta TEXT, created_at INTEGER NOT NULL
       );
       INSERT INTO users VALUES (101, 500, 0, 0, 1, NULL), (202, 500, 0, 0, 1, NULL);
-      INSERT INTO treasury VALUES ('treasury', 5000, 1);
+      INSERT INTO treasury VALUES ('treasury', 0, 1);
       INSERT INTO two_d_events VALUES ('event-open', '2026-10-19-am', 'open', 9999999999, 123, 123);
       INSERT INTO two_d_events VALUES ('event-closed', '2026-10-18-pm', 'closed', 9999999999, 123, 123);
     """)
@@ -272,6 +272,7 @@ def daily_claim(con, key, user_id, reward, day_start, created_at):
 
 def test_daily_claim_is_atomic_yangon_day_guarded_and_treasury_funded():
     con = database()
+    con.execute("UPDATE treasury SET owner_balance=5000 WHERE key='treasury'")
     daily_claim(con, "daily-101-day-a", 101, 1000, 1799990000, 1800000000)
     user = dict(con.execute("SELECT * FROM users WHERE tg_id=101").fetchone())
     treasury = con.execute("SELECT owner_balance FROM treasury WHERE key='treasury'").fetchone()[0]
