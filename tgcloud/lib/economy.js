@@ -209,6 +209,118 @@ BEGIN
 END`,
 ];
 
+
+const eventMarketTriggerSql = [
+`CREATE TRIGGER IF NOT EXISTS bika_transactions_sports_bet_before_insert
+BEFORE INSERT ON transactions
+WHEN NEW.type = 'sports_bet'
+BEGIN
+  SELECT CASE WHEN NOT EXISTS (
+    SELECT 1 FROM sports_events
+    WHERE id = json_extract(NEW.meta, '$.eventId') AND status = 'open'
+  ) THEN RAISE(ABORT, 'SPORTS_EVENT_CLOSED') END;
+  SELECT CASE WHEN EXISTS (
+    SELECT 1 FROM sports_bets
+    WHERE event_id = json_extract(NEW.meta, '$.eventId') AND user_id = NEW.account_user_id
+  ) THEN RAISE(ABORT, 'SPORTS_DUPLICATE_BET') END;
+  SELECT CASE WHEN NOT EXISTS (
+    SELECT 1 FROM json_each(
+      (SELECT data FROM sports_events WHERE id = json_extract(NEW.meta, '$.eventId')), '$.teams'
+    ) team
+    WHERE lower(json_extract(team.value, '$.alias')) = lower(json_extract(NEW.meta, '$.alias'))
+  ) THEN RAISE(ABORT, 'SPORTS_INVALID_TEAM') END;
+END`,
+`CREATE TRIGGER IF NOT EXISTS bika_transactions_sports_bet_after_insert
+AFTER INSERT ON transactions
+WHEN NEW.type = 'sports_bet'
+BEGIN
+  INSERT INTO sports_bets(id, event_id, user_id, choice, amount, potential_win, status, data, created_at, updated_at)
+  VALUES(
+    NEW.idempotency_key,
+    json_extract(NEW.meta, '$.eventId'),
+    NEW.account_user_id,
+    lower(json_extract(NEW.meta, '$.alias')),
+    NEW.amount,
+    CAST(json_extract(NEW.meta, '$.potentialWin') AS INTEGER),
+    'active', NEW.meta, NEW.created_at, NEW.created_at
+  );
+  UPDATE sports_events
+  SET data = json_set(
+      COALESCE(data, '{}'),
+      '$.totalBets', COALESCE(CAST(json_extract(data, '$.totalBets') AS INTEGER), 0) + 1,
+      '$.totalBetBal', COALESCE(CAST(json_extract(data, '$.totalBetBal') AS INTEGER), 0) + NEW.amount
+    ),
+    updated_at = NEW.created_at
+  WHERE id = json_extract(NEW.meta, '$.eventId');
+END`,
+`CREATE TRIGGER IF NOT EXISTS bika_transactions_auction_bid_before_insert
+BEFORE INSERT ON transactions
+WHEN NEW.type = 'auction_bid'
+BEGIN
+  SELECT CASE WHEN NOT EXISTS (
+    SELECT 1 FROM auctions
+    WHERE auction_id = json_extract(NEW.meta, '$.auctionId')
+      AND status = 'open' AND end_at > unixepoch()
+  ) THEN RAISE(ABORT, 'AUCTION_CLOSED') END;
+  SELECT CASE WHEN COALESCE(json_extract(NEW.meta, '$.previousBid'), -1) <>
+    CASE WHEN (SELECT highest_bidder_id FROM auctions WHERE auction_id = json_extract(NEW.meta, '$.auctionId')) IS NULL
+      THEN 0 ELSE (SELECT current_bid FROM auctions WHERE auction_id = json_extract(NEW.meta, '$.auctionId')) END
+    OR COALESCE(CAST(json_extract(NEW.meta, '$.previousBidderId') AS INTEGER), 0) <>
+       COALESCE((SELECT highest_bidder_id FROM auctions WHERE auction_id = json_extract(NEW.meta, '$.auctionId')), 0)
+  THEN RAISE(ABORT, 'AUCTION_CHANGED') END;
+  SELECT CASE WHEN NEW.amount < CASE
+    WHEN (SELECT highest_bidder_id FROM auctions WHERE auction_id = json_extract(NEW.meta, '$.auctionId')) IS NULL
+      THEN CAST(json_extract((SELECT data FROM auctions WHERE auction_id = json_extract(NEW.meta, '$.auctionId')), '$.startingBid') AS INTEGER)
+    ELSE (SELECT current_bid FROM auctions WHERE auction_id = json_extract(NEW.meta, '$.auctionId')) +
+      CAST(json_extract((SELECT data FROM auctions WHERE auction_id = json_extract(NEW.meta, '$.auctionId')), '$.minIncrement') AS INTEGER)
+    END
+  THEN RAISE(ABORT, 'AUCTION_BID_TOO_LOW') END;
+END`,
+`CREATE TRIGGER IF NOT EXISTS bika_transactions_auction_bid_after_insert
+AFTER INSERT ON transactions
+WHEN NEW.type = 'auction_bid'
+BEGIN
+  INSERT INTO auction_bids(id, auction_id, bidder_id, amount, message_id, data, created_at)
+  VALUES(NEW.idempotency_key, json_extract(NEW.meta, '$.auctionId'), NEW.account_user_id, NEW.amount,
+    CAST(json_extract(NEW.meta, '$.messageId') AS INTEGER), NEW.meta, NEW.created_at);
+  UPDATE auctions
+  SET current_bid = NEW.amount,
+      highest_bidder_id = NEW.account_user_id,
+      data = json_set(
+        COALESCE(data, '{}'),
+        '$.totalBids', COALESCE(CAST(json_extract(data, '$.totalBids') AS INTEGER), 0) + 1,
+        '$.highestBidderName', json_extract(NEW.meta, '$.bidderName'),
+        '$.highestBidderUsername', json_extract(NEW.meta, '$.bidderUsername'),
+        '$.updatedAtUnix', NEW.created_at
+      ),
+      updated_at = NEW.created_at
+  WHERE auction_id = json_extract(NEW.meta, '$.auctionId');
+END`,
+`CREATE TRIGGER IF NOT EXISTS bika_transactions_shop_purchase_before_insert
+BEFORE INSERT ON transactions
+WHEN NEW.type = 'shop_purchase'
+BEGIN
+  SELECT CASE WHEN NOT EXISTS (
+    SELECT 1 FROM shop_cards
+    WHERE id = CAST(json_extract(NEW.meta, '$.shopCardId') AS INTEGER)
+      AND status = 'AVAILABLE' AND COALESCE(price, 0) = NEW.amount
+  ) THEN RAISE(ABORT, 'SHOP_CARD_UNAVAILABLE') END;
+END`,
+`CREATE TRIGGER IF NOT EXISTS bika_transactions_shop_purchase_after_insert
+AFTER INSERT ON transactions
+WHEN NEW.type = 'shop_purchase'
+BEGIN
+  UPDATE shop_cards SET status = 'PENDING', updated_at = NEW.created_at
+  WHERE id = CAST(json_extract(NEW.meta, '$.shopCardId') AS INTEGER) AND status = 'AVAILABLE';
+  INSERT INTO orders(id, user_id, kind, status, amount, item_id, receipt_code, meta, created_at, updated_at)
+  VALUES(
+    json_extract(NEW.meta, '$.orderId'), NEW.account_user_id, 'card_exchange', 'pending',
+    NEW.amount, CAST(json_extract(NEW.meta, '$.shopCardId') AS TEXT),
+    json_extract(NEW.meta, '$.receiptCode'), NEW.meta, NEW.created_at, NEW.created_at
+  );
+END`,
+];
+
 async function setup() {
   await db.run("INSERT OR IGNORE INTO treasury(key, owner_balance, vip_win_rate, maintenance, updated_at) VALUES('treasury', 0, 90, 0, unixepoch())");
   await db.run("CREATE UNIQUE INDEX IF NOT EXISTS idx_shop_cards_bot_card_unique ON shop_cards(bot_key, card_id) WHERE bot_key IS NOT NULL AND card_id IS NOT NULL");
@@ -217,6 +329,8 @@ async function setup() {
   for (const sqlText of refundTriggerSql) await db.run(sqlText);
   for (const sqlText of dailyClaimTriggerSql) await db.run(sqlText);
   for (const sqlText of twoDTriggerSql) await db.run(sqlText);
+  await db.run("CREATE UNIQUE INDEX IF NOT EXISTS idx_sports_bets_event_user_unique ON sports_bets(event_id, user_id)");
+  for (const sqlText of eventMarketTriggerSql) await db.run(sqlText);
 }
 async function cleanup() {
   const ms = Date.now();
@@ -323,9 +437,20 @@ async function insertOperation(row) {
     if (msg.includes('USER_NOT_FOUND') || msg.includes('RECIPIENT_NOT_FOUND')) throw new EndpointError('User data မတွေ့ပါ။', { code: 'USER_NOT_FOUND' });
     if (msg.includes('TWO_D_CLOSED')) throw new EndpointError('2D ထိုးကြေးပိတ်ထားပါပြီ။', { code: 'TWO_D_CLOSED' });
     if (msg.includes('TWO_D_NUMBER_LIMIT')) throw new EndpointError('ဒီဂဏန်းကို တစ်ဦးလျှင် 200,000 Bal ထက်ပို၍ မထိုးနိုင်ပါ။', { code: 'TWO_D_NUMBER_LIMIT' });
+    if (msg.includes('SPORTS_EVENT_CLOSED')) throw new EndpointError('ဒီ Sports Event မှာ betting ပိတ်ထားပါပြီ။', { code: 'SPORTS_EVENT_CLOSED' });
+    if (msg.includes('SPORTS_DUPLICATE_BET')) throw new EndpointError('ဒီ event မှာ တစ်ကြိမ် bet တင်ပြီးပါပြီ။', { code: 'SPORTS_DUPLICATE_BET' });
+    if (msg.includes('SPORTS_INVALID_TEAM')) throw new EndpointError('Team alias မမှန်ပါ။', { code: 'SPORTS_INVALID_TEAM' });
+    if (msg.includes('AUCTION_CLOSED')) throw new EndpointError('Auction ပိတ်ပြီးပါပြီ။', { code: 'AUCTION_CLOSED' });
+    if (msg.includes('AUCTION_CHANGED')) throw new EndpointError('အခြား bid တစ်ခုနဲ့ ပြောင်းလဲသွားပါတယ်။ ပြန်စမ်းပါ။', { code: 'AUCTION_CHANGED' });
+    if (msg.includes('AUCTION_BID_TOO_LOW')) throw new EndpointError('Bid amount မလုံလောက်ပါ။', { code: 'AUCTION_BID_TOO_LOW' });
+    if (msg.includes('SHOP_CARD_UNAVAILABLE')) throw new EndpointError('ဒီ card ကို မဝယ်နိုင်တော့ပါ။', { code: 'SHOP_CARD_UNAVAILABLE' });
     throw err;
   }
 }
+export async function recordLedgerOperation(row) {
+  return insertOperation(row);
+}
+
 export async function settleSingleGame({ settlementId, typePrefix, userId, bet = 0, payout = 0, meta = {}, game = null, result = null, multiplier = 0 }) {
   const id = userIdOf(userId), b = Number(bet), p = Number(payout);
   if (!settlementId || !typePrefix || !Number.isSafeInteger(b) || b < 0 || !Number.isSafeInteger(p) || p < 0) throw new EndpointError('Invalid game settlement.', { code: 'INVALID_GAME_SETTLEMENT' });
