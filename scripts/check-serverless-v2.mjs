@@ -175,6 +175,8 @@ assert.match(economy, /export async function claimDailyReward/);
 assert.match(economy, /DAILY_ALREADY_CLAIMED/);
 assert.match(economy, /daily_claimed_at = NEW\.created_at/);
 assert.match(message, /claimDailyReward\(user\.tgId\)/);
+assert.match(message, /user\.walletId \|\| 'pending'/);
+assert.doesNotMatch(message, /Wallet ID: ' \+ user\.tgId/);
 assert.match(message, /isGroupChat\(message\.chat\)/);
 assert.match(stars, /getTransaction\('__stars_purchase:' \+ chargeId\)/);
 assert.match(schema, /table\('sports_bets'/);
