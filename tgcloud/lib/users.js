@@ -1,5 +1,6 @@
 import { db } from 'sdk';
-import { asc, desc, eq } from 'sdk/db';
+import { and, asc, desc, eq, isNull } from 'sdk/db';
+import { walletIdForUserId, walletSuffix } from './walletPolicy.js';
 import { users } from '../schema.js';
 
 function optionalText(value) {
@@ -51,8 +52,27 @@ export async function ensureUser(telegramUser) {
     },
   }).run();
 
-  const user = await db.select().from(users).where(eq(users.tgId, tgId)).get();
+  let user = await db.select().from(users).where(eq(users.tgId, tgId)).get();
   if (!user) throw new Error('USER_UPSERT_FAILED');
+
+  // Legacy preview users may not have a wallet ID yet. Assign one once using a
+  // guarded NULL update so concurrent invocations cannot overwrite each other.
+  if (!user.walletId) {
+    let saved = false;
+    for (let attempt = 0; attempt < 5 && !saved; attempt += 1) {
+      const walletId = walletIdForUserId(tgId, walletSuffix());
+      try {
+        await db.update(users).set({ walletId, updatedAt: new Date() })
+          .where(and(eq(users.tgId, tgId), isNull(users.walletId))).run();
+      } catch (error) {
+        const message = String(error?.message || error);
+        if (!/unique|constraint|sqlite_constraint/i.test(message) || attempt === 4) throw error;
+      }
+      user = await db.select().from(users).where(eq(users.tgId, tgId)).get();
+      if (user?.walletId) saved = true;
+    }
+    if (!saved) throw new Error('WALLET_ID_ASSIGNMENT_FAILED');
+  }
   return user;
 }
 
