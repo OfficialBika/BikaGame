@@ -3,6 +3,7 @@ import { parseCommand } from '../lib/commandParser.js';
 import { ensureUser, formatCoin, displayName, listTopUsers } from '../lib/users.js';
 import { getFeatureStatus } from '../lib/featureStatus.js';
 import { parseGameToggle, normalizeGameKey } from '../lib/gameControlNames.js';
+import { createDiceChallenge, activateDiceChallenge, failDiceChallengeCreation } from '../lib/diceDuel.js';
 import { setGameEnabled, assertGameEnabled, listGameStates } from '../lib/gameControls.js';
 import { createStarsInvoice, creditSuccessfulStars, STAR_PACKAGES, packageBalance } from '../lib/stars.js';
 import {
@@ -246,7 +247,50 @@ export default async function (message) {
       );
     }
     if (command.name === 'dice') {
-      return send(chatId, '⚠️ Dice gameplay is not ported to Serverless V2 yet. No bet was placed.', message.message_id);
+      await assertGameEnabled('dice');
+      if (!['group', 'supergroup'].includes(message.chat?.type)) {
+        return send(chatId, 'ℹ️ Dice Duel ကို group ထဲမှာပဲ သုံးနိုင်ပါတယ်။', message.message_id);
+      }
+      const target = message.reply_to_message?.from;
+      if (!target?.id || target.is_bot || Number(target.id) === Number(from.id)) {
+        return send(chatId, '⚠️ Challenge လုပ်မယ့် user ရဲ့ message ကို reply လုပ်ပြီး .dice <bet> သုံးပါ။', message.message_id);
+      }
+
+      let challenge;
+      try {
+        challenge = await createDiceChallenge({
+          challenger: from,
+          target,
+          chatId,
+          bet,
+        });
+        const winPayout = Math.floor(challenge.bet * 2 * 0.98);
+        const sent = await send(
+          chatId,
+          '🎲 DICE DUEL CHALLENGE\\n━━━━━━━━━━━━\\n' +
+            'Challenger: ' + (from.first_name || from.username || 'Player') + '\\n' +
+            'Target: ' + (target.first_name || target.username || 'Player') + '\\n' +
+            'Bet per player: ' + formatCoin(challenge.bet) + ' Bal\\n' +
+            'Winner receives: ' + formatCoin(winPayout) + ' Bal (2% house cut)\\n' +
+            '⏱ Accept within 60 seconds.',
+          message.message_id,
+          keyboard([
+            [{ text: '✅ Accept Dice Duel', callback_data: 'dice:accept:' + challenge.sessionId }],
+            [{ text: '❌ Cancel', callback_data: 'dice:cancel:' + challenge.sessionId }],
+          ]),
+        );
+        const sentMessageId = Number(sent?.message_id ?? sent?.result?.message_id);
+        if (!Number.isSafeInteger(sentMessageId) || sentMessageId <= 0) {
+          throw new Error('DICE_CHALLENGE_MESSAGE_ID_MISSING');
+        }
+        await activateDiceChallenge(challenge.sessionId, sentMessageId);
+        return sent;
+      } catch (error) {
+        if (challenge?.sessionId) {
+          try { await failDiceChallengeCreation(challenge.sessionId); } catch (_) {}
+        }
+        throw error;
+      }
     }
     if (command.name === 'plinko') {
       const result = await playPlinko(user.tgId, bet);
@@ -333,6 +377,12 @@ export default async function (message) {
     });
     const messageByCode = {
       USER_INSUFFICIENT: 'Balance မလုံလောက်ပါ။',
+      DICE_BUSY: 'Dice challenge များနေပါတယ်။ ခဏနေပြီး ပြန်ကြိုးစားပါ။',
+      DICE_GROUP_REQUIRED: 'Dice Duel ကို group ထဲမှာပဲ သုံးနိုင်ပါတယ်။',
+      DICE_INVALID_TARGET: 'အခြား human user တစ်ယောက်ကို challenge လုပ်ပါ။',
+      DICE_TARGET_ONLY: 'ဒီ duel ကို reply ထောက်ထားတဲ့သူပဲ Accept လုပ်နိုင်ပါတယ်။',
+      DICE_CANCEL_OWNER_ONLY: 'Challenge ဖန်တီးသူသာ Cancel လုပ်နိုင်ပါတယ်။',
+      DICE_NOT_READY: 'Dice challenge ကို မပြင်ဆင်နိုင်သေးပါ။ ပြန်ကြိုးစားပါ။',
       INVALID_BET: 'Bet amount ကို 1 မှ 1,000,000 အတွင်း ကိန်းပြည့်ထည့်ပါ။',
       WHEEL_DAILY_USED: 'Daily reward ကို ဒီနေ့ claim လုပ်ပြီးသားပါ။',
       CRASH_RUNNING: 'Crash round လက်ရှိ run နေပါတယ်။',
