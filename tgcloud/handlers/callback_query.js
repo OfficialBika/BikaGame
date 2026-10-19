@@ -3,6 +3,7 @@ import { ensureUser } from '../lib/users.js';
 import { assertGameEnabled } from '../lib/gameControls.js';
 import { checkGroupAccess, groupAccessMessage } from '../lib/groupApproval.js';
 import { isGroupChat } from '../lib/groupApprovalPolicy.js';
+import { resumeBroadcast } from '../lib/broadcast.js';
 import {
   getDiceChallenge, cancelDiceChallenge, claimDiceChallenge, storeDiceRollResult,
   settleDiceChallenge, failDiceChallenge,
@@ -123,6 +124,28 @@ export default async function (query) {
     await ensureUser(user);
     const [game, action, arg] = data.split(':');
     let text = 'Done.';
+    if (game === 'broadcast' && action === 'resume') {
+      try {
+        const result = await resumeBroadcast({
+          actorId: user.id,
+          ownerChatId: Number(message?.chat?.id),
+          jobId: arg,
+          progressMessageId: Number(message?.message_id),
+        });
+        await api.answerCallbackQuery({
+          callback_query_id: query.id,
+          text: result.status === 'completed' ? 'Broadcast completed.' : 'Broadcast batch processed: ' + result.status,
+        });
+      } catch (error) {
+        const text = error?.code === 'BROADCAST_RUNNING'
+          ? 'Another broadcast is running.'
+          : error?.code === 'OWNER_ONLY' || error?.code === 'OWNER_NOT_CONFIGURED'
+            ? 'Owner-only action.'
+            : 'Could not resume the saved broadcast.';
+        await api.answerCallbackQuery({ callback_query_id: query.id, text, show_alert: true });
+      }
+      return;
+    }
     let markup;
 
     if (game === 'dice' && (action === 'accept' || action === 'cancel')) {
