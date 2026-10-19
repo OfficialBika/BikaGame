@@ -111,7 +111,7 @@ assert.equal((message.match(/\\\\n(?:Stars|Added|Balance|Rate):/g) || []).length
 // and gate both Telegram messages and callback queries. Legacy /off means ON; /on means OFF.
 assert.match(maintenance, /const KEY = 'maintenance_mode'/);
 assert.match(maintenancePolicy, /function maintenanceEnabledFromValue/);
-assert.match(maintenancePolicy, /Corrupt non-null state fails closed/);
+assert.match(maintenancePolicy, /Corrupt non-null state must not silently disable maintenance/);
 assert.match(maintenancePolicy, /function isConfiguredOwnerId/);
 assert.match(maintenance, /getSetting\(KEY, false\)/);
 assert.match(maintenance, /setSetting\(KEY, record\)/);
