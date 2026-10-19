@@ -23,12 +23,15 @@ jobs:
           node --check scripts/test-game-control-names.mjs
           node --check scripts/test-game-command-parser.mjs
           node --check scripts/test-dice-settlement-plan.mjs
+          node --check scripts/test-group-approval-policy.mjs
       - name: Test per-game control command parsing
         run: node scripts/test-game-control-names.mjs
       - name: Test slash and dot game command parser
         run: node scripts/test-game-command-parser.mjs
       - name: Test atomic duel settlement plan
         run: node scripts/test-dice-settlement-plan.mjs
+      - name: Test group approval policy
+        run: node scripts/test-group-approval-policy.mjs
       - name: Test actual SQLite ledger triggers
         run: python3 scripts/test-dice-ledger-triggers.py
       - name: Check V2 contracts
