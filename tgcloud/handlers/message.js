@@ -56,7 +56,7 @@ function helpText() {
     '/start — initialize preview profile',
     '/help — commands',
     '/balance — preview balance',
-    '/daily — daily claim (500–2,000 Bal by default; group only)',
+    '/daily, /dailyclaim, .daily — daily claim (500–2,000 Bal by default; group only)',
     '/top10 — preview leaderboard',
     '/slot <bet> — slot preview',
     '/plinko <bet> — Plinko preview',
@@ -346,7 +346,7 @@ export default async function (message) {
         '💼 BIKA Preview Wallet\n' +
           'Player: ' + displayName(user) + '\n' +
           'Balance: ' + formatCoin(user.balance) + ' $\n' +
-          'Wallet ID: ' + user.tgId + '\n\nPreview database only.',
+          'Wallet ID: ' + (user.walletId || 'pending') + '\n\nPreview database only.',
         message.message_id,
       );
     }
@@ -354,7 +354,7 @@ export default async function (message) {
       return send(
         chatId,
         '💳 BIKA Preview Wallet\n' +
-          'ID: ' + user.tgId + '\n' +
+          'ID: ' + (user.walletId || 'pending') + '\n' +
           'Balance: ' + formatCoin(user.balance) + ' $\n\n' +
           'Mini App wallet transfer ကို isolated ledger နဲ့ စမ်းသပ်နေဆဲပါ။ /transfer chat command ကို ပိတ်ထားပြီး production transfer အဖြစ် မသုံးရသေးပါ။',
         message.message_id,
