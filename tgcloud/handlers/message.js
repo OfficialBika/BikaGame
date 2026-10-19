@@ -1,4 +1,5 @@
 import { api } from 'sdk';
+import { parseCommand } from '../lib/commandParser.js';
 import { ensureUser, formatCoin, displayName, listTopUsers } from '../lib/users.js';
 import { getFeatureStatus } from '../lib/featureStatus.js';
 import { parseGameToggle, normalizeGameKey } from '../lib/gameControlNames.js';
@@ -9,17 +10,6 @@ import {
   blackjackJoin, shanCreate, shanJoin, history as getGameHistory,
 } from '../lib/game.js';
 
-function parseCommand(text) {
-  const value = String(text || '').trim();
-  const slash = value.match(/^\/([a-z0-9_]+)(?:@[a-z0-9_]+)?(?:\s+([\s\S]*))?$/i);
-  const dot = value.match(/^\.(slot|bj|blackjack|shan|dice|mine|mines|plinko|wheel|crash)(?:\s+([\s\S]*))?$/i);
-  const match = slash || dot;
-  if (!match) return null;
-  let name = match[1].toLowerCase();
-  if (name === 'bj') name = 'blackjack';
-  if (name === 'mine') name = 'mines';
-  return { name, args: (match[2] || '').trim() };
-}
 
 function args(text) {
   return String(text || '').trim().split(/\s+/).filter(Boolean);
