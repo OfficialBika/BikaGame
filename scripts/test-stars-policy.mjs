@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { paymentRecordMatches } from '../tgcloud/lib/starsPolicy.js';
+import { paymentLedgerMatches, paymentRecordMatches } from '../tgcloud/lib/starsPolicy.js';
 
 const expected = {
   chargeId: 'charge-123',
@@ -28,3 +28,17 @@ assert.equal(paymentRecordMatches({ ...record, telegramPaymentChargeId: 'other' 
 assert.equal(paymentRecordMatches({ ...record, invoicePayload: 'tampered' }, expected), false);
 assert.equal(paymentRecordMatches({ ...record, id: 'other' }, expected), false);
 console.log('Stars payment reconciliation record tests passed.');
+
+const ledger = {
+  type: 'stars_bal_purchase',
+  accountUserId: 10001,
+  amount: 900000,
+  meta: { chargeId: 'charge-123', invoicePayload: expected.invoicePayload, stars: 20 },
+};
+assert.equal(paymentLedgerMatches(ledger, expected), true);
+assert.equal(paymentLedgerMatches({ ...ledger, accountUserId: 10002 }, expected), false);
+assert.equal(paymentLedgerMatches({ ...ledger, amount: 450000 }, expected), false);
+assert.equal(paymentLedgerMatches({ ...ledger, type: 'win' }, expected), false);
+assert.equal(paymentLedgerMatches({ ...ledger, meta: { ...ledger.meta, chargeId: 'other' } }, expected), false);
+assert.equal(paymentLedgerMatches({ ...ledger, meta: { ...ledger.meta, invoicePayload: 'tampered' } }, expected), false);
+assert.equal(paymentLedgerMatches({ ...ledger, meta: { ...ledger.meta, stars: 10 } }, expected), false);
