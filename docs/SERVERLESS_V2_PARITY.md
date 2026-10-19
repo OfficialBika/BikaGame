@@ -50,3 +50,11 @@ The requested game controls are distinct from global maintenance:
 9. Require CI to run syntax, contract, unit and integration tests; static grep/regex checks alone are insufficient.
 
 **Production status: BLOCKED** until the required matrix is implemented, tests pass, import/reconciliation is signed off, and rollback is proven.
+
+
+## Maintenance mode (Serverless V2 preview)
+- State is stored in the isolated `settings` table under `maintenance_mode`; missing setting defaults to OFF. A malformed non-null value fails closed as ON.
+- Compatibility with main: `/off` enables maintenance; `/on` disables maintenance. Explicit Owner-only `/maintenance on|off|status` is also supported.
+- Writes require `SERVERLESS_OWNER_TELEGRAM_ID` to be a valid numeric owner ID and verify the persisted value after writing. If owner ID is unset, control changes fail closed.
+- While ON, non-owner Telegram commands and callback queries are blocked. Owner can still inspect/change the mode. Successful payment updates are processed before the maintenance gate so already-paid Stars purchases are credited.
+- OFF is the default for a missing setting; OFF removes the command/callback gate on the next update. End-to-end test-bot verification and endpoint-wide Mini App API gating are still required before production use.
