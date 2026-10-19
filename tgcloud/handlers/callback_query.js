@@ -7,7 +7,7 @@ import { checkGroupAccess, groupAccessMessage } from '../lib/groupApproval.js';
 import { isGroupChat } from '../lib/groupApprovalPolicy.js';
 import { resumeBroadcast } from '../lib/broadcast.js';
 import { SERVERLESS_OWNER_TELEGRAM_ID } from '../lib/config.js';
-import { getShopCard, createShopOrder, listUserInventory, listUserShopOrders, approveShopOrder, cancelShopOrder, approveSellOrder, cancelSellOrder } from '../lib/commerce.js';
+import { getShopCard, listAvailableShopCards, createShopOrder, listUserInventory, listUserShopOrders, approveShopOrder, cancelShopOrder, approveSellOrder, cancelSellOrder } from '../lib/commerce.js';
 import { recordDailyTournament } from '../lib/eventMarkets.js';
 import {
   getDiceChallenge, cancelDiceChallenge, claimDiceChallenge, storeDiceRollResult,
@@ -176,7 +176,7 @@ export default async function (query) {
         { text: '⬅️ Back to Shop', callback_data: 'shop:back:0' },
       ]] };
     } else if (game === 'shop' && action === 'back') {
-      const rows = await (await import('../lib/commerce.js')).listAvailableShopCards(25);
+      const rows = await listAvailableShopCards(25);
       text = '🎁 BIKA Card Shop\\nCard တစ်ခုရွေးပါ။';
       markup = { inline_keyboard: rows.reduce((out, card, index) => {
         if (index % 2 === 0) out.push([]);
