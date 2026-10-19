@@ -52,9 +52,9 @@ async function activeSession(userId, game) {
   return db.select().from(gameSessions).where(and(eq(gameSessions.userId, Number(userId)), eq(gameSessions.game, game), eq(gameSessions.status, 'active'))).get();
 }
 
-async function createSession(userId, game, state) {
+async function createSession(userId, game, state, explicitId = null) {
   const t = now();
-  const id = uid();
+  const id = explicitId || uid();
   await db.insert(gameSessions).values({ id, userId: Number(userId), game, status: 'active', state, createdAt: t, updatedAt: t }).run();
   return db.select().from(gameSessions).where(eq(gameSessions.id, id)).get();
 }
