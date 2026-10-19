@@ -375,12 +375,12 @@ export async function getActivePromoRtp(groupId) {
   if (!groupId) return null;
   const key = 'promo_rtp:' + String(groupId);
   const promo = await getSetting(key, null);
-  if (!promo || promo.ended) return null;
-  if (Number(promo.expiresAt || 0) <= Date.now()) {
-    await setSetting(key, { ...promo, ended: true, endedAt: now().toISOString(), endReason: 'expired' });
+  if (!promo) return null;
+  if (Number(promo.expiresAt || 0) > 0 && Number(promo.expiresAt) <= Date.now() && !promo.ended) {
+    await setSetting(key, { ...promo, ended: true, endedAt: now().toISOString(), endReason: 'expired', endNoticeSent: false });
     return null;
   }
-  return promo;
+  return promo.ended ? null : promo;
 }
 export async function setShopEnabled(actorId, enabled) {
   requireOwner(actorId);
@@ -481,15 +481,33 @@ export async function reconcileEventMarketsOnUpdate() {
 async function getActivePromoForAllGroups() {
   const rows = await db.select().from(settings).all();
   const stamp = now();
-  let ended = 0;
+  let ended = 0, noticesSent = 0;
   for (const row of rows) {
-    if (!String(row.key).startsWith('promo_rtp:') || !row.value || row.value.ended) continue;
-    const expiresAt = Number(row.value.expiresAt || 0);
-    if (expiresAt > 0 && expiresAt <= stamp.getTime()) {
-      await db.update(settings).set({ value: { ...row.value, ended: true, endedAt: stamp.toISOString(), endReason: 'expired' }, updatedAt: stamp })
-        .where(eq(settings.key, row.key)).run();
+    if (!String(row.key).startsWith('promo_rtp:') || !row.value) continue;
+    let promo = row.value;
+    const expiresAt = Number(promo.expiresAt || 0);
+    if (!promo.ended && expiresAt > 0 && expiresAt <= stamp.getTime()) {
+      promo = { ...promo, ended: true, endedAt: stamp.toISOString(), endReason: 'expired', endNoticeSent: false };
+      await db.update(settings).set({ value: promo, updatedAt: stamp }).where(eq(settings.key, row.key)).run();
       ended += 1;
     }
+    if (!promo.ended || promo.endNoticeSent || !promo.chatId) continue;
+    try {
+      const sent = await api.sendMessage({
+        chat_id: Number(promo.chatId),
+        text: '🎰 Promotion Time End\\nပုံမှန် Global RTP အဖြစ်သို့ ပြန်လည် ပြောင်းလဲသွားပါပြီ။',
+      });
+      const messageId = Number(sent?.message_id ?? sent?.result?.message_id);
+      if (messageId > 0) {
+        try { await api.pinChatMessage({ chat_id: Number(promo.chatId), message_id: messageId, disable_notification: false }); } catch (_) {}
+      }
+      await db.update(settings).set({
+        value: { ...promo, endNoticeSent: true, endNoticeMessageId: messageId || null }, updatedAt: now(),
+      }).where(eq(settings.key, row.key)).run();
+      noticesSent += 1;
+    } catch (error) {
+      console.warn('BIKA_PROMO_END_NOTICE_FAILED', String(promo.chatId), String(error?.message || error));
+    }
   }
-  return ended;
+  return { ended, noticesSent };
 }
