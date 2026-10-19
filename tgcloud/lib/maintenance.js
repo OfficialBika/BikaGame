@@ -1,7 +1,7 @@
 import { EndpointError } from 'sdk';
 import { getSetting, setSetting } from './economy.js';
 import { SERVERLESS_OWNER_TELEGRAM_ID } from './config.js';
-import { maintenanceEnabledFromValue, maintenanceCommandAction, isConfiguredOwnerId } from './maintenancePolicy.js';
+import { maintenanceEnabledFromValue, maintenanceCommandAction, isConfiguredOwnerId, maintenanceActionAllowed } from './maintenancePolicy.js';
 export { maintenanceCommandAction };
 
 const KEY = 'maintenance_mode';
@@ -52,9 +52,9 @@ export async function setMaintenanceMode(actorUserId, enabled) {
   return saved;
 }
 
-export async function assertMaintenanceAccess(userId) {
+export async function assertMaintenanceAccess(userId, action = null) {
   const state = await getMaintenanceMode();
-  if (state.enabled && !isConfiguredOwner(userId)) {
+  if (state.enabled && !isConfiguredOwner(userId) && !maintenanceActionAllowed(action)) {
     throw new EndpointError('🛠️ Bot Maintenance Mode ON — Owner သာ အသုံးပြုနိုင်ပါတယ်။', {
       code: 'MAINTENANCE_MODE',
     });
