@@ -1,5 +1,6 @@
 import { api } from 'sdk';
 import { ensureUser } from '../lib/users.js';
+import { assertGameEnabled } from '../lib/gameControls.js';
 import {
   getDiceChallenge, cancelDiceChallenge, claimDiceChallenge, storeDiceRollResult,
   settleDiceChallenge, failDiceChallenge,
@@ -35,6 +36,7 @@ function telegramErrorText(error) {
   const code = String(error?.code || error?.details?.code || error?.message || '');
   const messages = {
     DICE_TARGET_ONLY: 'ဒီ duel ကို reply ထောက်ထားတဲ့သူပဲ Accept လုပ်နိုင်ပါတယ်။',
+    GAME_DISABLED: 'ဒီဂိမ်းကို Owner က ယာယီပိတ်ထားပါတယ်။'
     DICE_CANCEL_OWNER_ONLY: 'Challenge ဖန်တီးသူသာ Cancel လုပ်နိုင်ပါတယ်။',
     DICE_BALANCE_INSUFFICIENT: 'Player တစ်ယောက်ရဲ့ Balance မလုံလောက်ပါ။ Dice မပစ်ခဲ့ပါ၊ bet မဖြတ်ခဲ့ပါ။',
     DICE_BUSY: 'Dice challenge များနေပါတယ်။ ခဏနေပြီး ပြန်ကြိုးစားပါ။',
@@ -128,6 +130,11 @@ export default async function (query) {
             show_alert: true,
           });
           return;
+        }
+
+        if (action === 'accept' && session.status === 'waiting') {
+          // Turning Dice off prevents accepting outstanding, not-yet-started wagers.
+          await assertGameEnabled('dice');
         }
 
         if (action === 'cancel') {
