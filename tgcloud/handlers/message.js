@@ -267,11 +267,11 @@ export default async function (message) {
         const winPayout = Math.floor(challenge.bet * 2 * 0.98);
         const sent = await send(
           chatId,
-          '🎲 DICE DUEL CHALLENGE\\n━━━━━━━━━━━━\\n' +
-            'Challenger: ' + (from.first_name || from.username || 'Player') + '\\n' +
-            'Target: ' + (target.first_name || target.username || 'Player') + '\\n' +
-            'Bet per player: ' + formatCoin(challenge.bet) + ' Bal\\n' +
-            'Winner receives: ' + formatCoin(winPayout) + ' Bal (2% house cut)\\n' +
+          '🎲 DICE DUEL CHALLENGE\n━━━━━━━━━━━━\n' +
+            'Challenger: ' + (from.first_name || from.username || 'Player') + '\n' +
+            'Target: ' + (target.first_name || target.username || 'Player') + '\n' +
+            'Bet per player: ' + formatCoin(challenge.bet) + ' Bal\n' +
+            'Winner receives: ' + formatCoin(winPayout) + ' Bal (2% house cut)\n' +
             '⏱ Accept within 60 seconds.',
           message.message_id,
           keyboard([
