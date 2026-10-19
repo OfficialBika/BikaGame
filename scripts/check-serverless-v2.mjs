@@ -130,7 +130,7 @@ assert.match(message, /getMaintenanceMode\(\)/);
 assert.match(message, /Maintenance Mode OFF/);
 assert.match(callbacks, /getMaintenanceMode\(\)/);
 assert.match(callbacks, /Maintenance Mode ON/);
-assert.match(miniHandler, /assertMaintenanceAccess\(userId\)/, 'Mini App dispatch must enforce maintenance mode');
+assert.match(miniHandler, /assertMaintenanceAccess\(userId, action\)/, 'Mini App dispatch must enforce maintenance mode');
 assert.match(starsInvoiceEndpoint, /assertMaintenanceAccess\(Number\(user\.id\)\)/, 'Mini App Stars invoice creation must enforce maintenance mode');
 
 // Group approval must fail closed, verify bot admin status, and gate callback entry points.
