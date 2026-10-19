@@ -58,7 +58,8 @@ assert.match(featureStatus, /status: 'BLOCKED'/);
 for (const status of ['schema-only', 'preview-only']) assert.ok(featureStatus.includes(status), 'missing explicit incomplete status: ' + status);
 assert.match(featureStatus, /partial-resumable-batch-needs-runtime-test/);
 assert.match(featureStatus, /\.dice on\/off/);
-assert.match(featureStatus, /Broadcast text\/copy/);
+assert.match(featureStatus, /Owner-only text\/copy/);
+assert.match(featureStatus, /partial-resumable-batch-needs-runtime-test/);
 assert.match(featureStatus, /2D betting schedule and settlement/);
 
 // Owner-only switches must be persisted and enforced at both bot and Mini App entry points.
