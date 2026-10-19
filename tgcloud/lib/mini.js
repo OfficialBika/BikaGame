@@ -11,6 +11,7 @@ import { listTopUsers } from './users.js';
 import { transactions } from '../schema.js';
 import { miniConfig } from './config.js';
 import { getFeatureStatus } from './featureStatus.js';
+import { assertGameEnabled } from './gameControls.js';
 
 function requireVerifiedUser(ctx) {
   const telegramUser = ctx?.initData?.user;
@@ -142,6 +143,7 @@ export async function dispatch(action, input, ctx) {
       return { ok: true, items: await listTopUsers(body.limit || 10) };
 
     case 'slotSpin':
+      await assertGameEnabled('slot');
       return playSlot(userId, body.bet, body.spinId || body.requestId);
 
     case 'plinkoDrop':
@@ -167,6 +169,7 @@ export async function dispatch(action, input, ctx) {
       return crashCashout(userId);
 
     case 'minesStart':
+      await assertGameEnabled('mines');
       return minesStart(userId, body.bet, body.requestId);
 
     case 'minesStatus':
@@ -182,6 +185,7 @@ export async function dispatch(action, input, ctx) {
       return blackjackStatus(userId, body.roomId);
 
     case 'blackjackJoin':
+      await assertGameEnabled('blackjack');
       return blackjackJoin(userId, body.roomId, body.bet, body.requestId);
 
     case 'blackjackHit':
@@ -191,12 +195,14 @@ export async function dispatch(action, input, ctx) {
       return blackjackAction(userId, body.roomId, 'stand');
 
     case 'shanCreate':
+      await assertGameEnabled('shan');
       return shanCreate(userId, body.title, body.bankerStake, body.requestId);
 
     case 'shanStatus':
       return shanStatus(userId, body.roomId);
 
     case 'shanJoin':
+      await assertGameEnabled('shan');
       return shanJoin(userId, body.roomId, body.bet, body.requestId);
 
     case 'shanDraw':
