@@ -211,8 +211,8 @@ export default async function (message) {
       const result = await dailyWheel(user.tgId);
       return send(
         chatId,
-        '🎁 Daily preview reward: +' + formatCoin(result.reward) + ' $\n' +
-          'Balance: ' + formatCoin(result.balance) + ' $',
+        '🎁 Daily reward: +' + formatCoin(result.payout ?? result.reward ?? 0) + ' Bal\n' +
+          'Balance: ' + formatCoin(result.balance) + ' Bal',
         message.message_id,
       );
     }
