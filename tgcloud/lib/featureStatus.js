@@ -1,10 +1,69 @@
 const groups = [
-  { id: 'account', label: 'Account and core economy', status: 'foundation-added', features: ['/start', '/help', '/balance', '/wallet', '/top10', '/history', 'atomic ledger settlement', 'wallet transfers'], detail: 'SQLite triggers make one ledger INSERT the atomic commit for user balance, treasury, win/loss totals and game history.' },
-  { id: 'single-round-games', label: 'Single-round Mini App games', status: 'core-port-added', features: ['Slot', 'Plinko', 'Lucky Wheel', 'Daily Wheel'], detail: 'Core main slot/RTP logic and idempotent, capped one-row settlements are being ported. Platform end-to-end parity tests are still required.' },
-  { id: 'session-games', label: 'Session/multiplayer games', status: 'in-progress', features: ['Crash', 'Mines', 'Blackjack', 'Shan Koe Mee'], detail: 'The existing session engine has not yet passed concurrent-session and payout-replay tests; no production cutover is approved.' },
-  { id: 'payments-commerce', label: 'Payments and commerce', status: 'purchase-path-added', features: ['Telegram Stars invoices', 'Pre-checkout validation', 'Successful-payment validation and charge-ID idempotency', 'Refunds', 'Card shop/inventory/sell', 'Orders', 'Payment reconciliation'], detail: 'Stars purchase flow is wired but needs a real Telegram payment test; refunds and the remaining commerce flows are not yet ported. Production cutover is not approved.' },
-  { id: 'other-main-features', label: 'Remaining main features', status: 'schema-foundation', features: ['2D betting', 'Sports betting/events', 'Auctions', 'Tournaments', 'Promo RTP', 'Admin/owner controls', 'Broadcast/group approval', 'Scheduled/background jobs', 'Production data import'], detail: 'Target tables have been added for the main domains; handlers, state transitions, migrations and data import are not yet at main parity.' },
+  {
+    id: 'account',
+    label: 'Account and core economy',
+    status: 'foundation-added',
+    features: ['/start', '/help', '/balance', '/wallet', '/top10', '/history', 'atomic ledger settlement'],
+    detail: 'The serverless preview uses its own database. Wallet transfer is not production-parity safe and production data has not been imported.',
+  },
+  {
+    id: 'single-round-games',
+    label: 'Single-round Mini App games',
+    status: 'preview-only',
+    features: ['Slot', 'Plinko', 'Lucky Wheel', 'Daily Wheel'],
+    detail: 'Mini App preview routes exist. Telegram command parity, main RTP/admin settings parity, and end-to-end settlement tests are not complete.',
+  },
+  {
+    id: 'session-games',
+    label: 'Session and multiplayer games',
+    status: 'in-progress',
+    features: ['Crash', 'Mines', 'Blackjack', 'Shan Koe Mee'],
+    detail: 'Preview implementations exist; exact main parity, durable lifecycle, concurrent-session, timeout/retry and payout-replay tests are not complete. Dice Duel is not ported.',
+  },
+  {
+    id: 'game-controls',
+    label: 'Per-game controls',
+    status: 'not-ported',
+    features: ['.slot on/off', '.bj on/off', '.shan on/off', '.dice on/off', '.mine on/off', '.mines alias'],
+    detail: 'These owner-only persisted controls must gate commands, callbacks, and Mini App APIs. The existing main /on and /off are global maintenance commands and must remain separate.',
+  },
+  {
+    id: 'payments-commerce',
+    label: 'Payments and commerce',
+    status: 'partial',
+    features: ['Telegram Stars invoices', 'Pre-checkout validation', 'Successful-payment charge-ID idempotency', 'Refunds', 'Card shop/inventory/sell', 'Orders', 'Payment reconciliation'],
+    detail: 'Stars purchase path is wired but needs real Telegram payment tests. Refund, commerce, and reconciliation flows are not fully ported.',
+  },
+  {
+    id: 'two-d-auction',
+    label: '2D and Auction',
+    status: 'schema-only',
+    features: ['2D betting schedule and settlement', 'Auction creation and bids', 'Auction expiry/finalization/refunds'],
+    detail: 'Target tables exist, but main behavior, money-hold/state transitions, scheduled jobs, and exactly-once settlement are not ported and tested.',
+  },
+  {
+    id: 'communications',
+    label: 'Broadcast and group approval',
+    status: 'not-ported',
+    features: ['Broadcast text/copy', 'Progress and cancellation', '429 retry-after handling', 'Approved groups only', 'Group approval/admin checks'],
+    detail: 'The production bot has a MongoDB-backed broadcast service and group approval flow. They are not implemented at main parity in the Serverless V2 handlers.',
+  },
+  {
+    id: 'other-main-features',
+    label: 'Remaining main features',
+    status: 'schema-foundation',
+    features: ['Sports betting/events', 'Tournaments', 'Promo RTP', 'Admin/owner controls', 'Shop/inventory/sell', 'Scheduled/background jobs', 'Production data import'],
+    detail: 'Schema or partial route presence is not feature parity. Handlers, configuration, migrations, data import, and behavioral tests remain required.',
+  },
 ];
 export function getFeatureStatus() {
-  return { ok: true, environment: 'serverless-v2-staging', productionDataImported: false, productionCutoverApproved: false, liveEconomyEnabled: false, groups };
+  return {
+    ok: true,
+    environment: 'serverless-v2-staging',
+    productionDataImported: false,
+    productionCutoverApproved: false,
+    liveEconomyEnabled: false,
+    status: 'BLOCKED',
+    groups,
+  };
 }
