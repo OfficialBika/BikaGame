@@ -26,6 +26,8 @@ is not proof of feature parity.
 
 ## Per-game switch contract
 
+The Telegram Serverless V8 runtime does not provide normal Node.js `process.env`; configure the numeric owner ID in `tgcloud/lib/config.js` as `SERVERLESS_OWNER_TELEGRAM_ID`. Its default is `0`, which intentionally fails closed. Do not deploy owner controls until the value is configured and verified.
+
 The requested game controls are distinct from global maintenance:
 - `/slot on|off`, `/bj on|off`, `/shan on|off`, `/dice on|off`, and `/mine on|off` (also recognize `mines`).
 - Only the configured owner can change state.
