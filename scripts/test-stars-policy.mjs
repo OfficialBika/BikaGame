@@ -6,7 +6,7 @@ const expected = {
   userId: '10001',
   stars: 20,
   amount: 900000,
-  status: 'credited',
+  status: 'completed',
   invoicePayload: '{"v":1,"kind":"bal_purchase","stars":20,"userId":"10001"}',
 };
 const record = {
