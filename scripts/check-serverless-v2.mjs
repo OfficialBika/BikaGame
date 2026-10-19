@@ -48,6 +48,7 @@ const broadcastPolicy = await readFile(join(root, 'tgcloud/lib/broadcastPolicy.j
 const walletPolicy = await readFile(join(root, 'tgcloud/lib/walletPolicy.js'), 'utf8');
 const usersModule = await readFile(join(root, 'tgcloud/lib/users.js'), 'utf8');
 const twoDPolicy = await readFile(join(root, 'tgcloud/lib/twoDPolicy.js'), 'utf8');
+const twoDService = await readFile(join(root, 'tgcloud/lib/twoD.js'), 'utf8');
 
 // V2 must keep production cutover explicitly blocked until main parity and import are proven.
 assert.match(parity, /Production status: BLOCKED/);
@@ -63,7 +64,8 @@ assert.match(featureStatus, /partial-resumable-batch-needs-runtime-test/);
 assert.match(featureStatus, /\.dice on\/off/);
 assert.match(featureStatus, /Owner-only text\/copy/);
 assert.match(featureStatus, /partial-resumable-batch-needs-runtime-test/);
-assert.match(featureStatus, /2D betting schedule and settlement/);
+assert.match(featureStatus, /id: 'two-d'[\\s\\S]*atomic bet debit[\\s\\S]*inbound Telegram updates/);
+assert.match(featureStatus, /id: 'auction'[\\s\\S]*status: 'schema-only'/);
 
 // Owner-only switches must be persisted and enforced at both bot and Mini App entry points.
 assert.match(controls, /getSetting/);
