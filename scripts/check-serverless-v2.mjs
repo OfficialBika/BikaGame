@@ -165,6 +165,8 @@ assert.match(stars, /db\.insert\(paymentEvents\)/);
 assert.match(stars, /PAYMENT_RECORD_FAILED/);
 assert.match(stars, /PAYMENT_CHARGE_MISMATCH/);
 assert.match(starsPolicy, /paymentRecordMatches/);
+assert.match(starsPolicy, /paymentLedgerMatches/);
+assert.match(stars, /getTransaction\('__stars_purchase:' \+ chargeId\)/);
 assert.match(schema, /table\('sports_bets'/);
 assert.match(schema, /table\('shop_cards'/);
 assert.match(schema, /table\('auctions'/);
