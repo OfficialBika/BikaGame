@@ -1,8 +1,8 @@
 import { api, EndpointError, db } from 'sdk';
 import { eq } from 'sdk/db';
 import { paymentEvents, users } from '../schema.js';
-import { ensureEconomy, ensureUser, creditExternalPurchase } from './economy.js';
-import { paymentRecordMatches } from './starsPolicy.js';
+import { ensureEconomy, ensureUser, creditExternalPurchase, getTransaction } from './economy.js';
+import { paymentLedgerMatches, paymentRecordMatches } from './starsPolicy.js';
 
 export const STAR_TO_BAL = 45000;
 export const STAR_PACKAGES = Object.freeze([10, 20, 30, 40, 50, 100]);
@@ -106,6 +106,15 @@ export async function creditSuccessfulStars(message) {
       providerPaymentChargeId: payment.provider_payment_charge_id || null,
     },
   });
+
+  // If the ledger operation already exists (including a retry after a crash),
+  // bind the charge to the original transaction before writing reconciliation data.
+  if (result.duplicate) {
+    const ledger = await getTransaction('__stars_purchase:' + chargeId);
+    if (!paymentLedgerMatches(ledger, expectedRecord)) {
+      throw new EndpointError('Charge ID နှင့် မူလ ledger transaction မကိုက်ညီပါ။', { code: 'PAYMENT_CHARGE_MISMATCH' });
+    }
+  }
 
   // The ledger insert is the authoritative balance mutation. Persist a separate
   // payment event for reconciliation after it succeeds; a retry after a crash
