@@ -1,7 +1,8 @@
 import { db, EndpointError } from 'sdk';
 import { and, desc, eq, or } from 'sdk/db';
+import { ensureEconomy, transferByWalletId } from './economy.js';
 import {
-  ensurePreviewUser, userById, history, playSlot, playPlinko, wheelSpin,
+  ensurePreviewUser, userById, history, playSlot, playPlinko, wheelSpin, wheelDailyStatus,
   dailyWheel, crashStart, crashStatus, crashCashout, minesStart, minesStatus,
   minesOpen, minesCashout, blackjackJoin, blackjackStatus, blackjackAction,
   shanCreate, shanJoin, shanStatus, shanDeal,
@@ -37,6 +38,7 @@ function walletView(user) {
 export async function dispatch(action, input, ctx) {
   const telegramUser = requireVerifiedUser(ctx);
   const userId = Number(telegramUser.id);
+  await ensureEconomy();
   await ensurePreviewUser(telegramUser);
   const body = input && typeof input === 'object' ? input : {};
 
@@ -125,11 +127,13 @@ export async function dispatch(action, input, ctx) {
     // Keep preview transfers disabled until the platform exposes a supported
     // atomic settlement primitive. Two independent balance writes can partially
     // succeed, even in an isolated preview database.
-    case 'walletTransfer':
-      throw new EndpointError(
-        'Wallet transfers are disabled in this preview until atomic balance and ledger settlement is implemented.',
-        { code: 'PREVIEW_TRANSFER_DISABLED' },
-      );
+    case 'walletTransfer': {
+      const amount = Number(body.amount);
+      const transferId = String(body.transferId || body.requestId || body.idempotencyKey || '');
+      if (!transferId) throw new EndpointError('Transfer ID မရှိပါ။', { code: 'TRANSFER_ID_REQUIRED' });
+      const result = await transferByWalletId(userId, body.walletId, amount, { source: 'mini_wallet' }, 'wallet-transfer:' + userId + ':' + transferId);
+      return { ok: true, amount: result.amount, sender: walletView(result.sender), recipient: walletView(result.recipient), duplicate: result.duplicate };
+    }
 
     case 'history':
       return { ok: true, items: await history(userId, body.game || 'all', body.limit || 20) };
@@ -138,35 +142,23 @@ export async function dispatch(action, input, ctx) {
       return { ok: true, items: await listTopUsers(body.limit || 10) };
 
     case 'slotSpin':
-      return playSlot(userId, body.bet);
+      return playSlot(userId, body.bet, body.spinId || body.requestId);
 
     case 'plinkoDrop':
-      return playPlinko(userId, body.bet);
+      return playPlinko(userId, body.bet, body.spinId || body.requestId);
 
     case 'wheelSpin':
-      return wheelSpin(userId, body.bet);
+      return wheelSpin(userId, body.bet, body.spinId || body.requestId);
 
-    case 'wheelDailyStatus': {
-      const user = await userById(userId);
-      const today = new Date().toISOString().slice(0, 10);
-      const lastClaim = user.dailyClaimedAt
-        ? new Date(user.dailyClaimedAt).toISOString().slice(0, 10)
-        : '';
-      return {
-        ok: true,
-        available: today !== lastClaim,
-        claimed: today === lastClaim,
-        date: today,
-        baseReward: 100,
-      };
-    }
+    case 'wheelDailyStatus':
+      return wheelDailyStatus(userId);
 
     case 'wheelDailySpin':
       return dailyWheel(userId);
 
     case 'crashStart':
     case 'crashBet':
-      return crashStart(userId, body.bet);
+      return crashStart(userId, body.bet, body.requestId);
 
     case 'crashStatus':
       return crashStatus(userId);
@@ -175,7 +167,7 @@ export async function dispatch(action, input, ctx) {
       return crashCashout(userId);
 
     case 'minesStart':
-      return minesStart(userId, body.bet);
+      return minesStart(userId, body.bet, body.requestId);
 
     case 'minesStatus':
       return minesStatus(userId);
@@ -190,7 +182,7 @@ export async function dispatch(action, input, ctx) {
       return blackjackStatus(userId, body.roomId);
 
     case 'blackjackJoin':
-      return blackjackJoin(userId, body.roomId, body.bet);
+      return blackjackJoin(userId, body.roomId, body.bet, body.requestId);
 
     case 'blackjackHit':
       return blackjackAction(userId, body.roomId, 'hit');
@@ -199,13 +191,13 @@ export async function dispatch(action, input, ctx) {
       return blackjackAction(userId, body.roomId, 'stand');
 
     case 'shanCreate':
-      return shanCreate(userId, body.title);
+      return shanCreate(userId, body.title, body.bankerStake, body.requestId);
 
     case 'shanStatus':
       return shanStatus(userId, body.roomId);
 
     case 'shanJoin':
-      return shanJoin(userId, body.roomId, body.bet);
+      return shanJoin(userId, body.roomId, body.bet, body.requestId);
 
     case 'shanDraw':
       return shanDeal(userId, body.roomId, 'draw');

@@ -1,0 +1,24 @@
+name: Serverless V2 checks
+on:
+  push:
+    branches: [SeverLess-V2-Bot]
+  pull_request:
+    branches: [SeverLess-V2-Bot, main]
+jobs:
+  static-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check Serverless JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r file; do
+            node --input-type=module --check < "$file"
+          done < <(find tgcloud -type f -name '*.js' -print | sort)
+          node --check scripts/check-serverless-v2.mjs
+      - name: Check V2 contracts
+        run: node scripts/check-serverless-v2.mjs

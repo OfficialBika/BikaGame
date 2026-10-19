@@ -99,13 +99,14 @@ BEGIN
   INSERT OR IGNORE INTO idempotency_keys(key, kind, user_id, created_at)
     SELECT NEW.idempotency_key, NEW.type,
       COALESCE(NEW.account_user_id, NEW.from_account_user_id, NEW.to_account_user_id, NEW.history_user_id),
-      NEW.created_at WHERE NEW.idempotency_key IS NOT NULL;
+      NEW.created_at WHERE NEW.idempotency_key IS NOT NULL AND NEW.type <> 'game_history';
 END`,
 ];
 
 async function setup() {
   await db.run("INSERT OR IGNORE INTO treasury(key, owner_balance, vip_win_rate, maintenance, updated_at) VALUES('treasury', 0, 90, 0, unixepoch())");
   await db.run("CREATE UNIQUE INDEX IF NOT EXISTS idx_shop_cards_bot_card_unique ON shop_cards(bot_key, card_id) WHERE bot_key IS NOT NULL AND card_id IS NOT NULL");
+  await db.run("CREATE UNIQUE INDEX IF NOT EXISTS idx_active_crash_mines_per_user ON game_sessions(user_id, game) WHERE status = 'active' AND game IN ('crash', 'mines')");
   for (const sqlText of triggerSql) await db.run(sqlText);
 }
 async function cleanup() {
@@ -190,7 +191,8 @@ export async function settleSingleGame({ settlementId, typePrefix, userId, bet =
     idempotencyKey: key,
     meta: { ...meta, settlementId: String(settlementId), bet: b, payout: p, game },
   });
-  return { ok: true, duplicate: op.duplicate, payout: p, balance: Number((await db.select().from(users).where(eq(users.tgId, id)).get())?.balance || 0), meta: op.row?.meta || { ...meta, bet: b, payout: p, game, result, multiplier } };
+  const stored = op.row;
+  return { ok: true, duplicate: op.duplicate, payout: Number(stored?.payoutAmount ?? p), bet: Number(stored?.betAmount ?? b), balance: Number((await db.select().from(users).where(eq(users.tgId, id)).get())?.balance || 0), meta: stored?.meta || { ...meta, bet: b, payout: p, game, result, multiplier } };
 }
 export async function settleAward({ idempotencyKey, userId, amount, type = 'reward', meta = {}, game = null, result = null }) {
   const id = userIdOf(userId), reward = amountOf(amount);
@@ -285,4 +287,28 @@ export async function consumeCooldown(userId, action, cooldownMs) {
 export async function getTransaction(key) {
   await ensureEconomy();
   return db.select().from(transactions).where(eq(transactions.idempotencyKey, String(key))).get();
+}
+
+export async function hasIdempotencyKey(key) {
+  await ensureEconomy();
+  return Boolean(await db.select().from(idempotencyKeys).where(eq(idempotencyKeys.key, String(key))).get());
+}
+
+export async function recordGame({ userId, game, bet = 0, payout = 0, result = null, multiplier = 0, key = null, meta = {} }) {
+  const id = userIdOf(userId);
+  const b = Math.max(0, Math.floor(Number(bet) || 0));
+  const p = Math.max(0, Math.floor(Number(payout) || 0));
+  const settlementKey = String(key || ('history:' + game + ':' + id + ':' + Date.now() + ':' + token()));
+  return insertOperation({
+    type: 'game_history',
+    amount: 0,
+    idempotencyKey: settlementKey,
+    gameKey: String(game || 'unknown'),
+    historyUserId: id,
+    betAmount: b,
+    payoutAmount: p,
+    multiplier: Number(multiplier) || 0,
+    gameResult: result,
+    meta: { ...meta, title: meta.title || String(game || 'Game'), outcome: meta.outcome || (p > b ? 'win' : p > 0 ? 'paid' : 'lose') },
+  });
 }

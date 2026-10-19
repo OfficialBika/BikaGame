@@ -175,6 +175,8 @@ function escapeHtml(v) { return String(v ?? '').replaceAll('&','&amp;').replaceA
 function shortTime(ms) { const d = ms ? new Date(ms) : new Date(); return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
 
 async function api(path, body = {}) {
+  const requestId = body?.requestId || (globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12));
+  body = { ...body, requestId };
   const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': initData }, body: JSON.stringify(body) });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || data.ok === false) { const err = new Error(data.message || data.error || 'Request failed'); err.payload = data; throw err; }
