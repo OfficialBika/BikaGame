@@ -29,5 +29,7 @@ jobs:
         run: node scripts/test-game-command-parser.mjs
       - name: Test atomic duel settlement plan
         run: node scripts/test-dice-settlement-plan.mjs
+      - name: Test actual SQLite ledger triggers
+        run: python3 scripts/test-dice-ledger-triggers.py
       - name: Check V2 contracts
         run: node scripts/check-serverless-v2.mjs
