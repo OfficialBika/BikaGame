@@ -38,6 +38,7 @@ const preCheckout = await readFile(join(root, 'tgcloud/handlers/pre_checkout_que
 const parity = await readFile(join(root, 'docs/SERVERLESS_V2_PARITY.md'), 'utf8');
 const featureStatus = await readFile(join(root, 'tgcloud/lib/featureStatus.js'), 'utf8');
 const controls = await readFile(join(root, 'tgcloud/lib/gameControls.js'), 'utf8');
+const maintenance = await readFile(join(root, 'tgcloud/lib/maintenance.js'), 'utf8');
 const config = await readFile(join(root, 'tgcloud/lib/config.js'), 'utf8');
 const controlNames = await readFile(join(root, 'tgcloud/lib/gameControlNames.js'), 'utf8');
 const miniHandler = await readFile(join(root, 'tgcloud/lib/mini.js'), 'utf8');
@@ -103,6 +104,24 @@ assert.ok(callbacks.includes("await assertGameEnabled('dice')"), 'pending Dice c
 assert.match(duelPlan, /__settlement:/);
 assert.match(duelPlan, /fromAccountUserId: target/);
 assert.equal((message.match(/\\\\n(?:Stars|Added|Balance|Rate):/g) || []).length, 0, 'messages must not print escaped literal \\n sequences');
+
+// Maintenance mode must be persisted, owner-only, fail closed on malformed state,
+// and gate both Telegram messages and callback queries. Legacy /off means ON; /on means OFF.
+assert.match(maintenance, /const KEY = 'maintenance_mode'/);
+assert.match(maintenance, /getSetting\(KEY, false\)/);
+assert.match(maintenance, /setSetting\(KEY, record\)/);
+assert.match(maintenance, /OWNER_NOT_CONFIGURED/);
+assert.match(maintenance, /OWNER_ONLY/);
+assert.match(maintenance, /MAINTENANCE_WRITE_UNVERIFIED/);
+assert.match(maintenance, /function maintenanceCommandAction/);
+assert.match(maintenance, /command === 'off'.*action: 'on'/);
+assert.match(maintenance, /command === 'on'.*action: 'off'/);
+assert.match(message, /setMaintenanceMode\(from\.id, maintenanceVerb === 'on'\)/);
+assert.match(message, /successful_payment/);
+assert.match(message, /getMaintenanceMode\(\)/);
+assert.match(message, /Maintenance Mode OFF/);
+assert.match(callbacks, /getMaintenanceMode\(\)/);
+assert.match(callbacks, /MAINTENANCE_MODE ON/);
 
 // Group approval must fail closed, verify bot admin status, and gate callback entry points.
 assert.match(groupApproval, /api\.getChatMember\(/);
