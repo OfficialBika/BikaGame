@@ -12,6 +12,7 @@ import { transactions } from '../schema.js';
 import { miniConfig } from './config.js';
 import { getFeatureStatus } from './featureStatus.js';
 import { assertGameEnabled } from './gameControls.js';
+import { assertMaintenanceAccess } from './maintenance.js';
 
 function requireVerifiedUser(ctx) {
   const telegramUser = ctx?.initData?.user;
@@ -39,6 +40,7 @@ function walletView(user) {
 export async function dispatch(action, input, ctx) {
   const telegramUser = requireVerifiedUser(ctx);
   const userId = Number(telegramUser.id);
+  await assertMaintenanceAccess(userId);
   await ensureEconomy();
   await ensurePreviewUser(telegramUser);
   const body = input && typeof input === 'object' ? input : {};
