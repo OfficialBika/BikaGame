@@ -3,6 +3,7 @@ import { parseCommand } from '../lib/commandParser.js';
 import { ensureUser, formatCoin, displayName, listTopUsers } from '../lib/users.js';
 import { claimDailyReward } from '../lib/economy.js';
 import { getFeatureStatus } from '../lib/featureStatus.js';
+import { getMaintenanceMode, setMaintenanceMode, isConfiguredOwner, maintenanceCommandAction } from '../lib/maintenance.js';
 import { parseGameToggle, normalizeGameKey } from '../lib/gameControlNames.js';
 import { createDiceChallenge, activateDiceChallenge, failDiceChallengeCreation } from '../lib/diceDuel.js';
 import { setGameEnabled, assertGameEnabled, listGameStates } from '../lib/gameControls.js';
@@ -73,6 +74,9 @@ function helpText() {
     '/features — preview and migration status by feature',
     '/play — open the Serverless test Mini App',
     '/serverlessstatus — migration status',
+    '/off — turn Maintenance Mode ON (legacy main-branch command)',
+    '/on — turn Maintenance Mode OFF (legacy main-branch command)',
+    '/maintenance on|off|status — explicit Owner-only maintenance control',
     '/gamestatus — per-game on/off status',
     '/slot on|off, /bj on|off, /shan on|off, /dice on|off, /mine on|off — Owner-only game controls',
     '/game on|off <game> — alternate Owner-only game control syntax',
@@ -120,6 +124,42 @@ export default async function (message) {
 
   let broadcastProgressMessage = null;
   try {
+    // Preserve main-branch command semantics: /off enables maintenance, /on disables it.
+    const legacyMaintenance = maintenanceCommandAction(command?.name);
+    const maintenanceVerb = command?.name === 'maintenance'
+      ? String(command.args || '').trim().toLowerCase()
+      : legacyMaintenance?.action;
+    if (command?.name === 'maintenance' || legacyMaintenance) {
+      if (!isConfiguredOwner(from.id)) {
+        return send(chatId, '⛔ Owner only. SERVERLESS_OWNER_TELEGRAM_ID ကို မှန်ကန်စွာ သတ်မှတ်ထားရပါမယ်။', message.message_id);
+      }
+      if (maintenanceVerb === 'status') {
+        const state = await getMaintenanceMode();
+        return send(chatId, '🛠️ Maintenance Mode: ' + (state.enabled ? 'ON' : 'OFF') +
+          '\\nUpdated: ' + (state.updatedAt || '—') +
+          '\\nUpdated by: ' + (state.updatedBy || '—'), message.message_id);
+      }
+      if (!['on', 'off'].includes(maintenanceVerb)) {
+        return send(chatId, 'အသုံးပြုပုံ: /maintenance on|off|status\\nMain-compatible: /off = Maintenance ON, /on = Maintenance OFF', message.message_id);
+      }
+      const state = await setMaintenanceMode(from.id, maintenanceVerb === 'on');
+      const legacyHint = legacyMaintenance
+        ? (maintenanceVerb === 'on' ? ' (/off command)' : ' (/on command)')
+        : '';
+      return send(chatId, (state.enabled
+        ? '🛠️ Bot Maintenance Mode ON'
+        : '✅ Bot Online — Maintenance Mode OFF') + legacyHint, message.message_id);
+    }
+
+    // Maintenance gates every command-like action for non-owners. Payment updates
+    // are handled above first so successful purchases are never lost during maintenance.
+    const maintenance = await getMaintenanceMode();
+    if (maintenance.enabled && !isConfiguredOwner(from.id)) {
+      return send(chatId,
+        '🛠️ Bot Maintenance Mode\\n━━━━━━━━━━━━\\nလက်ရှိ Bot ကို ပြုပြင်နေပါတယ်။\\nOwner သာ အသုံးပြုနိုင်ပါတယ်။\\nခဏစောင့်ပြီး ပြန်သုံးပေးပါ။',
+        message.message_id);
+    }
+
     // Keep approval commands reachable for recovery; gate all other group commands.
     if (command && ['approve', 'reject', 'groupstatus'].includes(command.name)) {
       if (!isGroupChat(message.chat)) {
