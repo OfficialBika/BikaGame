@@ -53,7 +53,7 @@ const groups = [
     label: 'Group approval',
     status: 'preview-implemented-needs-runtime-test',
     features: ['/approve', '/reject', '/groupstatus', 'Bot Admin verification', 'Owner-only decision', 'Group command and callback gate'],
-    detail: 'V2 now records groups in its isolated database, verifies the bot administrator status through the Telegram Bot API before approval, records owner action metadata, and gates group commands/callbacks for unapproved groups. Runtime smoke tests and approved-group broadcast integration remain outstanding.',
+    detail: 'V2 records groups in its isolated database, verifies bot admin status before approval, and refreshes cached admin status at most once per minute. Approved groups fail closed for non-owner traffic if the bot loses admin or Telegram cannot verify its status. Runtime smoke tests and approved-group broadcast integration remain outstanding.',
   },
   {
     id: 'broadcast',
