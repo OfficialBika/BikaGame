@@ -79,6 +79,7 @@ export async function creditSuccessfulStars(message) {
     userId: String(userId),
     stars: parsed.stars,
     amount: packageBalance(parsed.stars),
+    status: 'credited',
     invoicePayload: String(payment.invoice_payload),
   };
   const existing = await dbPayment(chargeId);
