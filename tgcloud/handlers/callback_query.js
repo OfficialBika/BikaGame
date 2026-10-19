@@ -200,6 +200,7 @@ export default async function (query) {
           });
         } catch (error) { console.warn('BIKA_SHOP_OWNER_ALERT_FAILED', String(error?.message || error)); }
       }
+      markup = { inline_keyboard: [] };
       text = '✅ Exchange request created\\nOrder: ' + order.id + '\\nReceipt: ' + String(order.receiptCode || '—') +
         '\\nPrice: ' + Number(order.amount).toLocaleString('en-US') + ' Bal\\nStatus: PENDING OWNER APPROVAL';
     } else if (game === 'shop' && action === 'myorders') {
@@ -215,6 +216,7 @@ export default async function (query) {
       const result = action === 'approve'
         ? await approveShopOrder({ actorId: user.id, orderId: arg })
         : await cancelShopOrder({ actorId: user.id, orderId: arg });
+      markup = { inline_keyboard: [] };
       text = action === 'approve'
         ? '✅ Shop order approved\\nOrder: ' + arg + '\\nCard ကို inventory ထဲထည့်ပြီးပါပြီ။'
         : '❌ Shop order cancelled\\nOrder: ' + arg + '\\nRefund: ' + Number(result.order?.amount || 0).toLocaleString('en-US') + ' Bal';
@@ -222,6 +224,7 @@ export default async function (query) {
       const result = action === 'approve'
         ? await approveSellOrder({ actorId: user.id, orderId: arg })
         : await cancelSellOrder({ actorId: user.id, orderId: arg });
+      markup = { inline_keyboard: [] };
       text = action === 'approve'
         ? '✅ Sell order approved\\nOrder: ' + arg + '\\nPaid: ' + Number(result.order?.price || 0).toLocaleString('en-US') + ' Bal'
         : '❌ Sell order cancelled\\nOrder: ' + arg;
