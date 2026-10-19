@@ -2,7 +2,7 @@ import { EndpointError } from 'sdk';
 import { getSetting, setSetting } from './economy.js';
 import { SERVERLESS_OWNER_TELEGRAM_ID } from './config.js';
 import { maintenanceEnabledFromValue, maintenanceCommandAction, isConfiguredOwnerId } from './maintenancePolicy.js';
-export { maintenanceCommandAction } from './maintenancePolicy.js';
+export { maintenanceCommandAction };
 
 const KEY = 'maintenance_mode';
 
