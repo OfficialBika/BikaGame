@@ -104,7 +104,7 @@ export default async function (message) {
     if (command.name === 'gamestatus') {
       const states = await listGameStates();
       const lines = states.map((item) => (item.enabled ? '✅ ON  ' : '⛔ OFF ') + item.game.toUpperCase());
-      return send(chatId, '🎮 Per-game controls (preview DB)\\n' + lines.join('\\n'), message.message_id);
+      return send(chatId, '🎮 Per-game controls (preview DB)\\n' + lines.join('\n'), message.message_id);
     }
     if (command.name === 'stars' || command.name === 'buy') {
       if (message.chat?.type !== 'private') {
