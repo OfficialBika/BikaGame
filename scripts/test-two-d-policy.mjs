@@ -31,7 +31,7 @@ assert.equal(amOpen.open, true);
 assert.equal(amOpen.session, 'am');
 assert.equal(amOpen.eventId, 'auto-2026-10-19-am');
 
-const amClosed = twoDSessionAt(new Date('2026-10-19T04:50:00.000Z')); // 11:20? no: 11:20 Yangon
+const amClosed = twoDSessionAt(new Date('2026-10-19T05:20:00.000Z')); // 11:50 Yangon, exact scheduled close
 assert.equal(amClosed.open, false);
 assert.equal(amClosed.reason, 'OUTSIDE_SESSION');
 
