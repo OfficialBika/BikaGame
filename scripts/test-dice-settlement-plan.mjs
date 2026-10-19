@@ -36,8 +36,10 @@ assert.equal(targetWins.histories[1].outcome, 'win');
 assert.equal(targetWins.payouts[0].userId, targetWins.fromAccountUserId);
 
 const tied = buildDuelSettlementRow({ ...base, winnerUserId: null, meta: { result: { d1: 4, d2: 4, winner: 'TIE' } } });
-assert.deepEqual(tied.payouts, [{ userId: 101, amount: bet }, { userId: 202, amount: bet }]);
+assert.deepEqual(tied.payouts, []);
+assert.deepEqual(tied.refunds, [{ userId: 101, amount: bet }, { userId: 202, amount: bet }]);
 assert.equal(tied.treasuryDelta, 0);
+assert.equal(tied.payouts.length, 0, 'refunds must not increment winner counters');
 assert.equal(tied.histories[0].outcome, 'refund');
 assert.equal(tied.histories[1].outcome, 'refund');
 assert.equal(tied.histories[0].payout, bet);
