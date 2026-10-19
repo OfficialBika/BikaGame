@@ -50,7 +50,7 @@ export async function createDiceChallenge({ challenger, target, chatId, bet }) {
     throw new EndpointError('Dice Duel is only available in groups.', { code: 'DICE_GROUP_REQUIRED' });
   }
   if (!Number.isSafeInteger(amount) || amount < MIN_BET || amount > MAX_BET) {
-    throw new EndpointError('Dice bet must be between 10 and 99,990,000 Bal.', { code: 'INVALID_BET' });
+    throw new EndpointError('Dice bet must be between 10 and 99,990,000 Bal.', { code: 'DICE_INVALID_BET' });
   }
 
   const challengerAccount = await ensureUser(challenger);
