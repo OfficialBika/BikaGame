@@ -1,6 +1,7 @@
 import { db, EndpointError } from 'sdk';
 import { and, eq, isNull } from 'sdk/db';
 import { users, transactions, treasury, settings, idempotencyKeys, userCooldowns } from '../schema.js';
+import { buildDuelSettlementRow } from './duelSettlementPlan.js';
 
 const now = () => new Date();
 const token = () => Math.random().toString(36).slice(2, 10);
@@ -194,6 +195,22 @@ export async function settleSingleGame({ settlementId, typePrefix, userId, bet =
   const stored = op.row;
   return { ok: true, duplicate: op.duplicate, payout: Number(stored?.payoutAmount ?? p), bet: Number(stored?.betAmount ?? b), balance: Number((await db.select().from(users).where(eq(users.tgId, id)).get())?.balance || 0), meta: stored?.meta || { ...meta, bet: b, payout: p, game, result, multiplier } };
 }
+export async function settleDuel({ settlementId, typePrefix = 'dice', challengerId, targetUserId, winnerUserId = null, bet, payout = 0, meta = {} }) {
+  const row = buildDuelSettlementRow({
+    settlementId, typePrefix, challengerId, targetUserId, winnerUserId, bet, payout, meta,
+  });
+  const op = await insertOperation(row);
+  const stored = op.row;
+  return {
+    ok: true,
+    duplicate: op.duplicate,
+    winnerUserId: stored?.meta?.winnerUserId ?? row.meta.winnerUserId,
+    result: stored?.meta?.result ?? row.meta.result,
+    payout: Number(stored?.meta?.payout ?? row.meta.payout),
+    settlementId: String(settlementId),
+  };
+}
+
 export async function settleAward({ idempotencyKey, userId, amount, type = 'reward', meta = {}, game = null, result = null }) {
   const id = userIdOf(userId), reward = amountOf(amount);
   const op = await insertOperation({
