@@ -37,6 +37,7 @@ function telegramErrorText(error) {
     DICE_TARGET_ONLY: 'ဒီ duel ကို reply ထောက်ထားတဲ့သူပဲ Accept လုပ်နိုင်ပါတယ်။',
     DICE_CANCEL_OWNER_ONLY: 'Challenge ဖန်တီးသူသာ Cancel လုပ်နိုင်ပါတယ်။',
     DICE_BALANCE_INSUFFICIENT: 'Player တစ်ယောက်ရဲ့ Balance မလုံလောက်ပါ။ Dice မပစ်ခဲ့ပါ၊ bet မဖြတ်ခဲ့ပါ။',
+    DICE_BUSY: 'Dice challenge များနေပါတယ်။ ခဏနေပြီး ပြန်ကြိုးစားပါ။',
     DICE_CHALLENGE_NOT_FOUND: 'Dice challenge သက်တမ်းကုန်သွားပါပြီ။',
     DICE_NOT_READY: 'Challenge ကို ပြင်ဆင်နေဆဲပါ။ ခဏနေပြီး ပြန်နှိပ်ပါ။',
     USER_INSUFFICIENT: 'Balance မလုံလောက်ပါ။ Bet မဖြတ်ခဲ့ပါ။',
