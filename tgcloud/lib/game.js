@@ -362,8 +362,9 @@ export async function crashCashout(userId) {
   const payout = Math.floor(s.state.bet * status.multiplier);
   await credit(userId, payout, 'crash_win', { game: 'crash', multiplier: status.multiplier }, `crash-win:${s.id}`);
   await updateSession(s.id, { ...s.state, cashedOut: true, multiplier: status.multiplier }, 'settled');
-  const user = await recordGame(userId, 'crash', s.state.bet, payout, { multiplier: status.multiplier }, status.multiplier, 'crash:' + s.id);
-  return { ok: true, cashedOut: true, multiplier: status.multiplier, payout, balance: user.balance };
+  await recordGame(userId, 'crash', s.state.bet, payout, { multiplier: status.multiplier }, status.multiplier, 'crash:' + s.id);
+  const user = await userById(userId);
+  return { ok: true, cashedOut: true, multiplier: status.multiplier, payout, balance: Number(user?.balance || 0) };
 }
 
 function minesLayout(count = 3) { const set = new Set(); while (set.size < count) set.add(Math.floor(Math.random() * 25)); return [...set]; }
@@ -389,8 +390,10 @@ export async function minesCashout(userId) {
   if (s.state?.funded === false) throw new Error('SESSION_STARTING');
   if (!s.state.opened.length) throw new Error('MINES_CASHOUT_LOCKED');
   const payout = Math.floor(s.state.bet * s.state.multiplier); await credit(userId,payout,'mines_win',{game:'mines',multiplier:s.state.multiplier},`mines-win:${s.id}`);
-  await updateSession(s.id,{...s.state,payout},'settled'); const u=await recordGame(userId,'mines',s.state.bet,payout,{opened:s.state.opened},s.state.multiplier,'mines:'+s.id);
-  return {ok:true,active:false,payout,multiplier:s.state.multiplier,balance:u.balance};
+  await updateSession(s.id,{...s.state,payout},'settled');
+  await recordGame(userId,'mines',s.state.bet,payout,{opened:s.state.opened},s.state.multiplier,'mines:'+s.id);
+  const user = await userById(userId);
+  return {ok:true,active:false,payout,multiplier:s.state.multiplier,balance:Number(user?.balance || 0)};
 }
 
 function deck() { const suits=['♠','♥','♦','♣']; const ranks=['A','2','3','4','5','6','7','8','9','10','J','Q','K']; return suits.flatMap(s=>ranks.map(r=>({r,s}))).sort(()=>Math.random()-0.5); }
