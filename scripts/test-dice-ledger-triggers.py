@@ -7,19 +7,26 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (ROOT / "tgcloud/lib/economy.js").read_text(encoding="utf-8")
-MATCH = re.search(
-    r"const triggerSql = \\[\\s*`(.*?)`,\\s*`(.*?)`\\s*\\];",
-    SOURCE,
-    re.DOTALL,
-)
-REFUND_MATCH = re.search(
-    r"const refundTriggerSql = \\[\\s*`(.*?)`,\\s*`(.*?)`\\s*\\];",
-    SOURCE,
-    re.DOTALL,
-)
+def extract_template_array(source, name):
+    """Extract the two backtick strings in a known const array without fragile escaping."""
+    marker = "const " + name + " = ["
+    start = source.find(marker)
+    if start < 0:
+        return None
+    start = source.find("[", start) + 1
+    end = source.find("];", start)
+    if end < 0:
+        return None
+    body = source[start:end]
+    pieces = re.findall(r"`([\s\S]*?)`", body)
+    return pieces if len(pieces) == 2 else None
+
+
+MATCH = extract_template_array(SOURCE, "triggerSql")
+REFUND_MATCH = extract_template_array(SOURCE, "refundTriggerSql")
 assert MATCH, "Could not extract triggerSql definitions from economy.js"
 assert REFUND_MATCH, "Could not extract refundTriggerSql definitions from economy.js"
-TRIGGERS = MATCH.groups() + REFUND_MATCH.groups()
+TRIGGERS = tuple(MATCH) + tuple(REFUND_MATCH)
 assert "bika_transactions_before_insert" in TRIGGERS[0]
 assert "bika_transactions_after_insert" in TRIGGERS[1]
 assert "bika_transactions_refunds_before_insert" in TRIGGERS[2]
