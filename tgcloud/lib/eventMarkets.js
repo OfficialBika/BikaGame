@@ -1,8 +1,8 @@
 import { db, api, EndpointError } from 'sdk';
 import { and, desc, eq } from 'sdk/db';
-import { auctions, auctionBids, sportsEvents, sportsBets, users, settings } from '../schema.js';
+import { auctions, auctionBids, sportsEvents, sportsBets, users, settings, dailyTournaments } from '../schema.js';
 import {
-  ensureEconomy, ensureUser, recordLedgerOperation, settleMultiPayouts,
+  ensureEconomy, ensureUser, userById, recordLedgerOperation, settleMultiPayouts,
   getTransaction, credit, getSetting, setSetting,
 } from './economy.js';
 import { SERVERLESS_OWNER_TELEGRAM_ID } from './config.js';
@@ -283,7 +283,7 @@ export async function finalizeAuction(auctionId, actorId = null, force = false) 
       .where(and(eq(auctions.auctionId, String(auctionId)), eq(auctions.status, 'open'))).run();
   }
   if (auction.highestBidderId && Number(auction.currentBid) > 0) {
-    await ensureUser({ id: Number(auction.data?.createdBy), first_name: 'Auction Creator' });
+    if (!(await userById(Number(auction.data?.createdBy)))) await ensureUser({ id: Number(auction.data?.createdBy) });
     await credit(Number(auction.data?.createdBy), Number(auction.currentBid), 'auction_seller_payout',
       { auctionId: auction.auctionId, winnerUserId: auction.highestBidderId }, 'auction-payout:' + auction.auctionId);
     await db.update(auctions).set({ status: 'settled', updatedAt: now() }).where(eq(auctions.auctionId, auction.auctionId)).run();
@@ -408,6 +408,8 @@ export async function recordDailyTournament({ chatId, telegramUser, game = 'mine
   const stamp = Math.floor(Date.now() / 1000);
   const data = JSON.stringify({ chatId: cid, game: gameKey, score, bestWin,
     bestPayout: paid, bestMultiplier: Math.max(0, Number(multiplier) || 0),
+    username: telegramUser?.username ? String(telegramUser.username).toLowerCase() : null,
+    firstName: telegramUser?.first_name || telegramUser?.firstName || 'Player',
     totalBet: wager, totalPayout: paid, totalNet: net, games: 1,
     positiveWins: net > 0 ? 1 : 0, losses: net <= 0 ? 1 : 0, lastResult: result || null });
   await db.run(
