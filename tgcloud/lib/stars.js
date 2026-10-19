@@ -1,7 +1,7 @@
 import { api, EndpointError, db } from 'sdk';
 import { eq } from 'sdk/db';
 import { paymentEvents, users } from '../schema.js';
-import { ensureEconomy, ensureUser, settleAward } from './economy.js';
+import { ensureEconomy, ensureUser, creditExternalPurchase } from './economy.js';
 
 export const STAR_TO_BAL = 45000;
 export const STAR_PACKAGES = Object.freeze([10, 20, 30, 40, 50, 100]);
@@ -43,6 +43,7 @@ export async function createStarsInvoice(userId, stars) {
     description: `${packageBalance(count).toLocaleString()} BIKA balance`,
     payload,
     currency: 'XTR',
+    provider_token: '',
     prices: [{ label: `${count} Telegram Stars`, amount: count }],
   });
   return { ok: true, stars: count, balanceAmount: packageBalance(count), payload };
@@ -78,11 +79,12 @@ export async function creditSuccessfulStars(message) {
     return { ok: true, duplicate: true, stars: parsed.stars, balanceAmount: packageBalance(parsed.stars), balance: Number(user?.balance || 0) };
   }
 
-  const result = await settleAward({
+  const result = await creditExternalPurchase({
     idempotencyKey: '__stars_purchase:' + chargeId,
     userId,
     amount: packageBalance(parsed.stars),
     type: 'stars_bal_purchase',
+    source: 'TELEGRAM_STARS',
     meta: {
       stars: parsed.stars,
       exchangeRate: STAR_TO_BAL,
