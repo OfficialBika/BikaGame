@@ -20,5 +20,8 @@ jobs:
             node --input-type=module --check < "$file"
           done < <(find tgcloud -type f -name '*.js' -print | sort)
           node --check scripts/check-serverless-v2.mjs
+          node --check scripts/test-game-control-names.mjs
+      - name: Test per-game control command parsing
+        run: node scripts/test-game-control-names.mjs
       - name: Check V2 contracts
         run: node scripts/check-serverless-v2.mjs
