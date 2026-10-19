@@ -18,7 +18,7 @@ const groups = [
     label: 'Session and multiplayer games',
     status: 'in-progress',
     features: ['Crash', 'Mines', 'Blackjack', 'Shan Koe Mee', 'Dice Duel'],
-    detail: 'Preview implementations exist; exact main parity, durable lifecycle, concurrent-session, timeout/retry and payout-replay tests are not complete. Dice Duel has a persistent challenge flow and atomic idempotent settlement plan; isolated settlement-plan and real SQLite ledger-trigger tests are added, but CI execution and Telegram runtime tests remain.',
+    detail: 'Preview implementations exist; exact main parity, durable lifecycle, concurrent-session, timeout/retry and payout-replay tests are not complete. Dice Duel has a persistent challenge flow and atomic idempotent settlement plan; isolated settlement-plan and real SQLite ledger-trigger tests now pass in CI, while Telegram runtime tests remain.',
   },
   {
     id: 'game-controls',
@@ -42,11 +42,18 @@ const groups = [
     detail: 'Target tables exist, but main behavior, money-hold/state transitions, scheduled jobs, and exactly-once settlement are not ported and tested.',
   },
   {
-    id: 'communications',
-    label: 'Broadcast and group approval',
+    id: 'group-approval',
+    label: 'Group approval',
+    status: 'preview-implemented-needs-runtime-test',
+    features: ['/approve', '/reject', '/groupstatus', 'Bot Admin verification', 'Owner-only decision', 'Group command and callback gate'],
+    detail: 'V2 now records groups in its isolated database, verifies the bot administrator status through the Telegram Bot API before approval, records owner action metadata, and gates group commands/callbacks for unapproved groups. Runtime smoke tests and approved-group broadcast integration remain outstanding.',
+  },
+  {
+    id: 'broadcast',
+    label: 'Broadcast',
     status: 'not-ported',
-    features: ['Broadcast text/copy', 'Progress and cancellation', '429 retry-after handling', 'Approved groups only', 'Group approval/admin checks'],
-    detail: 'The production bot has a MongoDB-backed broadcast service and group approval flow. They are not implemented at main parity in the Serverless V2 handlers.',
+    features: ['Broadcast text/copy', 'Progress and cancellation', '429 retry-after handling', 'Persistent job and lock', 'Approved groups only'],
+    detail: 'The production bot has a MongoDB-backed broadcast service. Equivalent Serverless V2 delivery/recovery service is not yet implemented.',
   },
   {
     id: 'other-main-features',
