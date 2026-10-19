@@ -1,6 +1,8 @@
 import { api } from 'sdk';
 import { ensureUser } from '../lib/users.js';
 import { assertGameEnabled } from '../lib/gameControls.js';
+import { checkGroupAccess, groupAccessMessage } from '../lib/groupApproval.js';
+import { isGroupChat } from '../lib/groupApprovalPolicy.js';
 import {
   getDiceChallenge, cancelDiceChallenge, claimDiceChallenge, storeDiceRollResult,
   settleDiceChallenge, failDiceChallenge,
@@ -107,6 +109,17 @@ export default async function (query) {
 
   const data = String(query?.data || '');
   try {
+    if (isGroupChat(message?.chat)) {
+      const access = await checkGroupAccess(message.chat, user.id);
+      if (!access.allowed) {
+        await api.answerCallbackQuery({
+          callback_query_id: query.id,
+          text: groupAccessMessage(access.reason),
+          show_alert: true,
+        });
+        return;
+      }
+    }
     await ensureUser(user);
     const [game, action, arg] = data.split(':');
     let text = 'Done.';
