@@ -9,12 +9,12 @@ is not proof of feature parity.
 | Domain | Required behavior | Current verified state | Release gate |
 |---|---|---|---|
 | Economy / wallet | Read actual main balance, treasury and wallet IDs; every debit/credit is atomic and auditable | V2 uses isolated serverless database; production import is false | Block production |
-| `.slot` | Same syntax, odds/RTP settings, limits, cooldown, result/history and atomic settlement | Serverless Mini App slot route exists; Telegram command parity is not implemented in its message handler | Implement + test |
+| `.slot` | Same syntax, odds/RTP settings, limits, cooldown, result/history and atomic settlement | Telegram command and Mini App preview route are wired; exact main odds/RTP/cooldown parity and end-to-end settlement tests remain | Verify parity + test |
 | `.bj` / Blackjack | Same multiplayer/solo lifecycle, action validation, timeout, settlement, no duplicate payouts | V2 has preview session functions; concurrency/replay and exact-main parity remain unverified | Implement + test |
 | `.shan` | Same challenge/accept/cancel/expiry, room lifecycle, house cut, settlement and cleanup | V2 preview has basic create/join/draw/stay; exact main parity is unverified | Implement + test |
-| `.dice` | Same challenge, accept/cancel, timer, participant validation, house cut and one-time payout | No serverless Dice implementation/handler found in V2 feature list | Implement + test |
+| `.dice` | Same challenge, accept/cancel, timer, participant validation, house cut and one-time payout | V2 now has persistent challenge creation, target-only acceptance, 60-second expiry, real Telegram dice, atomic two-player settlement, separate tie refunds and an idempotency key; isolated settlement-plan tests are added, but SDK/runtime and Telegram smoke tests remain | Run runtime + parity tests |
 | `.mine` / `.mines` | Alias parity, board rules, first-pick protection, cashout, timeout, active-session uniqueness, one-time payout | V2 Mines preview exists; alias parity and concurrency/replay tests remain | Implement + test |
-| Per-game `/on` and `/off` | Owner-only enable/disable controls for each named game; persisted config; enforced across commands, callbacks and Mini App APIs | Main currently exposes global maintenance `/on`/`/off`; V2 only has global preview/status and no feature-specific control implementation | Implement separate per-game controls without replacing global maintenance |
+| Per-game `/on` and `/off` | Owner-only enable/disable controls for each named game; persisted config; enforced across commands, callbacks and Mini App APIs | V2 persists owner-only per-game settings and enforces new starts on the ported command/API paths; owner-ID configuration and complete entry-point coverage must be verified in the isolated test bot | Verify all entry points + test |
 | Auction | Create/post/edit bids, validation, increment, bid funds, expiry/finalization, refund/settle atomically, restart-safe scheduling | Target schema exists; service/state transitions are not ported to V2 | Implement + test |
 | 2D | Main schedule/timezone, bets/caps, open/close/result publishing, exact payout/treasury reconciliation and idempotent settlement | Target tables exist; handlers/state transitions are not ported to V2 | Implement + test |
 | Broadcast | Owner-only, text and reply-copy preserving media/entities/buttons, approved groups only, bounded rate/concurrency, retry/429 handling, progress/cancel, persistent lock/heartbeat | Main service exists; V2 does not port the broadcast handler/service | Implement + test |
@@ -26,7 +26,7 @@ is not proof of feature parity.
 
 ## Per-game switch contract
 
-The Telegram Serverless V8 runtime does not provide normal Node.js `process.env`; configure the numeric owner ID in `tgcloud/lib/config.js` as `SERVERLESS_OWNER_TELEGRAM_ID`. Its default is `0`, which intentionally fails closed. Do not deploy owner controls until the value is configured and verified.
+The Telegram Serverless V8 runtime does not provide normal Node.js `process.env`; configure the numeric owner ID in `tgcloud/lib/config.js` as `SERVERLESS_OWNER_TELEGRAM_ID`. Its default is `0`, which intentionally fails closed. Do not deploy owner controls until the value is configured and verified. Dice starts also check the persisted Dice switch; an already accepted challenge may finish settling if the owner turns Dice off.
 
 The requested game controls are distinct from global maintenance:
 - `/slot on|off`, `/bj on|off`, `/shan on|off`, `/dice on|off`, and `/mine on|off` (also recognize `mines`).
