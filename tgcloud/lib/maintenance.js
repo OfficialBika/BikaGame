@@ -1,6 +1,8 @@
 import { EndpointError } from 'sdk';
 import { getSetting, setSetting } from './economy.js';
 import { SERVERLESS_OWNER_TELEGRAM_ID } from './config.js';
+import { maintenanceEnabledFromValue, maintenanceCommandAction, isConfiguredOwnerId } from './maintenancePolicy.js';
+export { maintenanceCommandAction } from './maintenancePolicy.js';
 
 const KEY = 'maintenance_mode';
 
@@ -11,21 +13,18 @@ function configuredOwnerId() {
 
 export function isConfiguredOwner(userId) {
   const ownerId = configuredOwnerId();
-  return Boolean(ownerId && String(userId ?? '') === ownerId);
+  return isConfiguredOwnerId(userId, ownerId);
 }
 
 export async function getMaintenanceMode() {
   const value = await getSetting(KEY, false);
-  // A malformed non-null value fails closed (ON); missing/explicit false is OFF.
-  if (value == null || value === false) return { enabled: false, updatedAt: null, updatedBy: null };
-  if (value === true) return { enabled: true, updatedAt: null, updatedBy: null };
-  if (typeof value === 'object' && value.enabled === false) {
-    return { enabled: false, updatedAt: value.updatedAt || null, updatedBy: value.updatedBy || null };
-  }
-  if (typeof value === 'object' && value.enabled === true) {
-    return { enabled: true, updatedAt: value.updatedAt || null, updatedBy: value.updatedBy || null };
-  }
-  return { enabled: true, updatedAt: null, updatedBy: null };
+  const enabled = maintenanceEnabledFromValue(value);
+  const metadata = value && typeof value === 'object' ? value : {};
+  return {
+    enabled,
+    updatedAt: metadata.updatedAt || null,
+    updatedBy: metadata.updatedBy || null,
+  };
 }
 
 export async function setMaintenanceMode(actorUserId, enabled) {
