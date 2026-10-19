@@ -417,6 +417,11 @@ export async function resumeBroadcast({ actorId, ownerChatId, jobId = null, prog
       .where(and(eq(broadcastTargets.jobId, job.id), eq(broadcastTargets.status, 'sending'))).run();
   }
   job = await db.select().from(broadcastJobs).where(eq(broadcastJobs.id, job.id)).get();
+  if (job?.status === 'cancelled') {
+    await editProgress(job, 'cancelled');
+    await releaseLock(job.id);
+    return { jobId: job.id, status: 'cancelled' };
+  }
   if (job?.status === 'cancel_requested') {
     await db.update(broadcastJobs).set({ status: 'cancelled', updatedAt: now() })
       .where(eq(broadcastJobs.id, job.id)).run();
