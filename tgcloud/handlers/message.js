@@ -1,6 +1,7 @@
 import { api } from 'sdk';
 import { ensureUser, formatCoin, displayName, listTopUsers } from '../lib/users.js';
 import { getFeatureStatus } from '../lib/featureStatus.js';
+import { createStarsInvoice, creditSuccessfulStars, STAR_PACKAGES, packageBalance } from '../lib/stars.js';
 import {
   playSlot, playPlinko, wheelSpin, dailyWheel, crashStart, minesStart,
   blackjackJoin, shanCreate, shanJoin, history as getGameHistory,
