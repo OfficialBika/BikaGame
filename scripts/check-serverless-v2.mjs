@@ -50,6 +50,7 @@ const usersModule = await readFile(join(root, 'tgcloud/lib/users.js'), 'utf8');
 const twoDPolicy = await readFile(join(root, 'tgcloud/lib/twoDPolicy.js'), 'utf8');
 
 const starsPolicy = await readFile(join(root, 'tgcloud/lib/starsPolicy.js'), 'utf8');
+const dailyPolicy = await readFile(join(root, 'tgcloud/lib/dailyPolicy.js'), 'utf8');
 const twoDService = await readFile(join(root, 'tgcloud/lib/twoD.js'), 'utf8');
 
 // V2 must keep production cutover explicitly blocked until main parity and import are proven.
@@ -168,6 +169,13 @@ assert.match(stars, /PAYMENT_RECORD_FAILED/);
 assert.match(stars, /PAYMENT_CHARGE_MISMATCH/);
 assert.match(starsPolicy, /paymentRecordMatches/);
 assert.match(starsPolicy, /paymentLedgerMatches/);
+assert.match(dailyPolicy, /yangonDayBounds/);
+assert.match(dailyPolicy, /dailyRewardAmount/);
+assert.match(economy, /export async function claimDailyReward/);
+assert.match(economy, /DAILY_ALREADY_CLAIMED/);
+assert.match(economy, /daily_claimed_at = NEW\.created_at/);
+assert.match(message, /claimDailyReward\(user\.tgId\)/);
+assert.match(message, /isGroupChat\(message\.chat\)/);
 assert.match(stars, /getTransaction\('__stars_purchase:' \+ chargeId\)/);
 assert.match(schema, /table\('sports_bets'/);
 assert.match(schema, /table\('shop_cards'/);
