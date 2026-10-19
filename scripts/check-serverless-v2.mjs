@@ -17,14 +17,14 @@ for (const file of files) {
   const source = await readFile(file, 'utf8');
   for (const match of source.matchAll(/from\s+['"]([^'"]+)['"]/g)) {
     const spec = match[1];
-    assert.ok(spec === 'sdk' || spec.startsWith('sdk/'), file + ': unsupported runtime import ' + spec);
-    if (spec.startsWith('.')) {
-      const target = resolve(dirname(file), spec);
-      assert.ok(target.startsWith(resolve(root, 'tgcloud') + '/'), file + ': import escapes tgcloud');
-      await stat(target);
-    }
+    if (spec === 'sdk' || spec.startsWith('sdk/')) continue;
+    assert.ok(spec.startsWith('.'), file + ': unsupported runtime import ' + spec);
+    const target = resolve(dirname(file), spec);
+    assert.ok(target.startsWith(resolve(root, 'tgcloud') + '/'), file + ': import escapes tgcloud');
+    await stat(target);
   }
 }
+
 const game = await readFile(join(root, 'tgcloud/lib/game.js'), 'utf8');
 const economy = await readFile(join(root, 'tgcloud/lib/economy.js'), 'utf8');
 const mini = await readFile(join(root, 'tgcloud/lib/mini.js'), 'utf8');

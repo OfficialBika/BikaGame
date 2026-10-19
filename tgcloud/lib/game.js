@@ -360,5 +360,14 @@ export async function shanJoin(userId,roomId,amount){const id=`shan:${String(roo
 export async function shanStatus(userId,roomId){const id=`shan:${String(roomId||'').replace(/^shan:/,'')}`;const s=await db.select().from(gameSessions).where(eq(gameSessions.id,id)).get();if(!s)return {ok:true,active:false};const me=(s.state?.players||[]).find(p=>p.id===Number(userId));return {ok:true,active:s.status!=='settled',roomId:String(roomId||''),title:s.state.title,players:(s.state.players||[]).map(p=>({id:p.id,bet:p.bet,cards:p.cards,value:cardValue(p.cards)})),player:me||null};}
 export async function shanDeal(userId,roomId,action='deal'){const id=`shan:${String(roomId||'').replace(/^shan:/,'')}`;const s=await db.select().from(gameSessions).where(eq(gameSessions.id,id)).get();if(!s)throw new Error('SHAN_ROOM_NOT_FOUND');const st=s.state||{};const me=st.players.find(p=>p.id===Number(userId));if(!me)throw new Error('SHAN_NOT_JOINED');if(action==='draw'&&me.cards.length<3)me.cards.push(...shanCards().slice(0,1));else if(action==='deal'&&!me.cards.length)me.cards=shanCards();else if(action==='stay')me.stayed=true;else if(action==='draw'&&me.cards.length>=3)throw new Error('SHAN_MAX_CARDS');if(st.players.every(p=>p.stayed||p.cards.length>=3)){const max=Math.max(...st.players.map(p=>cardValue(p.cards)));for(const p of st.players){const payout=cardValue(p.cards)===max?Math.floor(p.bet*2):0;if(payout)await credit(p.id,payout,'shan_win',{game:'shan',roomId},`shan-win:${id}:${p.id}`);await recordGame(p.id,'shan',p.bet,payout,{value:cardValue(p.cards)},payout/p.bet,'shan:'+id+':'+p.id);}await updateSession(id,st,'settled');}else await updateSession(id,st);return shanStatus(userId,roomId);}
 
-export async function config() { return { ok: true, coin: '
-, games: ['crash','slot','blackjack','shan','plinko','wheel','mines'], serverless: true, productionDataImported: false, liveEconomyEnabled: false, productionCutoverApproved: false }; }
+export async function config() {
+  return {
+    ok: true,
+    coin: '$',
+    games: ['crash', 'slot', 'blackjack', 'shan', 'plinko', 'wheel', 'mines'],
+    serverless: true,
+    productionDataImported: false,
+    liveEconomyEnabled: false,
+    productionCutoverApproved: false,
+  };
+}
