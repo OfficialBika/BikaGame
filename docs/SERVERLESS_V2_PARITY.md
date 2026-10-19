@@ -1,19 +1,50 @@
-# Serverless V2 Bot — parity and cutover checklist
+# Serverless V2 — feature parity and production cutover gate
 
-The branch starts from current `main`. Serverless-only additions are isolated under `tgcloud/`; the production `src/` and package/runtime setup are unchanged.
+This branch is a staging/preview implementation, not a replacement for the MongoDB-backed production bot.
+Do not merge/cut over to production until this checklist is green. Presence of a schema/table or endpoint wrapper
+is not proof of feature parity.
 
-## Atomic accounting
-New balance-changing operations are single INSERTs into `transactions`. SQLite triggers enforce sufficient user/house balance, update `users.balance`, win/loss totals and treasury, and write game history/payment markers inside the same SQLite transaction. Do not update `users.balance` directly in any V2 handler. Transfers use a single transaction row with sender/recipient account IDs.
+## Required parity matrix (source of truth: `main`)
 
-## Three-day retention
-The Serverless economy layer prunes visible history, old ledger rows and completed sessions/bets/orders on traffic with a three-day cutoff. Compact idempotency tombstones for money-moving operations are retained to prevent replayed writes; game-history-only markers expire with their three-day ledger rows. Compact idempotency keys and minimal Telegram charge identifiers remain as replay protection; deleting them would enable duplicate payouts or replayed payment credits. User balances, treasury, settings, inventory and active orders/bets must remain durable.
+| Domain | Required behavior | Current verified state | Release gate |
+|---|---|---|---|
+| Economy / wallet | Read actual main balance, treasury and wallet IDs; every debit/credit is atomic and auditable | V2 uses isolated serverless database; production import is false | Block production |
+| `.slot` | Same syntax, odds/RTP settings, limits, cooldown, result/history and atomic settlement | Serverless Mini App slot route exists; Telegram command parity is not implemented in its message handler | Implement + test |
+| `.bj` / Blackjack | Same multiplayer/solo lifecycle, action validation, timeout, settlement, no duplicate payouts | V2 has preview session functions; concurrency/replay and exact-main parity remain unverified | Implement + test |
+| `.shan` | Same challenge/accept/cancel/expiry, room lifecycle, house cut, settlement and cleanup | V2 preview has basic create/join/draw/stay; exact main parity is unverified | Implement + test |
+| `.dice` | Same challenge, accept/cancel, timer, participant validation, house cut and one-time payout | No serverless Dice implementation/handler found in V2 feature list | Implement + test |
+| `.mine` / `.mines` | Alias parity, board rules, first-pick protection, cashout, timeout, active-session uniqueness, one-time payout | V2 Mines preview exists; alias parity and concurrency/replay tests remain | Implement + test |
+| Per-game `/on` and `/off` | Owner-only enable/disable controls for each named game; persisted config; enforced across commands, callbacks and Mini App APIs | Main currently exposes global maintenance `/on`/`/off`; V2 only has global preview/status and no feature-specific control implementation | Implement separate per-game controls without replacing global maintenance |
+| Auction | Create/post/edit bids, validation, increment, bid funds, expiry/finalization, refund/settle atomically, restart-safe scheduling | Target schema exists; service/state transitions are not ported to V2 | Implement + test |
+| 2D | Main schedule/timezone, bets/caps, open/close/result publishing, exact payout/treasury reconciliation and idempotent settlement | Target tables exist; handlers/state transitions are not ported to V2 | Implement + test |
+| Broadcast | Owner-only, text and reply-copy preserving media/entities/buttons, approved groups only, bounded rate/concurrency, retry/429 handling, progress/cancel, persistent lock/heartbeat | Main service exists; V2 does not port the broadcast handler/service | Implement + test |
+| Group approval | Track groups, require bot admin, owner approve/reject/status and send only to approved groups | V2 target table exists; main behavior not ported | Implement + test |
+| Stars | Package selection, invoice, pre-checkout, verified payment, unique charge id, duplicate callback protection, refunds/reconciliation | Purchase path is wired; real payment/refund tests remain | Test before cutover |
+| Other main domains | Promo/global RTP settings, daily rewards, shop/inventory/sell, tournaments, sports, admin/treasury, background jobs, group lifecycle, wallet transfers | Schema/partial endpoints only; main parity not achieved | Inventory + port + test |
+| Retention | Delete ephemeral histories/completed sessions according to policy; never delete balances, durable inventory, active wagers or replay guards | Three-day cleanup exists; needs tests against every table and replay scenarios | Test before cutover |
+| Data import | Migrate production user IDs/wallets/balances/config/treasury/groups/active and pending operations with reconciliation report | No production snapshot imported | Block production |
 
-## Current state
-- Atomic ledger/treasury trigger infrastructure and major main-domain target tables: added in V2.
-- Slot odds/RTP and single-row ledger settlement: integrated; runtime and concurrency tests still required.
-- Plinko/Wheel/Daily Wheel: integrated with RTP-weighted outcomes, treasury caps, idempotent settlement and three-day history retention; parity tests still required.
-- Crash/Mines/Blackjack/Shan: session logic still needs exact main parity and concurrency/replay tests.
-- Stars, 2D, sports, shop/inventory/sell, auctions, tournaments, admin, broadcast, group approval, background jobs and production snapshot import: not yet fully ported.
+## Per-game switch contract
 
-## Cutover gate
-Do not point live traffic at V2 until every main feature has a matching test, concurrent requests/retries cannot duplicate settlement, Stars purchase/refund flows are verified, source and target balances/treasury reconcile, retention is exercised, and a rollback with single-writer cutover is tested. Schema migration alone does not import production data.
+The requested game controls are distinct from global maintenance:
+- `/slot on|off`, `/bj on|off`, `/shan on|off`, `/dice on|off`, and `/mine on|off` (also recognize `mines`).
+- Only the configured owner can change state.
+- Persist the state in the authoritative settings store. Default behavior must be explicitly defined and tested.
+- Check state on every entry point (group command, Mini App endpoint, callback/action, scheduled settlement when relevant), not just the command parser.
+- Turning a game off blocks new rounds and new joins; it must not strand or erase funded active sessions. Document whether already-started sessions can finish and test that policy.
+- Respond with current state and audit actor/time; invalid game names or values must not mutate settings.
+- Add tests for unauthorized toggles, aliases, persistence across restart, API bypass attempts, active-session behavior, and concurrent requests.
+
+## Required tests and cutover gate
+
+1. Use fixtures derived from main contracts; never use a production database for tests.
+2. Test every registered command/alias and callback path against main behavior.
+3. For all balance-changing paths, test insufficient balance, concurrent identical requests, retries after ambiguous timeouts, duplicate callbacks/webhooks, house/treasury caps, and exactly-once history.
+4. Test Auction/2D scheduled transitions using a fake clock and process restart.
+5. Test broadcast copy/text, approved-group filtering, 429/retry-after, permanent recipient failures, cancellation, stale lock recovery, and progress counters.
+6. Test retention at cutoff boundaries, while proving balances/settings/inventory/active operations/idempotency markers remain safe.
+7. Reconcile source/target user counts, wallet IDs, every balance, treasury, outstanding wagers, pending payments and inventory after a dry-run import.
+8. Exercise rollback and ensure exactly one writer handles money at every stage.
+9. Require CI to run syntax, contract, unit and integration tests; static grep/regex checks alone are insufficient.
+
+**Production status: BLOCKED** until the required matrix is implemented, tests pass, import/reconciliation is signed off, and rollback is proven.
