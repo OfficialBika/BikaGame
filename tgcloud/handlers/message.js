@@ -18,6 +18,11 @@ import {
   startPromoRtp, getWebGameRtp, getAllWebGameRtps, setWebGameRtp, recordDailyTournament,
   getDailyTournament, setShopEnabled, getShopEnabled,
 } from '../lib/eventMarkets.js';
+import {
+  addShopCard, listAvailableShopCards, getShopCard, createShopOrder,
+  listUserInventory, listUserShopOrders, listPendingShopOrders,
+  createSellOrder, setSellPrice, getSellPrice, listSellOrders,
+} from '../lib/commerce.js';
 import { startBroadcast, resumeBroadcast, cancelBroadcast, getBroadcastStatus, assertBroadcastOwner } from '../lib/broadcast.js';
 import { createStarsInvoice, creditSuccessfulStars, STAR_PACKAGES, packageBalance } from '../lib/stars.js';
 import {
@@ -313,6 +318,79 @@ export default async function (message) {
       const enabled = command.name === 'sellon';
       await setSetting('sell_system_enabled', { enabled, updatedBy: from.id, updatedAt: new Date().toISOString() });
       return send(chatId, enabled ? '✅ Sell System ON' : '⛔ Sell System OFF', message.message_id);
+    }
+
+    if (command?.name === 'shop') {
+      if (message.chat?.type !== 'private') return send(chatId, 'ℹ️ /shop ကို bot private chat ထဲမှာပဲ သုံးပါ။', message.message_id);
+      if (!(await getShopEnabled()) && !isConfiguredOwner(from.id)) return send(chatId, '⛔ Shop System ပိတ်ထားပါတယ်။', message.message_id);
+      const cards = await listAvailableShopCards(25);
+      if (!cards.length) return send(chatId, '🎁 BIKA Card Shop\\nStock မရှိသေးပါ။ Owner က /shopstock နဲ့ preview catalog ဖြည့်ပေးရပါမယ်။', message.message_id);
+      const rows = [];
+      for (let i = 0; i < cards.length; i += 2) rows.push(cards.slice(i, i + 2).map(card => ({
+        text: String(card.botKey || 'BIKA') + ' · ' + String(card.rarity || 'Card') + ' · #' + card.id,
+        callback_data: 'shop:view:' + card.id,
+      })));
+      rows.push([{ text: '📦 My Orders', callback_data: 'shop:myorders:0' }, { text: '🎒 Inventory', callback_data: 'shop:inventory:0' }]);
+      return send(chatId, '🎁 BIKA Coin To Card Shop\\nCard တစ်ခုရွေးပြီး price ကြည့်ပါ။ Confirm လုပ်ပြီး Owner approve ဖြစ်မှ card ကို inventory ထဲထည့်ပေးပါမယ်။',
+        message.message_id, keyboard(rows));
+    }
+    if (command?.name === 'shopstock') {
+      const values = args(command.args);
+      if (values.length < 4) return send(chatId, 'Usage: /shopstock <botKey> <cardId> <rarity> <price> <name>', message.message_id);
+      const result = await addShopCard({ actorId: from.id, botKey: values[0], cardId: values[1], rarity: values[2], price: values[3], name: values.slice(4).join(' ') || values[1] });
+      return send(chatId, '✅ Shop stock added\\nBot: ' + result.botKey + '\\nCard ID: ' + result.cardId + '\\nRarity: ' + result.rarity + '\\nPrice: ' + formatCoin(result.price) + ' Bal', message.message_id);
+    }
+    if (command?.name === 'inventory') {
+      const cards = await listUserInventory(from.id, 50);
+      if (!cards.length) return send(chatId, '🎒 Inventory\\nOwned card မရှိသေးပါ။', message.message_id);
+      return send(chatId, '🎒 Your Inventory\\n' + cards.map((card, i) => (i + 1) + '. ' + (card.name || card.cardId) +
+        ' · ' + card.botKey + ' · ' + card.rarity + ' · #' + card.id).join('\\n'), message.message_id);
+    }
+    if (command?.name === 'myorders') {
+      const orders = await listUserShopOrders(from.id, 10);
+      if (!orders.length) return send(chatId, '📦 My Orders\\nOrder မရှိသေးပါ။', message.message_id);
+      return send(chatId, '📦 My Shop Orders\\n' + orders.map((order, i) => (i + 1) + '. ' + order.id +
+        ' · ' + order.status.toUpperCase() + ' · ' + formatCoin(order.amount) + ' Bal').join('\\n'), message.message_id);
+    }
+    if (command?.name === 'shoporders') {
+      if (!isConfiguredOwner(from.id)) throw new Error('OWNER_ONLY');
+      const orders = await listPendingShopOrders(20);
+      if (!orders.length) return send(chatId, '📦 Pending shop order မရှိပါ။', message.message_id);
+      return send(chatId, '📦 Pending Shop Orders\\n' + orders.map((order, i) => (i + 1) + '. ' + order.id +
+        ' · User ' + order.userId + ' · ' + formatCoin(order.amount) + ' Bal').join('\\n'), message.message_id);
+    }
+    if (command?.name === 'sellpriceadd') {
+      const values = args(command.args);
+      if (values.length < 3) return send(chatId, 'Usage: /sellpriceadd <botKey> <rarity> <price>', message.message_id);
+      const result = await setSellPrice({ actorId: from.id, botKey: values[0], rarity: values[1], price: values[2] });
+      return send(chatId, '✅ Sell price saved\\nKey: ' + result.key + '\\nPrice: ' + formatCoin(result.price) + ' Bal', message.message_id);
+    }
+    if (command?.name === 'sell') {
+      if (message.chat?.type !== 'private') return send(chatId, 'ℹ️ /sell ကို bot private chat ထဲမှာပဲ သုံးပါ။', message.message_id);
+      const values = args(command.args);
+      if (values.length < 3) return send(chatId, '💳 Card Sell System\\nUsage: /sell <botKey> <rarity> <Telegram_Gift_Message_Link>\\nဥပမာ: /sell catchbot legendary https://t.me/YourGiftChannel/123\\nOwner approve လုပ်ပြီးမှ preview Bal ထည့်ပေးပါမယ်။', message.message_id);
+      const order = await createSellOrder({ seller: from, botKey: values[0], rarity: values[1], giftLink: values.slice(2).join(' ') });
+      let ownerAlertSent = false;
+      if (isConfiguredOwner(Number(from.id)) === false) {
+        try {
+          await api.sendMessage({ chat_id: Number(SERVERLESS_OWNER_TELEGRAM_ID), text: '💳 New Sell Order\\nID: ' + order.order.id +
+            '\\nSeller: ' + from.id + '\\nType: ' + order.order.data.botKey + ' / ' + order.order.data.rarity +
+            '\\nPrice: ' + formatCoin(order.order.price) + ' Bal\\nGift Link: ' + order.order.data.giftLink,
+            reply_markup: keyboard([[{ text: '✅ Approve', callback_data: 'selladmin:approve:' + order.order.id },
+              { text: '❌ Cancel', callback_data: 'selladmin:cancel:' + order.order.id }]]) });
+          ownerAlertSent = true;
+        } catch (_) {}
+      }
+      return send(chatId, '✅ Sell order created\\nOrder ID: ' + order.order.id + '\\nReceipt: ' + order.order.receiptCode +
+        '\\nPrice: ' + formatCoin(order.order.price) + ' Bal\\nStatus: PENDING OWNER APPROVAL\\nOwner Alert: ' + (ownerAlertSent ? 'SENT' : 'FAILED / OWNER NOT CONFIGURED'), message.message_id);
+    }
+    if (command?.name === 'sellorders') {
+      const ownerView = isConfiguredOwner(from.id);
+      const list = await listSellOrders({ userId: ownerView ? null : from.id, pendingOnly: ownerView, limit: 20 });
+      if (!list.length) return send(chatId, '💳 Sell Orders\\nOrder မရှိသေးပါ။', message.message_id);
+      return send(chatId, (ownerView ? '🔔 Pending Sell Orders' : '💳 My Sell Orders') + '\\n' +
+        list.map((order, i) => (i + 1) + '. ' + order.id + ' · ' + order.status.toUpperCase() +
+          ' · ' + formatCoin(order.price) + ' Bal · User ' + order.sellerId).join('\\n'), message.message_id);
     }
 
     if (command?.name === 'setevent') {
