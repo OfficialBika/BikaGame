@@ -347,9 +347,10 @@ export default async function (message) {
       OWNER_NOT_CONFIGURED: 'Serverless environment မှာ OWNER_ID မသတ်မှတ်ရသေးပါ။',
       INVALID_GAME: 'Game အမည် မမှန်ပါ။',
     };
+    const errorCode = error?.code || error?.error?.code;
     return send(
       chatId,
-      '⚠️ ' + (messageByCode[error?.message] || 'Preview command failed safely. No production data was changed.'),
+      '⚠️ ' + (messageByCode[errorCode] || messageByCode[error?.message] || 'Preview command failed safely. No production data was changed.'),
       message.message_id,
     );
   }
