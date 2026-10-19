@@ -108,6 +108,8 @@ assert.match(groupApproval, /api\.getChatMember\(/);
 assert.match(groupApproval, /approveCurrentGroup/);
 assert.match(groupApproval, /code: 'BOT_ADMIN_REQUIRED'/);
 assert.match(groupApprovalPolicy, /function groupAccessDecision/);
+assert.match(groupApprovalPolicy, /isFreshBotAdminCheck/);
+assert.match(groupApproval, /reason: 'admin_unverified'/);
 assert.match(message, /checkGroupAccess/);
 assert.match(message, /command\.name === 'approve'/);
 assert.match(message, /command\.name === 'reject'/);
