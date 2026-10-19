@@ -10,8 +10,15 @@ import {
 } from '../lib/game.js';
 
 function parseCommand(text) {
-  const match = String(text || '').trim().match(/^\/([a-z0-9_]+)(?:@[a-z0-9_]+)?(?:\s+([\s\S]*))?$/i);
-  return match ? { name: match[1].toLowerCase(), args: (match[2] || '').trim() } : null;
+  const value = String(text || '').trim();
+  const slash = value.match(/^\/([a-z0-9_]+)(?:@[a-z0-9_]+)?(?:\s+([\s\S]*))?$/i);
+  const dot = value.match(/^\.(slot|bj|blackjack|shan|dice|mine|mines|plinko|wheel|crash)(?:\s+([\s\S]*))?$/i);
+  const match = slash || dot;
+  if (!match) return null;
+  let name = match[1].toLowerCase();
+  if (name === 'bj') name = 'blackjack';
+  if (name === 'mine') name = 'mines';
+  return { name, args: (match[2] || '').trim() };
 }
 
 function args(text) {
@@ -247,6 +254,9 @@ export default async function (message) {
           '\nBalance: ' + formatCoin(result.balance) + ' $',
         message.message_id,
       );
+    }
+    if (command.name === 'dice') {
+      return send(chatId, '⚠️ Dice gameplay is not ported to Serverless V2 yet. No bet was placed.', message.message_id);
     }
     if (command.name === 'plinko') {
       const result = await playPlinko(user.tgId, bet);
