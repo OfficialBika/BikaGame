@@ -1,6 +1,8 @@
 import { api } from 'sdk';
 import { ensureUser, formatCoin, displayName, listTopUsers } from '../lib/users.js';
 import { getFeatureStatus } from '../lib/featureStatus.js';
+import { parseGameToggle, normalizeGameKey } from '../lib/gameControlNames.js';
+import { setGameEnabled, assertGameEnabled, listGameStates } from '../lib/gameControls.js';
 import { createStarsInvoice, creditSuccessfulStars, STAR_PACKAGES, packageBalance } from '../lib/stars.js';
 import {
   playSlot, playPlinko, wheelSpin, dailyWheel, crashStart, minesStart,
@@ -61,6 +63,9 @@ function helpText() {
     '/features — preview and migration status by feature',
     '/play — open the Serverless test Mini App',
     '/serverlessstatus — migration status',
+    '/gamestatus — per-game on/off status',
+    '/slot on|off, /bj on|off, /shan on|off, /dice on|off, /mine on|off — Owner-only game controls',
+    '/game on|off <game> — alternate Owner-only game control syntax',
     '',
     '⚠️ This is isolated preview currency; production MongoDB is never read or modified.',
     'Wallet transfers are disabled until an atomic transfer/ledger operation is implemented.',
@@ -86,10 +91,21 @@ export default async function (message) {
     );
   }
 
+  const gameToggle = parseGameToggle(message.text);
   const command = parseCommand(message.text);
-  if (!command) return;
+  if (!command && !gameToggle) return;
 
   try {
+    if (gameToggle) {
+      const state = await setGameEnabled(gameToggle.game, gameToggle.enabled, from.id);
+      const label = state.game === 'blackjack' ? 'Blackjack' : state.game === 'mines' ? 'Mines' : state.game.toUpperCase();
+      return send(chatId, (state.enabled ? '✅ ' : '⛔ ') + label + ' ' + (state.enabled ? 'ENABLED' : 'DISABLED') + '\\n' + 'Changed by Owner · persisted setting saved.', message.message_id);
+    }
+    if (command.name === 'gamestatus') {
+      const states = await listGameStates();
+      const lines = states.map((item) => (item.enabled ? '✅ ON  ' : '⛔ OFF ') + item.game.toUpperCase());
+      return send(chatId, '🎮 Per-game controls (preview DB)\\n' + lines.join('\\n'), message.message_id);
+    }
     if (command.name === 'stars' || command.name === 'buy') {
       if (message.chat?.type !== 'private') {
         return send(chatId, 'Telegram Stars invoice ကို bot private chat ထဲမှာပဲ ဖွင့်နိုင်ပါတယ်။', message.message_id);
@@ -221,6 +237,7 @@ export default async function (message) {
     const bet = parsedArgs[0];
 
     if (command.name === 'slot') {
+      await assertGameEnabled('slot');
       const result = await playSlot(user.tgId, bet);
       return send(
         chatId,
@@ -260,7 +277,8 @@ export default async function (message) {
         keyboard([[{ text: '💰 CASH OUT', callback_data: 'crash:cashout:' + result.sessionId }]]),
       );
     }
-    if (command.name === 'mines') {
+    if (command.name === 'mines' || command.name === 'mine') {
+      await assertGameEnabled('mines');
       await minesStart(user.tgId, bet);
       return send(
         chatId,
@@ -269,7 +287,8 @@ export default async function (message) {
         minesKeyboard(),
       );
     }
-    if (command.name === 'blackjack') {
+    if (command.name === 'blackjack' || command.name === 'bj') {
+      await assertGameEnabled('blackjack');
       const room = parsedArgs[1] || 'solo';
       const result = await blackjackJoin(user.tgId, room, bet);
       const cards = (result.player?.cards || []).map((card) => card.r + card.s).join(' ');
@@ -284,6 +303,7 @@ export default async function (message) {
       );
     }
     if (command.name === 'shan') {
+      await assertGameEnabled('shan');
       const room = parsedArgs[1];
       if (room) {
         const result = await shanJoin(user.tgId, room, bet);
@@ -308,7 +328,7 @@ export default async function (message) {
     );
   } catch (error) {
     console.error('BIKA_SERVERLESS_MESSAGE_HANDLER_FAILED', {
-      command: command.name,
+      command: command?.name || 'game-toggle',
       error: String(error?.message || error),
     });
     const messageByCode = {
@@ -322,6 +342,10 @@ export default async function (message) {
       MINES_CASHOUT_LOCKED: 'Safe tile အနည်းဆုံး ၁ ခု ဖွင့်ပြီးမှ cash out လုပ်ပါ။',
       BJ_TABLE_FULL: 'Blackjack table ပြည့်နေပါပြီ။',
       SHAN_TABLE_FULL: 'Shan table ပြည့်နေပါပြီ။',
+      GAME_DISABLED: 'ဒီဂိမ်းကို Owner က ယာယီပိတ်ထားပါတယ်။',
+      OWNER_ONLY: 'ဒီ command ကို Owner သာ သုံးနိုင်ပါတယ်။',
+      OWNER_NOT_CONFIGURED: 'Serverless environment မှာ OWNER_ID မသတ်မှတ်ရသေးပါ။',
+      INVALID_GAME: 'Game အမည် မမှန်ပါ။',
     };
     return send(
       chatId,
