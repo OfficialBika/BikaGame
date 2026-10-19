@@ -199,6 +199,8 @@ async function cleanup() {
   await db.run('DELETE FROM transactions WHERE created_at < :cutoff', { ':cutoff': cutoff });
   await db.run("DELETE FROM game_sessions WHERE updated_at < :cutoff AND status IN ('settled','lost','finished','expired','cancelled')", { ':cutoff': cutoff });
   await db.run("DELETE FROM two_d_bets WHERE updated_at < :cutoff AND status IN ('settled','won','lost','cancelled','refunded')", { ':cutoff': cutoff });
+  await db.run("DELETE FROM two_d_positions WHERE updated_at < :cutoff AND event_id IN (SELECT id FROM two_d_events WHERE status IN ('result','cancelled'))", { ':cutoff': cutoff });
+  await db.run("DELETE FROM two_d_events WHERE created_at < :cutoff AND status IN ('result','cancelled')", { ':cutoff': cutoff });
   await db.run("DELETE FROM sports_bets WHERE updated_at < :cutoff AND status IN ('settled','won','lost','cancelled','refunded')", { ':cutoff': cutoff });
   await db.run("DELETE FROM auction_bids WHERE created_at < :cutoff AND auction_id IN (SELECT auction_id FROM auctions WHERE status IN ('settled','closed','cancelled','completed'))", { ':cutoff': cutoff });
   await db.run("DELETE FROM orders WHERE updated_at < :cutoff AND status IN ('completed','cancelled','rejected','expired','sold')", { ':cutoff': cutoff });
