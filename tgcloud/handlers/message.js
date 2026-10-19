@@ -7,6 +7,8 @@ import { createDiceChallenge, activateDiceChallenge, failDiceChallengeCreation }
 import { setGameEnabled, assertGameEnabled, listGameStates } from '../lib/gameControls.js';
 import { checkGroupAccess, approveCurrentGroup, rejectCurrentGroup, getGroupStatus, groupAccessMessage } from '../lib/groupApproval.js';
 import { isGroupChat } from '../lib/groupApprovalPolicy.js';
+import { parseBroadcastRequest } from '../lib/broadcastPolicy.js';
+import { startBroadcast, resumeBroadcast, cancelBroadcast, getBroadcastStatus, assertBroadcastOwner } from '../lib/broadcast.js';
 import { createStarsInvoice, creditSuccessfulStars, STAR_PACKAGES, packageBalance } from '../lib/stars.js';
 import {
   playSlot, playPlinko, wheelSpin, dailyWheel, crashStart, minesStart,
@@ -66,6 +68,9 @@ function helpText() {
     '/gamestatus — per-game on/off status',
     '/slot on|off, /bj on|off, /shan on|off, /dice on|off, /mine on|off — Owner-only game controls',
     '/game on|off <game> — alternate Owner-only game control syntax',
+    '/broadcast <text> — Owner-only text broadcast; reply with /broadcast -copy to copy media/buttons',
+    '/broadcast -h — show broadcast usage; /broadcast resume|status|cancel — control saved jobs',
+    '/broadcastend — stop the active broadcast',
     '',
     '⚠️ This is isolated preview currency; production MongoDB is never read or modified.',
     'Wallet transfers are disabled until an atomic transfer/ledger operation is implemented.',
@@ -95,6 +100,7 @@ export default async function (message) {
   const command = parseCommand(message.text);
   if (!command && !gameToggle) return;
 
+  let broadcastProgressMessage = null;
   try {
     // Keep approval commands reachable for recovery; gate all other group commands.
     if (command && ['approve', 'reject', 'groupstatus'].includes(command.name)) {
@@ -128,6 +134,66 @@ export default async function (message) {
     if (isGroupChat(message.chat)) {
       const access = await checkGroupAccess(message.chat, from.id);
       if (!access.allowed) return send(chatId, groupAccessMessage(access.reason), message.message_id);
+    }
+
+    if (command && ['broadcast', 'broadcastend'].includes(command.name)) {
+      assertBroadcastOwner(from.id);
+      if (command.name === 'broadcastend') {
+        const stopped = await cancelBroadcast({ actorId: from.id });
+        return send(chatId, stopped.ok
+          ? (stopped.status === 'cancel_requested' ? '🛑 Broadcast cancellation requested.' : '🛑 Saved broadcast cancelled.')
+          : 'ℹ️ No active or paused broadcast job.', message.message_id);
+      }
+
+      const request = parseBroadcastRequest(command.args, Boolean(message.reply_to_message));
+      if (request.action === 'help') {
+        return send(chatId,
+          '📣 BIKA Broadcast (Serverless preview)\n\n' +
+          '/broadcast <text> — send text to users and approved groups\n' +
+          'Reply to a message with /broadcast or /broadcast -copy — copy media/caption/buttons\n' +
+          '/broadcast resume — process the next saved batch\n' +
+          '/broadcast status — inspect the latest running/paused job\n' +
+          '/broadcast cancel or /broadcastend — stop the job\n\n' +
+          'Rate cap: 25 sends/sec; batch cap: 100 recipients per invocation. Larger jobs are saved and resumed explicitly.',
+          message.message_id);
+      }
+      if (request.action === 'invalid-copy') {
+        return send(chatId, '⚠️ Copy mode အတွက် copy လုပ်လိုသော message ကို reply လုပ်ပြီး /broadcast -copy ပို့ပါ။', message.message_id);
+      }
+      if (request.action === 'cancel') {
+        const stopped = await cancelBroadcast({ actorId: from.id });
+        return send(chatId, stopped.ok
+          ? (stopped.status === 'cancel_requested' ? '🛑 Broadcast cancellation requested.' : '🛑 Saved broadcast cancelled.')
+          : 'ℹ️ No active or paused broadcast job.', message.message_id);
+      }
+      if (request.action === 'status') {
+        const state = await getBroadcastStatus(from.id);
+        if (state.status === 'idle') return send(chatId, 'ℹ️ No running or paused broadcast job.', message.message_id);
+        return send(chatId, '📣 Broadcast Status\n' +
+          'Job: ' + state.jobId + '\n' +
+          'State: ' + state.status + '\n' +
+          'Processed: ' + state.counters.processed + '/' + state.counters.total + '\n' +
+          'Sent: ' + state.counters.sent + '\n' +
+          'Skipped: ' + state.counters.skipped + '\n' +
+          'Failed: ' + state.counters.failed + '\n' +
+          'Pending: ' + state.counters.pending, message.message_id);
+      }
+      if (request.action === 'resume') {
+        broadcastProgressMessage = await send(chatId, '⏳ Resuming saved broadcast batch…', message.message_id);
+        return await resumeBroadcast({ actorId: from.id, ownerChatId: chatId, progressMessageId: broadcastProgressMessage?.message_id });
+      }
+      if (request.action === 'start') {
+        broadcastProgressMessage = await send(chatId, '📣 Preparing broadcast snapshot…', message.message_id);
+        return await startBroadcast({
+          actorId: from.id,
+          ownerChatId: chatId,
+          text: request.text,
+          mode: request.mode,
+          sourceMessage: request.mode === 'copy' ? message.reply_to_message : null,
+          progressMessageId: broadcastProgressMessage?.message_id,
+        });
+      }
+      return send(chatId, '⚠️ Unsupported broadcast action.', message.message_id);
     }
 
     if (gameToggle) {
@@ -436,12 +502,28 @@ export default async function (message) {
       BOT_ADMIN_REQUIRED: 'Bot ကို group admin ပေးပြီး API ကနေ အတည်ပြုနိုင်မှ /approve အောင်မြင်ပါမယ်။',
       GROUP_ONLY: 'ဒီ command ကို group ထဲမှာပဲ သုံးပါ။',
       GROUP_ID_INVALID: 'Group ID မမှန်ပါ။',
+      BROADCAST_RUNNING: 'Broadcast တစ်ခု အလုပ်လုပ်နေပါတယ်။ ပြီး/ရပ်သွားမှ ပြန်စပါ။',
+      BROADCAST_NOT_RESUMABLE: 'ဆက်လုပ်နိုင်တဲ့ saved broadcast မတွေ့ပါ။ /broadcast status နဲ့စစ်ပါ။',
+      BROADCAST_SOURCE_INVALID: 'Copy mode အတွက် message ကို reply လုပ်ပေးပါ။',
+      BROADCAST_TEXT_TOO_LONG: 'Broadcast စာသားရှည်လွန်းပါတယ်။ ပိုတိုအောင်ပြင်ပါ။',
+      BROADCAST_BATCH_FAILED: 'Broadcast batch ကို pause လုပ်ထားပါတယ်။ /broadcast resume နဲ့ဆက်နိုင်ပါတယ်။',
       INVALID_GAME: 'Game အမည် မမှန်ပါ။',
     };
     const errorCode = error?.code || error?.parameters?.code || error?.details?.code || error?.error?.code;
+    const safeMessage = messageByCode[errorCode] || messageByCode[error?.message] || 'Preview command failed safely. No production data was changed.';
+    if (broadcastProgressMessage?.message_id && command?.name === 'broadcast') {
+      try {
+        return await api.editMessageText({
+          chat_id: chatId,
+          message_id: broadcastProgressMessage.message_id,
+          text: '⚠️ ' + safeMessage,
+          reply_markup: { inline_keyboard: [] },
+        });
+      } catch (_) {}
+    }
     return send(
       chatId,
-      '⚠️ ' + (messageByCode[errorCode] || messageByCode[error?.message] || 'Preview command failed safely. No production data was changed.'),
+      '⚠️ ' + safeMessage,
       message.message_id,
     );
   }
