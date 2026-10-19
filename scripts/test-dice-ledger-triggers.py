@@ -12,11 +12,19 @@ MATCH = re.search(
     SOURCE,
     re.DOTALL,
 )
+REFUND_MATCH = re.search(
+    r"const refundTriggerSql = \[\s*\x60(.*?)\x60,\s*\x60(.*?)\x60\s*\];",
+    SOURCE,
+    re.DOTALL,
+)
 assert MATCH, "Could not extract triggerSql definitions from economy.js"
-TRIGGERS = MATCH.groups()
+assert REFUND_MATCH, "Could not extract refundTriggerSql definitions from economy.js"
+TRIGGERS = MATCH.groups() + REFUND_MATCH.groups()
 assert "bika_transactions_before_insert" in TRIGGERS[0]
 assert "bika_transactions_after_insert" in TRIGGERS[1]
-assert "NEW.refunds" in TRIGGERS[0] and "NEW.refunds" in TRIGGERS[1]
+assert "bika_transactions_refunds_before_insert" in TRIGGERS[2]
+assert "bika_transactions_refunds_after_insert" in TRIGGERS[3]
+assert "NEW.refunds" in TRIGGERS[2] and "NEW.refunds" in TRIGGERS[3]
 
 
 def database():
