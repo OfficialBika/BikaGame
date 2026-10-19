@@ -90,6 +90,22 @@ export default async function (message) {
   if (!command) return;
 
   try {
+    if (command.name === 'stars' || command.name === 'buy') {
+      if (message.chat?.type !== 'private') {
+        return send(chatId, 'Telegram Stars invoice ကို bot private chat ထဲမှာပဲ ဖွင့်နိုင်ပါတယ်။', message.message_id);
+      }
+      const requestedStars = Number(command.args);
+      if (STAR_PACKAGES.includes(requestedStars)) return createStarsInvoice(from.id, requestedStars);
+      const rows = [];
+      for (let i = 0; i < STAR_PACKAGES.length; i += 2) {
+        rows.push(STAR_PACKAGES.slice(i, i + 2).map((stars) => ({
+          text: '⭐ ' + stars + ' Stars · ' + formatCoin(packageBalance(stars)) + ' Bal',
+          callback_data: 'stars:buy:' + stars,
+        })));
+      }
+      return send(chatId, 'BIKA Stars → Bal\\nRate: 1 Star = 45,000 Bal\\nPackage တစ်ခုရွေးပါ။ Payment အောင်မြင်ပြီးမှ Bal ထည့်ပေးပါမယ်။', message.message_id, keyboard(rows));
+    }
+
     if (command.name === 'help') return send(chatId, helpText(), message.message_id);
     if (command.name === 'serverlessstatus') {
       return send(chatId, [
