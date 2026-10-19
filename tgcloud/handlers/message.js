@@ -384,6 +384,7 @@ export default async function (message) {
       DICE_CANCEL_OWNER_ONLY: 'Challenge ဖန်တီးသူသာ Cancel လုပ်နိုင်ပါတယ်။',
       DICE_NOT_READY: 'Dice challenge ကို မပြင်ဆင်နိုင်သေးပါ။ ပြန်ကြိုးစားပါ။',
       DICE_INVALID_BET: 'Dice bet ကို 10 မှ 99,990,000 Bal အတွင်း ကိန်းပြည့်ထည့်ပါ။',
+      SCHEMA_MIGRATION_BUSY: 'Preview database migration မပြီးသေးပါ။ ငွေစာရင်းမပြောင်းထားပါ၊ migration ပြီးမှ ပြန်စမ်းပါ။',
       INVALID_BET: 'Bet amount ကို 1 မှ 1,000,000 အတွင်း ကိန်းပြည့်ထည့်ပါ။',
       WHEEL_DAILY_USED: 'Daily reward ကို ဒီနေ့ claim လုပ်ပြီးသားပါ။',
       CRASH_RUNNING: 'Crash round လက်ရှိ run နေပါတယ်။',
