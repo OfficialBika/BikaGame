@@ -1,3 +1,7 @@
+// Set this to the numeric OWNER_ID used by the production bot before deploying
+// this preview. Zero deliberately disables all per-game toggle writes (fail closed).
+export const SERVERLESS_OWNER_TELEGRAM_ID = 0;
+
 export function miniConfig() {
   return {
     ok: true,
