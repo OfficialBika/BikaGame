@@ -73,7 +73,7 @@ function helpText() {
     '/broadcastend — stop the active broadcast',
     '',
     '⚠️ This is isolated preview currency; production MongoDB is never read or modified.',
-    'Wallet transfers are disabled until an atomic transfer/ledger operation is implemented.',
+    'The /transfer chat command stays disabled in this preview; Mini App transfers use the isolated atomic ledger and still require test-bot verification.',
   ].join('\n');
 }
 
@@ -230,7 +230,7 @@ export default async function (message) {
         '• Profile / wallet read: available',
         '• Games: isolated preview runtime',
         '• Mini App endpoints: preview only',
-        '• Wallet transfer: disabled pending atomic settlement',
+        '• Mini App wallet transfer: isolated atomic-ledger preview; runtime tests required',
         '• Production MongoDB import: NOT RUN',
         '• Production cutover: NOT APPROVED',
       ].join('\n'), message.message_id);
