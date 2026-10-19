@@ -165,8 +165,43 @@ def test_insufficient_balance_fails_without_partial_write():
     assert con.execute("SELECT COUNT(*) FROM game_history").fetchone()[0] == 0
 
 
+def test_wallet_transfer_is_atomic_idempotent_and_not_a_game_result():
+    con = database()
+    transfer = """
+      INSERT INTO transactions (
+        type, from_user_id, to_user_id, amount, idempotency_key,
+        from_account_user_id, to_account_user_id, created_at
+      ) VALUES ('gift', '101', '202', 125, ?, 101, 202, 123)
+    """
+    con.execute(transfer, ("wallet-transfer:test-1",))
+    balances = {row["tg_id"]: dict(row) for row in con.execute("SELECT * FROM users")}
+    assert balances[101]["balance"] == 375, balances
+    assert balances[202]["balance"] == 625, balances
+    # Wallet transfers are not wagering wins/losses on the main bot either.
+    assert balances[101]["total_lost"] == 0, balances
+    assert balances[202]["total_won"] == 0, balances
+
+    # Replayed request is ignored by the ledger idempotency trigger.
+    con.execute(transfer, ("wallet-transfer:test-1",))
+    balances = {row["tg_id"]: dict(row) for row in con.execute("SELECT * FROM users")}
+    assert balances[101]["balance"] == 375 and balances[202]["balance"] == 625, balances
+    assert con.execute("SELECT COUNT(*) FROM transactions WHERE type='gift'").fetchone()[0] == 1
+
+    # Insufficient balance aborts the whole ledger insert; recipient is untouched.
+    try:
+        con.execute(transfer, ("wallet-transfer:insufficient",))
+    except sqlite3.IntegrityError as exc:
+        assert "USER_INSUFFICIENT" in str(exc)
+    else:
+        raise AssertionError("Expected insufficient wallet transfer to abort")
+    balances = {row["tg_id"]: dict(row) for row in con.execute("SELECT * FROM users")}
+    assert balances[101]["balance"] == 375 and balances[202]["balance"] == 625, balances
+    assert con.execute("SELECT COUNT(*) FROM transactions WHERE type='gift'").fetchone()[0] == 1
+
+
 if __name__ == "__main__":
     test_winner_accounting_and_idempotency()
     test_tie_refund_does_not_count_as_winnings()
     test_insufficient_balance_fails_without_partial_write()
-    print("SQLite ledger trigger tests passed (winner, tie refund, idempotency, insufficient balance).")
+    test_wallet_transfer_is_atomic_idempotent_and_not_a_game_result()
+    print("SQLite ledger trigger tests passed (winner, tie refund, idempotency, insufficient balance, wallet transfer).")
