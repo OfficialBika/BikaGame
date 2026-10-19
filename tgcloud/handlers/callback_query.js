@@ -6,13 +6,14 @@ import { maintenanceCallbackAllowed } from '../lib/maintenancePolicy.js';
 import { checkGroupAccess, groupAccessMessage } from '../lib/groupApproval.js';
 import { isGroupChat } from '../lib/groupApprovalPolicy.js';
 import { resumeBroadcast } from '../lib/broadcast.js';
+import { recordDailyTournament } from '../lib/eventMarkets.js';
 import {
   getDiceChallenge, cancelDiceChallenge, claimDiceChallenge, storeDiceRollResult,
   settleDiceChallenge, failDiceChallenge,
 } from '../lib/diceDuel.js';
 import { createStarsInvoice, STAR_PACKAGES, packageBalance } from '../lib/stars.js';
 import {
-  crashCashout, minesOpen, minesCashout, blackjackAction, shanDeal,
+  crashCashout, minesOpen, minesCashout, minesStatus, blackjackAction, shanDeal,
 } from '../lib/game.js';
 
 function sleep(ms) {
@@ -300,13 +301,72 @@ export default async function (query) {
       text = '💰 Cash Out x' + result.multiplier + ' — +' + result.payout + ' $';
     } else if (game === 'mines' && action === 'open') {
       const result = await minesOpen(user.id, Number(arg));
+      if (result.exploded && isGroupChat(message?.chat)) {
+        try { await recordDailyTournament({ chatId: message.chat.id, telegramUser: user, game: 'mines', bet: result.bet, payout: 0, multiplier: 0, result: { exploded: true } }); }
+        catch (error) { console.warn('BIKA_DAILY_TOURNAMENT_RECORD_FAILED', String(error?.message || error)); }
+      }
       text = result.exploded
         ? '💥 Mine! Round lost.'
         : '💎 Safe tile — x' + result.multiplier;
       if (result.active) markup = minesKeyboard();
     } else if (game === 'mines' && action === 'cashout') {
       const result = await minesCashout(user.id);
-      text = '💰 Mines Cash Out x' + result.multiplier + ' — +' + result.payout + ' $';
+      if (isGroupChat(message?.chat)) {
+        try { await recordDailyTournament({ chatId: message.chat.id, telegramUser: user, game: 'mines', bet: result.bet, payout: result.payout, multiplier: result.multiplier, result: { cashout: true } }); }
+        catch (error) { console.warn('BIKA_DAILY_TOURNAMENT_RECORD_FAILED', String(error?.message || error)); }
+      }
+      text = '💰 Mines Cash Out x' + result.multiplier + ' — +' + result.payout + ' 
+    } else if (game === 'bj' && (action === 'hit' || action === 'stand')) {
+      const result = await blackjackAction(user.id, arg, action);
+      text = '🂡 Blackjack — ' + ((result.player?.cards || []).map((card) => card.r + card.s).join(' '));
+      if (result.active) {
+        markup = {
+          inline_keyboard: [[
+            { text: 'HIT', callback_data: 'bj:hit:' + arg },
+            { text: 'STAND', callback_data: 'bj:stand:' + arg },
+          ]],
+        };
+      }
+    } else if (game === 'shan' && (action === 'draw' || action === 'stay')) {
+      const result = await shanDeal(user.id, arg, action);
+      text = '🎴 Shan — ' + ((result.player?.cards || []).map((card) => card.r + card.s).join(' '));
+      if (result.active) {
+        markup = {
+          inline_keyboard: [[
+            { text: 'DRAW', callback_data: 'shan:draw:' + arg },
+            { text: 'STAY', callback_data: 'shan:stay:' + arg },
+          ]],
+        };
+      }
+    } else {
+      text = 'Unsupported preview action.';
+    }
+
+    await api.answerCallbackQuery({
+      callback_query_id: query.id,
+      text: text.slice(0, 200),
+    });
+    if (message?.chat?.id && message?.message_id) {
+      await api.editMessageText({
+        chat_id: message.chat.id,
+        message_id: message.message_id,
+        text,
+        ...(markup ? { reply_markup: markup } : {}),
+      });
+    }
+  } catch (error) {
+    console.error('BIKA_SERVERLESS_CALLBACK_FAILED', {
+      action: data,
+      error: String(error?.message || error),
+    });
+    await api.answerCallbackQuery({
+      callback_query_id: query.id,
+      text: 'Preview action failed safely.',
+      show_alert: true,
+    });
+  }
+}
+;
     } else if (game === 'bj' && (action === 'hit' || action === 'stand')) {
       const result = await blackjackAction(user.id, arg, action);
       text = '🂡 Blackjack — ' + ((result.player?.cards || []).map((card) => card.r + card.s).join(' '));
