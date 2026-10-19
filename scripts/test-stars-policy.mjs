@@ -27,6 +27,24 @@ assert.equal(paymentRecordMatches({ ...record, status: 'pending' }, expected), f
 assert.equal(paymentRecordMatches({ ...record, telegramPaymentChargeId: 'other' }, expected), false);
 assert.equal(paymentRecordMatches({ ...record, invoicePayload: 'tampered' }, expected), false);
 assert.equal(paymentRecordMatches({ ...record, id: 'other' }, expected), false);
+assert.equal(paymentRecordMatches({
+  id: expected.chargeId,
+  telegramPaymentChargeId: expected.chargeId,
+  userId: 10001,
+  stars: 0,
+  amount: 0,
+  status: 'dedupe_only',
+  invoicePayload: null,
+}, expected), true);
+assert.equal(paymentRecordMatches({
+  id: expected.chargeId,
+  telegramPaymentChargeId: expected.chargeId,
+  userId: 10002,
+  stars: 0,
+  amount: 0,
+  status: 'dedupe_only',
+  invoicePayload: null,
+}, expected), false);
 console.log('Stars payment reconciliation record tests passed.');
 
 const ledger = {
