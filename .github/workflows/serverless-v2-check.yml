@@ -21,7 +21,10 @@ jobs:
           done < <(find tgcloud -type f -name '*.js' -print | sort)
           node --check scripts/check-serverless-v2.mjs
           node --check scripts/test-game-control-names.mjs
+          node --check scripts/test-game-command-parser.mjs
       - name: Test per-game control command parsing
         run: node scripts/test-game-control-names.mjs
+      - name: Test slash and dot game command parser
+        run: node scripts/test-game-command-parser.mjs
       - name: Check V2 contracts
         run: node scripts/check-serverless-v2.mjs
