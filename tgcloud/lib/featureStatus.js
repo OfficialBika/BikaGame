@@ -23,9 +23,9 @@ const groups = [
   {
     id: 'game-controls',
     label: 'Per-game controls',
-    status: 'not-ported',
+    status: 'preview-controls-added',
     features: ['.slot on/off', '.bj on/off', '.shan on/off', '.dice on/off', '.mine on/off', '.mines alias'],
-    detail: 'These owner-only persisted controls must gate commands, callbacks, and Mini App APIs. The existing main /on and /off are global maintenance commands and must remain separate.',
+    detail: 'Owner-only persisted controls are implemented in the V2 preview handler and enforce new game starts/entries through the bot handler and Mini App start routes. Set OWNER_ID in the serverless environment. Dice gameplay itself is not ported; active-session callbacks remain available so disabling a game does not block cashout/action callbacks.',
   },
   {
     id: 'payments-commerce',
