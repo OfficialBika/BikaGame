@@ -39,6 +39,7 @@ const parity = await readFile(join(root, 'docs/SERVERLESS_V2_PARITY.md'), 'utf8'
 const featureStatus = await readFile(join(root, 'tgcloud/lib/featureStatus.js'), 'utf8');
 const controls = await readFile(join(root, 'tgcloud/lib/gameControls.js'), 'utf8');
 const maintenance = await readFile(join(root, 'tgcloud/lib/maintenance.js'), 'utf8');
+const maintenancePolicy = await readFile(join(root, 'tgcloud/lib/maintenancePolicy.js'), 'utf8');
 const config = await readFile(join(root, 'tgcloud/lib/config.js'), 'utf8');
 const controlNames = await readFile(join(root, 'tgcloud/lib/gameControlNames.js'), 'utf8');
 const miniHandler = await readFile(join(root, 'tgcloud/lib/mini.js'), 'utf8');
@@ -109,6 +110,9 @@ assert.equal((message.match(/\\\\n(?:Stars|Added|Balance|Rate):/g) || []).length
 // Maintenance mode must be persisted, owner-only, fail closed on malformed state,
 // and gate both Telegram messages and callback queries. Legacy /off means ON; /on means OFF.
 assert.match(maintenance, /const KEY = 'maintenance_mode'/);
+assert.match(maintenancePolicy, /function maintenanceEnabledFromValue/);
+assert.match(maintenancePolicy, /Corrupt non-null state fails closed/);
+assert.match(maintenancePolicy, /function isConfiguredOwnerId/);
 assert.match(maintenance, /getSetting\(KEY, false\)/);
 assert.match(maintenance, /setSetting\(KEY, record\)/);
 assert.match(maintenance, /OWNER_NOT_CONFIGURED/);
