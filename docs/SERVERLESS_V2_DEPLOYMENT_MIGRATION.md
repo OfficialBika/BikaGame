@@ -20,9 +20,11 @@ Setting `MONGO_URI` alone does not connect the V2 handlers to MongoDB: the V2 ha
 2. Review the branch diff and run the Serverless CLI checks against the test bot project.
 3. Run `npx tgcloud status` and `npx tgcloud diff`; confirm the linked app is the test bot, not the live bot.
 4. Push the code to the test bot only. Review and separately apply schema migrations when prompted; do not blindly apply destructive changes.
-5. Run handler tests locally with `npx tgcloud run handlers/message ...` and run the parser/contract CI. Then perform Telegram smoke tests using test balances only.
-6. Test unauthorized users cannot toggle games; owner can enable/disable each supported control; settings survive invocations; Mini App routes reject starts for disabled games; active-round cashout/action callbacks remain available.
-7. Record the test bot's app ID, commit SHA, schema version, and test results before proceeding.
+5. For the Dice tie-refund ledger change, confirm the reviewed migration adds the `transactions.refunds` JSON column before invoking handlers. The first request runs a one-time, fail-closed trigger replacement guarded by a persistent migration marker; if the schema migration is pending or another instance is migrating, the request must fail safely without writing balances. Do not bypass this guard.
+6. Run `npx tgcloud diff` and `npx tgcloud migrate` explicitly after schema deployment, and record the migration result. A successful `push` alone does not apply database changes.
+7. Run handler tests locally with `npx tgcloud run handlers/message ...` and run the parser/contract CI. Then perform Telegram smoke tests using test balances only.
+8. Test unauthorized users cannot toggle games; owner can enable/disable each supported control; settings survive invocations; Mini App routes reject starts for disabled games; active-round cashout/action callbacks remain available.
+9. Record the test bot's app ID, commit SHA, schema version, and test results before proceeding.
 
 ## Phase 2 — feature parity before any real data
 
