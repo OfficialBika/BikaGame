@@ -17,3 +17,19 @@ export function isConfiguredOwnerId(userId, configuredOwnerId) {
   if (!Number.isSafeInteger(value) || value <= 0) return false;
   return String(userId ?? '') === String(value);
 }
+
+const MAINTENANCE_SAFE_ACTIONS = new Set([
+  'features', 'config', 'me', 'wallet', 'walletLookup', 'walletTransfers',
+  'history', 'leaderboard', 'crashStatus', 'minesStatus', 'blackjackStatus',
+  'shanStatus', 'wheelDailyStatus',
+  'crashCashout', 'minesCashout', 'blackjackStand', 'shanStay',
+]);
+export function maintenanceActionAllowed(action) {
+  return MAINTENANCE_SAFE_ACTIONS.has(String(action || ''));
+}
+export function maintenanceCallbackAllowed(data) {
+  const value = String(data || '');
+  return value === 'crash:cashout' || value === 'mines:cashout' ||
+    /^bj:stand:[^:]+$/.test(value) || /^shan:stay:[^:]+$/.test(value) ||
+    /^dice:cancel:[^:]+$/.test(value);
+}
