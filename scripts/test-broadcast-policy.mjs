@@ -38,7 +38,7 @@ assert.match(service, /SEND_CONCURRENCY = 8/);
 assert.match(service, /broadcast_locks|broadcastLocks/);
 assert.match(service, /approvalStatus/);
 assert.match(service, /copyMessage/);
-assert.match(service, /retry_after/);
+assert.match(source, /retry_after/);
 assert.match(service, /status: 'paused'/);
 assert.match(service, /cancel_requested/);
 assert.match(schema, /table\('broadcast_targets'/);
