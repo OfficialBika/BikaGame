@@ -327,17 +327,17 @@ export async function dailyWheel(userId) {
 }
 
 function crashPoint() { return Math.max(1.01, Math.floor((1.01 + Math.random() * Math.random() * 7) * 100) / 100); }
-export async function crashStart(userId, amount) {
-  const bet = betOf(amount);
-  if (await activeSession(userId, 'crash')) throw new Error('CRASH_RUNNING');
-  await debit(userId, bet, 'crash_bet', { game: 'crash' }, `crash:${userId}:${Date.now()}`);
-  const session = await createSession(userId, 'crash', { bet, point: crashPoint(), startedAt: Date.now(), cashedOut: false });
+export async function crashStart(userId, amount, requestId = null) {
+  const session = await startWagerSession(userId, 'crash', amount, requestId, (bet) => ({
+    bet, point: crashPoint(), startedAt: Date.now(), cashedOut: false,
+  }));
   return { ok: true, sessionId: session.id, phase: 'running', multiplier: 1, balance: (await userById(userId)).balance };
 }
 export async function crashStatus(userId) {
   const s = await activeSession(userId, 'crash');
   const user = await userById(userId);
   if (!s) return { ok: true, active: false, balance: Number(user?.balance || 0) };
+  if (s.state?.funded === false) throw new Error('SESSION_STARTING');
   const elapsed = Date.now() - new Date(s.createdAt).getTime();
   const multiplier = Math.min(s.state.point, 1 + elapsed / 2500);
   if (multiplier >= s.state.point) {
@@ -350,6 +350,7 @@ export async function crashStatus(userId) {
 export async function crashCashout(userId) {
   const s = await activeSession(userId, 'crash');
   if (!s) throw new Error('NO_ACTIVE_CRASH');
+  if (s.state?.funded === false) throw new Error('SESSION_STARTING');
   const status = await crashStatus(userId);
   if (!status.active) throw new Error('CRASHED');
   const payout = Math.floor(s.state.bet * status.multiplier);
@@ -360,15 +361,16 @@ export async function crashCashout(userId) {
 }
 
 function minesLayout(count = 3) { const set = new Set(); while (set.size < count) set.add(Math.floor(Math.random() * 25)); return [...set]; }
-export async function minesStart(userId, amount) {
-  if (await activeSession(userId, 'mines')) throw new Error('MINES_ACTIVE');
-  const bet = betOf(amount); await debit(userId, bet, 'mines_bet', { game: 'mines' }, `mines:${userId}:${Date.now()}`);
-  const s = await createSession(userId, 'mines', { bet, mines: minesLayout(3), opened: [], multiplier: 1 });
+export async function minesStart(userId, amount, requestId = null) {
+  const s = await startWagerSession(userId, 'mines', amount, requestId, (bet) => ({
+    bet, mines: minesLayout(3), opened: [], multiplier: 1,
+  }));
   return { ok: true, sessionId: s.id, active: true, opened: [], multiplier: 1, balance: (await userById(userId)).balance };
 }
 export async function minesStatus(userId) { const s = await activeSession(userId, 'mines'); const u = await userById(userId); return s ? { ok:true, active:true, opened:s.state.opened, multiplier:s.state.multiplier, balance:u.balance } : { ok:true, active:false, balance:u?.balance||0 }; }
 export async function minesOpen(userId, index) {
   const s = await activeSession(userId, 'mines'); if (!s) throw new Error('NO_ACTIVE_MINES');
+  if (s.state?.funded === false) throw new Error('SESSION_STARTING');
   const i = Math.floor(n(index, -1)); if (i < 0 || i >= 25) throw new Error('INVALID_TILE');
   if (s.state.opened.includes(i)) throw new Error('TILE_OPENED');
   if (s.state.mines.includes(i)) { await updateSession(s.id, { ...s.state, hitMine:i }, 'lost'); await recordGame(userId,'mines',s.state.bet,0,{mine:i},0,'mines:'+s.id); return { ok:true, active:false, mine:i, exploded:true, payout:0, balance:(await userById(userId)).balance }; }
@@ -378,6 +380,7 @@ export async function minesOpen(userId, index) {
 }
 export async function minesCashout(userId) {
   const s = await activeSession(userId, 'mines'); if (!s) throw new Error('NO_ACTIVE_MINES');
+  if (s.state?.funded === false) throw new Error('SESSION_STARTING');
   if (!s.state.opened.length) throw new Error('MINES_CASHOUT_LOCKED');
   const payout = Math.floor(s.state.bet * s.state.multiplier); await credit(userId,payout,'mines_win',{game:'mines',multiplier:s.state.multiplier},`mines-win:${s.id}`);
   await updateSession(s.id,{...s.state,payout},'settled'); const u=await recordGame(userId,'mines',s.state.bet,payout,{opened:s.state.opened},s.state.multiplier,'mines:'+s.id);
