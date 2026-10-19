@@ -5,6 +5,8 @@ import { getFeatureStatus } from '../lib/featureStatus.js';
 import { parseGameToggle, normalizeGameKey } from '../lib/gameControlNames.js';
 import { createDiceChallenge, activateDiceChallenge, failDiceChallengeCreation } from '../lib/diceDuel.js';
 import { setGameEnabled, assertGameEnabled, listGameStates } from '../lib/gameControls.js';
+import { checkGroupAccess, approveCurrentGroup, rejectCurrentGroup, getGroupStatus, groupAccessMessage } from '../lib/groupApproval.js';
+import { isGroupChat } from '../lib/groupApprovalPolicy.js';
 import { createStarsInvoice, creditSuccessfulStars, STAR_PACKAGES, packageBalance } from '../lib/stars.js';
 import {
   playSlot, playPlinko, wheelSpin, dailyWheel, crashStart, minesStart,
@@ -94,6 +96,40 @@ export default async function (message) {
   if (!command && !gameToggle) return;
 
   try {
+    // Keep approval commands reachable for recovery; gate all other group commands.
+    if (command && ['approve', 'reject', 'groupstatus'].includes(command.name)) {
+      if (!isGroupChat(message.chat)) {
+        return send(chatId, 'ဒီ command ကို group ထဲမှာပဲ သုံးပါ။', message.message_id);
+      }
+      if (command.name === 'approve') {
+        const group = await approveCurrentGroup(message.chat, from.id);
+        return send(chatId, '✅ Group Approved\n' +
+          'Group: ' + String(group?.title || message.chat.title || 'Untitled Group') + '\n' +
+          'Group ID: ' + chatId + '\nBot Admin: YES\nApproved by Owner: ' + from.id,
+          message.message_id);
+      }
+      if (command.name === 'reject') {
+        const group = await rejectCurrentGroup(message.chat, from.id);
+        return send(chatId, '❌ Group Rejected\n' +
+          'Group: ' + String(group?.title || message.chat.title || 'Untitled Group') + '\n' +
+          'Group ID: ' + chatId + '\nRejected by Owner: ' + from.id,
+          message.message_id);
+      }
+      const status = await getGroupStatus(message.chat);
+      const group = status.group;
+      return send(chatId, '👥 Group Status\n' +
+        'Group: ' + String(group?.title || message.chat.title || 'Untitled Group') + '\n' +
+        'Group ID: ' + chatId + '\n' +
+        'Owner Approval: ' + String(group?.approvalStatus || 'pending').toUpperCase() + '\n' +
+        'Bot Admin: ' + (status.botAdminCheckSucceeded ? (status.botIsAdmin ? 'YES' : 'NO') : 'UNVERIFIED') + '\n' +
+        'Owner Configured: ' + (status.ownerConfigured ? 'YES' : 'NO'), message.message_id);
+    }
+
+    if (isGroupChat(message.chat)) {
+      const access = await checkGroupAccess(message.chat, from.id);
+      if (!access.allowed) return send(chatId, groupAccessMessage(access.reason), message.message_id);
+    }
+
     if (gameToggle) {
       const state = await setGameEnabled(gameToggle.game, gameToggle.enabled, from.id);
       const label = state.game === 'blackjack' ? 'Blackjack' : state.game === 'mines' ? 'Mines' : state.game.toUpperCase();
@@ -396,7 +432,10 @@ export default async function (message) {
       SHAN_TABLE_FULL: 'Shan table ပြည့်နေပါပြီ။',
       GAME_DISABLED: 'ဒီဂိမ်းကို Owner က ယာယီပိတ်ထားပါတယ်။',
       OWNER_ONLY: 'ဒီ command ကို Owner သာ သုံးနိုင်ပါတယ်။',
-      OWNER_NOT_CONFIGURED: 'Serverless environment မှာ OWNER_ID မသတ်မှတ်ရသေးပါ။',
+      OWNER_NOT_CONFIGURED: 'SERVERLESS_OWNER_TELEGRAM_ID ကို config မှာ သတ်မှတ်ပေးပါ။',
+      BOT_ADMIN_REQUIRED: 'Bot ကို group admin ပေးပြီး API ကနေ အတည်ပြုနိုင်မှ /approve အောင်မြင်ပါမယ်။',
+      GROUP_ONLY: 'ဒီ command ကို group ထဲမှာပဲ သုံးပါ။',
+      GROUP_ID_INVALID: 'Group ID မမှန်ပါ။',
       INVALID_GAME: 'Game အမည် မမှန်ပါ။',
     };
     const errorCode = error?.code || error?.parameters?.code || error?.details?.code || error?.error?.code;
