@@ -1,4 +1,5 @@
 import { api } from 'sdk';
+import { SERVERLESS_OWNER_TELEGRAM_ID } from '../lib/config.js';
 import { parseCommand } from '../lib/commandParser.js';
 import { ensureUser, formatCoin, displayName, listTopUsers } from '../lib/users.js';
 import { claimDailyReward, getSetting, setSetting, transferByWalletId, recordLedgerOperation, getTreasury } from '../lib/economy.js';
@@ -371,7 +372,7 @@ export default async function (message) {
       if (values.length < 3) return send(chatId, '💳 Card Sell System\\nUsage: /sell <botKey> <rarity> <Telegram_Gift_Message_Link>\\nဥပမာ: /sell catchbot legendary https://t.me/YourGiftChannel/123\\nOwner approve လုပ်ပြီးမှ preview Bal ထည့်ပေးပါမယ်။', message.message_id);
       const order = await createSellOrder({ seller: from, botKey: values[0], rarity: values[1], giftLink: values.slice(2).join(' ') });
       let ownerAlertSent = false;
-      if (isConfiguredOwner(Number(from.id)) === false) {
+      if (Number(SERVERLESS_OWNER_TELEGRAM_ID) > 0 && !isConfiguredOwner(Number(from.id))) {
         try {
           await api.sendMessage({ chat_id: Number(SERVERLESS_OWNER_TELEGRAM_ID), text: '💳 New Sell Order\\nID: ' + order.order.id +
             '\\nSeller: ' + from.id + '\\nType: ' + order.order.data.botKey + ' / ' + order.order.data.rarity +
