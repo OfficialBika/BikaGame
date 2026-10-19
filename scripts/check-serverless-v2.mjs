@@ -174,6 +174,8 @@ assert.match(dailyPolicy, /dailyRewardAmount/);
 assert.match(economy, /export async function claimDailyReward/);
 assert.match(economy, /DAILY_ALREADY_CLAIMED/);
 assert.match(economy, /daily_claimed_at = NEW\.created_at/);
+assert.match(economy, /bika_transactions_daily_claim_before_insert/);
+assert.match(economy, /bika_transactions_daily_claim_after_insert/);
 assert.match(message, /claimDailyReward\(user\.tgId\)/);
 assert.match(message, /user\.walletId \|\| 'pending'/);
 assert.doesNotMatch(message, /Wallet ID: ' \+ user\.tgId/);
