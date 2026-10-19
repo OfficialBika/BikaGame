@@ -79,9 +79,9 @@ export default async function (message) {
     return send(
       chatId,
       '✅ Telegram Stars payment confirmed' + duplicateNote +
-        '\\nStars: ' + result.stars +
-        '\\nAdded: ' + formatCoin(result.balanceAmount) + ' Bal' +
-        '\\nBalance: ' + formatCoin(result.balance) + ' Bal',
+        '\nStars: ' + result.stars +
+        '\nAdded: ' + formatCoin(result.balanceAmount) + ' Bal' +
+        '\nBalance: ' + formatCoin(result.balance) + ' Bal',
       message.message_id,
     );
   }
@@ -103,7 +103,7 @@ export default async function (message) {
           callback_data: 'stars:buy:' + stars,
         })));
       }
-      return send(chatId, 'BIKA Stars → Bal\\nRate: 1 Star = 45,000 Bal\\nPackage တစ်ခုရွေးပါ။ Payment အောင်မြင်ပြီးမှ Bal ထည့်ပေးပါမယ်။', message.message_id, keyboard(rows));
+      return send(chatId, 'BIKA Stars → Bal\nRate: 1 Star = 45,000 Bal\nPackage တစ်ခုရွေးပါ။ Payment အောင်မြင်ပြီးမှ Bal ထည့်ပေးပါမယ်။', message.message_id, keyboard(rows));
     }
 
     if (command.name === 'help') return send(chatId, helpText(), message.message_id);
