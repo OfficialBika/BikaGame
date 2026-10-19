@@ -1,7 +1,7 @@
 import { api } from 'sdk';
 import { parseCommand } from '../lib/commandParser.js';
 import { ensureUser, formatCoin, displayName, listTopUsers } from '../lib/users.js';
-import { claimDailyReward } from '../lib/economy.js';
+import { claimDailyReward, getSetting, setSetting, transferByWalletId, recordLedgerOperation, getTreasury } from '../lib/economy.js';
 import { getFeatureStatus } from '../lib/featureStatus.js';
 import { getMaintenanceMode, setMaintenanceMode, isConfiguredOwner, maintenanceCommandAction } from '../lib/maintenance.js';
 import { parseGameToggle, normalizeGameKey } from '../lib/gameControlNames.js';
@@ -10,6 +10,13 @@ import { setGameEnabled, assertGameEnabled, listGameStates } from '../lib/gameCo
 import { checkGroupAccess, approveCurrentGroup, rejectCurrentGroup, getGroupStatus, groupAccessMessage } from '../lib/groupApproval.js';
 import { isGroupChat } from '../lib/groupApprovalPolicy.js';
 import { parseBroadcastRequest } from '../lib/broadcastPolicy.js';
+import {
+  parseSetEventText, createSportsEvent, findSportsEventForReply, rememberSportsThreadMessage,
+  placeSportsBet, stopSportsEvent, settleSportsEvent, createAuction, findAuctionForReply,
+  placeAuctionBid, finalizeAuction, cancelAuction, showAuctionStatus, reconcileEventMarketsOnUpdate,
+  startPromoRtp, getWebGameRtp, getAllWebGameRtps, setWebGameRtp, recordDailyTournament,
+  getDailyTournament, setShopEnabled, getShopEnabled,
+} from '../lib/eventMarkets.js';
 import { startBroadcast, resumeBroadcast, cancelBroadcast, getBroadcastStatus, assertBroadcastOwner } from '../lib/broadcast.js';
 import { createStarsInvoice, creditSuccessfulStars, STAR_PACKAGES, packageBalance } from '../lib/stars.js';
 import {
@@ -83,6 +90,16 @@ function helpText() {
     '/broadcast <text> — Owner-only text broadcast; reply with /broadcast -copy to copy media/buttons',
     '/broadcast -h — show broadcast usage; /broadcast resume|status|cancel — control saved jobs',
     '/broadcastend — stop the active broadcast',
+    '/setevent Team A vs Team B + odds + aliases — Owner sports event (reply to linked channel post)',
+    '.bet alias amount — sports bet by replying to the event thread',
+    '.stopbet / .betwin alias — Owner sports settlement controls',
+    '/auctionchannel <channel_id>, /auction <start> <increment> <minutes> <title>',
+    '.bid <amount> or reply with a bid amount — auction bidding',
+    '/auctionstatus [id], /auctionfinish <id>, /auctioncancel <id> — Owner auction controls',
+    '/dailytournament — today’s group Mines ranking',
+    '/promortp <percent> <duration>, /setwebrtp <game> <percent>, /webrtp [game]',
+    '/setrtp <percent> — legacy Slot win rate; /treasury /addbal /rmbal /setvipwr /vipwr',
+    '/shop /inventory /sell — commerce preview controls',
     '',
     '⚠️ This is isolated preview currency; production MongoDB is never read or modified.',
     'The /transfer chat command stays disabled in this preview; Mini App transfers use the isolated atomic ledger and still require test-bot verification.',
@@ -120,7 +137,9 @@ export default async function (message) {
   const gameToggle = parseGameToggle(message.text);
   const command = parseCommand(message.text);
   const isTwoDBet = /^\\.2d(?:@\\w+)?(?:\\s|$)/i.test(String(message.text || '').trim());
-  if (!command && !gameToggle && !isTwoDBet) return;
+  const isAuctionPlainBid = Boolean(message.reply_to_message &&
+    /^\\d[\\d,]*$/.test(String(message.text || '').trim()));
+  if (!command && !gameToggle && !isTwoDBet && !isAuctionPlainBid) return;
 
   let broadcastProgressMessage = null;
   try {
@@ -192,6 +211,126 @@ export default async function (message) {
     if (isGroupChat(message.chat)) {
       const access = await checkGroupAccess(message.chat, from.id);
       if (!access.allowed) return send(chatId, groupAccessMessage(access.reason), message.message_id);
+    }
+
+    if (command?.name === 'setevent') {
+      if (!['group', 'supergroup'].includes(message.chat?.type)) {
+        return send(chatId, '/setevent ကို linked discussion group ထဲမှာပဲ သုံးပါ။', message.message_id);
+      }
+      const root = message.reply_to_message;
+      if (!root?.message_id ||
+          !(root.is_automatic_forward === true || root.forward_origin?.type === 'channel' ||
+            root.sender_chat?.type === 'channel' || /@BikaGameBot\\b/i.test(String(root.text || root.caption || '')))) {
+        return send(chatId, '⚠️ Linked channel post ကို reply လုပ်ပြီး /setevent ကို ပို့ပါ။', message.message_id);
+      }
+      const parsed = parseSetEventText(message.text);
+      if (!parsed) {
+        return send(chatId, 'Format မမှန်ပါ။\n/setevent Team A vs Team B\n2x | 1.5x\nvan | pan', message.message_id);
+      }
+      const event = await createSportsEvent({
+        chatId, rootMessageId: root.message_id, sourceChatId: root.sender_chat?.id || root.forward_from_chat?.id || root.chat?.id || chatId,
+        sourceText: root.text || root.caption || '', title: parsed.title, teams: parsed.teams, createdBy: from.id,
+      });
+      const announcement = await send(chatId,
+        '🎯 NEW SPORTS EVENT\\n━━━━━━━━━━━━━━━━\\n' + event.title + '\\n' +
+        event.data.teams.map(t => t.name + ' — ' + t.odd + 'x (' + t.alias + ')').join('\\n') +
+        '\\n━━━━━━━━━━━━━━━━\\nBet တင်ရန် event post ကို reply လုပ်ပါ။\\n' +
+        '.bet ' + event.data.teams[0].alias + ' 1000\\n.bet ' + event.data.teams[1].alias + ' 1000',
+        root.message_id);
+      const sentMessageId = Number(announcement?.message_id ?? announcement?.result?.message_id);
+      if (sentMessageId > 0) await rememberSportsThreadMessage(event.id, sentMessageId);
+      return announcement;
+    }
+
+    if (command?.name === 'stopbet' || command?.name === 'betwin') {
+      const event = await findSportsEventForReply(chatId, message.reply_to_message);
+      if (!event) return send(chatId, 'ဒီ reply/thread အတွက် active Sports Event မတွေ့ပါ။ Event post ကို reply လုပ်ပါ။', message.message_id);
+      if (command.name === 'stopbet') {
+        const result = await stopSportsEvent(event, from.id);
+        return send(chatId, result.duplicate ? 'ℹ️ Betting ပိတ်ပြီးသားပါ။' : '🔒 Betting ပိတ်ပါပြီ။ Winner alias ကို .betwin <alias> နဲ့ သတ်မှတ်ပါ။', message.message_id);
+      }
+      const alias = String(command.args || '').trim().split(/\\s+/)[0];
+      if (!alias) return send(chatId, '.betwin <team_alias> ပုံစံသုံးပါ။', message.message_id);
+      const result = await settleSportsEvent(event, alias, from.id);
+      const winners = result.bets.filter(b => b.status === 'won').length;
+      const totalPaid = result.bets.filter(b => b.choice === alias.toLowerCase()).reduce((sum, b) => sum + Number(b.potentialWin || 0), 0);
+      return send(chatId, (result.duplicate ? 'ℹ️ Event settle လုပ်ပြီးသားပါ။' : '✅ Sports settlement complete.') +
+        '\\nEvent: ' + event.title + '\\nWinner: ' + alias.toLowerCase() +
+        '\\nWinning bets: ' + winners + '\\nTotal payout: ' + formatCoin(totalPaid) + ' Bal', message.message_id);
+    }
+
+    if (command?.name === 'bet') {
+      if (!['group', 'supergroup'].includes(message.chat?.type)) {
+        return send(chatId, '.bet ကို event discussion group ထဲမှာပဲ သုံးပါ။', message.message_id);
+      }
+      const parsed = String(command.args || '').trim().split(/\\s+/);
+      if (parsed.length < 2) return send(chatId, 'အသုံးပြုပုံ: event post ကို reply လုပ်ပြီး .bet <alias> <amount>', message.message_id);
+      const event = await findSportsEventForReply(chatId, message.reply_to_message);
+      if (!event) return send(chatId, 'Sports Event post ကို reply လုပ်ပေးပါ။', message.message_id);
+      const result = await placeSportsBet({ event, telegramUser: from, alias: parsed[0], amount: parsed[1], messageId: message.message_id });
+      const team = event.data.teams.find(t => t.alias === String(parsed[0]).toLowerCase());
+      return send(chatId, '✅ SPORTS BET ACCEPTED\\n' + team.name + ' (' + team.alias + ')' +
+        '\\nBet: ' + formatCoin(result.bet.amount) + ' Bal' +
+        '\\nPotential win: ' + formatCoin(result.bet.potentialWin) + ' Bal' +
+        '\\nBalance: ' + formatCoin(result.balance) + ' Bal', message.message_id);
+    }
+
+    if (command?.name === 'auctionchannel') {
+      if (!isConfiguredOwner(from.id)) throw new Error('OWNER_ONLY');
+      const channelId = Number(String(command.args || '').trim());
+      if (!Number.isSafeInteger(channelId) || channelId === 0) throw new Error('AUCTION_CHANNEL_INVALID');
+      await setSetting('auction_channel_id', channelId);
+      return send(chatId, '✅ Auction channel configured: ' + channelId, message.message_id);
+    }
+    if (command?.name === 'auction') {
+      const values = args(command.args);
+      if (values.length < 3) {
+        return send(chatId, 'အသုံးပြုပုံ: /auction <starting_bid> <min_increment> <minutes> <title>\\nဥပမာ: /auction 10000 1000 30 Yae Miko Card', message.message_id);
+      }
+      const media = message.reply_to_message;
+      const mediaType = media?.photo?.length ? 'photo' : media?.video?.file_id ? 'video' : null;
+      const fileId = mediaType === 'photo' ? media.photo[media.photo.length - 1].file_id : mediaType === 'video' ? media.video.file_id : null;
+      const result = await createAuction({ actorId: from.id, chatId, startingBid: values[0], minIncrement: values[1], minutes: values[2], title: values.slice(3).join(' ') || 'Auction Item', mediaType, fileId });
+      return send(chatId, '✅ Auction created and posted.\\nAuction ID: ' + result.auctionId +
+        '\\nChannel: ' + result.channelId + '\\nEnds: ' + result.endAt, message.message_id);
+    }
+    if (command?.name === 'auctionstatus') {
+      if (!isConfiguredOwner(from.id)) throw new Error('OWNER_ONLY');
+      const rows = await showAuctionStatus(command.args.trim() || null);
+      if (!rows.length) return send(chatId, 'Auction record မရှိသေးပါ။', message.message_id);
+      return send(chatId, rows.map(a => '💎 ' + a.title + '\\nID: ' + a.auctionId + '\\nStatus: ' + a.status +
+        '\\nCurrent bid: ' + formatCoin(a.currentBid || a.startingBid) + ' Bal\\nBids: ' + a.totalBids +
+        '\\nHighest bidder: ' + (a.highestBidderName || a.highestBidderId || 'None') +
+        '\\nEnds: ' + (a.endAt ? new Date(a.endAt).toISOString() : '—')).join('\\n\\n'), message.message_id);
+    }
+    if (command?.name === 'auctionfinish') {
+      const result = await finalizeAuction(String(command.args || '').trim(), from.id, true);
+      return send(chatId, result.duplicate ? 'ℹ️ Auction already finalized.' : '✅ Auction finalized: ' + result.auction.auctionId +
+        '\\nStatus: ' + result.auction.status, message.message_id);
+    }
+    if (command?.name === 'auctioncancel') {
+      const result = await cancelAuction(String(command.args || '').trim(), from.id);
+      return send(chatId, result.duplicate ? 'ℹ️ Auction already cancelled.' : '🛑 Auction cancelled and current bid refunded.', message.message_id);
+    }
+    if (command?.name === 'bid' || isAuctionPlainBid) {
+      const bidAmount = command?.name === 'bid' ? command.args : String(message.text || '').trim();
+      const auction = await findAuctionForReply(message);
+      if (!auction) return send(chatId, 'Auction post ကို reply လုပ်ပြီး .bid <amount> သို့မဟုတ် amount တစ်ခု ပို့ပါ။', message.message_id);
+      const result = await placeAuctionBid({ auction, telegramUser: from, amount: bidAmount, messageId: message.message_id, bidChatId: chatId });
+      return send(chatId, '✅ AUCTION BID ACCEPTED\\nAuction: ' + auction.auctionId +
+        '\\nNew bid: ' + formatCoin(result.auction.currentBid) + ' Bal' +
+        '\\nBalance: ' + formatCoin(result.balance) + ' Bal' +
+        (result.previousBidderId ? '\\nPrevious top bid refunded.' : ''), message.message_id);
+    }
+
+    if (command?.name === 'dailytournament' || command?.name === 'tournament') {
+      if (!['group', 'supergroup'].includes(message.chat?.type)) return send(chatId, 'Daily Tournament ကို group ထဲမှာပဲ ကြည့်နိုင်ပါတယ်။', message.message_id);
+      const rows = await getDailyTournament({ game: 'mines', chatId, limit: 10 });
+      if (!rows.length) return send(chatId, '🏆 BIKA Daily Mines Tournament\\nဒီနေ့ record မရှိသေးပါ။\\nစတင်ရန်: /mines 1000', message.message_id);
+      const lines = rows.map((row, i) => (i + 1) + '. ' + (row.username ? '@' + row.username : (row.firstName || 'Player ' + row.userId)) +
+        ' — Profit: ' + formatCoin(row.score || 0) + ' Bal · Best: ' + formatCoin(row.bestWin || 0) +
+        ' · Games: ' + Number(row.games || 0));
+      return send(chatId, '🏆 BIKA DAILY MINES TOURNAMENT\\n' + lines.join('\\n'), message.message_id);
     }
 
     if (isTwoDBet) {
@@ -361,11 +500,13 @@ export default async function (message) {
       );
     }
     if (command.name === 'transfer') {
-      return send(
-        chatId,
-        '⚠️ /transfer chat command ကို preview မှာ ပိတ်ထားဆဲပါ။ Mini App wallet transfer က isolated atomic ledger ကို သုံးပေမယ့် test bot မှာ replay/concurrency စမ်းသပ်မှု မပြီးမချင်း production အတွက် မဖွင့်ပါ။',
-        message.message_id,
-      );
+      const transferArgs = args(command.args);
+      if (transferArgs.length < 2) return send(chatId, 'အသုံးပြုပုံ: /transfer <Wallet_ID> <amount>', message.message_id);
+      const transferId = 'tg:' + String(chatId) + ':' + String(message.message_id);
+      const result = await transferByWalletId(from.id, transferArgs[0], transferArgs[1],
+        { source: 'telegram_command', chatId, messageId: message.message_id }, 'wallet-transfer:' + from.id + ':' + transferId);
+      return send(chatId, '✅ Transfer complete\\nAmount: ' + formatCoin(result.amount) + ' Bal\\nYour balance: ' +
+        formatCoin(result.sender?.balance || 0) + ' Bal\\nRecipient: ' + (result.recipient?.walletId || transferArgs[0]), message.message_id);
     }
 
     const user = await ensureUser(from);
@@ -457,7 +598,7 @@ export default async function (message) {
 
     if (command.name === 'slot') {
       await assertGameEnabled('slot');
-      const result = await playSlot(user.tgId, bet);
+      const result = await playSlot(user.tgId, bet, 'tg:' + chatId + ':' + message.message_id, { groupId: chatId });
       return send(
         chatId,
         '🎰 SLOT\n\n' + result.reels.join(' | ') +
@@ -514,7 +655,7 @@ export default async function (message) {
       }
     }
     if (command.name === 'plinko') {
-      const result = await playPlinko(user.tgId, bet);
+      const result = await playPlinko(user.tgId, bet, 'tg:' + chatId + ':' + message.message_id);
       return send(
         chatId,
         '🟡 PLINKO\nMultiplier: x' + result.multiplier +
@@ -524,7 +665,7 @@ export default async function (message) {
       );
     }
     if (command.name === 'wheel') {
-      const result = await wheelSpin(user.tgId, bet);
+      const result = await wheelSpin(user.tgId, bet, 'tg:' + chatId + ':' + message.message_id);
       return send(
         chatId,
         '🎡 LUCKY WHEEL\nReward: ' + result.reward + '%' +
@@ -534,7 +675,7 @@ export default async function (message) {
       );
     }
     if (command.name === 'crash') {
-      const result = await crashStart(user.tgId, bet);
+      const result = await crashStart(user.tgId, bet, 'tg:' + chatId + ':' + message.message_id);
       return send(
         chatId,
         '🚀 ROCKET CRASH\nRound started.\nCurrent: x1.00\n\nPress Cash Out before the rocket crashes.',
@@ -544,7 +685,7 @@ export default async function (message) {
     }
     if (command.name === 'mines' || command.name === 'mine') {
       await assertGameEnabled('mines');
-      await minesStart(user.tgId, bet);
+      await minesStart(user.tgId, bet, 'tg:' + chatId + ':' + message.message_id);
       return send(
         chatId,
         '💣 MINES\nRound started. Multiplier x1.00\nChoose a tile.',
