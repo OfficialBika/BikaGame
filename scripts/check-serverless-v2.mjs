@@ -42,6 +42,7 @@ const maintenance = await readFile(join(root, 'tgcloud/lib/maintenance.js'), 'ut
 const config = await readFile(join(root, 'tgcloud/lib/config.js'), 'utf8');
 const controlNames = await readFile(join(root, 'tgcloud/lib/gameControlNames.js'), 'utf8');
 const miniHandler = await readFile(join(root, 'tgcloud/lib/mini.js'), 'utf8');
+const starsInvoiceEndpoint = await readFile(join(root, 'tgcloud/endpoints/starsInvoice.js'), 'utf8');
 const groupApproval = await readFile(join(root, 'tgcloud/lib/groupApproval.js'), 'utf8');
 const groupApprovalPolicy = await readFile(join(root, 'tgcloud/lib/groupApprovalPolicy.js'), 'utf8');
 const broadcast = await readFile(join(root, 'tgcloud/lib/broadcast.js'), 'utf8');
@@ -121,7 +122,9 @@ assert.match(message, /successful_payment/);
 assert.match(message, /getMaintenanceMode\(\)/);
 assert.match(message, /Maintenance Mode OFF/);
 assert.match(callbacks, /getMaintenanceMode\(\)/);
-assert.match(callbacks, /MAINTENANCE_MODE ON/);
+assert.match(callbacks, /Maintenance Mode ON/);
+assert.match(miniHandler, /assertMaintenanceAccess\(userId\)/, 'Mini App dispatch must enforce maintenance mode');
+assert.match(starsInvoiceEndpoint, /assertMaintenanceAccess\(Number\(user\.id\)\)/, 'Mini App Stars invoice creation must enforce maintenance mode');
 
 // Group approval must fail closed, verify bot admin status, and gate callback entry points.
 assert.match(groupApproval, /api\.getChatMember\(/);
