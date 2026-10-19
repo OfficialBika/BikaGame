@@ -72,6 +72,20 @@ export default async function (message) {
   const from = message?.from;
   if (!chatId || !from || from.is_bot) return;
 
+  // Only a successful_payment update can credit a Stars purchase.
+  if (message?.successful_payment) {
+    const result = await creditSuccessfulStars(message);
+    const duplicateNote = result.duplicate ? ' (already processed; no duplicate credit)' : '';
+    return send(
+      chatId,
+      '✅ Telegram Stars payment confirmed' + duplicateNote +
+        '\\nStars: ' + result.stars +
+        '\\nAdded: ' + formatCoin(result.balanceAmount) + ' Bal' +
+        '\\nBalance: ' + formatCoin(result.balance) + ' Bal',
+      message.message_id,
+    );
+  }
+
   const command = parseCommand(message.text);
   if (!command) return;
 
