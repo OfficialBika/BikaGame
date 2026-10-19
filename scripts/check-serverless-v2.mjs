@@ -27,6 +27,8 @@ for (const file of files) {
 
 const game = await readFile(join(root, 'tgcloud/lib/game.js'), 'utf8');
 const economy = await readFile(join(root, 'tgcloud/lib/economy.js'), 'utf8');
+const duelPlan = await readFile(join(root, 'tgcloud/lib/duelSettlementPlan.js'), 'utf8');
+const diceDuel = await readFile(join(root, 'tgcloud/lib/diceDuel.js'), 'utf8');
 const mini = await readFile(join(root, 'tgcloud/lib/mini.js'), 'utf8');
 const schema = await readFile(join(root, 'tgcloud/schema.js'), 'utf8');
 const message = await readFile(join(root, 'tgcloud/handlers/message.js'), 'utf8');
@@ -70,6 +72,17 @@ assert.ok(message.includes("assertGameEnabled('slot')"), 'slot command must hono
 assert.ok(message.includes("assertGameEnabled('mines')"), 'mines command must honor its switch');
 assert.ok(message.includes("assertGameEnabled('blackjack')"), 'blackjack command must honor its switch');
 assert.ok(message.includes("assertGameEnabled('shan')"), 'shan command must honor its switch');
+assert.ok(message.includes("assertGameEnabled('dice')"), 'dice challenge must honor its switch');
+assert.match(callbacks, /game === 'dice'/, 'Dice accept/cancel callbacks must be wired');
+assert.match(callbacks, /api\\.sendDice/, 'Dice must use real Telegram dice values');
+assert.match(callbacks, /settleDiceChallenge/, 'Dice callback must use resumable settlement');
+assert.match(diceDuel, /CHALLENGE_TIMEOUT_MS = 60000/);
+assert.match(diceDuel, /status = 'rolling'/);
+assert.match(economy, /buildDuelSettlementRow/);
+assert.match(economy, /REFUND_USER_NOT_FOUND/);
+assert.match(economy, /json_each\\(NEW\\.refunds\\)/);
+assert.match(duelPlan, /__settlement:/);
+assert.match(duelPlan, /fromAccountUserId: target/);
 assert.equal((message.match(/\\\\n(?:Stars|Added|Balance|Rate):/g) || []).length, 0, 'messages must not print escaped literal \\n sequences');
 
 // Existing features must preserve one-write settlement and idempotency guards.
