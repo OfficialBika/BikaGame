@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { maintenanceEnabledFromValue, maintenanceCommandAction, isConfiguredOwnerId } from '../tgcloud/lib/maintenancePolicy.js';
+import { maintenanceEnabledFromValue, maintenanceCommandAction, isConfiguredOwnerId, maintenanceActionAllowed, maintenanceCallbackAllowed } from '../tgcloud/lib/maintenancePolicy.js';
 
 assert.equal(maintenanceEnabledFromValue(null), false, 'missing setting defaults OFF');
 assert.equal(maintenanceEnabledFromValue(false), false, 'explicit false means OFF');
@@ -14,4 +14,12 @@ assert.equal(isConfiguredOwnerId(12345, 12345), true);
 assert.equal(isConfiguredOwnerId('12345', 12345), true);
 assert.equal(isConfiguredOwnerId(12345, 0), false, 'unset owner must fail closed');
 assert.equal(isConfiguredOwnerId(12345, 'not-an-id'), false);
+assert.equal(maintenanceActionAllowed('crashCashout'), true, 'existing Crash stake can be cashed out during maintenance');
+assert.equal(maintenanceActionAllowed('blackjackStand'), true, 'existing Blackjack round can settle during maintenance');
+assert.equal(maintenanceActionAllowed('walletTransfer'), false, 'new transfers are blocked during maintenance');
+assert.equal(maintenanceActionAllowed('slotSpin'), false, 'new wagers are blocked during maintenance');
+assert.equal(maintenanceCallbackAllowed('mines:cashout'), true);
+assert.equal(maintenanceCallbackAllowed('shan:stay:room-1'), true);
+assert.equal(maintenanceCallbackAllowed('dice:cancel:challenge-1'), true);
+assert.equal(maintenanceCallbackAllowed('dice:accept:challenge-1'), false, 'maintenance must not start new Dice wagers');
 console.log('Maintenance policy tests passed (default OFF, explicit OFF, ON, corrupt-state fail-closed, legacy command semantics, owner fail-closed).');
