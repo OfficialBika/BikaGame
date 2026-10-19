@@ -47,5 +47,6 @@ assert.match(message, /startBroadcast\(/);
 assert.match(message, /resumeBroadcast\(/);
 assert.match(message, /cancelBroadcast\(/);
 assert.match(message, /parseBroadcastRequest/);
-assert.match(callbacks, /broadcast:resume:/);
+assert.match(callbacks, /game === 'broadcast' && action === 'resume'/);
+assert.match(callbacks, /resumeBroadcast\(/);
 console.log('Broadcast policy and service wiring tests passed (text/copy, retry, rate cap, lock, pause/resume/cancel).');
