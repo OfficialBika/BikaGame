@@ -3,8 +3,8 @@ const groups = [
     id: 'account',
     label: 'Account and core economy',
     status: 'foundation-added',
-    features: ['/start', '/help', '/balance', '/wallet', '/top10', '/history', 'atomic ledger settlement'],
-    detail: 'The serverless preview uses its own database. Wallet transfer is not production-parity safe and production data has not been imported.',
+    features: ['/start', '/help', '/balance', '/wallet', '/top10', '/history', 'atomic ledger settlement', 'Mini App wallet transfer with persistent wallet IDs'],
+    detail: 'The serverless preview uses its own database. Mini App wallet transfer now uses a single idempotent ledger row and generated wallet IDs; test-bot replay/concurrency smoke tests remain. The /transfer chat command stays disabled. Production data has not been imported.',
   },
   {
     id: 'single-round-games',
@@ -60,7 +60,7 @@ const groups = [
     label: 'Remaining main features',
     status: 'schema-foundation',
     features: ['Sports betting/events', 'Tournaments', 'Promo RTP', 'Admin/owner controls', 'Shop/inventory/sell', 'Scheduled/background jobs', 'Production data import'],
-    detail: 'Schema or partial route presence is not feature parity. Handlers, configuration, migrations, data import, and behavioral tests remain required.',
+    detail: 'Schema or partial route presence is not feature parity. Mini App wallet transfer has a single-row atomic ledger implementation; Auctions, 2D, sports betting, full shop/inventory/sell, tournament parity, background scheduling, handlers, configuration, migrations, import, and behavioral tests remain required.',
   },
 ];
 export function getFeatureStatus() {
