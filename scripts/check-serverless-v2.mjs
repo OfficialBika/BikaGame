@@ -55,7 +55,8 @@ for (const phrase of ['Auction', '2D', 'Broadcast', 'Group approval', 'Data impo
 assert.match(featureStatus, /productionDataImported: false/);
 assert.match(featureStatus, /productionCutoverApproved: false/);
 assert.match(featureStatus, /status: 'BLOCKED'/);
-for (const status of ['not-ported', 'schema-only', 'preview-only']) assert.ok(featureStatus.includes(status), 'missing explicit incomplete status: ' + status);
+for (const status of ['schema-only', 'preview-only']) assert.ok(featureStatus.includes(status), 'missing explicit incomplete status: ' + status);
+assert.match(featureStatus, /partial-resumable-batch-needs-runtime-test/);
 assert.match(featureStatus, /\.dice on\/off/);
 assert.match(featureStatus, /Broadcast text\/copy/);
 assert.match(featureStatus, /2D betting schedule and settlement/);
