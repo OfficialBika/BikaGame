@@ -281,9 +281,10 @@ def test_wallet_transfer_is_atomic_idempotent_and_not_a_game_result():
     assert balances[101]["balance"] == 375 and balances[202]["balance"] == 625, balances
     assert con.execute("SELECT COUNT(*) FROM transactions WHERE type='gift'").fetchone()[0] == 1
 
-    # Insufficient balance aborts the whole ledger insert; recipient is untouched.
+    # Request more than the sender's remaining 375 balance. The whole ledger
+    # insert must abort; recipient is untouched.
     try:
-        con.execute(transfer, ("wallet-transfer:insufficient",))
+        con.execute(transfer.replace("VALUES ('gift', '101', '202', 125, ?", "VALUES ('gift', '101', '202', 400, ?"), ("wallet-transfer:insufficient",))
     except sqlite3.IntegrityError as exc:
         assert "USER_INSUFFICIENT" in str(exc)
     else:
