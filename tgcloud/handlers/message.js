@@ -4,6 +4,7 @@ import { ensureUser, formatCoin, displayName, listTopUsers } from '../lib/users.
 import { claimDailyReward, getSetting, setSetting, transferByWalletId, recordLedgerOperation, getTreasury } from '../lib/economy.js';
 import { getFeatureStatus } from '../lib/featureStatus.js';
 import { getMaintenanceMode, setMaintenanceMode, isConfiguredOwner, maintenanceCommandAction } from '../lib/maintenance.js';
+import { ownerAdjustBalance, setLegacySlotWinRate, getLegacySlotWinRate, setVipWinRate, setTotalSupply, getTreasuryDashboard } from '../lib/adminEconomy.js';
 import { parseGameToggle, normalizeGameKey } from '../lib/gameControlNames.js';
 import { createDiceChallenge, activateDiceChallenge, failDiceChallengeCreation } from '../lib/diceDuel.js';
 import { setGameEnabled, assertGameEnabled, listGameStates } from '../lib/gameControls.js';
@@ -214,6 +215,104 @@ export default async function (message) {
     if (isGroupChat(message.chat)) {
       const access = await checkGroupAccess(message.chat, from.id);
       if (!access.allowed) return send(chatId, groupAccessMessage(access.reason), message.message_id);
+    }
+
+    const adminValues = args(command?.args);
+    if (command?.name === 'promortp') {
+      if (!isGroupChat(message.chat)) return send(chatId, '/promortp ကို group ထဲမှာပဲ သုံးပါ။', message.message_id);
+      const promo = await startPromoRtp({ actorId: from.id, chatId, chatTitle: message.chat.title || message.chat.username || String(chatId), rtpInput: adminValues[0], durationText: adminValues[1] });
+      const notice = await send(chatId, '🎰 Promotion Time Start\\nPromo RTP: ' + promo.rtp + '%\\nPromo Time: ' + promo.durationText +
+        '\\nPromo Group: ' + (promo.groupName || chatId) + '\\nExpiry: ' + new Date(promo.expiresAt).toISOString(), message.message_id);
+      const noticeId = Number(notice?.message_id ?? notice?.result?.message_id);
+      if (noticeId > 0) { try { await api.pinChatMessage({ chat_id: chatId, message_id: noticeId, disable_notification: false }); } catch (_) {} }
+      return notice;
+    }
+    if (command?.name === 'setwebrtp') {
+      if (adminValues.length < 2) return send(chatId, 'Usage: /setwebrtp <rocket|slot|plinko|wheel|mines|blackjack|shan> <40–95>', message.message_id);
+      const result = await setWebGameRtp(from.id, adminValues[0], adminValues[1]);
+      return send(chatId, '✅ ' + result.label + ' RTP updated: ' + result.rtp + '%', message.message_id);
+    }
+    if (command?.name === 'webrtp') {
+      if (adminValues[0]) {
+        const rtp = await getWebGameRtp(adminValues[0]);
+        return send(chatId, '🎮 ' + adminValues[0].toUpperCase() + ' Web RTP: ' + rtp + '%', message.message_id);
+      }
+      const values = await getAllWebGameRtps();
+      return send(chatId, '🎮 Web Game RTP Dashboard\\n' +
+        Object.entries(values).map(([game, rtp]) => game.toUpperCase() + ': ' + rtp + '%').join('\\n') +
+        '\\nChange with /setwebrtp <game> <percent>', message.message_id);
+    }
+    if (command?.name === 'setrtp') {
+      if (adminValues.length >= 2) {
+        const result = await setWebGameRtp(from.id, adminValues[0], adminValues[1]);
+        return send(chatId, '✅ ' + result.label + ' RTP updated: ' + result.rtp + '%', message.message_id);
+      }
+      if (!adminValues[0]) return send(chatId, 'Usage: /setrtp <0–100> (legacy Slot) or /setrtp <game> <40–95>', message.message_id);
+      const rtp = await setLegacySlotWinRate(from.id, adminValues[0]);
+      return send(chatId, '✅ Legacy Slot win rate updated: ' + rtp + '%', message.message_id);
+    }
+    if (command?.name === 'rtp') {
+      if (adminValues[0]) {
+        try {
+          const rtp = await getWebGameRtp(adminValues[0]);
+          return send(chatId, '🎮 ' + adminValues[0].toUpperCase() + ' Web RTP: ' + rtp + '%', message.message_id);
+        } catch (_) {}
+      }
+      const rtp = await getLegacySlotWinRate();
+      return send(chatId, '🎰 Legacy Slot win rate: ' + rtp + '%\\nWeb games: /webrtp', message.message_id);
+    }
+    if (command?.name === 'setvipwr') {
+      if (!adminValues[0]) return send(chatId, 'Usage: /setvipwr <0–100>', message.message_id);
+      const rate = await setVipWinRate(from.id, adminValues[0]);
+      return send(chatId, '✅ VIP Win Rate updated: ' + rate + '%', message.message_id);
+    }
+    if (command?.name === 'vipwr') {
+      const dashboard = await getTreasuryDashboard(from.id);
+      return send(chatId, '📊 VIP Win Rate: ' + dashboard.vipWinRate + '%', message.message_id);
+    }
+    if (command?.name === 'settotal') {
+      if (!adminValues[0]) return send(chatId, 'Usage: /settotal <amount>', message.message_id);
+      const total = await setTotalSupply(from.id, adminValues[0]);
+      const dashboard = await getTreasuryDashboard(from.id);
+      return send(chatId, '✅ Preview Treasury Initialized\\nTotal Supply: ' + formatCoin(total) +
+        ' Bal\\nBot Bank: ' + formatCoin(dashboard.ownerBalance) + ' Bal', message.message_id);
+    }
+    if (command?.name === 'treasury') {
+      const d = await getTreasuryDashboard(from.id);
+      const web = await getAllWebGameRtps();
+      return send(chatId, '🏦 Treasury Dashboard (isolated preview)\\n━━━━━━━━━━━━━━━━\\n' +
+        'Total Supply: ' + formatCoin(d.totalSupply) + ' Bal\\n' +
+        'Bot Bank: ' + formatCoin(d.ownerBalance) + ' Bal\\n' +
+        'VIP WR: ' + d.vipWinRate + '%\\nLegacy Slot WR: ' + d.legacySlotWinRate + '%\\n' +
+        Object.entries(web).map(([game, rtp]) => game.toUpperCase() + ': ' + rtp + '%').join(' · '), message.message_id);
+    }
+    if (command?.name === 'addbal' || command?.name === 'rmbal') {
+      const mode = command.name === 'addbal' ? 'add' : 'remove';
+      const target = message.reply_to_message?.from;
+      const targetId = target?.id || Number(adminValues[0]);
+      const rawAmount = target ? adminValues[0] : adminValues[1];
+      if (target) await ensureUser(target);
+      if (!targetId || !rawAmount) return send(chatId, 'အသုံးပြုပုံ: reply + /' + command.name + ' <amount> သို့မဟုတ် /' + command.name + ' <userId> <amount>', message.message_id);
+      const result = await ownerAdjustBalance({
+        actorId: from.id, targetUserId: targetId, amount: rawAmount, mode,
+        idempotencyKey: 'owner-' + mode + ':' + from.id + ':' + chatId + ':' + message.message_id,
+      });
+      return send(chatId, (mode === 'add' ? '✅ Balance Added' : '✅ Balance Removed') +
+        '\\nUser ID: ' + targetId + '\\nAmount: ' + (mode === 'add' ? '+' : '-') + formatCoin(result.amount) +
+        ' Bal\\nBefore: ' + formatCoin(result.before) + ' Bal\\nAfter: ' + formatCoin(result.after) +
+        ' Bal\\nBot Bank: ' + formatCoin(result.treasury) + ' Bal' +
+        (result.duplicate ? '\\n(Duplicate request safely ignored)' : ''), message.message_id);
+    }
+
+    if (command?.name === 'shopon' || command?.name === 'shopoff') {
+      const enabled = command.name === 'shopon';
+      await setShopEnabled(from.id, enabled);
+      return send(chatId, enabled ? '✅ Shop System ON' : '⛔ Shop System OFF', message.message_id);
+    }
+    if (command?.name === 'sellon' || command?.name === 'selloff') {
+      const enabled = command.name === 'sellon';
+      await setSetting('sell_system_enabled', { enabled, updatedBy: from.id, updatedAt: new Date().toISOString() });
+      return send(chatId, enabled ? '✅ Sell System ON' : '⛔ Sell System OFF', message.message_id);
     }
 
     if (command?.name === 'setevent') {
