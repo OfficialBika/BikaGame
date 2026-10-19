@@ -51,9 +51,9 @@ const groups = [
   {
     id: 'broadcast',
     label: 'Broadcast',
-    status: 'not-ported',
-    features: ['Broadcast text/copy', 'Progress and cancellation', '429 retry-after handling', 'Persistent job and lock', 'Approved groups only'],
-    detail: 'The production bot has a MongoDB-backed broadcast service. Equivalent Serverless V2 delivery/recovery service is not yet implemented.',
+    status: 'partial-resumable-batch-needs-runtime-test',
+    features: ['Owner-only text/copy', 'Approved groups only', '25 sends/sec rate cap', 'Bounded concurrency and retry-after', 'Persistent target snapshot and lock', 'Progress/cancel/resume'],
+    detail: 'V2 now stores a durable job and target snapshot, supports text and copyMessage mode, filters groups to approved rows, caps each invocation to 100 targets, and provides status/cancel/resume controls with retry/backoff. Unlike the always-running production service, bigger broadcasts require explicit /broadcast resume per batch; Telegram runtime tests, cross-invocation lock behavior, and full main parity remain unverified.',
   },
   {
     id: 'other-main-features',
