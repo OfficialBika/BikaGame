@@ -27,6 +27,7 @@ jobs:
           node --check scripts/test-broadcast-policy.mjs
           node --check scripts/test-wallet-policy.mjs
           node --check scripts/test-two-d-policy.mjs
+          node --check scripts/test-stars-policy.mjs
       - name: Test per-game control command parsing
         run: node scripts/test-game-control-names.mjs
       - name: Test slash and dot game command parser
@@ -41,6 +42,8 @@ jobs:
         run: node scripts/test-wallet-policy.mjs
       - name: Test 2D rules and Yangon schedule policy
         run: node scripts/test-two-d-policy.mjs
+      - name: Test Stars payment record validation
+        run: node scripts/test-stars-policy.mjs
       - name: Test actual SQLite ledger triggers
         run: python3 scripts/test-dice-ledger-triggers.py
       - name: Check V2 contracts
