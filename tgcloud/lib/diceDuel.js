@@ -149,6 +149,13 @@ export async function claimDiceChallenge(sessionId, actorId) {
     return { claimed: false, expired: true, session: { ...session, status: 'expired' } };
   }
 
+  const challenger = await userById(session.state?.challengerId);
+  const target = await userById(session.state?.targetUserId);
+  const amount = Number(session.state?.bet);
+  if (!challenger || !target || Number(challenger.balance || 0) < amount || Number(target.balance || 0) < amount) {
+    throw new EndpointError('Both players must have enough balance to accept a Dice Duel.', { code: 'DICE_BALANCE_INSUFFICIENT' });
+  }
+
   const ms = Math.floor(Date.now() / 1000);
   const result = await db.run(
     "UPDATE game_sessions SET status = 'rolling', updated_at = :now WHERE id = :id AND game = 'dice' AND status = 'waiting' AND expires_at > :now RETURNING id",
@@ -198,9 +205,9 @@ export async function settleDiceChallenge(sessionId) {
   return { ok: true, duplicate: settlement.duplicate, session: { ...session, state: nextState, status: 'settled' }, settlement };
 }
 
-export async function failDiceChallenge(sessionId) {
+export async function failDiceChallenge(sessionId, force = false) {
   const session = await getDiceChallenge(sessionId);
-  if (!session || session.status !== 'rolling' || session.state?.rollResult) return false;
+  if (!session || session.status !== 'rolling' || (session.state?.rollResult && !force)) return false;
   await db.update(gameSessions).set({ status: 'failed', updatedAt: now() })
     .where(and(eq(gameSessions.id, session.id), eq(gameSessions.status, 'rolling'))).run();
   return true;
