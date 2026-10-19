@@ -187,6 +187,9 @@ export async function getGroupStatus(chat) {
 }
 
 export function groupAccessMessage(reason) {
+  if (reason === 'admin_unverified') {
+    return '⚠️ Bot admin status ကို Telegram မှာ အတည်မပြုနိုင်သေးပါ။ ခဏနေပြီး ပြန်စမ်းပါ။';
+  }
   if (reason === 'admin_required') {
     return '⚠️ Bot ကို group admin ပေးပြီး Owner က /approve ပေးမှ အသုံးပြုနိုင်ပါမယ်။';
   }
