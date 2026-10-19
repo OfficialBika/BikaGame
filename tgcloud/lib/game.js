@@ -64,6 +64,47 @@ async function updateSession(id, state, status = 'active') {
   return db.select().from(gameSessions).where(eq(gameSessions.id, id)).get();
 }
 
+async function startWagerSession(userId, game, amount, requestId, makeState) {
+  const id = Number(userId), bet = betOf(amount);
+  const requestKey = String(requestId || '').trim().slice(0, 120);
+  const sessionId = operationId(game, id, requestKey);
+  const activeError = game === 'crash' ? 'CRASH_RUNNING' : 'MINES_ACTIVE';
+  const betType = game === 'crash' ? 'crash_bet' : 'mines_bet';
+
+  async function fund(session) {
+    if (session.state?.funded !== false) return session;
+    try {
+      await debit(id, bet, betType, { game, sessionId: session.id }, game + '-bet:' + session.id);
+    } catch (error) {
+      try { await updateSession(session.id, { ...session.state, funded: false }, 'cancelled'); } catch (_) {}
+      throw error;
+    }
+    return updateSession(session.id, { ...session.state, funded: true });
+  }
+
+  let session = await activeSession(id, game);
+  if (session) {
+    if (requestKey && session.id !== sessionId) throw new Error(activeError);
+    if (Number(session.state?.bet) !== bet) throw new Error(activeError);
+    return fund(session);
+  }
+
+  const state = { ...makeState(bet), funded: false, requestId: requestKey || null };
+  try {
+    session = await createSession(id, game, state, sessionId);
+  } catch (error) {
+    session = await activeSession(id, game);
+    if (!session) {
+      const previous = await db.select().from(gameSessions).where(eq(gameSessions.id, sessionId)).get();
+      if (previous) throw new Error('SESSION_ALREADY_FINISHED');
+      throw error;
+    }
+    if (requestKey && session.id !== sessionId) throw new Error(activeError);
+    if (Number(session.state?.bet) !== bet) throw new Error(activeError);
+  }
+  return fund(session);
+}
+
 function weighted(items) {
   const total = items.reduce((a, x) => a + x.w, 0);
   let r = Math.random() * total;
