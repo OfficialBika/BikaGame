@@ -1,0 +1,3 @@
+# Local Telegram Serverless CLI credentials/state must never be committed.
+.tgcloud/
+node_modules/
