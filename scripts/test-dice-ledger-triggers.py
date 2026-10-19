@@ -24,18 +24,22 @@ def extract_template_array(source, name):
 
 MATCH = extract_template_array(SOURCE, "triggerSql")
 REFUND_MATCH = extract_template_array(SOURCE, "refundTriggerSql")
+DAILY_MATCH = extract_template_array(SOURCE, "dailyClaimTriggerSql")
 TWO_D_MATCH = extract_template_array(SOURCE, "twoDTriggerSql")
 assert MATCH, "Could not extract triggerSql definitions from economy.js"
 assert REFUND_MATCH, "Could not extract refundTriggerSql definitions from economy.js"
+assert DAILY_MATCH, "Could not extract dailyClaimTriggerSql definitions from economy.js"
 assert TWO_D_MATCH, "Could not extract twoDTriggerSql definitions from economy.js"
-TRIGGERS = tuple(MATCH) + tuple(REFUND_MATCH) + tuple(TWO_D_MATCH)
+TRIGGERS = tuple(MATCH) + tuple(REFUND_MATCH) + tuple(DAILY_MATCH) + tuple(TWO_D_MATCH)
 assert "bika_transactions_before_insert" in TRIGGERS[0]
 assert "bika_transactions_after_insert" in TRIGGERS[1]
 assert "bika_transactions_refunds_before_insert" in TRIGGERS[2]
 assert "bika_transactions_refunds_after_insert" in TRIGGERS[3]
 assert "NEW.refunds" in TRIGGERS[2] and "NEW.refunds" in TRIGGERS[3]
-assert "bika_transactions_two_d_before_insert" in TRIGGERS[4]
-assert "bika_transactions_two_d_after_insert" in TRIGGERS[5]
+assert "bika_transactions_daily_claim_before_insert" in TRIGGERS[4]
+assert "bika_transactions_daily_claim_after_insert" in TRIGGERS[5]
+assert "bika_transactions_two_d_before_insert" in TRIGGERS[6]
+assert "bika_transactions_two_d_after_insert" in TRIGGERS[7]
 
 
 def database():
