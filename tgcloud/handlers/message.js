@@ -322,7 +322,7 @@ export default async function (message) {
     if (command.name === 'transfer') {
       return send(
         chatId,
-        '⚠️ Wallet transfer is temporarily disabled in this preview. It will remain disabled until sender balance, recipient balance and ledger writes can be committed atomically.',
+        '⚠️ /transfer chat command ကို preview မှာ ပိတ်ထားဆဲပါ။ Mini App wallet transfer က isolated atomic ledger ကို သုံးပေမယ့် test bot မှာ replay/concurrency စမ်းသပ်မှု မပြီးမချင်း production အတွက် မဖွင့်ပါ။',
         message.message_id,
       );
     }
@@ -355,7 +355,7 @@ export default async function (message) {
         '💳 BIKA Preview Wallet\n' +
           'ID: ' + user.tgId + '\n' +
           'Balance: ' + formatCoin(user.balance) + ' $\n\n' +
-          'Transfers are disabled in this preview until atomic transfer and ledger writes are available.',
+          'Mini App wallet transfer ကို isolated ledger နဲ့ စမ်းသပ်နေဆဲပါ။ /transfer chat command ကို ပိတ်ထားပြီး production transfer အဖြစ် မသုံးရသေးပါ။',
         message.message_id,
       );
     }
