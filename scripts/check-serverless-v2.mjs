@@ -74,13 +74,13 @@ assert.ok(message.includes("assertGameEnabled('blackjack')"), 'blackjack command
 assert.ok(message.includes("assertGameEnabled('shan')"), 'shan command must honor its switch');
 assert.ok(message.includes("assertGameEnabled('dice')"), 'dice challenge must honor its switch');
 assert.match(callbacks, /game === 'dice'/, 'Dice accept/cancel callbacks must be wired');
-assert.match(callbacks, /api\\.sendDice/, 'Dice must use real Telegram dice values');
+assert.ok(callbacks.includes('api.sendDice'), 'Dice must use real Telegram dice values');
 assert.match(callbacks, /settleDiceChallenge/, 'Dice callback must use resumable settlement');
 assert.match(diceDuel, /CHALLENGE_TIMEOUT_MS = 60000/);
 assert.match(diceDuel, /status = 'rolling'/);
 assert.match(economy, /buildDuelSettlementRow/);
 assert.match(economy, /REFUND_USER_NOT_FOUND/);
-assert.match(economy, /json_each\\(NEW\\.refunds\\)/);
+assert.ok(economy.includes('json_each(NEW.refunds)'), 'atomic refund trigger must be installed');
 assert.match(duelPlan, /__settlement:/);
 assert.match(duelPlan, /fromAccountUserId: target/);
 assert.equal((message.match(/\\\\n(?:Stars|Added|Balance|Rate):/g) || []).length, 0, 'messages must not print escaped literal \\n sequences');
