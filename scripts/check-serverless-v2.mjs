@@ -30,8 +30,17 @@ const economy = await readFile(join(root, 'tgcloud/lib/economy.js'), 'utf8');
 const mini = await readFile(join(root, 'tgcloud/lib/mini.js'), 'utf8');
 const schema = await readFile(join(root, 'tgcloud/schema.js'), 'utf8');
 const message = await readFile(join(root, 'tgcloud/handlers/message.js'), 'utf8');
+const callbacks = await readFile(join(root, 'tgcloud/handlers/callback_query.js'), 'utf8');
 const stars = await readFile(join(root, 'tgcloud/lib/stars.js'), 'utf8');
 const preCheckout = await readFile(join(root, 'tgcloud/handlers/pre_checkout_query.js'), 'utf8');
+const parity = await readFile(join(root, 'docs/SERVERLESS_V2_PARITY.md'), 'utf8');
+
+// V2 must keep production cutover explicitly blocked until main parity and import are proven.
+assert.match(parity, /Production status: BLOCKED/);
+for (const gameName of ['slot', 'bj', 'shan', 'dice', 'mine']) assert.ok(parity.includes('`/' + gameName + ' on|off`'), 'missing switch contract for ' + gameName);
+for (const phrase of ['Auction', '2D', 'Broadcast', 'Group approval', 'Data import', 'rollback']) assert.ok(parity.toLowerCase().includes(phrase.toLowerCase()), 'missing parity gate: ' + phrase);
+
+// Existing features must preserve one-write settlement and idempotency guards.
 assert.match(game, /settleSingleGame/);
 assert.match(game, /playSlot/);
 assert.match(game, /playPlinko/);
@@ -48,7 +57,8 @@ assert.match(schema, /table\('auctions'/);
 assert.ok(message.includes('successful_payment'), 'successful payment handler must be wired');
 assert.ok(message.includes("command.name === 'stars'"), 'Stars invoice command must be wired');
 assert.ok(message.includes("callback_data: 'stars:buy:'"), 'Stars package buttons must be wired');
+assert.ok(callbacks.includes("game === 'mines'"), 'Mines callbacks must be wired');
 assert.ok(stars.includes('creditExternalPurchase'), 'paid Stars balance must use external-credit ledger');
 assert.ok(stars.includes('telegram_payment_charge_id'), 'payment charge ID must be checked');
 assert.ok(preCheckout.includes('validatePreCheckout'), 'pre-checkout validation must be wired');
-console.log('Serverless V2 static contract checks passed (' + files.length + ' backend modules).');
+console.log('Serverless V2 syntax/import/contract checks passed (' + files.length + ' backend modules).');
