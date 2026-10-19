@@ -29,7 +29,7 @@ export function broadcastRetryDelayMs(error, attempt) {
 
 export function parseBroadcastRequest(rawText, hasReply) {
   const raw = String(rawText || '').trim();
-  if (/(^|\\s)(?:-h|--help|help)(?:\\s|$)/i.test(raw)) {
+  if (/(^|\s)(?:-h|--help|help)(?:\s|$)/i.test(raw)) {
     return { action: 'help' };
   }
   if (/^(?:resume|--resume|-resume)$/i.test(raw)) {
@@ -39,8 +39,8 @@ export function parseBroadcastRequest(rawText, hasReply) {
     return { action: 'cancel' };
   }
 
-  const forceCopy = /(^|\\s)(?:-copy|--copy)(?=\\s|$)/i.test(raw);
-  const text = raw.replace(/(^|\\s)(?:-copy|--copy)(?=\\s|$)/ig, ' ').trim();
+  const forceCopy = /(^|\s)(?:-copy|--copy)(?=\s|$)/i.test(raw);
+  const text = raw.replace(/(^|\s)(?:-copy|--copy)(?=\s|$)/ig, ' ').trim();
   if (forceCopy || (!text && hasReply)) {
     return hasReply ? { action: 'start', mode: 'copy', text: '' } : { action: 'invalid-copy' };
   }
