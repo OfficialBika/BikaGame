@@ -2,6 +2,7 @@ import { api } from 'sdk';
 import { ensureUser } from '../lib/users.js';
 import { assertGameEnabled } from '../lib/gameControls.js';
 import { getMaintenanceMode, isConfiguredOwner } from '../lib/maintenance.js';
+import { maintenanceCallbackAllowed } from '../lib/maintenancePolicy.js';
 import { checkGroupAccess, groupAccessMessage } from '../lib/groupApproval.js';
 import { isGroupChat } from '../lib/groupApprovalPolicy.js';
 import { resumeBroadcast } from '../lib/broadcast.js';
@@ -112,7 +113,7 @@ export default async function (query) {
   const data = String(query?.data || '');
   try {
     const maintenance = await getMaintenanceMode();
-    if (maintenance.enabled && !isConfiguredOwner(user.id)) {
+    if (maintenance.enabled && !isConfiguredOwner(user.id) && !maintenanceCallbackAllowed(data)) {
       await api.answerCallbackQuery({
         callback_query_id: query.id,
         text: '🛠️ Bot Maintenance Mode ON — Owner သာ အသုံးပြုနိုင်ပါတယ်။',
