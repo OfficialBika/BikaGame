@@ -12,7 +12,7 @@ import { parseBroadcastRequest } from '../lib/broadcastPolicy.js';
 import { startBroadcast, resumeBroadcast, cancelBroadcast, getBroadcastStatus, assertBroadcastOwner } from '../lib/broadcast.js';
 import { createStarsInvoice, creditSuccessfulStars, STAR_PACKAGES, packageBalance } from '../lib/stars.js';
 import {
-  playSlot, playPlinko, wheelSpin, dailyWheel, crashStart, minesStart,
+  playSlot, playPlinko, wheelSpin, crashStart, minesStart,
   blackjackJoin, shanCreate, shanJoin, history as getGameHistory,
 } from '../lib/game.js';
 import {
