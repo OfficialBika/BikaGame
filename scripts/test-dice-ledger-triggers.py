@@ -24,14 +24,18 @@ def extract_template_array(source, name):
 
 MATCH = extract_template_array(SOURCE, "triggerSql")
 REFUND_MATCH = extract_template_array(SOURCE, "refundTriggerSql")
+TWO_D_MATCH = extract_template_array(SOURCE, "twoDTriggerSql")
 assert MATCH, "Could not extract triggerSql definitions from economy.js"
 assert REFUND_MATCH, "Could not extract refundTriggerSql definitions from economy.js"
-TRIGGERS = tuple(MATCH) + tuple(REFUND_MATCH)
+assert TWO_D_MATCH, "Could not extract twoDTriggerSql definitions from economy.js"
+TRIGGERS = tuple(MATCH) + tuple(REFUND_MATCH) + tuple(TWO_D_MATCH)
 assert "bika_transactions_before_insert" in TRIGGERS[0]
 assert "bika_transactions_after_insert" in TRIGGERS[1]
 assert "bika_transactions_refunds_before_insert" in TRIGGERS[2]
 assert "bika_transactions_refunds_after_insert" in TRIGGERS[3]
 assert "NEW.refunds" in TRIGGERS[2] and "NEW.refunds" in TRIGGERS[3]
+assert "bika_transactions_two_d_before_insert" in TRIGGERS[4]
+assert "bika_transactions_two_d_after_insert" in TRIGGERS[5]
 
 
 def database():
@@ -60,6 +64,19 @@ def database():
         status TEXT, payload TEXT, telegram_payment_charge_id TEXT,
         invoice_payload TEXT, created_at INTEGER, updated_at INTEGER
       );
+      CREATE TABLE two_d_events (
+        id TEXT PRIMARY KEY, date_key TEXT UNIQUE, status TEXT NOT NULL,
+        close_at INTEGER, created_at INTEGER, updated_at INTEGER
+      );
+      CREATE TABLE two_d_bets (
+        id TEXT PRIMARY KEY, event_id TEXT NOT NULL, user_id INTEGER NOT NULL,
+        number TEXT NOT NULL, amount INTEGER NOT NULL, potential_win INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'pending', data TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE two_d_positions (
+        id TEXT PRIMARY KEY, event_id TEXT NOT NULL, user_id INTEGER NOT NULL,
+        number TEXT NOT NULL, amount INTEGER NOT NULL DEFAULT 0, data TEXT, updated_at INTEGER NOT NULL
+      );
       CREATE TABLE transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT, from_user_id TEXT,
         to_user_id TEXT, amount INTEGER NOT NULL, idempotency_key TEXT UNIQUE,
@@ -72,6 +89,8 @@ def database():
       );
       INSERT INTO users VALUES (101, 500, 0, 0, 1), (202, 500, 0, 0, 1);
       INSERT INTO treasury VALUES ('treasury', 0, 1);
+      INSERT INTO two_d_events VALUES ('event-open', '2026-10-19-am', 'open', 9999999999, 123, 123);
+      INSERT INTO two_d_events VALUES ('event-closed', '2026-10-18-pm', 'closed', 9999999999, 123, 123);
     """)
     for trigger in TRIGGERS:
         con.executescript(trigger + ";")
@@ -165,6 +184,81 @@ def test_insufficient_balance_fails_without_partial_write():
     assert con.execute("SELECT COUNT(*) FROM game_history").fetchone()[0] == 0
 
 
+def two_d_transaction(con, key, event_id, user_id, lines, source_message_id=1):
+    total = sum(int(line["amount"]) for line in lines)
+    meta = {
+        "eventId": event_id,
+        "lines": lines,
+        "total": total,
+        "sourceChatId": "-100777",
+        "sourceMessageId": str(source_message_id),
+    }
+    return con.execute("""
+      INSERT INTO transactions (
+        type, from_user_id, to_user_id, amount, idempotency_key, account_user_id,
+        balance_delta, required_balance, total_won_delta, total_lost_delta,
+        treasury_delta, required_treasury, bet_amount, payout_amount, meta, created_at
+      ) VALUES ('two_d_bet', ?, 'TREASURY', ?, ?, ?, ?, ?, 0, ?, ?, 0, ?, 0, ?, 123)
+    """, (str(user_id), total, key, user_id, -total, total, total, total, total, json.dumps(meta)))
+
+
+def test_two_d_bet_ledger_and_position_triggers():
+    con = database()
+    lines = [
+        {"number": "45", "amount": 200, "potentialWin": 8000},
+        {"number": "54", "amount": 300, "potentialWin": 12000},
+    ]
+    two_d_transaction(con, "2d-bet-a", "event-open", 101, lines, 101)
+    user = con.execute("SELECT * FROM users WHERE tg_id=101").fetchone()
+    treasury = con.execute("SELECT owner_balance FROM treasury WHERE key='treasury'").fetchone()[0]
+    assert user["balance"] == 0, dict(user)
+    assert user["total_lost"] == 500, dict(user)
+    assert treasury == 500, treasury
+    bets = con.execute("SELECT number,amount,potential_win FROM two_d_bets ORDER BY number").fetchall()
+    assert [(row["number"], row["amount"], row["potential_win"]) for row in bets] == [
+        ("45", 200, 8000), ("54", 300, 12000)
+    ]
+    positions = {row["number"]: row["amount"] for row in con.execute("SELECT * FROM two_d_positions")}
+    assert positions == {"45": 200, "54": 300}, positions
+
+    # Duplicate updates cannot debit or accumulate positions twice.
+    two_d_transaction(con, "2d-bet-a", "event-open", 101, lines, 101)
+    assert con.execute("SELECT balance FROM users WHERE tg_id=101").fetchone()[0] == 0
+    assert con.execute("SELECT owner_balance FROM treasury WHERE key='treasury'").fetchone()[0] == 500
+    assert con.execute("SELECT COUNT(*) FROM two_d_bets").fetchone()[0] == 2
+    assert con.execute("SELECT amount FROM two_d_positions WHERE number='45'").fetchone()[0] == 200
+
+    # The per-number cap is enforced inside the same transaction trigger.
+    con.execute("UPDATE users SET balance=250000 WHERE tg_id=101")
+    two_d_transaction(con, "2d-cap-a", "event-open", 101, [
+        {"number": "00", "amount": 200000, "potentialWin": 8000000},
+    ], 102)
+    balance_before = con.execute("SELECT balance FROM users WHERE tg_id=101").fetchone()[0]
+    treasury_before = con.execute("SELECT owner_balance FROM treasury WHERE key='treasury'").fetchone()[0]
+    try:
+        two_d_transaction(con, "2d-cap-b", "event-open", 101, [
+            {"number": "00", "amount": 200, "potentialWin": 8000},
+        ], 103)
+    except sqlite3.IntegrityError as exc:
+        assert "TWO_D_NUMBER_LIMIT" in str(exc)
+    else:
+        raise AssertionError("Expected per-number 2D cap to abort the transaction")
+    assert con.execute("SELECT balance FROM users WHERE tg_id=101").fetchone()[0] == balance_before
+    assert con.execute("SELECT owner_balance FROM treasury WHERE key='treasury'").fetchone()[0] == treasury_before
+    assert con.execute("SELECT COUNT(*) FROM two_d_bets WHERE number='00'").fetchone()[0] == 1
+
+    try:
+        two_d_transaction(con, "2d-closed", "event-closed", 202, [
+            {"number": "12", "amount": 200, "potentialWin": 8000},
+        ], 104)
+    except sqlite3.IntegrityError as exc:
+        assert "TWO_D_CLOSED" in str(exc)
+    else:
+        raise AssertionError("Expected closed 2D event to reject a bet")
+    assert con.execute("SELECT balance FROM users WHERE tg_id=202").fetchone()[0] == 500
+    assert con.execute("SELECT COUNT(*) FROM two_d_bets WHERE number='12'").fetchone()[0] == 0
+
+
 def test_wallet_transfer_is_atomic_idempotent_and_not_a_game_result():
     con = database()
     transfer = """
@@ -204,4 +298,5 @@ if __name__ == "__main__":
     test_tie_refund_does_not_count_as_winnings()
     test_insufficient_balance_fails_without_partial_write()
     test_wallet_transfer_is_atomic_idempotent_and_not_a_game_result()
-    print("SQLite ledger trigger tests passed (winner, tie refund, idempotency, insufficient balance, wallet transfer).")
+    test_two_d_bet_ledger_and_position_triggers()
+    print("SQLite ledger trigger tests passed (winner, tie refund, idempotency, insufficient balance, wallet transfer, 2D bets and limits).")
