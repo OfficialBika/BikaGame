@@ -45,7 +45,7 @@ def database():
       CREATE TABLE users (
         tg_id INTEGER PRIMARY KEY, balance INTEGER NOT NULL DEFAULT 0,
         total_won INTEGER NOT NULL DEFAULT 0, total_lost INTEGER NOT NULL DEFAULT 0,
-        updated_at INTEGER
+        updated_at INTEGER, daily_claimed_at INTEGER
       );
       CREATE TABLE treasury (
         key TEXT PRIMARY KEY, owner_balance INTEGER NOT NULL DEFAULT 0,
@@ -87,8 +87,8 @@ def database():
         bet_amount INTEGER, payout_amount INTEGER, multiplier REAL, game_result TEXT,
         meta TEXT, created_at INTEGER NOT NULL
       );
-      INSERT INTO users VALUES (101, 500, 0, 0, 1), (202, 500, 0, 0, 1);
-      INSERT INTO treasury VALUES ('treasury', 0, 1);
+      INSERT INTO users VALUES (101, 500, 0, 0, 1, NULL), (202, 500, 0, 0, 1, NULL);
+      INSERT INTO treasury VALUES ('treasury', 5000, 1);
       INSERT INTO two_d_events VALUES ('event-open', '2026-10-19-am', 'open', 9999999999, 123, 123);
       INSERT INTO two_d_events VALUES ('event-closed', '2026-10-18-pm', 'closed', 9999999999, 123, 123);
     """)
@@ -259,6 +259,46 @@ def test_two_d_bet_ledger_and_position_triggers():
     assert con.execute("SELECT COUNT(*) FROM two_d_bets WHERE number='12'").fetchone()[0] == 0
 
 
+def daily_claim(con, key, user_id, reward, day_start, created_at):
+    meta = json.dumps({"source": "telegram_daily", "dayKey": "test-day", "dayStartUnix": day_start})
+    return con.execute("""
+      INSERT INTO transactions (
+        type, from_user_id, to_user_id, amount, idempotency_key, account_user_id,
+        balance_delta, required_balance, total_won_delta, total_lost_delta,
+        treasury_delta, required_treasury, bet_amount, payout_amount, meta, created_at
+      ) VALUES ('daily_claim', 'TREASURY', ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, 0, ?, ?, ?)
+    """, (str(user_id), reward, key, user_id, reward, -reward, reward, reward, meta, created_at))
+
+
+def test_daily_claim_is_atomic_yangon_day_guarded_and_treasury_funded():
+    con = database()
+    daily_claim(con, "daily-101-day-a", 101, 1000, 1799990000, 1800000000)
+    user = dict(con.execute("SELECT * FROM users WHERE tg_id=101").fetchone())
+    treasury = con.execute("SELECT owner_balance FROM treasury WHERE key='treasury'").fetchone()[0]
+    assert user["balance"] == 1500, user
+    assert user["daily_claimed_at"] == 1800000000, user
+    assert user["total_won"] == 0, user
+    assert treasury == 4000, treasury
+
+    try:
+        daily_claim(con, "daily-101-day-a-replay", 101, 1500, 1799990000, 1800000100)
+    except sqlite3.IntegrityError as exc:
+        assert "DAILY_ALREADY_CLAIMED" in str(exc)
+    else:
+        raise AssertionError("Expected same Yangon day claim to be rejected")
+    user = dict(con.execute("SELECT * FROM users WHERE tg_id=101").fetchone())
+    assert user["balance"] == 1500 and user["daily_claimed_at"] == 1800000000, user
+    assert con.execute("SELECT owner_balance FROM treasury WHERE key='treasury'").fetchone()[0] == 4000
+    assert con.execute("SELECT COUNT(*) FROM transactions WHERE type='daily_claim'").fetchone()[0] == 1
+
+    # A claim after the next Yangon midnight is permitted and still bank-funded.
+    daily_claim(con, "daily-101-day-b", 101, 500, 1800086400, 1800090000)
+    user = dict(con.execute("SELECT * FROM users WHERE tg_id=101").fetchone())
+    assert user["balance"] == 2000 and user["daily_claimed_at"] == 1800090000, user
+    assert user["total_won"] == 0, user
+    assert con.execute("SELECT owner_balance FROM treasury WHERE key='treasury'").fetchone()[0] == 3500
+
+
 def test_wallet_transfer_is_atomic_idempotent_and_not_a_game_result():
     con = database()
     transfer = """
@@ -299,5 +339,6 @@ if __name__ == "__main__":
     test_tie_refund_does_not_count_as_winnings()
     test_insufficient_balance_fails_without_partial_write()
     test_wallet_transfer_is_atomic_idempotent_and_not_a_game_result()
+    test_daily_claim_is_atomic_yangon_day_guarded_and_treasury_funded()
     test_two_d_bet_ledger_and_position_triggers()
-    print("SQLite ledger trigger tests passed (winner, tie refund, idempotency, insufficient balance, wallet transfer, 2D bets and limits).")
+    print("SQLite ledger trigger tests passed (winner, tie refund, idempotency, insufficient balance, wallet transfer, daily claim, 2D bets and limits).")
