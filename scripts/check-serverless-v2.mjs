@@ -102,7 +102,7 @@ assert.match(groupApprovalPolicy, /function groupAccessDecision/);
 assert.match(message, /checkGroupAccess/);
 assert.match(message, /command\.name === 'approve'/);
 assert.match(message, /command\.name === 'reject'/);
-assert.match(message, /command\.name === 'groupstatus'/);
+assert.match(message, /'approve', 'reject', 'groupstatus'/);
 assert.match(callbacks, /checkGroupAccess/);
 
 // Broadcast must be bounded, resumable, persistent, owner-only and filter to approved groups.
