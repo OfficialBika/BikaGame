@@ -17,15 +17,15 @@ const groups = [
     id: 'session-games',
     label: 'Session and multiplayer games',
     status: 'in-progress',
-    features: ['Crash', 'Mines', 'Blackjack', 'Shan Koe Mee'],
-    detail: 'Preview implementations exist; exact main parity, durable lifecycle, concurrent-session, timeout/retry and payout-replay tests are not complete. Dice Duel is not ported.',
+    features: ['Crash', 'Mines', 'Blackjack', 'Shan Koe Mee', 'Dice Duel'],
+    detail: 'Preview implementations exist; exact main parity, durable lifecycle, concurrent-session, timeout/retry and payout-replay tests are not complete. Dice Duel now has a persistent challenge flow and atomic idempotent settlement plan, but runtime tests remain.',
   },
   {
     id: 'game-controls',
     label: 'Per-game controls',
     status: 'preview-controls-added',
     features: ['.slot on/off', '.bj on/off', '.shan on/off', '.dice on/off', '.mine on/off', '.mines alias'],
-    detail: 'Owner-only persisted controls are implemented in the V2 preview handler and enforce new game starts/entries through the bot handler and Mini App start routes. Set SERVERLESS_OWNER_TELEGRAM_ID in tgcloud/lib/config.js to the numeric production OWNER_ID before deploying; zero keeps writes disabled. Dice gameplay itself is not ported; active-session callbacks remain available so disabling a game does not block cashout/action callbacks.',
+    detail: 'Owner-only persisted controls are implemented in the V2 preview handler and enforce new game starts/entries through the bot handler and Mini App start routes. Set SERVERLESS_OWNER_TELEGRAM_ID in tgcloud/lib/config.js to the numeric production OWNER_ID before deploying; zero keeps writes disabled. Dice Duel is implemented in the preview handler with challenge/accept/cancel and atomic settlement; active-session callbacks remain available so disabling a game does not block settlement of an accepted challenge.',
   },
   {
     id: 'payments-commerce',
