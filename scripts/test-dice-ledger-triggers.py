@@ -299,6 +299,18 @@ def test_daily_claim_is_atomic_yangon_day_guarded_and_treasury_funded():
     assert user["total_won"] == 0, user
     assert con.execute("SELECT owner_balance FROM treasury WHERE key='treasury'").fetchone()[0] == 3500
 
+    # Insufficient treasury must not mark the user as having claimed.
+    con.execute("UPDATE treasury SET owner_balance=0 WHERE key='treasury'")
+    try:
+        daily_claim(con, "daily-101-day-c", 101, 600, 1800172800, 1800180000)
+    except sqlite3.IntegrityError as exc:
+        assert "TREASURY_INSUFFICIENT" in str(exc)
+    else:
+        raise AssertionError("Expected treasury insufficiency to abort daily claim")
+    user = dict(con.execute("SELECT * FROM users WHERE tg_id=101").fetchone())
+    assert user["balance"] == 2000 and user["daily_claimed_at"] == 1800090000, user
+    assert con.execute("SELECT COUNT(*) FROM transactions WHERE type='daily_claim'").fetchone()[0] == 2
+
 
 def test_wallet_transfer_is_atomic_idempotent_and_not_a_game_result():
     con = database()
