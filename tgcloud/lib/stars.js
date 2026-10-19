@@ -2,6 +2,7 @@ import { api, EndpointError, db } from 'sdk';
 import { eq } from 'sdk/db';
 import { paymentEvents, users } from '../schema.js';
 import { ensureEconomy, ensureUser, creditExternalPurchase } from './economy.js';
+import { paymentRecordMatches } from './starsPolicy.js';
 
 export const STAR_TO_BAL = 45000;
 export const STAR_PACKAGES = Object.freeze([10, 20, 30, 40, 50, 100]);
@@ -73,8 +74,18 @@ export async function creditSuccessfulStars(message) {
   const chargeId = String(payment.telegram_payment_charge_id || '').trim();
   if (!chargeId) throw new EndpointError('Telegram charge ID မရှိပါ။', { code: 'PAYMENT_CHARGE_REQUIRED' });
 
+  const expectedRecord = {
+    chargeId,
+    userId: String(userId),
+    stars: parsed.stars,
+    amount: packageBalance(parsed.stars),
+    invoicePayload: String(payment.invoice_payload),
+  };
   const existing = await dbPayment(chargeId);
   if (existing) {
+    if (!paymentRecordMatches(existing, expectedRecord)) {
+      throw new EndpointError('Charge ID နှင့် payment record မကိုက်ညီပါ။', { code: 'PAYMENT_CHARGE_MISMATCH' });
+    }
     const user = await db.select().from(users).where(eq(users.tgId, userId)).get();
     return { ok: true, duplicate: true, stars: parsed.stars, balanceAmount: packageBalance(parsed.stars), balance: Number(user?.balance || 0) };
   }
@@ -95,6 +106,31 @@ export async function creditSuccessfulStars(message) {
     },
   });
 
+  // The ledger insert is the authoritative balance mutation. Persist a separate
+  // payment event for reconciliation after it succeeds; a retry after a crash
+  // is safe because creditExternalPurchase is idempotent by Telegram charge ID.
+  const timestamp = new Date();
+  await db.insert(paymentEvents).values({
+    id: chargeId,
+    userId,
+    stars: parsed.stars,
+    amount: packageBalance(parsed.stars),
+    status: 'credited',
+    payload: {
+      source: 'TELEGRAM_STARS',
+      exchangeRate: STAR_TO_BAL,
+      providerPaymentChargeId: payment.provider_payment_charge_id || null,
+    },
+    telegramPaymentChargeId: chargeId,
+    invoicePayload: String(payment.invoice_payload),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  }).onConflictDoNothing().run();
+
+  const saved = await dbPayment(chargeId);
+  if (!paymentRecordMatches(saved, expectedRecord)) {
+    throw new EndpointError('Payment ledger မှတ်တမ်းကို အတည်ပြုမရပါ။', { code: 'PAYMENT_RECORD_FAILED' });
+  }
   return { ok: true, duplicate: result.duplicate, stars: parsed.stars, balanceAmount: packageBalance(parsed.stars), balance: result.balance };
 }
 
