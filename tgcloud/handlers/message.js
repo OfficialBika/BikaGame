@@ -102,7 +102,7 @@ function helpText() {
     '/shop /inventory /sell — commerce preview controls',
     '',
     '⚠️ This is isolated preview currency; production MongoDB is never read or modified.',
-    'The /transfer chat command stays disabled in this preview; Mini App transfers use the isolated atomic ledger and still require test-bot verification.',
+    'Wallet transfers use the isolated ledger in this preview; test-bot verification remains required.',
   ].join('\n');
 }
 
@@ -114,7 +114,10 @@ export default async function (message) {
   // Serverless has no persistent timer process. Reconcile scheduled 2D state on
   // inbound updates so overdue events close and an in-window session can open.
   try {
-    if (message?.text || message?.is_automatic_forward) await reconcileTwoDOnUpdate(message);
+    if (message?.text || message?.is_automatic_forward) {
+      await reconcileTwoDOnUpdate(message);
+      await reconcileEventMarketsOnUpdate();
+    }
   } catch (error) {
     console.warn('BIKA_2D_RECONCILE_FAILED', String(error?.message || error));
   }
@@ -252,7 +255,7 @@ export default async function (message) {
       const alias = String(command.args || '').trim().split(/\\s+/)[0];
       if (!alias) return send(chatId, '.betwin <team_alias> ပုံစံသုံးပါ။', message.message_id);
       const result = await settleSportsEvent(event, alias, from.id);
-      const winners = result.bets.filter(b => b.status === 'won').length;
+      const winners = result.bets.filter(b => String(b.choice || '').toLowerCase() === String(alias).toLowerCase()).length;
       const totalPaid = result.bets.filter(b => b.choice === alias.toLowerCase()).reduce((sum, b) => sum + Number(b.potentialWin || 0), 0);
       return send(chatId, (result.duplicate ? 'ℹ️ Event settle လုပ်ပြီးသားပါ။' : '✅ Sports settlement complete.') +
         '\\nEvent: ' + event.title + '\\nWinner: ' + alias.toLowerCase() +
@@ -598,7 +601,7 @@ export default async function (message) {
 
     if (command.name === 'slot') {
       await assertGameEnabled('slot');
-      const result = await playSlot(user.tgId, bet, 'tg:' + chatId + ':' + message.message_id, { groupId: chatId });
+      const result = await playSlot(user.tgId, bet, 'tg:' + chatId + ':' + message.message_id, { groupId: chatId, source: 'telegram' });
       return send(
         chatId,
         '🎰 SLOT\n\n' + result.reels.join(' | ') +
