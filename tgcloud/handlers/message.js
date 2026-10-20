@@ -1030,6 +1030,17 @@ export default async function (message) {
       TWO_D_PAYOUT_OVERFLOW: 'စုစုပေါင်း payout က ledger limit ကျော်နေပါသည်။',
     };
     const errorCode = error?.code || error?.parameters?.code || error?.details?.code || error?.error?.code;
+    // Keep user-facing failures generic, but preserve a bounded diagnostic in runtime logs
+    // so a real preview failure can be fixed without exposing internals to Telegram users.
+    const diagnosticMessage = String(error?.message || error || 'unknown error')
+      .replace(/\\s+/g, ' ')
+      .slice(0, 240);
+    console.error('BIKA_PREVIEW_COMMAND_FAILED', JSON.stringify({
+      command: String(command?.name || (gameToggle ? 'game_toggle' : 'unknown')).slice(0, 40),
+      errorName: String(error?.name || 'Error').slice(0, 40),
+      errorCode: errorCode == null ? null : String(errorCode).slice(0, 80),
+      error: diagnosticMessage,
+    }));
     const safeMessage = messageByCode[errorCode] || messageByCode[error?.message] || 'Preview command failed safely. No production data was changed.';
     if (broadcastProgressMessage?.message_id && command?.name === 'broadcast') {
       try {
