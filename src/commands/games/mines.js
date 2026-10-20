@@ -354,6 +354,7 @@ async function startMines(ctx, bot, parsed) {
     return replyHTML(ctx, `⏳ ခဏစောင့်ပါ… (${cooldownLeft}s)`, options);
   }
 
+  await require('../../services/i18nService').getPreferredLanguage(userId);
   const user = await getUser(userId);
 
   if (Number(user?.balance || 0) < bet) {
