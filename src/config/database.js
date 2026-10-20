@@ -473,6 +473,9 @@ async function connectTransactionHistoryForMigration() {
   if (!env.DB_TWO_ENABLED || !env.MONGO_URI_2 || !env.DB_TWO_NAME) {
     throw new Error('Set DB_TWO_ENABLED=true, MONGO_URI_2 and DB_TWO_NAME before migration.');
   }
+  // This utility intentionally avoids connectMongo(): the bot's production
+  // bootstrap creates many DB1 indexes which quota-lock errors prevent, while
+  // migration only requires source reads and DB2 writes.
   if (!client) {
     client = new MongoClient(env.MONGO_URI, { maxPoolSize: 5, minPoolSize: 0, retryWrites: true });
     await client.connect();
@@ -554,7 +557,12 @@ async function migrateTransactionHistoryReadOnly({ batchSize = 100, verifyOnly =
 
   const sourceCountAfter = await source.countDocuments({});
   const targetCountAfter = await target.countDocuments({});
-  const pendingOutbox = await db.collection(OUTBOX_COLLECTION).countDocuments({ status: 'pending' }).catch(() => null);
+  // The DB1 outbox may not exist yet because DB1 is write-blocked. Pending
+  // outbox count is reported only when the source already has that collection;
+  // it is not part of this read-only direct-copy verification.
+  const pendingOutbox = await db.listCollections({ name: OUTBOX_COLLECTION }, { nameOnly: true }).hasNext()
+    .then((exists) => exists ? db.collection(OUTBOX_COLLECTION).countDocuments({ status: 'pending' }) : null)
+    .catch(() => null);
   const sourceStable = sourceCountBefore === sourceCountAfter && sourceSeen === sourceCountAfter;
   const verified = sourceStable &&
     missing === 0 &&
