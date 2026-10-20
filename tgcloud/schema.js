@@ -20,6 +20,7 @@ export const users = table('users', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 }, (t) => ({
   balanceIdx: index('idx_users_balance').on(t.balance),
+  walletIdUniqueIdx: index('idx_users_wallet_id_unique').on(t.walletId),
 }));
 
 export const transactions = table('transactions', {
