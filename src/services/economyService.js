@@ -4,7 +4,7 @@ const { withRequiredTx } = require('../config/database');
 const { toNum } = require('../utils/format');
 const { logTx } = require('./transactionService');
 const transactionModel = require('../models/transactionModel');
-const { findTransactionHistoryByIdempotency } = require('../config/database');
+const { findTransactionHistoryByIdempotency, col } = require('../config/database');
 
 function extract(res) { return res?.value !== undefined ? res.value : res; }
 function idVariants(userId) {
@@ -181,7 +181,7 @@ async function settleSingleGame({ settlementId, typePrefix, userId, bet = 0, pay
 
   return withRequiredTx(async (session) => {
     const opts = { session };
-    const tx = transactionModel.collection();
+    const tx = col('transactions');
     const markerId = `__settlement:${String(typePrefix)}:${String(settlementId)}`;
     const existing = await tx.findOne({ _id: markerId }, opts);
     if (existing) return { ok: true, duplicate: true, payout: Number(existing.payout || 0) };
