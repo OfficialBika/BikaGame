@@ -46,11 +46,17 @@ async function ensureIndexes() {
 async function deleteRowsInBatches(col, filter) {
   let deleted = 0;
   while (true) {
-    const rows = await col.find(filter, { projection: { _id: 1 } }).limit(BATCH_SIZE).toArray();
+    // Select a fixed batch and delete by _id so the cursor progresses as rows
+    // disappear. Do not stop on a full batch; repeat until no expired rows remain.
+    const rows = await col.find(filter, { projection: { _id: 1 } })
+      .sort({ _id: 1 }).limit(BATCH_SIZE).toArray();
     if (!rows.length) break;
     const result = await col.deleteMany({ _id: { $in: rows.map((row) => row._id) } });
-    deleted += Number(result.deletedCount || 0);
-    if (rows.length < BATCH_SIZE) break;
+    const removed = Number(result.deletedCount || 0);
+    deleted += removed;
+    if (removed === 0) {
+      throw new Error('RETENTION_BATCH_STALLED:' + String(col.collectionName || 'collection'));
+    }
   }
   return deleted;
 }
