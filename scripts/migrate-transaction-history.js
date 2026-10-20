@@ -39,12 +39,8 @@ async function runMigration(sourceDb, targetDb, { batchSize, verifyOnly }) {
   const target = targetDb.collection('transactions');
   const sourceCountBefore = await source.countDocuments({});
   const targetCountBefore = await target.countDocuments({});
-  // Storage stats use an aggregation internally in some MongoDB drivers and
-  // are not needed to determine whether a history copy is safe.
   const sourceIndexes = await source.indexes().catch(() => []);
   const migrationStartedAt = new Date();
-  // Retention policy is 30 days: only verify history that is still within that
-  // retention window. Older rows may have been intentionally pruned from DB1.
   const retainedCutoff = new Date(migrationStartedAt.getTime() - 30 * 24 * 60 * 60 * 1000);
   const retainedFilter = { createdAt: { $gte: retainedCutoff } };
   const sourceRetainedBefore = await source.countDocuments(retainedFilter);
@@ -62,11 +58,7 @@ async function runMigration(sourceDb, targetDb, { batchSize, verifyOnly }) {
     if (!docs.length) return;
     if (!verifyOnly) {
       const operations = docs.map((doc) => ({
-        updateOne: {
-          filter: { _id: doc._id },
-          update: { $setOnInsert: doc },
-          upsert: true,
-        },
+        updateOne: { filter: { _id: doc._id }, update: { $setOnInsert: doc }, upsert: true },
       }));
       await target.bulkWrite(operations, { ordered: false });
       copied += docs.length;
@@ -92,45 +84,30 @@ async function runMigration(sourceDb, targetDb, { batchSize, verifyOnly }) {
   }
   if (batch.length) await handleBatch(batch);
 
-  const sourceCountAfter = await source.countDocuments({});
   const sourceRetainedAfter = await source.countDocuments(retainedFilter);
   const targetCountAfter = await target.countDocuments({});
   const targetRetainedAfter = await target.countDocuments(retainedFilter);
   const postCutoverWrites = await source.countDocuments({ createdAt: { $gte: migrationStartedAt } }).catch(() => null);
+  const pendingOutbox = await sourceDb.collection('transaction_outbox').countDocuments({ status: 'pending' }).catch((err) => {
+    if (err?.codeName === 'NamespaceNotFound' || err?.code === 26) return 0;
+    throw err;
+  });
   const sourceStable = sourceRetainedBefore === sourceRetainedAfter && sourceSeen === sourceRetainedAfter;
-  const verified = sourceStable &&
-    missing === 0 &&
-    mismatched === 0 &&
-    targetRetainedAfter >= sourceRetainedAfter &&
-    sourceIndexes.length > 0 &&
-    postCutoverWrites === 0;
+  const verified = sourceStable && missing === 0 && mismatched === 0 &&
+    targetRetainedAfter >= sourceRetainedAfter && sourceIndexes.length > 0 &&
+    postCutoverWrites === 0 && pendingOutbox === 0;
 
   return {
     migration: 'transactions-v1-readonly',
     mode: verifyOnly ? 'verify-only-retained-30d' : 'copy-and-verify-retained-30d',
     retentionDays: 30,
     retainedCutoff: retainedCutoff.toISOString(),
-    source: {
-      countBefore: sourceCountBefore,
-      countAfter: sourceCountAfter,
-      retainedCountBefore: sourceRetainedBefore,
-      retainedCountAfter: sourceRetainedAfter,
-      lastIdScanned: lastSourceId == null ? null : String(lastSourceId),
-    },
-    target: {
-      countBefore: targetCountBefore,
-      countAfter: targetCountAfter,
-      retainedCountBefore: targetRetainedBefore,
-      retainedCountAfter: targetRetainedAfter,
-    },
-    copied,
-    missing,
-    mismatched,
-    sourceStable,
-    postCutoverWrites,
-    verified,
+    source: { countBefore: sourceCountBefore, countAfter: await source.countDocuments({}), retainedCountBefore: sourceRetainedBefore, retainedCountAfter: sourceRetainedAfter, lastIdScanned: lastSourceId == null ? null : String(lastSourceId) },
+    target: { countBefore: targetCountBefore, countAfter: targetCountAfter, retainedCountBefore: targetRetainedBefore, retainedCountAfter: targetRetainedAfter },
+    copied, missing, mismatched, sourceStable, postCutoverWrites, pendingOutbox, verified,
     checkedAt: new Date().toISOString(),
     sourceDeletionPerformed: false,
+    olderSourceRecordsWereSkipped: true,
   };
 }
 
