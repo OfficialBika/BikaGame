@@ -68,14 +68,29 @@ async function connectTransactionHistory() {
   }
   if (!env.MONGO_URI_2) throw new Error('DB_TWO_ENABLED requires MONGO_URI_2');
   if (!env.DB_TWO_NAME) throw new Error('DB_TWO_ENABLED requires DB_TWO_NAME');
+
   historyClient = new MongoClient(env.MONGO_URI_2, { maxPoolSize: 10, minPoolSize: 0, retryWrites: true });
-  await historyClient.connect();
-  historyDb = historyClient.db(env.DB_TWO_NAME);
-  await historyDb.command({ ping: 1 });
+  try {
+    await historyClient.connect();
+    historyDb = historyClient.db(env.DB_TWO_NAME);
+    await historyDb.command({ ping: 1 });
+    historyReady = true;
+    logger.info('DB Two transaction history connected');
+  } catch (err) {
+    try { await historyClient.close(); } catch (_) {}
+    historyClient = null;
+    historyDb = null;
+    historyReady = false;
+    // Do not silently fall back to DB1 for history writes when DB2 is requested.
+    // The bot may start for health/recovery access, but DB2 history functionality
+    // remains explicitly unavailable and must not accept money transactions.
+    logger.error('DB Two connection failed; history writes are disabled until MONGO_URI_2 is fixed.', err);
+    return;
+  }
+
+  // DB1 quota can block optional outbox-index creation even while read queries work.
   await safeCreateIndex(db.collection(OUTBOX_COLLECTION), { status: 1, createdAt: 1 }, { name: 'tx_outbox_status_createdAt' });
   await safeCreateIndex(db.collection(OUTBOX_COLLECTION), { sourceId: 1 }, { unique: true, name: 'tx_outbox_sourceId_unique' });
-  historyReady = true;
-  logger.info('DB Two transaction history connected');
 }
 
 async function enqueueTransactionHistory(doc, session) {
