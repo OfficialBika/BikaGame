@@ -75,35 +75,36 @@ async function cleanupExpiredGameHistory({ now = new Date(), dryRun = false } = 
     let matchedAtStart = 0;
     let parentsDeleted = 0;
     let childrenDeleted = 0;
-    let childStats = {};
-    let lastId = null;
+    const childStats = {};
+    let lastId;
+    let hasLastId = false;
 
     while (true) {
-      const filter = {
-        ...parentFilter,
-        ...(lastId != null ? { _id: { $gt: lastId } } : {}),
-      };
+      const filter = { ...parentFilter };
+      if (hasLastId) filter._id = { $gt: lastId };
       const rows = await db1.collection(parentName).find(filter, {
         projection: { _id: 1, [parentIdField]: 1 },
       }).sort({ _id: 1 }).limit(BATCH_SIZE).toArray();
       if (!rows.length) break;
+
       matchedAtStart += rows.length;
       lastId = rows[rows.length - 1]._id;
-      if (dryRun) continue;
+      hasLastId = true;
+      if (dryRun) {
+        if (rows.length < BATCH_SIZE) break;
+        continue;
+      }
 
       const ids = rows.map((row) => row[parentIdField]).filter((id) => id != null);
       if (ids.length) {
-        const childFilter = childFilterForIds(ids);
-        const removedChildren = await deleteRowsInBatches(db1.collection(childName), childFilter);
-        childrenDeleted += removedChildren;
+        childrenDeleted += await deleteRowsInBatches(db1.collection(childName), childFilterForIds(ids));
         for (const extra of extraChildCollections) {
           const removed = await deleteRowsInBatches(db1.collection(extra.name), extra.filterForIds(ids));
           childStats[extra.name] = (childStats[extra.name] || 0) + removed;
         }
       }
-      const parentIds = rows.map((row) => row._id);
       const removedParents = await db1.collection(parentName).deleteMany({
-        _id: { $in: parentIds },
+        _id: { $in: rows.map((row) => row._id) },
         ...parentFilter,
       });
       parentsDeleted += Number(removedParents.deletedCount || 0);
@@ -116,9 +117,7 @@ async function cleanupExpiredGameHistory({ now = new Date(), dryRun = false } = 
       remainingExpired: await db1.collection(parentName).countDocuments(parentFilter),
     };
     report.db1[childName] = { deleted: childrenDeleted };
-    for (const [name, deleted] of Object.entries(childStats)) {
-      report.db1[name] = { deleted };
-    }
+    for (const [name, deleted] of Object.entries(childStats)) report.db1[name] = { deleted };
   }
 
   // Completed 2D outcomes only. Keep today's/active/settling events and the
