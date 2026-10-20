@@ -112,8 +112,8 @@ const deckFor = (random = Math.random) => {
 
 export const createBlackjackDeck = deckFor;
 
-// Deterministic unit checks for parity with main. Keep this file dependency-free,
-// so it runs on Node without the serverless SDK.
+
+export async function runBlackjackPolicyTests(assert) {
 assert.equal(BLACKJACK_RULES.minBet, 50);
 const gameSource = await (await import('node:fs/promises')).readFile(new URL('./game.js', import.meta.url), 'utf8');
 const messageSource = await (await import('node:fs/promises')).readFile(new URL('../handlers/message.js', import.meta.url), 'utf8');
@@ -166,4 +166,5 @@ const timeoutPlan = buildBlackjackSettlementPlan([{id:7,bet:100,cards:[{r:'10'},
 assert.equal(timeoutPlan[0].result, 'REFUND');
 assert.equal(timeoutPlan[0].payout, 100);
 
-console.log('Blackjack policy tests passed (main bet/cooldown/timeout/natural payout, soft aces, result parity, room validation and deck integrity).');
+  return true;
+}
