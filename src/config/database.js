@@ -91,11 +91,12 @@ async function initializeTransactionHistoryStorage() {
   return { ready: true };
 }
 
-async function flushTransactionHistoryOutbox({ batchSize = 100 } = {}) {
+async function flushTransactionHistoryOutbox({ batchSize = 100, allowBeforeInitialMigration = false } = {}) {
   if (!env.DB_TWO_ENABLED) return { skipped: true, processed: 0 };
   if (!historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
-  // Do not route live records into DB2 until a full copy and exact verification pass.
-  if (!(await hasVerifiedInitialMigration())) {
+  // Initial migration can flush pre-cutover outbox rows; live delivery stays gated
+  // until a full copy + exact verification has succeeded.
+  if (!allowBeforeInitialMigration && !(await hasVerifiedInitialMigration())) {
     throw new Error('DB_TWO_HISTORY_NOT_VERIFIED: run the reviewed migration and verify the complete source copy first');
   }
   const pending = await db.collection(OUTBOX_COLLECTION)
@@ -187,6 +188,8 @@ async function migrateTransactionHistory({ batchSize = 100, maxDocuments = Infin
   await target.createIndex({ createdAt: -1 }, { name: 'tx_history_createdAt_desc' });
   await target.createIndex({ userId: 1, createdAt: -1 }, { name: 'tx_history_user_createdAt' });
   await target.createIndex({ type: 1, 'meta.eventId': 1, toUserId: 1 }, { name: 'tx_history_type_event_toUser' });
+  // Safely deliver any pre-existing transactional outbox rows before verification.
+  await flushTransactionHistoryOutbox({ batchSize: 500, allowBeforeInitialMigration: true });
   // Re-scanning is safe for mixed BSON _id types because target writes are idempotent.
   let copied = 0;
   const copyCursor = source.find({}).sort({ _id: 1 }).batchSize(batchSize);
