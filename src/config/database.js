@@ -23,13 +23,10 @@ async function safeCreateIndex(col, keys, options = {}) {
     if ([85,86].includes(err?.code) || ['IndexOptionsConflict','IndexKeySpecsConflict'].includes(err?.codeName)) {
       logger.warn(`Skipping conflicting index ${col.collectionName} ${JSON.stringify(keys)}`); return null;
     }
-    // Index creation is an optimization/bootstrap concern. Atlas Free blocks all
-    // writes when the cluster exceeds quota, including createIndex. Permit the
-    // process to continue booting so read-only/admin recovery paths can be used;
-    // the affected index remains absent and ordinary DB1 writes still fail until
-    // storage quota is actually resolved.
+    // A database can be online but write-blocked because it exceeded its storage
+    // tier. Do not hide other index failures: only known quota errors are degraded.
     if (isStorageQuotaError(err)) {
-      logger.error(`MongoDB storage quota blocked index creation for ${col.collectionName}; continuing startup without index ${JSON.stringify(keys)}`);
+      logger.error(`MongoDB quota blocked index creation for ${col.collectionName}; continuing startup without index ${JSON.stringify(keys)}. DB1 writes remain unavailable until the quota is resolved.`);
       return null;
     }
     throw err;
