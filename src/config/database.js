@@ -278,6 +278,10 @@ async function verifyRetainedTransactionHistory({ retentionDays = 30, batchSize 
   const pendingOutbox = await db.collection(OUTBOX_COLLECTION).countDocuments({ status: 'pending' });
   const sourceStable = sourceCountBefore === sourceCountAfter && scanned === sourceCountAfter;
   const verified = sourceStable && missing === 0 && mismatched === 0 && pendingOutbox === 0 && targetCount >= sourceCountAfter;
+  // The old DB1 ledger rows before cutoff are intentionally outside the current
+  // retention policy. New DB2 transaction documents with synthetic settlement IDs
+  // may not have an ordinary createdAt timestamp; they are outside this source-copy
+  // comparison and are preserved in DB2.
   const report = {
     _id: 'initial-transactions-migration-v1',
     migration: 'transactions-v1',
