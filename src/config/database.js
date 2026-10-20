@@ -220,8 +220,82 @@ async function getTransactionHistoryStats() {
 
 async function hasVerifiedInitialMigration() {
   if (!env.DB_TWO_ENABLED || !historyReady) return false;
-  const report = await historyDb.collection('_migration_reports').findOne({ _id: 'initial-transactions-migration-v1', verified: true });
+  const report = await historyDb.collection('_migration_reports').findOne({
+    _id: 'initial-transactions-migration-v1',
+    verified: true,
+    'policy.retentionDays': 30,
+  });
   return !!report;
+}
+
+async function verifyRetainedTransactionHistory({ retentionDays = 30, batchSize = 250 } = {}) {
+  if (!env.DB_TWO_ENABLED || !historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
+  if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 500) throw new Error('INVALID_BATCH_SIZE');
+  if (!Number.isInteger(retentionDays) || retentionDays < 1 || retentionDays > 365) throw new Error('INVALID_RETENTION_DAYS');
+
+  const source = collections.transactions;
+  const target = historyDb.collection(HISTORY_COLLECTION);
+  const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+  const filter = { createdAt: { $gte: cutoff } };
+  const sourceCountBefore = await source.countDocuments(filter);
+  let scanned = 0;
+  let missing = 0;
+  let mismatched = 0;
+  const stable = (value) => {
+    if (Array.isArray(value)) return value.map(stable);
+    if (value && typeof value === 'object' && !(value instanceof Date) && !Buffer.isBuffer(value)) {
+      return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
+    }
+    if (value instanceof Date) return { __date: value.toISOString() };
+    if (Buffer.isBuffer(value)) return { __buffer: value.toString('base64') };
+    return value;
+  };
+
+  let batch = [];
+  async function verifyBatch(docs) {
+    if (!docs.length) return;
+    const counterparts = await target.find({ _id: { $in: docs.map((doc) => doc._id) } }).toArray();
+    const byId = new Map(counterparts.map((doc) => [String(doc._id), doc]));
+    for (const doc of docs) {
+      const counterpart = byId.get(String(doc._id));
+      if (!counterpart) missing += 1;
+      else if (JSON.stringify(stable(doc)) !== JSON.stringify(stable(counterpart))) mismatched += 1;
+    }
+  }
+
+  for await (const doc of source.find(filter).sort({ _id: 1 }).batchSize(batchSize)) {
+    scanned += 1;
+    batch.push(doc);
+    if (batch.length >= batchSize) {
+      await verifyBatch(batch);
+      batch = [];
+    }
+  }
+  if (batch.length) await verifyBatch(batch);
+
+  const sourceCountAfter = await source.countDocuments(filter);
+  const targetCount = await target.countDocuments(filter);
+  const pendingOutbox = await db.collection(OUTBOX_COLLECTION).countDocuments({ status: 'pending' });
+  const sourceStable = sourceCountBefore === sourceCountAfter && scanned === sourceCountAfter;
+  const verified = sourceStable && missing === 0 && mismatched === 0 && pendingOutbox === 0 && targetCount >= sourceCountAfter;
+  const report = {
+    _id: 'initial-transactions-migration-v1',
+    migration: 'transactions-v1',
+    policy: { retentionDays, scope: 'createdAt-gte-cutoff', preservesOlderDb2History: true },
+    source: { countBefore: sourceCountBefore, countAfter: sourceCountAfter },
+    target: { retainedCount: targetCount },
+    copied: { scanned, missing, mismatched, pendingOutbox },
+    verified,
+    sourceStable,
+    checkedAt: new Date(),
+    status: verified ? 'verified' : 'verification_failed',
+  };
+  await historyDb.collection('_migration_reports').updateOne(
+    { _id: report._id },
+    { $set: report },
+    { upsert: true },
+  );
+  return report;
 }
 
 async function migrateTransactionHistory({ batchSize = 100, maxDocuments = Infinity } = {}) {
@@ -513,4 +587,4 @@ async function withRequiredTx(work) {
   } finally { try { await session.endSession(); } catch (_) {} }
 }
 async function pingMs(){ const s=Date.now(); try{ await getDb().command({ping:1}); return Date.now()-s; }catch(_){return null;} }
-module.exports = { connectMongo, closeMongo, getDb, col, safeCreateIndex, withMaybeTx, withRequiredTx, pingMs, enqueueTransactionHistory, flushTransactionHistoryOutbox, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryCollection, getTransactionHistoryStats, initializeTransactionHistoryStorage, hasVerifiedInitialMigration, copyVerifiedHistoryDocument, migrateTransactionHistory, isHistoryReady, isDbOneWriteBlocked, markDbOneWriteBlocked };
+module.exports = { connectMongo, closeMongo, getDb, col, safeCreateIndex, withMaybeTx, withRequiredTx, pingMs, enqueueTransactionHistory, flushTransactionHistoryOutbox, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryCollection, getTransactionHistoryStats, initializeTransactionHistoryStorage, hasVerifiedInitialMigration, copyVerifiedHistoryDocument, migrateTransactionHistory, verifyRetainedTransactionHistory, isHistoryReady, isDbOneWriteBlocked, markDbOneWriteBlocked };
