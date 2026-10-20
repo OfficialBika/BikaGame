@@ -45,7 +45,7 @@ module.exports = (bot) => {
     const options = replyOptions(ctx);
 
     if (!isGroupChat(ctx)) {
-      return replyHTML(ctx, 'ℹ️ group ထဲမှာပဲ သုံးနိုင်ပါတယ်။', options);
+      return replyHTML(ctx, 'ℹ️ This command is only available in groups.', options);
     }
 
     const bet = Number(ctx.match?.[2]);
@@ -62,17 +62,17 @@ module.exports = (bot) => {
     }
 
     if (!target?.id || target.is_bot || target.id === ctx.from.id) {
-      return replyHTML(ctx, '⚠️ Reply ထောက်ထားတဲ့ user ကိုသာ challenge လုပ်ပါ။', options);
+      return replyHTML(ctx, '⚠️ Reply to a user to challenge them.', options);
     }
 
     if (!game.canOpenShan()) {
-      return replyHTML(ctx, '⛔ Shan challenge များနေပါတယ်။', options);
+      return replyHTML(ctx, '⛔ Too many Shan challenges are active. Please wait.', options);
     }
 
     const user = await getUser(ctx.from.id);
 
     if (Number(user?.balance || 0) < bet) {
-      return replyHTML(ctx, '❌ Balance မလုံလောက်ပါ။', options);
+      return replyHTML(ctx, '❌ Insufficient balance.', options);
     }
 
     const sent = await replyHTML(ctx, challengeText(ctx, target, bet), {
