@@ -23,6 +23,7 @@ jobs:
           node --check scripts/test-game-control-names.mjs
           node --check scripts/test-game-control-state.mjs
           node --check scripts/test-mines-policy.mjs
+          node --check scripts/test-slot-policy.mjs
           node --check scripts/test-game-command-parser.mjs
           node --check scripts/test-dice-settlement-plan.mjs
           node --check scripts/test-group-approval-policy.mjs
@@ -38,6 +39,8 @@ jobs:
         run: node scripts/test-game-control-state.mjs
       - name: Test Mines policy against main defaults
         run: node scripts/test-mines-policy.mjs
+      - name: Test Slot parity and RTP wiring
+        run: node scripts/test-slot-policy.mjs
       - name: Test slash and dot game command parser
         run: node scripts/test-game-command-parser.mjs
       - name: Test atomic duel settlement plan
