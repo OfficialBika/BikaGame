@@ -38,6 +38,7 @@ const preCheckout = await readFile(join(root, 'tgcloud/handlers/pre_checkout_que
 const parity = await readFile(join(root, 'docs/SERVERLESS_V2_PARITY.md'), 'utf8');
 const featureStatus = await readFile(join(root, 'tgcloud/lib/featureStatus.js'), 'utf8');
 const controls = await readFile(join(root, 'tgcloud/lib/gameControls.js'), 'utf8');
+const gameControlPolicy = await readFile(join(root, 'tgcloud/lib/gameControlsPolicy.js'), 'utf8');
 const maintenance = await readFile(join(root, 'tgcloud/lib/maintenance.js'), 'utf8');
 const maintenancePolicy = await readFile(join(root, 'tgcloud/lib/maintenancePolicy.js'), 'utf8');
 const config = await readFile(join(root, 'tgcloud/lib/config.js'), 'utf8');
@@ -80,6 +81,9 @@ assert.doesNotMatch(controls, /process\.env/);
 assert.match(controls, /SERVERLESS_OWNER_TELEGRAM_ID/);
 assert.match(config, /SERVERLESS_OWNER_TELEGRAM_ID = 0/);
 assert.match(controls, /OWNER_ONLY/);
+assert.match(controls, /import \{ enabledFromSetting \} from '\.\/gameControlsPolicy\.js'/);
+assert.match(gameControlPolicy, /function enabledFromSetting/);
+assert.match(gameControlPolicy, /return false/);
 assert.match(controls, /export async function getGameState/);
 assert.match(controls, /const saved = await getGameState\(key\)/, 'game-control writes must be read-after-write verified');
 assert.match(controls, /GAME_CONTROL_WRITE_UNVERIFIED/);
