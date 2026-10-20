@@ -239,11 +239,10 @@ async function pruneVerifiedLegacyLedger({ confirm = false } = {}) {
   });
   if (!report) throw new Error('DB_TWO_MIGRATION_NOT_VERIFIED');
   // Keep settlement markers in DB1: current retry/duplicate checks intentionally use the DB1 session.
-  const result = await collections.transactions.deleteMany({ _id: { $not: /^__settlement:/ } });
-  return {
-    deleted: result.deletedCount,
-    retainedSettlementMarkers: await collections.transactions.countDocuments({ _id: /^__settlement:/ }),
-  };
+  // Do not drop the legacy source ledger automatically. Delete only after a
+  // separate reviewed cutover, backup, and exact document-level verification.
+  throw new Error('SOURCE_LEDGER_PRUNE_DISABLED: migration is copy-and-verify only in this branch');
+
 }
 
 async function connectMongo() {
