@@ -54,7 +54,7 @@ const MESSAGES = {
     language_saved: '✅ 언어가 한국어로 변경되었습니다.',
     start_title: '🎮 <b>BIKA GAME BOT</b>\n환영합니다! 아래 메뉴를 선택하세요.',
     user: '👤 사용자', owner: '🛡 운영자', game_chat: '🎮 게임 채팅', channel: '📢 채널',
-    user_help: '👤 <b>사용자 명령어</b>\n/dailyclaim — 일일 보상\n/language — 언어 변경\n/mybalance — 잔액\n/top10 — 순위표\n/shop — 상점\n\n게임: .slot, .dice, .shan, .bj, .mine, 2D, Auction, Event',
+    user_help: '👤 <b>사용자 명령어</b>\n/dailyclaim — 일일 보상\n/language — 언어 변경\n/mybalance — 잔액\n//top10 — 순위표\n/shop — 상점\n\n게임: .slot, .dice, .shan, .bj, .mine, 2D, Auction, Event',
     owner_help: '🛡 <b>운영자 명령어</b>\n/admin — 관리 패널\n/status — 봇 상태\n/treasury — 금고\n/broadcast — 공지 발송\n/maintenance — 점검 모드\n운영자 전용입니다.',
     daily_done: '⏳ 오늘의 일일 보상은 이미 받았습니다. 내일 다시 방문하세요.',
   },
