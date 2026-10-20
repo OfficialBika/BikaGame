@@ -386,35 +386,27 @@ async function connectMongo() {
   try {
     await client.connect();
     db = client.db(env.DB_NAME);
-    // Probe whether DB1 can write without changing any data. A quota error sets
-    // a process-wide circuit breaker before any Telegram handlers are started.
-    const probeName = '__bika_db1_write_probe';
+    // Non-mutating capability check: createIndex can fail even if simple writes
+    // still work. If Atlas reports the specific storage-quota lock, skip the
+    // redundant index probe below and mark money transactions read-only.
     try {
-      await db.collection(probeName).insertOne(
+      await db.collection('__bika_db1_write_probe').insertOne(
         { _id: 'probe', createdAt: new Date() },
         { writeConcern: { w: 1, wtimeoutMS: 3000 } },
       );
       try {
-        await db.collection(probeName).deleteOne({ _id: 'probe' });
-        await db.collection(probeName).drop();
+        await db.collection('__bika_db1_write_probe').deleteOne({ _id: 'probe' });
+        await db.collection('__bika_db1_write_probe').drop();
       } catch (cleanupErr) {
-        logger.warn('DB1 write probe cleanup failed; checking the actual write quota separately.');
-        if (isStorageQuotaError(cleanupErr)) {
-          dbOneWriteBlocked = true;
-          logger.error('DB1 is write-blocked while cleaning up the startup probe; money writes are blocked.');
-        }
+        logger.warn('DB1 startup probe cleanup failed.', cleanupErr);
       }
     } catch (probeErr) {
-      // This probe is deliberately limited to an isolated collection and fixed
-      // document ID. Only quota errors trip the circuit breaker.
       if (isStorageQuotaError(probeErr)) {
         dbOneWriteBlocked = true;
-        logger.error('DB1 storage quota probe failed; starting in recovery-only mode. Money writes will be blocked until DB1 write access recovers.');
+        logger.error('DB1 storage quota is blocking writes; starting in recovery-only mode. Financial transactions remain blocked.');
       } else {
-        logger.warn('DB1 write probe could not complete; startup will continue and writes will be guarded by runtime errors.');
+        logger.warn('DB1 write probe could not finish; index bootstrap and guarded runtime writes will provide additional diagnostics.', probeErr);
       }
-      try { await db.collection(probeName).deleteOne({ _id: 'probe' }); } catch (_) {}
-      try { await db.collection(probeName).drop(); } catch (_) {}
     }
   } catch (err) {
     try { await client.close(); } catch (_) {}
