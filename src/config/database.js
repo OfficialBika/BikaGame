@@ -81,8 +81,9 @@ async function enqueueTransactionHistory(doc, session) {
   const sourceId = String(doc._id || '');
   if (!sourceId || sourceId.startsWith('__settlement:')) return null;
   const createdAt = doc.createdAt instanceof Date ? doc.createdAt : new Date(doc.createdAt || Date.now());
+  const outboxId = require('crypto').createHash('sha256').update(sourceId).digest('hex');
   return db.collection(OUTBOX_COLLECTION).updateOne(
-    { sourceId },
+    { _id: outboxId },
     { $setOnInsert: { sourceId, payload: { ...doc, createdAt }, createdAt, status: 'pending', attempts: 0 } },
     { upsert: true, ...(session ? { session } : {}) },
   );
