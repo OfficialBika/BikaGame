@@ -248,10 +248,11 @@ function gameTableText(game, revealDealer, note) {
 }
 
 function resultLabel(result) {
-  if (result === 'BLACKJACK') return '🏆 BLACKJACK';
-  if (result === 'WIN') return '✅ WIN';
-  if (result === 'LOSE') return '❌ LOSE';
-  if (result === 'PUSH') return '🤝 PUSH';
+  const { translateCachedText } = require('../../services/i18nService');
+  if (result === 'BLACKJACK') return '🏆 ' + translateCachedText(game.userId, 'BLACKJACK');
+  if (result === 'WIN') return translateCachedText(game.userId, '✅ WIN');
+  if (result === 'LOSE') return translateCachedText(game.userId, '❌ LOSE');
+  if (result === 'PUSH') return translateCachedText(game.userId, '🤝 TIE');
   return result;
 }
 
