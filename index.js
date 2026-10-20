@@ -30,6 +30,31 @@ function createApp(){const app=express();app.disable('x-powered-by');app.use(exp
 function handleWebhookUpdate(update){setImmediate(()=>{bot.handleUpdate(update).catch((err)=>logger.error('Webhook update error',err));});}
 async function startTelegramBot(app){const webhookPath=env.WEBHOOK_SECRET?`/telegraf/${env.WEBHOOK_SECRET}`:null;const webhookUrl=USE_WEBHOOK&&webhookPath?`${String(env.PUBLIC_URL).replace(/\/+$/,'')}${webhookPath}`:null;if(USE_WEBHOOK&&webhookPath)app.post(webhookPath,(req,res)=>{res.sendStatus(200);handleWebhookUpdate(req.body);});try{await bot.telegram.deleteWebhook({drop_pending_updates:true});}catch(err){logger.warn(`deleteWebhook warning: ${err?.message||err}`);}if(USE_WEBHOOK&&webhookUrl){await bot.telegram.setWebhook(webhookUrl,{max_connections:Number(process.env.WEBHOOK_MAX_CONNECTIONS||40),drop_pending_updates:true,allowed_updates:[]});logger.info(`Webhook mode enabled: ${webhookUrl}`);}else{await bot.launch({dropPendingUpdates:true,allowedUpdates:[]});logger.info('Polling mode enabled');}}
 function listen(app){return new Promise((resolve,reject)=>{server=app.listen(env.PORT,()=>{logger.info(`Web server listening on ${env.PORT}`);resolve();});server.once('error',reject);});}
-async function main(){await connectMongo();await ensureTreasury();await initBotInfo();loadAllModules(bot);const twoDService = require('./src/services/twoDService');await twoDService.init(bot);const auctionService = require('./src/services/auctionService');auctionService.register(bot);await auctionService.init(bot);registerRuntimeCommands(bot);const app=createApp();await listen(app);await startTelegramBot(app);await restoreRuntimeServices(bot);isReady=true;logger.info(`Bot username: @${getBotInfo()?.username||'unknown'}`);logger.info(`Owner ID: ${env.OWNER_ID}`);}
+async function main(){
+  await connectMongo();
+  if (isDbOneWriteBlocked()) {
+    logger.error('RECOVERY MODE: DB1 is write-blocked by Atlas quota. Bot may start for diagnosis, but transactional writes are blocked.');
+  } else {
+    await ensureTreasury();
+  }
+  if (env.DB_TWO_ENABLED && !isHistoryReady()) {
+    logger.error('RECOVERY MODE: DB2 history is not connected. Money transactions are blocked until MONGO_URI_2/DB_TWO_NAME are corrected.');
+  }
+  await initBotInfo();
+  loadAllModules(bot);
+  const twoDService = require('./src/services/twoDService');
+  await twoDService.init(bot);
+  const auctionService = require('./src/services/auctionService');
+  auctionService.register(bot);
+  await auctionService.init(bot);
+  registerRuntimeCommands(bot);
+  const app = createApp();
+  await listen(app);
+  await startTelegramBot(app);
+  await restoreRuntimeServices(bot);
+  isReady = true;
+  logger.info(`Bot username: @${getBotInfo()?.username||'unknown'}`);
+  logger.info(`Owner ID: ${env.OWNER_ID}`);
+}
 async function shutdown(signal){logger.info(`Shutdown: ${signal}`);isReady=false;try{if(server)await new Promise((resolve)=>server.close(resolve));}catch(err){logger.warn(`HTTP server close warning: ${err?.message||err}`);}try{await bot.stop(signal);}catch(err){logger.warn(`Bot stop warning: ${err?.message||err}`);}try{await closeMongo();}catch(err){logger.warn(`Mongo close warning: ${err?.message||err}`);}process.exit(0);}
 process.once('SIGINT',()=>shutdown('SIGINT'));process.once('SIGTERM',()=>shutdown('SIGTERM'));process.on('unhandledRejection',(reason)=>logger.error('UnhandledRejection',reason));process.on('uncaughtException',(err)=>logger.error('UncaughtException',err));main().catch((err)=>{logger.error('BOOT ERROR',err);process.exit(1);});
