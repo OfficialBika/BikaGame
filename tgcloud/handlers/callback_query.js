@@ -174,10 +174,10 @@ export default async function (query) {
       const recipientName = recipient.username ? '@' + recipient.username : (recipient.firstName || String(request.toUserId || 'Recipient'));
       markup = { inline_keyboard: [] };
       text = action === 'confirm'
-        ? '🎁 Gift Success\\nFrom: ' + senderName + '\\nTo: ' + recipientName + '\\nAmount: ' + Number(request.amount || 0).toLocaleString('en-US') + ' Bal' +
-          (result.duplicate ? '\\n(Already processed; no duplicate transfer)' : '')
+        ? '🎁 Gift Success\nFrom: ' + senderName + '\nTo: ' + recipientName + '\nAmount: ' + Number(request.amount || 0).toLocaleString('en-US') + ' Bal' +
+          (result.duplicate ? '\n(Already processed; no duplicate transfer)' : '')
         : '❌ Gift ' + String(result.status || request.status || 'cancelled').toUpperCase() +
-          '\\nNo balance was transferred.';
+          '\nNo balance was transferred.';
     } else if (game === 'shop' && action === 'view') {
       if (message?.chat?.type !== 'private') throw new Error('SHOP_PRIVATE_CHAT_REQUIRED');
       const card = await getShopCard(arg);
