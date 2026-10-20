@@ -18,8 +18,8 @@ const MESSAGES = {
     language_saved: '✅ ဘာသာစကားကို မြန်မာဘာသာအဖြစ် ပြောင်းပြီးပါပြီ။',
     start_title: '🎮 <b>BIKA GAME BOT</b>\nသင့်ရဲ့ game ခရီးစဉ်ကို စတင်လိုက်ပါ။',
     user: '👤 User', owner: '🛡 Owner', game_chat: '🎮 Game Chat', channel: '📢 Channel',
-undefined
-undefined
+    user_help: '👤 <b>User Commands</b>\n/language — ဘာသာစကားပြောင်းရန်\n/daily, /dailyclaim — နေ့စဉ်ဆု\n/mybalance, /bal — လက်ကျန်ငွေစစ်ရန်\n/top10 — အဆင့်စာရင်း\n/shop — ဆိုင်\n/wallet — Wallet\n/gift — ငွေလက်ဆောင်ပို့ရန်\n/webapp — Game Mini App\n/dailytournament — နေ့စဉ်ပြိုင်ပွဲ\n\nGames: .slot, .crash, .mines, .bj, .shan, .dice, 2D, Auction, Event',
+    owner_help: '🛡 <b>Owner Commands</b>\n/admin — Admin dashboard\n/status, /ping — Bot status and latency\n/treasury — Treasury tools\n/addbal, /rmbal — Adjust user balance\n/setrtp, /setbjrtp, /setvipwr — RTP/VIP settings\n/promortp — Promo RTP\n/broadcast, /broadcastend — Broadcast controls\n/off, /on — Maintenance ON/OFF\n/approve, /reject, /groupstatus — Group controls\n\nဤ commands များကို Owner သာ သုံးနိုင်သည်။',
     daily_done: '⏳ ဒီနေ့ Daily reward ကို ရယူပြီးပါပြီ။ မနက်ဖြန် ပြန်လာပါ။',
   },
   en: {
@@ -27,8 +27,8 @@ undefined
     language_saved: '✅ Language changed to English.',
     start_title: '🎮 <b>BIKA GAME BOT</b>\nWelcome! Choose a menu below to continue.',
     user: '👤 User', owner: '🛡 Owner', game_chat: '🎮 Game Chat', channel: '📢 Channel',
-undefined
-undefined
+    user_help: '👤 <b>User Commands</b>\n/language — Change language\n/daily, /dailyclaim — Daily reward\n/mybalance, /bal — Check balance\n/top10 — Leaderboard\n/shop — Shop\n/wallet — Wallet\n/gift — Send a balance gift\n/webapp — Open Game Mini App\n/dailytournament — Daily tournament\n\nGames: .slot, .crash, .mines, .bj, .shan, .dice, 2D, Auction, Event',
+    owner_help: '🛡 <b>Owner Commands</b>\n/admin — Admin dashboard\n/status, /ping — Bot status and latency\n/treasury — Treasury tools\n/addbal, /rmbal — Adjust user balance\n/setrtp, /setbjrtp, /setvipwr — RTP/VIP settings\n/promortp — Promo RTP\n/broadcast, /broadcastend — Broadcast controls\n/off, /on — Maintenance ON/OFF\n/approve, /reject, /groupstatus — Group controls\n\nThese commands are Owner-only.',
     daily_done: '⏳ You have already claimed today’s daily reward. Please come back tomorrow.',
   },
   cn: {
@@ -36,8 +36,8 @@ undefined
     language_saved: '✅ 语言已切换为中文。',
     start_title: '🎮 <b>BIKA 游戏机器人</b>\n欢迎！请选择下方菜单。',
     user: '👤 用户', owner: '🛡 管理员', game_chat: '🎮 游戏群', channel: '📢 官方频道',
-undefined
-undefined
+    user_help: '👤 <b>用户命令</b>\n/language — 更改语言\n/daily, /dailyclaim — 每日奖励\n/mybalance, /bal — 查看余额\n/top10 — 排行榜\n/shop — 商店\n/wallet — 钱包\n/gift — 赠送余额\n/webapp — 打开游戏 Mini App\n/dailytournament — 每日锦标赛\n\n游戏：.slot、.crash、.mines、.bj、.shan、.dice、2D、拍卖、活动',
+    owner_help: '🛡 <b>所有者命令</b>\n/admin — 管理面板\n/status, /ping — 机器人状态与延迟\n/treasury — 金库工具\n/addbal, /rmbal — 调整用户余额\n/setrtp, /setbjrtp, /setvipwr — RTP/VIP 设置\n/promortp — 促销 RTP\n/broadcast, /broadcastend — 群发控制\n/off, /on — 维护模式开关\n/approve, /reject, /groupstatus — 群组管理\n\n这些命令仅限所有者使用。',
     daily_done: '⏳ 您今天已经领取过每日奖励，请明天再来。',
   },
   jp: {
@@ -45,8 +45,8 @@ undefined
     language_saved: '✅ 言語を日本語に変更しました。',
     start_title: '🎮 <b>BIKA GAME BOT</b>\nようこそ！メニューを選択してください。',
     user: '👤 ユーザー', owner: '🛡 オーナー', game_chat: '🎮 ゲームチャット', channel: '📢 チャンネル',
-undefined
-undefined
+    user_help: '👤 <b>ユーザーコマンド</b>\n/language — 言語変更\n/daily, /dailyclaim — デイリー報酬\n/mybalance, /bal — 残高確認\n/top10 — ランキング\n/shop — ショップ\n/wallet — ウォレット\n/gift — 残高を贈る\n/webapp — ゲーム Mini App\n/dailytournament — デイリートーナメント\n\nゲーム: .slot, .crash, .mines, .bj, .shan, .dice, 2D, オークション, イベント',
+    owner_help: '🛡 <b>オーナーコマンド</b>\n/admin — 管理画面\n/status, /ping — 状態と応答速度\n/treasury — 金庫ツール\n/addbal, /rmbal — 残高調整\n/setrtp, /setbjrtp, /setvipwr — RTP/VIP 設定\n/promortp — プロモ RTP\n/broadcast, /broadcastend — 一斉送信\n/off, /on — メンテナンス切替\n/approve, /reject, /groupstatus — グループ管理\n\n管理コマンドはオーナー専用です。',
     daily_done: '⏳ 本日のデイリー報酬は受け取り済みです。明日またお越しください。',
   },
   kr: {
@@ -54,8 +54,8 @@ undefined
     language_saved: '✅ 언어가 한국어로 변경되었습니다.',
     start_title: '🎮 <b>BIKA GAME BOT</b>\n환영합니다! 아래 메뉴를 선택하세요.',
     user: '👤 사용자', owner: '🛡 운영자', game_chat: '🎮 게임 채팅', channel: '📢 채널',
-undefined
-undefined
+    user_help: '👤 <b>사용자 명령어</b>\n/language — 언어 변경\n/daily, /dailyclaim — 일일 보상\n/mybalance, /bal — 잔액 확인\n/top10 — 순위표\n/shop — 상점\n/wallet — 지갑\n/gift — 잔액 선물\n/webapp — 게임 Mini App\n/dailytournament — 일일 토너먼트\n\n게임: .slot, .crash, .mines, .bj, .shan, .dice, 2D, 경매, 이벤트',
+    owner_help: '🛡 <b>운영자 명령어</b>\n/admin — 관리 패널\n/status, /ping — 상태 및 지연 시간\n/treasury — 금고 도구\n/addbal, /rmbal — 잔액 조정\n/setrtp, /setbjrtp, /setvipwr — RTP/VIP 설정\n/promortp — 프로모 RTP\n/broadcast, /broadcastend — 공지 발송 제어\n/off, /on — 점검 모드 전환\n/approve, /reject, /groupstatus — 그룹 관리\n\n관리자 명령어는 운영자 전용입니다.',
     daily_done: '⏳ 오늘의 일일 보상은 이미 받았습니다. 내일 다시 방문하세요.',
   },
   fr: {
@@ -63,8 +63,8 @@ undefined
     language_saved: '✅ La langue est maintenant le français.',
     start_title: '🎮 <b>BIKA GAME BOT</b>\nBienvenue ! Choisissez un menu ci-dessous.',
     user: '👤 Utilisateur', owner: '🛡 Propriétaire', game_chat: '🎮 Chat du jeu', channel: '📢 Chaîne',
-undefined
-undefined
+    user_help: '👤 <b>Commandes utilisateur</b>\n/language — Changer de langue\n/daily, /dailyclaim — Récompense quotidienne\n/mybalance, /bal — Consulter le solde\n/top10 — Classement\n/shop — Boutique\n/wallet — Portefeuille\n/gift — Envoyer un cadeau de solde\n/webapp — Mini App de jeu\n/dailytournament — Tournoi quotidien\n\nJeux : .slot, .crash, .mines, .bj, .shan, .dice, 2D, enchères, événements',
+    owner_help: '🛡 <b>Commandes propriétaire</b>\n/admin — Tableau de bord\n/status, /ping — État et latence\n/treasury — Outils de trésorerie\n/addbal, /rmbal — Ajuster les soldes\n/setrtp, /setbjrtp, /setvipwr — Paramètres RTP/VIP\n/promortp — RTP promotionnel\n/broadcast, /broadcastend — Gestion des diffusions\n/off, /on — Activer/désactiver la maintenance\n/approve, /reject, /groupstatus — Gestion des groupes\n\nCommandes réservées au propriétaire.',
     daily_done: '⏳ Vous avez déjà récupéré la récompense quotidienne. Revenez demain.',
   },
   ru: {
@@ -72,8 +72,8 @@ undefined
     language_saved: '✅ Язык изменён на русский.',
     start_title: '🎮 <b>BIKA GAME BOT</b>\nДобро пожаловать! Выберите меню ниже.',
     user: '👤 Пользователь', owner: '🛡 Владелец', game_chat: '🎮 Игровой чат', channel: '📢 Канал',
-undefined
-undefined
+    user_help: '👤 <b>Команды пользователя</b>\n/language — Сменить язык\n/daily, /dailyclaim — Ежедневная награда\n/mybalance, /bal — Проверить баланс\n/top10 — Рейтинг\n/shop — Магазин\n/wallet — Кошелёк\n/gift — Подарить баланс\n/webapp — Игровое Mini App\n/dailytournament — Ежедневный турнир\n\nИгры: .slot, .crash, .mines, .bj, .shan, .dice, 2D, аукцион, события',
+    owner_help: '🛡 <b>Команды владельца</b>\n/admin — Панель управления\n/status, /ping — Статус и задержка\n/treasury — Инструменты казны\n/addbal, /rmbal — Изменение баланса\n/setrtp, /setbjrtp, /setvipwr — Настройки RTP/VIP\n/promortp — Промо RTP\n/broadcast, /broadcastend — Управление рассылкой\n/off, /on — Режим обслуживания\n/approve, /reject, /groupstatus — Управление группами\n\nКоманды только для владельца.',
     daily_done: '⏳ Вы уже получили ежедневную награду. Возвращайтесь завтра.',
   },
   hi: {
@@ -81,8 +81,8 @@ undefined
     language_saved: '✅ भाषा हिंदी में बदल दी गई है।',
     start_title: '🎮 <b>BIKA GAME BOT</b>\nस्वागत है! नीचे मेनू चुनें।',
     user: '👤 उपयोगकर्ता', owner: '🛡 मालिक', game_chat: '🎮 गेम चैट', channel: '📢 चैनल',
-undefined
-undefined
+    user_help: '👤 <b>उपयोगकर्ता कमांड</b>\n/language — भाषा बदलें\n/daily, /dailyclaim — दैनिक इनाम\n/mybalance, /bal — बैलेंस देखें\n/top10 — लीडरबोर्ड\n/shop — दुकान\n/wallet — वॉलेट\n/gift — बैलेंस उपहार\n/webapp — गेम Mini App\n/dailytournament — दैनिक टूर्नामेंट\n\nगेम: .slot, .crash, .mines, .bj, .shan, .dice, 2D, Auction, Event',
+    owner_help: '🛡 <b>मालिक कमांड</b>\n/admin — एडमिन पैनल\n/status, /ping — स्थिति और लेटेंसी\n/treasury — खजाना टूल\n/addbal, /rmbal — बैलेंस समायोजित करें\n/setrtp, /setbjrtp, /setvipwr — RTP/VIP सेटिंग\n/promortp — प्रोमो RTP\n/broadcast, /broadcastend — प्रसारण नियंत्रण\n/off, /on — मेंटेनेंस चालू/बंद\n/approve, /reject, /groupstatus — समूह नियंत्रण\n\nये कमांड केवल मालिक के लिए हैं।',
     daily_done: '⏳ आज का दैनिक इनाम पहले ही लिया जा चुका है। कृपया कल आएँ।',
   },
   ar: {
@@ -90,8 +90,8 @@ undefined
     language_saved: '✅ تم تغيير اللغة إلى العربية.',
     start_title: '🎮 <b>BIKA GAME BOT</b>\nأهلاً بك! اختر قائمة للمتابعة.',
     user: '👤 المستخدم', owner: '🛡 المالك', game_chat: '🎮 دردشة اللعبة', channel: '📢 القناة',
-undefined
-undefined
+    user_help: '👤 <b>أوامر المستخدم</b>\n/language — تغيير اللغة\n/daily, /dailyclaim — المكافأة اليومية\n/mybalance, /bal — عرض الرصيد\n/top10 — قائمة المتصدرين\n/shop — المتجر\n/wallet — المحفظة\n/gift — إهداء الرصيد\n/webapp — تطبيق الألعاب المصغّر\ndailytournament — البطولة اليومية\n\nالألعاب: .slot و.crash و.mines و.bj و.shan و.dice و2D والمزادات والفعاليات',
+    owner_help: '🛡 <b>أوامر المالك</b>\n/admin — لوحة الإدارة\n/status, /ping — الحالة وزمن الاستجابة\n/treasury — أدوات الخزينة\n/addbal, /rmbal — تعديل الرصيد\n/setrtp, /setbjrtp, /setvipwr — إعدادات RTP/VIP\n/promortp — RTP ترويجي\n/broadcast, /broadcastend — التحكم بالبث\n/off, /on — تشغيل/إيقاف الصيانة\n/approve, /reject, /groupstatus — إدارة المجموعات\n\nأوامر الإدارة متاحة للمالك فقط.',
     daily_done: '⏳ لقد استلمت المكافأة اليومية بالفعل. يرجى العودة غدًا.',
   },
 };
