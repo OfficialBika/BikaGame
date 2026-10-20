@@ -273,13 +273,13 @@ async function payoutAndSettle(bot, game, reason) {
       game.settled=true;
       if(game.timeoutHandle) clearTimeout(game.timeoutHandle);
       clearGame(game.id);
-      return editByIds(bot,game.chatId,game.messageId,`⚠️ <b>Mines Payout Error</b>\n━━━━━━━━━━━━\nPayout error ဖြစ်လို့ bet refund ပြန်ပေးထားပါတယ်။`,{reply_markup:minesKeyboard(game,true)});
+      return editByIds(bot,game.chatId,game.messageId,`⚠️ <b>Mines Payout Error</b>\n━━━━━━━━━━━━\nPayout error ဖြစ်လို့ bet refund ပြန်ပေးထားပါတယ်။`,{reply_markup:minesKeyboard(game,true)}, game.userId);
     } catch (_) {}
     game.processing=false;
-    return editByIds(bot,game.chatId,game.messageId,`⚠️ <b>Mines Payout Error</b>\n━━━━━━━━━━━━\nPayout/refund မပြီးသေးပါ။ ထပ်ကြိုးစားနိုင်ပါတယ်။`,{reply_markup:minesKeyboard(game,true)});
+    return editByIds(bot,game.chatId,game.messageId,`⚠️ <b>Mines Payout Error</b>\n━━━━━━━━━━━━\nPayout/refund မပြီးသေးပါ။ ထပ်ကြိုးစားနိုင်ပါတယ်။`,{reply_markup:minesKeyboard(game,true)}, game.userId);
   }
   recordMinesTournament(game,payout,reason).catch(()=>{});
-  return editByIds(bot,game.chatId,game.messageId,minesText(game,`✅ <b>Cash Out Success!</b>\nNet: <b>${fmt(payout-game.bet)}</b> ${COIN}`,true,payout),{reply_markup:minesKeyboard(game,true)});
+  return editByIds(bot,game.chatId,game.messageId,minesText(game,`✅ <b>Cash Out Success!</b>\nNet: <b>${fmt(payout-game.bet)}</b> ${COIN}`,true,payout),{reply_markup:minesKeyboard(game,true)}, game.userId);
 }
 
 async function expireGame(bot, gameId) {
@@ -298,7 +298,7 @@ async function expireGame(bot, gameId) {
     game.timeoutHandle=setTimeout(()=>expireGame(bot,gameId).catch(()=>{}),5000);
     return;
   }
-  return editByIds(bot,game.chatId,game.messageId,minesText(game,'⌛ Cash Out unlock မဖြစ်သေးခင် အချိန်ကုန်သွားလို့ bet refund ပြန်ပေးထားပါတယ်။',true,game.bet),{reply_markup:minesKeyboard(game,true)});
+  return editByIds(bot,game.chatId,game.messageId,minesText(game,'⌛ Cash Out unlock မဖြစ်သေးခင် အချိန်ကုန်သွားလို့ bet refund ပြန်ပေးထားပါတယ်။',true,game.bet),{reply_markup:minesKeyboard(game,true)}, game.userId);
 }
 
 async function startMines(ctx, bot, parsed) {
@@ -580,7 +580,7 @@ module.exports = (bot) => {
         game.messageId,
         minesText(game, note),
         { reply_markup: minesKeyboard(game) }
-      );
+      , game.userId);
     } catch (err) {
       console.error('MINES_ACTION_ERROR:', err?.stack || err?.message || err);
 
@@ -592,7 +592,7 @@ module.exports = (bot) => {
           game.messageId,
           minesText(game, '⚠️ Telegram rate limit ဖြစ်နေပါတယ်။ ခဏစောင့်ပြီး ထပ်နှိပ်ပါ။'),
           { reply_markup: minesKeyboard(game) }
-        );
+        , game.userId);
       } catch (editErr) {
         console.error('MINES_ACTION_NOTICE_FAILED:', editErr?.stack || editErr?.message || editErr);
       }
