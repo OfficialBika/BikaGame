@@ -301,14 +301,14 @@ async function expireGame(bot, gameId) {
     game.timeoutHandle=setTimeout(()=>expireGame(bot,gameId).catch(()=>{}),5000);
     return;
   }
-  return editByIds(bot,game.chatId,game.messageId,minesText(game,'⌛ Cash Out unlock မဖြစ်သေးခင် အချိန်ကုန်သွားလို့ bet refund ပြန်ပေးထားပါတယ်။',true,game.bet),{reply_markup:minesKeyboard(game,true)}, game.userId);
+  return editByIds(bot,game.chatId,game.messageId,minesText(game,'⌛ Time expired before Cash Out unlocked; bet refunded.',true,game.bet),{reply_markup:minesKeyboard(game,true)}, game.userId);
 }
 
 async function startMines(ctx, bot, parsed) {
   const options = replyOptions(ctx);
 
   if (!isGroupChat(ctx)) {
-    return replyHTML(ctx, 'ℹ️ <code>.mines</code> ကို group ထဲမှာပဲ သုံးနိုင်ပါတယ်။', options);
+    return replyHTML(ctx, 'ℹ️ This <code>.mines</code> command is only available in groups.', options);
   }
 
   const userId = ctx.from?.id;
@@ -340,25 +340,25 @@ async function startMines(ctx, bot, parsed) {
   }
 
   if (activeUsers.has(activeUserKey(chatId, userId))) {
-    return replyHTML(ctx, '⏳ သင့် Mines round လက်ရှိ run နေပါတယ်။ Cash Out သို့မဟုတ် Cancel လုပ်ပြီးမှ ထပ်စပါ။', options);
+    return replyHTML(ctx, '⏳ Your Mines round is already running. Cash Out or Cancel before starting another.', options);
   }
 
   if (activeGames.size >= MAX_ACTIVE) {
-    return replyHTML(ctx, '⛔ Mines game များနေပါတယ်။ ခဏစောင့်ပြီး ထပ်စမ်းပါ။', options);
+    return replyHTML(ctx, '⛔ Mines is busy. Please wait and try again.', options);
   }
 
   const cooldownSeconds = Math.max(1, Math.ceil(Number(MINES?.cooldownMs || 1200) / 1000));
   const cooldownLeft = checkCooldown(`mines:${userId}`, cooldownSeconds);
 
   if (cooldownLeft > 0) {
-    return replyHTML(ctx, `⏳ ခဏစောင့်ပါ… (${cooldownLeft}s)`, options);
+    return replyHTML(ctx, `⏳ Please wait… (${cooldownLeft}s)`, options);
   }
 
   await require('../../services/i18nService').getPreferredLanguage(userId);
   const user = await getUser(userId);
 
   if (Number(user?.balance || 0) < bet) {
-    return replyHTML(ctx, '❌ Balance မလုံလောက်ပါ။', options);
+    return replyHTML(ctx, '❌ Insufficient balance.', options);
   }
 
   let betTaken = false;
@@ -516,7 +516,7 @@ module.exports = (bot) => {
           bot,
           game.chatId,
           game.messageId,
-          minesText(game, '❌ Mines round cancelled. Bet refund ပြန်ပေးထားပါတယ်။', true, game.bet),
+          minesText(game, '❌ Mines round cancelled. Bet refunded.', true, game.bet),
           { reply_markup: minesKeyboard(game, true) },
           game.userId
         );
@@ -597,7 +597,7 @@ module.exports = (bot) => {
           bot,
           game.chatId,
           game.messageId,
-          minesText(game, '⚠️ Telegram rate limit ဖြစ်နေပါတယ်။ ခဏစောင့်ပြီး ထပ်နှိပ်ပါ။'),
+          minesText(game, '⚠️ Telegram rate limit is active. Wait briefly and try again.'),
           { reply_markup: minesKeyboard(game) },
           game.userId
         );
