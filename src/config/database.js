@@ -227,6 +227,14 @@ async function migrateTransactionHistory({ batchSize = 100, maxDocuments = Infin
   );
 }
 
+async function getTransactionHistoryCollection() {
+  if (env.DB_TWO_ENABLED) {
+    if (!historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
+    return historyDb.collection(HISTORY_COLLECTION);
+  }
+  return collections.transactions;
+}
+
 async function getTransactionHistoryDb() {
   if (env.DB_TWO_ENABLED) {
     if (!historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
@@ -344,4 +352,4 @@ async function withRequiredTx(work) {
   } finally { try { await session.endSession(); } catch (_) {} }
 }
 async function pingMs(){ const s=Date.now(); try{ await getDb().command({ping:1}); return Date.now()-s; }catch(_){return null;} }
-module.exports = { connectMongo, closeMongo, getDb, col, withMaybeTx, withRequiredTx, pingMs, enqueueTransactionHistory, flushTransactionHistoryOutbox, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryStats, migrateTransactionHistory };
+module.exports = { connectMongo, closeMongo, getDb, col, withMaybeTx, withRequiredTx, pingMs, enqueueTransactionHistory, flushTransactionHistoryOutbox, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryCollection, getTransactionHistoryStats, migrateTransactionHistory };
