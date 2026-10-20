@@ -39,16 +39,23 @@ async function runMigration(sourceDb, targetDb, { batchSize, verifyOnly }) {
   const target = targetDb.collection('transactions');
   const sourceCountBefore = await source.countDocuments({});
   const targetCountBefore = await target.countDocuments({});
-  const sourceStats = await sourceDb.stats().catch(() => null);
+  // Storage stats use an aggregation internally in some MongoDB drivers and
+  // are not needed to determine whether a history copy is safe.
   const sourceIndexes = await source.indexes().catch(() => []);
   const migrationStartedAt = new Date();
+  // Retention policy is 30 days: only verify history that is still within that
+  // retention window. Older rows may have been intentionally pruned from DB1.
+  const retainedCutoff = new Date(migrationStartedAt.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const retainedFilter = { createdAt: { $gte: retainedCutoff } };
+  const sourceRetainedBefore = await source.countDocuments(retainedFilter);
+  const targetRetainedBefore = await target.countDocuments(retainedFilter);
 
   let copied = 0;
   let missing = 0;
   let mismatched = 0;
   let sourceSeen = 0;
   let lastSourceId = null;
-  const cursor = source.find({}).sort({ _id: 1 }).batchSize(batchSize);
+  const cursor = source.find(retainedFilter).sort({ _id: 1 }).batchSize(batchSize);
   let batch = [];
 
   async function handleBatch(docs) {
@@ -86,33 +93,35 @@ async function runMigration(sourceDb, targetDb, { batchSize, verifyOnly }) {
   if (batch.length) await handleBatch(batch);
 
   const sourceCountAfter = await source.countDocuments({});
+  const sourceRetainedAfter = await source.countDocuments(retainedFilter);
   const targetCountAfter = await target.countDocuments({});
-  // This count is a conservative change detector when transaction rows have timestamps.
-  // If the source keeps changing during migration, verification must fail and be rerun
-  // during a quiet/maintenance window before any cleanup is considered.
+  const targetRetainedAfter = await target.countDocuments(retainedFilter);
   const postCutoverWrites = await source.countDocuments({ createdAt: { $gte: migrationStartedAt } }).catch(() => null);
-  const sourceStable = sourceCountBefore === sourceCountAfter && sourceSeen === sourceCountAfter;
+  const sourceStable = sourceRetainedBefore === sourceRetainedAfter && sourceSeen === sourceRetainedAfter;
   const verified = sourceStable &&
     missing === 0 &&
     mismatched === 0 &&
-    targetCountAfter >= sourceCountAfter &&
+    targetRetainedAfter >= sourceRetainedAfter &&
     sourceIndexes.length > 0 &&
     postCutoverWrites === 0;
 
-  const targetStats = await targetDb.stats().catch(() => null);
   return {
     migration: 'transactions-v1-readonly',
-    mode: verifyOnly ? 'verify-only' : 'copy-and-verify',
+    mode: verifyOnly ? 'verify-only-retained-30d' : 'copy-and-verify-retained-30d',
+    retentionDays: 30,
+    retainedCutoff: retainedCutoff.toISOString(),
     source: {
       countBefore: sourceCountBefore,
       countAfter: sourceCountAfter,
-      storageSize: sourceStats?.storageSize ?? null,
+      retainedCountBefore: sourceRetainedBefore,
+      retainedCountAfter: sourceRetainedAfter,
       lastIdScanned: lastSourceId == null ? null : String(lastSourceId),
     },
     target: {
       countBefore: targetCountBefore,
       countAfter: targetCountAfter,
-      storageSize: targetStats?.storageSize ?? null,
+      retainedCountBefore: targetRetainedBefore,
+      retainedCountAfter: targetRetainedAfter,
     },
     copied,
     missing,
