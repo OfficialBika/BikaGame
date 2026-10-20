@@ -178,31 +178,28 @@ async function migrateTransactionHistory({ batchSize = 100, maxDocuments = Infin
   const target = historyDb.collection(HISTORY_COLLECTION);
   const sourceCount = await source.countDocuments({});
   const targetCountBefore = await target.countDocuments({});
-  const startReport = await historyDb.collection('_migration_reports').findOne({ _id: 'initial-transactions-migration-v1' });
+  // Mixed BSON _id types make a single $gt checkpoint unsafe. Re-scanning the
+  // source is idempotent because target writes use $setOnInsert.
   let copied = 0;
-  // Keyset pagination is safe for ObjectId-backed ledger records. Legacy records
-  // use both ObjectId and string IDs; sort and resume by _id without assuming type.
-  let lastId = startReport?.lastCopiedId ?? null;
-
-  while (copied < maxDocuments) {
-    // Skip only documents already acknowledged by the checkpoint; IDs can be
-    // mixed BSON types, so checkpoint paging uses the last _id and Mongo sort.
-    const filter = lastId == null ? {} : { _id: { $gt: lastId } };
-    const docs = await source.find(filter).sort({ _id: 1 })
-      .limit(Math.min(batchSize, maxDocuments - copied)).toArray();
-    if (!docs.length) break;
+  const copyCursor = source.find({}).sort({ _id: 1 }).batchSize(batchSize);
+  let copyBatchDocs = [];
+  async function copyBatch(docs) {
+    if (!docs.length) return;
     const ops = docs.map((doc) => ({
       updateOne: { filter: { _id: doc._id }, update: { $setOnInsert: doc }, upsert: true },
     }));
     await target.bulkWrite(ops, { ordered: false });
     copied += docs.length;
-    lastId = docs[docs.length - 1]._id;
-    await historyDb.collection('_migration_reports').updateOne(
-      { _id: 'initial-transactions-migration-v1' },
-      { $set: { lastCopiedId: lastId, copiedSoFar: copied, updatedAt: new Date(), status: 'copying' } },
-      { upsert: true },
-    );
   }
+  for await (const doc of copyCursor) {
+    if (copied >= maxDocuments) break;
+    copyBatchDocs.push(doc);
+    if (copyBatchDocs.length >= Math.min(batchSize, maxDocuments - copied)) {
+      await copyBatch(copyBatchDocs);
+      copyBatchDocs = [];
+    }
+  }
+  if (copyBatchDocs.length && copied < maxDocuments) await copyBatch(copyBatchDocs);
 
   let missing = 0;
   let mismatched = 0;
@@ -238,7 +235,7 @@ async function migrateTransactionHistory({ batchSize = 100, maxDocuments = Infin
   if (batch.length) await verifyBatch(batch);
 
   const targetCount = await target.countDocuments({});
-  const verified = missing === 0 && mismatched === 0 && targetCount >= sourceCount;
+  const verified = maxDocuments === Infinity && missing === 0 && mismatched === 0 && targetCount >= sourceCount;
   return recordTransactionMigrationReport(
     { count: sourceCount },
     { count: targetCountBefore, finalCount: targetCount },
