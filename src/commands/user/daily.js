@@ -9,6 +9,7 @@ const { logTx } = require('../../services/transactionService');
 const { getUser } = require('../../services/economyService');
 const { getTreasury } = require('../../services/treasuryService');
 const { replyHTML } = require('../../utils/telegram');
+const { getBotInfo } = require('../../config/bot');
 const { fmt, formatYangon } = require('../../utils/format');
 const {
   mentionHtml,
@@ -85,10 +86,11 @@ async function rollbackDailyFlag(userId, previousUser) {
   await userModel.collection().updateOne({ userId }, update);
 }
 
-module.exports = (bot) => {
-  async function dailyClaim(ctx) {
+async function dailyClaim(ctx) {
     const options = replyOptions(ctx);
-    if (!isGroupChat(ctx)) return replyHTML(ctx, 'ℹ️ <code>/dailyclaim</code> ကို group ထဲမှာပဲ သုံးနိုင်ပါတယ်။', options);
+    if (!ctx.chat || (!isGroupChat(ctx) && ctx.chat.type !== 'private')) {
+      return replyHTML(ctx, 'ℹ️ Daily reward ကို group သို့မဟုတ် DM ထဲမှာပဲ ယူနိုင်ပါတယ်။', options);
+    }
     const userId = ctx.from?.id;
     if (!userId) return;
     const now = new Date();
@@ -143,7 +145,35 @@ module.exports = (bot) => {
       return replyHTML(ctx, '⚠️ Daily claim error ဖြစ်လို့ ပြန်စမ်းကြည့်ပါ။', options);
     }
   }
+
+}
+
+async function dailyDotCommand(ctx) {
+  if (!isGroupChat(ctx)) return dailyClaim(ctx);
+
+  const username = String(getBotInfo()?.username || 'BikaGameBot').replace(/^@/, '');
+  const dmUrl = `https://t.me/${username}?start=daily`;
+
+  return replyHTML(
+    ctx,
+    '🎁 <b>Daily Reward</b>\n━━━━━━━━━━━━━━\n💬 Daily reward ကို Group ထဲမှာမယူနိုင်ပါ။ DM ထဲသို့ဝင်ပြီး <code>/daily</code> ပို့ကာ ယူပေးပါ။',
+    {
+      ...replyOptions(ctx),
+      reply_markup: {
+        inline_keyboard: [[
+          { text: '📩 DM မှာ /daily ယူမယ်', url: dmUrl, style: 'primary' },
+        ]],
+      },
+    }
+  );
+}
+
+function registerDailyCommands(bot) {
   bot.command('dailyclaim', dailyClaim);
   bot.command('daily', dailyClaim);
-  bot.hears(/^\.(dailyclaim|daily)\s*$/i, dailyClaim);
-};
+  bot.hears(/^\.(dailyclaim)\s*$/i, dailyClaim);
+  bot.hears(/^\.(daily)\s*$/i, dailyDotCommand);
+}
+
+registerDailyCommands.claimDaily = dailyClaim;
+module.exports = registerDailyCommands;
