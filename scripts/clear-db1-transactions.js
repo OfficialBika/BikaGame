@@ -7,18 +7,20 @@ const path = require('path');
 
 const CONFIRM_FLAG = '--confirm-delete-db1-transactions';
 const BACKUP_FLAG = '--backup-jsonl';
+const ALLOW_PENDING_FLAG = '--allow-pending-outbox';
 const BATCH_SIZE = 200;
 
 function parseArgs(argv) {
-  const args = { confirm: false, backup: false, dryRun: false };
+  const args = { confirm: false, backup: false, dryRun: false, allowPendingOutbox: false };
   for (const arg of argv) {
     if (arg === CONFIRM_FLAG) args.confirm = true;
     else if (arg === BACKUP_FLAG) args.backup = true;
+    else if (arg === ALLOW_PENDING_FLAG) args.allowPendingOutbox = true;
     else if (arg === '--dry-run') args.dryRun = true;
     else if (arg === '--help') {
       console.log('Usage: node scripts/clear-db1-transactions.js --dry-run');
       console.log('       node scripts/clear-db1-transactions.js ' + CONFIRM_FLAG + ' ' + BACKUP_FLAG);
-      console.log('Safety guards require explicit DB1/DB2 settings, no pending outbox rows, a backup, and exact DB2 verification.');
+      console.log('Safety guards require explicit DB1/DB2 settings, a backup, and exact DB2 verification. Pending outbox bypass is explicit and not recommended.');
       process.exit(0);
     } else throw new Error('Unknown argument: ' + arg);
   }
@@ -158,8 +160,8 @@ async function main() {
       return;
     }
 
-    if (pendingOutbox > 0) {
-      throw new Error('Pending transaction_outbox records exist. Resolve/flush them before deletion; this script never bypasses this guard.');
+    if (pendingOutbox > 0 && !args.allowPendingOutbox) {
+      throw new Error('Pending transaction_outbox records exist. Resolve/flush them before deletion, or explicitly pass ' + ALLOW_PENDING_FLAG + ' after understanding the data-loss risk.');
     }
     if (sourceCount === 0) {
       console.log(JSON.stringify(report, null, 2));
@@ -175,7 +177,7 @@ async function main() {
       if (err && (err.codeName === 'NamespaceNotFound' || err.code === 26)) return 0;
       throw err;
     });
-    if (pendingBeforeDelete !== 0) throw new Error('Pending outbox records found before deletion; no DB1 deletion performed');
+    if (pendingBeforeDelete !== 0 && !args.allowPendingOutbox) throw new Error('Pending outbox records found before deletion; no DB1 deletion performed');
 
     report.backup = await exportBackup(source);
     // Re-check copy and source counts after backup in case another writer raced this cleanup.
@@ -186,7 +188,7 @@ async function main() {
       if (err && (err.codeName === 'NamespaceNotFound' || err.code === 26)) return 0;
       throw err;
     });
-    if (pendingFinal !== 0) throw new Error('Pending outbox appeared during final verification; no DB1 deletion performed; keep backup at ' + report.backup);
+    if (pendingFinal !== 0 && !args.allowPendingOutbox) throw new Error('Pending outbox appeared during final verification; no DB1 deletion performed; keep backup at ' + report.backup);
 
     // Only the historical transaction collection is deleted. Balances, treasury,
     // settlement/business data, and DB2 are intentionally untouched.
