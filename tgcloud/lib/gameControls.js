@@ -15,11 +15,25 @@ function enabledFromSetting(value) {
   return value !== false;
 }
 
-export async function getGameEnabled(game) {
+export async function getGameState(game) {
   const key = normalizeGameKey(game);
   if (!key) throw new EndpointError('Unknown game control.', { code: 'INVALID_GAME' });
   const value = await getSetting(settingKey(key), true);
-  return enabledFromSetting(value);
+  const metadata = value && typeof value === 'object' ? value : {};
+  return {
+    game: key,
+    enabled: enabledFromSetting(value),
+    updatedBy: Number.isSafeInteger(Number(metadata.updatedBy)) && Number(metadata.updatedBy) > 0
+      ? Number(metadata.updatedBy)
+      : null,
+    updatedAt: typeof metadata.updatedAt === 'string' && metadata.updatedAt
+      ? metadata.updatedAt
+      : null,
+  };
+}
+
+export async function getGameEnabled(game) {
+  return (await getGameState(game)).enabled;
 }
 
 export async function assertGameEnabled(game) {
@@ -54,14 +68,22 @@ export async function setGameEnabled(game, enabled, actorUserId) {
     updatedAt: new Date().toISOString(),
   };
   await setSetting(settingKey(key), record);
-  return { game: key, ...record };
+
+  // Verify what the authoritative settings store returns; a successful write
+  // response alone does not prove the requested control state was persisted.
+  const saved = await getGameState(key);
+  if (saved.enabled !== record.enabled ||
+      saved.updatedBy !== ownerId ||
+      saved.updatedAt !== record.updatedAt) {
+    throw new EndpointError('Game control setting ကို သိမ်းဆည်းပြီး ပြန်စစ်မရပါ။', {
+      code: 'GAME_CONTROL_WRITE_UNVERIFIED',
+      game: key,
+    });
+  }
+  return saved;
 }
 
 export async function listGameStates() {
   const games = ['slot', 'blackjack', 'shan', 'dice', 'mines'];
-  const entries = await Promise.all(games.map(async (game) => ({
-    game,
-    enabled: await getGameEnabled(game),
-  })));
-  return entries;
+  return Promise.all(games.map((game) => getGameState(game)));
 }
