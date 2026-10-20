@@ -183,6 +183,10 @@ async function migrateTransactionHistory({ batchSize = 100, maxDocuments = Infin
   const target = historyDb.collection(HISTORY_COLLECTION);
   const sourceCount = await source.countDocuments({});
   const targetCountBefore = await target.countDocuments({});
+  // Bootstrap the destination collection before copying. This writes to DB2 only.
+  await target.createIndex({ createdAt: -1 }, { name: 'tx_history_createdAt_desc' });
+  await target.createIndex({ userId: 1, createdAt: -1 }, { name: 'tx_history_user_createdAt' });
+  await target.createIndex({ type: 1, 'meta.eventId': 1, toUserId: 1 }, { name: 'tx_history_type_event_toUser' });
   // Re-scanning is safe for mixed BSON _id types because target writes are idempotent.
   let copied = 0;
   const copyCursor = source.find({}).sort({ _id: 1 }).batchSize(batchSize);
