@@ -16,6 +16,10 @@ assert.match(slotStart, /validBet\(amount, 50, 15000\)/);
 assert.match(slotStart, /consumeCooldown\(id, 'slot', 700\)/);
 assert.match(slotStart, /capPayout\(bet, rawPayout, 0\.30/);
 assert.match(slotStart, /options\?\.source === 'telegram'/);
+assert.match(slotStart, /const globalRtp = Math\.max\(0, Math\.min\(100, Number\(house\?\.rtpWinRate \?\? 35\)\)\)/, 'Telegram must match main global RTP fallback');
+assert.match(slotStart, /rtp = globalRtp/, 'failed promo lookup must revert to global RTP');
+assert.match(slotStart, /groupId: source === 'telegram' \? String\(options\.groupId \|\| ''\) : null/);
+
 assert.match(slotStart, /getActivePromoRtp\(options\.groupId\)/);
 assert.match(slotStart, /getSetting\('legacy_slot_win_rate', 35\)/);
 assert.match(slotStart, /getSetting\('web_game_rtp_slot', 65\)/);
