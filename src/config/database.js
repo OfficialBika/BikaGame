@@ -224,6 +224,7 @@ async function hasVerifiedInitialMigration() {
     _id: 'initial-transactions-migration-v1',
     verified: true,
     'policy.retentionDays': 30,
+    'policy.scope': 'createdAt-gte-cutoff',
   });
   return !!report;
 }
