@@ -105,7 +105,8 @@ async function dailyClaim(ctx) {
         const tx = col('transactions');
         const markerId = `__settlement:${settlementId}`;
         const existing = await tx.findOne({ _id: markerId }, opts);
-        if (existing) return { duplicate:true, amount:Number(existing.amount||amount), balance:Number(existing.balanceAfter||0) };
+        // A settlement marker proves today's payout already committed. Never report it as a new success.
+        if (existing) throw new Error('DAILY_ALREADY_CLAIMED');
 
         const claim = await userModel.collection().findOneAndUpdate(
           { userId, $or:[{lastDailyClaimAt:{$exists:false}},{lastDailyClaimAt:null},{lastDailyClaimAt:{$lt:today}}] },
@@ -133,10 +134,9 @@ async function dailyClaim(ctx) {
 
         await logTx({ type:'daily_claim', fromUserId:'TREASURY', toUserId:userAfter.userId, amount, meta:{ idempotencyKey:markerId, claimDate:today.toISOString() }, balanceAfter:Number(userAfter.balance||0) }, opts);
         await tx.insertOne({ _id:markerId, type:'daily_claim_settlement', userId:userAfter.userId, amount, balanceAfter:Number(userAfter.balance||0), createdAt:now }, opts);
-        return { duplicate:false, amount, balance:Number(userAfter.balance||0) };
+        return { amount, balance:Number(userAfter.balance||0) };
       });
 
-      if (result.duplicate) return replyHTML(ctx, dailySuccessText(ctx, result.amount, result.balance, now), options);
       return replyHTML(ctx, dailySuccessText(ctx, result.amount, result.balance, now), options);
     } catch (err) {
       if (String(err?.message||err) === 'DAILY_ALREADY_CLAIMED') return replyHTML(ctx, '⏳ ဒီနေ့ claim လုပ်ပြီးပြီလေ! တစ်ရက် ဘယ်နှကြိမ်ယူချင်နေတာလဲ လစ်လစ် နောက်နေ့မှ ပြန်လုပ်', options);
