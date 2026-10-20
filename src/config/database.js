@@ -133,9 +133,9 @@ async function initializeTransactionHistoryStorage() {
   if (!env.DB_TWO_ENABLED || !historyReady) return { skipped: true };
   // Explicit caller can choose the DB2 bootstrap step. Normal bot startup does
   // not run bulk migration and never deletes the source ledger.
-  await historyDb.collection(HISTORY_COLLECTION).createIndex({ createdAt: -1 }, { name: 'tx_history_createdAt_desc' });
-  await historyDb.collection(HISTORY_COLLECTION).createIndex({ userId: 1, createdAt: -1 }, { name: 'tx_history_user_createdAt' });
-  await historyDb.collection(HISTORY_COLLECTION).createIndex({ type: 1, 'meta.eventId': 1, toUserId: 1 }, { name: 'tx_history_type_event_toUser' });
+  await safeCreateIndex(historyDb.collection(HISTORY_COLLECTION), { createdAt: -1 }, { name: 'tx_history_createdAt_desc' });
+  await safeCreateIndex(historyDb.collection(HISTORY_COLLECTION), { userId: 1, createdAt: -1 }, { name: 'tx_history_user_createdAt' });
+  await safeCreateIndex(historyDb.collection(HISTORY_COLLECTION), { type: 1, 'meta.eventId': 1, toUserId: 1 }, { name: 'tx_history_type_event_toUser' });
   return { ready: true };
 }
 
