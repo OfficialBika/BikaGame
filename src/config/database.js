@@ -178,8 +178,7 @@ async function migrateTransactionHistory({ batchSize = 100, maxDocuments = Infin
   const target = historyDb.collection(HISTORY_COLLECTION);
   const sourceCount = await source.countDocuments({});
   const targetCountBefore = await target.countDocuments({});
-  // Mixed BSON _id types make a single $gt checkpoint unsafe. Re-scanning the
-  // source is idempotent because target writes use $setOnInsert.
+  // Re-scanning is safe for mixed BSON _id types because target writes are idempotent.
   let copied = 0;
   const copyCursor = source.find({}).sort({ _id: 1 }).batchSize(batchSize);
   let copyBatchDocs = [];
@@ -213,7 +212,7 @@ async function migrateTransactionHistory({ batchSize = 100, maxDocuments = Infin
     return value;
   };
   const verifyCursor = source.find({}).batchSize(batchSize);
-  let batch = [];
+  let verifyBatchDocs = [];
   async function verifyBatch(sourceDocs) {
     if (!sourceDocs.length) return;
     const ids = sourceDocs.map((doc) => doc._id);
@@ -226,13 +225,13 @@ async function migrateTransactionHistory({ batchSize = 100, maxDocuments = Infin
     }
   }
   for await (const doc of verifyCursor) {
-    batch.push(doc);
-    if (batch.length >= batchSize) {
-      await verifyBatch(batch);
-      batch = [];
+    verifyBatchDocs.push(doc);
+    if (verifyBatchDocs.length >= batchSize) {
+      await verifyBatch(verifyBatchDocs);
+      verifyBatchDocs = [];
     }
   }
-  if (batch.length) await verifyBatch(batch);
+  if (verifyBatchDocs.length) await verifyBatch(verifyBatchDocs);
 
   const targetCount = await target.countDocuments({});
   const verified = maxDocuments === Infinity && missing === 0 && mismatched === 0 && targetCount >= sourceCount;
@@ -242,14 +241,6 @@ async function migrateTransactionHistory({ batchSize = 100, maxDocuments = Infin
     { attempted: copied },
     verified,
   );
-}
-
-async function getTransactionHistoryCollection() {
-  if (env.DB_TWO_ENABLED) {
-    if (!historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
-    return historyDb.collection(HISTORY_COLLECTION);
-  }
-  return collections.transactions;
 }
 
 async function getTransactionHistoryDb() {
