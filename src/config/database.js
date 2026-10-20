@@ -94,6 +94,9 @@ async function initializeTransactionHistoryStorage() {
 async function flushTransactionHistoryOutbox({ batchSize = 100 } = {}) {
   if (!env.DB_TWO_ENABLED) return { skipped: true, processed: 0 };
   if (!historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
+  // Never write new history into a database that hasn't been bootstrapped yet.
+  const historyExists = await historyDb.listCollections({ name: HISTORY_COLLECTION }, { nameOnly: true }).hasNext();
+  if (!historyExists) throw new Error('DB_TWO_HISTORY_NOT_INITIALIZED: run the reviewed migration/bootstrap first');
   const pending = await db.collection(OUTBOX_COLLECTION)
     .find({ status: 'pending' }).sort({ createdAt: 1 }).limit(batchSize).toArray();
   let processed = 0;
