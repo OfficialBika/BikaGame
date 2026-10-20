@@ -34,6 +34,7 @@ async function ensureIndexes() {
 
   try {
     const col = collection();
+    await col.createIndex({ createdAt: 1 }, { expireAfterSeconds: 7 * 24 * 60 * 60, name: 'ttl_createdAt_7d' });
     await col.createIndex(
       { dayKey: 1, game: 1, chatId: 1, userId: 1 },
       { unique: true, name: 'day_game_chat_user_unique' }

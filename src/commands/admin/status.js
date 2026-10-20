@@ -1,6 +1,6 @@
 'use strict';
 
-const { pingMs } = require('../../config/database');
+const { pingMs, getTransactionHistoryStats, getUnresolvedTransactionJournals } = require('../../config/database');
 const userModel = require('../../models/userModel');
 const groupModel = require('../../models/groupModel');
 const { ensureTreasury, isOwner } = require('../../services/treasuryService');
@@ -314,6 +314,43 @@ async function renderRequests(ctx, page) {
 module.exports = (bot) => {
   bot.command('ping', async (ctx) => {
     return replyHTML(ctx, await pingText(), replyOptions(ctx));
+  });
+
+
+  bot.command('txledgerstatus', async (ctx) => {
+    const t = await ownerOrReply(ctx);
+    if (!t) return;
+    try {
+      const [stats, unresolved] = await Promise.all([
+        getTransactionHistoryStats(),
+        getUnresolvedTransactionJournals(10),
+      ]);
+      const unresolvedText = unresolved.length
+        ? unresolved.map((item) => (
+            '• <code>' + escHtml(item._id) + '</code> — <b>' +
+            escHtml(item.status) + '</b>' +
+            (item.createdAt ? ' — ' + escHtml(formatYangon(new Date(item.createdAt))) : '') +
+            (item.error ? '\n  ' + escHtml(String(item.error).slice(0, 180)) : '')
+          )).join('\n')
+        : 'None';
+      return replyHTML(
+        ctx,
+        '🧾 <b>Transaction Ledger Status</b>\n' +
+          '━━━━━━━━━━━━\n' +
+          'Authority: <b>' + escHtml(stats.authoritativeDatabase) + '</b>\n' +
+          'Collection: <code>' + escHtml(stats.collection) + '</code>\n' +
+          'Records: <b>' + fmt(stats.count) + '</b>\n' +
+          'Prepared journals: <b>' + fmt(stats.journal.prepared) + '</b>\n' +
+          'Reconciliation required: <b>' + fmt(stats.journal.reconciliationRequired) + '</b>\n' +
+          'Key reservations: <b>' + fmt(stats.journal.reservations) + '</b>\n' +
+          '━━━━━━━━━━━━\n' +
+          '<b>Unresolved operations (max 10)</b>\n' + unresolvedText + '\n\n' +
+          'Note: user balances and treasury are still stored in DB1.',
+        replyOptions(ctx),
+      );
+    } catch (err) {
+      return replyHTML(ctx, '⚠️ <b>Transaction ledger status unavailable</b>\n<code>' + escHtml(err?.message || err) + '</code>', replyOptions(ctx));
+    }
   });
 
   bot.command('status', async (ctx) => {

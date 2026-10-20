@@ -6,6 +6,7 @@ const { bot, initBotInfo, getBotInfo } = require('./src/config/bot');
 const { connectMongo, closeMongo, isHistoryReady, isDbOneWriteBlocked } = require('./src/config/database');
 const { env, USE_WEBHOOK } = require('./src/config/env');
 const { ensureTreasury } = require('./src/services/treasuryService');
+const gameHistoryRetention = require('./src/services/gameHistoryRetentionService');
 const logger = require('./src/utils/logger');
 // Load the Rocket lifecycle adapter before Mini App routes destructure the service exports.
 require('./src/services/webCrashContinuousPatch');
@@ -16,6 +17,8 @@ const registerWalletRoutes = require('./src/web/walletRoutes');
 let server = null;
 let isReady = false;
 let fallbackCommandsLoaded = false;
+let gameHistoryRetentionTimer = null;
+let gameHistoryRetentionBusy = false;
 
 const COMMAND_MODULES = [
   './src/commands/admin/treasury','./src/commands/admin/promoRtp','./src/commands/admin/broadcast','./src/commands/admin/vip','./src/commands/admin/maintenance','./src/commands/admin/status','./src/commands/admin/groupApproval','./src/commands/user/start','./src/commands/user/balance','./src/commands/user/daily','./src/commands/user/gift','./src/commands/user/top10','./src/commands/user/dailyTournament','./src/commands/user/wallet','./src/commands/user/sell','./src/commands/user/webapp','./src/commands/games/slot','./src/commands/games/mines','./src/commands/games/crash','./src/commands/games/dice','./src/commands/games/shan','./src/commands/games/blackjack','./src/commands/games/twoD','./src/commands/games/sportsEvent','./src/commands/shop/shop',
@@ -32,6 +35,21 @@ async function startTelegramBot(app){const webhookPath=env.WEBHOOK_SECRET?`/tele
 function listen(app){return new Promise((resolve,reject)=>{server=app.listen(env.PORT,()=>{logger.info(`Web server listening on ${env.PORT}`);resolve();});server.once('error',reject);});}
 async function main(){
   await connectMongo();
+  await gameHistoryRetention.ensureIndexes();
+  const runGameHistoryRetention = async () => {
+    if (gameHistoryRetentionBusy) return;
+    gameHistoryRetentionBusy = true;
+    try {
+      const report = await gameHistoryRetention.cleanupExpiredGameHistory();
+      logger.info('7-day game history retention completed: ' + JSON.stringify(report));
+    } catch (err) {
+      logger.error('7-day game history retention failed', err);
+    } finally {
+      gameHistoryRetentionBusy = false;
+    }
+  };
+  await runGameHistoryRetention();
+  gameHistoryRetentionTimer = setInterval(() => { void runGameHistoryRetention(); }, 6 * 60 * 60 * 1000);
   if (isDbOneWriteBlocked()) {
     logger.error('RECOVERY MODE: DB1 is write-blocked by Atlas quota. Bot may start for diagnosis, but transactional writes are blocked.');
   } else {
@@ -56,5 +74,5 @@ async function main(){
   logger.info(`Bot username: @${getBotInfo()?.username||'unknown'}`);
   logger.info(`Owner ID: ${env.OWNER_ID}`);
 }
-async function shutdown(signal){logger.info(`Shutdown: ${signal}`);isReady=false;try{if(server)await new Promise((resolve)=>server.close(resolve));}catch(err){logger.warn(`HTTP server close warning: ${err?.message||err}`);}try{await bot.stop(signal);}catch(err){logger.warn(`Bot stop warning: ${err?.message||err}`);}try{await closeMongo();}catch(err){logger.warn(`Mongo close warning: ${err?.message||err}`);}process.exit(0);}
+async function shutdown(signal){logger.info(`Shutdown: ${signal}`);isReady=false;if(gameHistoryRetentionTimer)clearInterval(gameHistoryRetentionTimer);try{if(server)await new Promise((resolve)=>server.close(resolve));}catch(err){logger.warn(`HTTP server close warning: ${err?.message||err}`);}try{await bot.stop(signal);}catch(err){logger.warn(`Bot stop warning: ${err?.message||err}`);}try{await closeMongo();}catch(err){logger.warn(`Mongo close warning: ${err?.message||err}`);}process.exit(0);}
 process.once('SIGINT',()=>shutdown('SIGINT'));process.once('SIGTERM',()=>shutdown('SIGTERM'));process.on('unhandledRejection',(reason)=>logger.error('UnhandledRejection',reason));process.on('uncaughtException',(err)=>logger.error('UncaughtException',err));main().catch((err)=>{logger.error('BOOT ERROR',err);process.exit(1);});
