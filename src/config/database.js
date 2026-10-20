@@ -220,13 +220,18 @@ async function getTransactionHistoryStats() {
 
 async function hasVerifiedInitialMigration() {
   if (!env.DB_TWO_ENABLED || !historyReady) return false;
-  const report = await historyDb.collection('_migration_reports').findOne({
-    _id: 'initial-transactions-migration-v1',
-    verified: true,
-    'policy.retentionDays': 30,
-    'policy.scope': 'createdAt-gte-cutoff',
-  });
-  return !!report;
+  try {
+    const report = await historyDb.collection('_migration_reports').findOne({
+      _id: 'initial-transactions-migration-v1',
+      verified: true,
+      'policy.retentionDays': 30,
+      'policy.scope': 'createdAt-gte-cutoff',
+    });
+    return !!report;
+  } catch (err) {
+    logger.error('Unable to read the retained transaction history verification marker.', err);
+    return false;
+  }
 }
 
 async function verifyRetainedTransactionHistory({ retentionDays = 30, batchSize = 250 } = {}) {
