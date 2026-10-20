@@ -120,6 +120,8 @@ async function resolveSlotRtp(chatId, treasury) {
 }
 
 function resultText(reels, bet, payout) {
+  const { translateCachedText } = require('../../services/i18nService');
+  const userId = arguments[3];
   const net = payout - bet;
   const isJackpot = reels[0] === '7' && reels[1] === '7' && reels[2] === '7';
   const isTwoMatch = payout > 0 && engine.isAnyTwo(reels[0], reels[1], reels[2]);
@@ -129,9 +131,9 @@ function resultText(reels, bet, payout) {
       ? isJackpot
         ? '🏆 JACKPOT 777!'
         : isTwoMatch
-          ? '✅ TWO MATCH WIN'
-          : '✅ WIN'
-      : '❌ LOSE';
+          ? translateCachedText(userId, '✅ TWO MATCH WIN')
+          : translateCachedText(userId, '✅ WIN')
+      : translateCachedText(userId, '❌ LOSE');
 
   return (
     `${SLOT_EMOJI} <b>BIKA Pro Slot</b>\n` +
@@ -304,7 +306,7 @@ module.exports = (bot) => {
         bot,
         chatId,
         sent.message_id,
-        resultText(finalReels, bet, payout),
+        resultText(finalReels, bet, payout, userId),
         {}, userId
       );
     } catch (err) {
