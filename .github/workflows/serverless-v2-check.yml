@@ -25,6 +25,7 @@ jobs:
           node --check scripts/test-mines-policy.mjs
           node --check scripts/test-slot-policy.mjs
           node --check tgcloud/lib/blackjackPolicy.js
+          node --check scripts/test-blackjack-policy.mjs
           node --check scripts/test-game-command-parser.mjs
           node --check scripts/test-dice-settlement-plan.mjs
           node --check scripts/test-group-approval-policy.mjs
@@ -43,7 +44,7 @@ jobs:
       - name: Test Slot parity and RTP wiring
         run: node scripts/test-slot-policy.mjs
       - name: Test Blackjack policy and service wiring
-        run: node tgcloud/lib/blackjackPolicy.js
+        run: node scripts/test-blackjack-policy.mjs
       - name: Test slash and dot game command parser
         run: node scripts/test-game-command-parser.mjs
       - name: Test atomic duel settlement plan
