@@ -223,7 +223,8 @@ module.exports = (bot) => {
           bot,
           chatId,
           sent.message_id,
-          '⚠️ User data မတွေ့ပါ။ Bot ကို <code>/start</code> အရင်လုပ်ပါ။'
+          '⚠️ User data မတွေ့ပါ။ Bot ကို <code>/start</code> အရင်လုပ်ပါ။',
+          {}, userId
         );
       }
 
@@ -279,7 +280,7 @@ module.exports = (bot) => {
         const message = String(settlementErr?.message || '');
 
         if (message === 'USER_INSUFFICIENT') {
-          return editByIds(bot, chatId, sent.message_id, '❌ Balance မလုံလောက်ပါ။');
+          return editByIds(bot, chatId, sent.message_id, '❌ Balance မလုံလောက်ပါ။', {}, userId);
         }
 
         return editByIds(
@@ -290,7 +291,8 @@ module.exports = (bot) => {
             `━━━━━━━━━━━\n` +
             `<pre>${engine.art(finalReels)}</pre>\n` +
             `━━━━━━━━━━━\n` +
-            `⚠️ Settlement မအောင်မြင်လို့ ငွေစာရင်းကို atomic rollback လုပ်ထားပါတယ်။`
+            `⚠️ Settlement မအောင်မြင်လို့ ငွေစာရင်းကို atomic rollback လုပ်ထားပါတယ်။`,
+          {}, userId
         );
       }
 
@@ -302,7 +304,8 @@ module.exports = (bot) => {
         bot,
         chatId,
         sent.message_id,
-        resultText(finalReels, bet, payout)
+        resultText(finalReels, bet, payout),
+        {}, userId
       );
     } catch (err) {
       // Settlement uses one Mongo transaction. If it throws before commit,
@@ -313,7 +316,8 @@ module.exports = (bot) => {
           bot,
           chatId,
           sent.message_id,
-          '⚠️ <b>Slot Error</b>\n━━━━━━━━━━━\nSettlement မအောင်မြင်ပါ။ ငွေစာရင်းကို atomic rollback လုပ်ထားပါတယ်။'
+          '⚠️ <b>Slot Error</b>\n━━━━━━━━━━━\nSettlement မအောင်မြင်ပါ။ ငွေစာရင်းကို atomic rollback လုပ်ထားပါတယ်။',
+          {}, userId
         );
       }
 
