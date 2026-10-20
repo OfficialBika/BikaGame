@@ -3,7 +3,7 @@ const treasuryModel = require('../models/treasuryModel');
 const { withRequiredTx } = require('../config/database');
 const { toNum } = require('../utils/format');
 const { logTx } = require('./transactionService');
-const transactionModel = require('../models/transactionModel');
+
 const { findTransactionHistoryByIdempotency, col } = require('../config/database');
 
 function extract(res) { return res?.value !== undefined ? res.value : res; }
