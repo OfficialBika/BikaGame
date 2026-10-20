@@ -7,7 +7,7 @@ const TTL_SECONDS = Math.max(3600, Number(process.env.WEB_GAME_HISTORY_TTL_SECON
 let indexPromise = null;
 
 function collection() {
-  return getTransactionHistoryDb().then((db) => db.collection(COLLECTION));
+  return getTransactionHistoryDb().then((db) => envDbIsTwo() ? db.collection(COLLECTION) : db.collection(COLLECTION));
 }
 
 function cleanUserId(value) {
