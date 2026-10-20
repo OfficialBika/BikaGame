@@ -2,9 +2,9 @@ name: ci
 
 on:
   pull_request:
-    branches: [main, feat/db-two-bot]
+    branches: [main, feat/db-two-bot, fix/db-two-ledger-startup-retention]
   push:
-    branches: [main, feat/db-two-bot]
+    branches: [main, feat/db-two-bot, feat/db-two-ledger-authoritative, fix/db-two-ledger-startup-retention]
 
 jobs:
   javascript:
@@ -35,6 +35,14 @@ jobs:
         run: |
           node -e "require('./src/games/slotEngine'); require('./src/games/blackjackEngine'); require('./src/games/diceEngine'); require('./src/games/shanEngine'); console.log('game engines OK')"
 
-      - name: Verify critical middleware/modules load
+      - name: Verify runtime-critical modules load
+        env:
+          BOT_TOKEN: ci-test
+          MONGO_URI: mongodb://127.0.0.1:27017/bika_ci
+          MONGO_URI_2: mongodb://127.0.0.1:27018/bika_ci_history
+          DB_TWO_ENABLED: "true"
+          DB_TWO_NAME: bika_ci_history
+          OWNER_ID: "1"
         run: |
-          BOT_TOKEN=ci-test MONGO_URI=mongodb://127.0.0.1:27017/bika_ci OWNER_ID=1 node -e "require('./src/utils/helpers'); require('./src/middlewares/maintenance'); require('./src/middlewares/groupApproval'); require('./src/services/broadcastService'); require('./src/commands/admin/broadcast'); console.log('middleware/broadcast modules OK')"
+          node -e "require('./src/config/database'); require('./src/services/gameHistoryRetentionService'); require('./src/services/transactionService'); require('./src/services/economyService'); console.log('DB2 runtime modules load OK')"
+          node -e "require('./src/utils/helpers'); require('./src/middlewares/maintenance'); require('./src/middlewares/groupApproval'); require('./src/services/broadcastService'); require('./src/commands/admin/broadcast'); console.log('middleware/broadcast modules OK')"
