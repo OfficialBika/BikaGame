@@ -65,13 +65,13 @@ for (const phrase of ['Auction', '2D', 'Broadcast', 'Group approval', 'Data impo
 assert.match(featureStatus, /productionDataImported: false/);
 assert.match(featureStatus, /productionCutoverApproved: false/);
 assert.match(featureStatus, /status: 'BLOCKED'/);
-for (const status of ['schema-only', 'preview-only']) assert.ok(featureStatus.includes(status), 'missing explicit incomplete status: ' + status);
+for (const status of ['implemented-needs-runtime-test', 'preview-only', 'partial-services-present']) assert.ok(featureStatus.includes(status), 'missing explicit incomplete status: ' + status);
 assert.match(featureStatus, /partial-resumable-batch-needs-runtime-test/);
 assert.match(featureStatus, /\.dice on\/off/);
 assert.match(featureStatus, /Owner-only text\/copy/);
 assert.match(featureStatus, /partial-resumable-batch-needs-runtime-test/);
 assert.match(featureStatus, /id: 'two-d'[\s\S]*One-ledger-row atomic bet debit[\s\S]*inbound Telegram updates/);
-assert.match(featureStatus, /id: 'auction'[\s\S]*status: 'schema-only'/);
+assert.match(featureStatus, /id: 'auction'[\s\S]*status: 'implemented-needs-runtime-test'/);
 
 // Owner-only switches must be persisted and enforced at both bot and Mini App entry points.
 assert.match(controls, /getSetting/);
