@@ -5,6 +5,7 @@ const game = require('../../services/gameService');
 const { getUser } = require('../../services/economyService');
 const { replyHTML, editByIds } = require('../../utils/telegram');
 const { fmt } = require('../../utils/format');
+const { localizeForUser } = require('../../services/i18nService');
 const { isGroupChat, mentionHtml } = require('../../utils/helpers');
 
 const SHAN_CHALLENGE_TIMEOUT_MS = 60_000;
@@ -80,14 +81,14 @@ module.exports = (bot) => {
         inline_keyboard: [
           [
             {
-              text: '✅ Accept Shan Duel',
+              text: await localizeForUser(ctx.from.id, '✅ Accept Shan Duel'),
               callback_data: 'SHAN:TEMP',
               style: 'success',
             },
           ],
           [
             {
-              text: '❌ Cancel',
+              text: await localizeForUser(ctx.from.id, '❌ Cancel'),
               callback_data: 'SHAN:TEMP_CANCEL',
               style: 'danger',
             },
@@ -105,14 +106,14 @@ module.exports = (bot) => {
       inline_keyboard: [
         [
           {
-            text: '✅ Accept Shan Duel',
+            text: await localizeForUser(ctx.from.id, '✅ Accept Shan Duel'),
             callback_data: `SHAN:ACCEPT:${id}`,
             style: 'success',
           },
         ],
         [
           {
-            text: '❌ Cancel',
+            text: await localizeForUser(ctx.from.id, '❌ Cancel'),
             callback_data: `SHAN:CANCEL:${id}`,
             style: 'danger',
           },
