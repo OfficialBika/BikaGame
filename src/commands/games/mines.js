@@ -495,7 +495,7 @@ module.exports = (bot) => {
     try {
       if (action === 'CANCEL') {
         if (canCashOut(game)) {
-          await answerOnce('Cash Out unlock ဖြစ်ပြီးသားဆို Cash Out ပဲလုပ်လို့ရပါတယ်။', { show_alert: true });
+          await answerOnce('Cash Out is already unlocked; you can only cash out now.', { show_alert: true });
           return;
         }
 
@@ -592,7 +592,7 @@ module.exports = (bot) => {
       console.error('MINES_ACTION_ERROR:', err?.stack || err?.message || err);
 
       try {
-        await answerOnce('Telegram rate limit ဖြစ်နိုင်ပါတယ်။ ခဏစောင့်ပြီး ထပ်နှိပ်ပါ။');
+        await answerOnce('⚠️ Telegram rate limit ဖြစ်နိုင်ပါတယ်။ ခဏစောင့်ပြီး ထပ်နှိပ်ပါ။');
         await editByIds(
           bot,
           game.chatId,
