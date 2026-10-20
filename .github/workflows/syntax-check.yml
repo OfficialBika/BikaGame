@@ -2,9 +2,9 @@ name: ci
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, feat/db-two-bot]
   push:
-    branches: [main]
+    branches: [main, feat/db-two-bot]
 
 jobs:
   javascript:
