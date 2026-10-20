@@ -131,6 +131,8 @@ assert.match(maintenance, /setSetting\(KEY, record\)/);
 assert.match(maintenance, /OWNER_NOT_CONFIGURED/);
 assert.match(maintenance, /OWNER_ONLY/);
 assert.match(maintenance, /MAINTENANCE_WRITE_UNVERIFIED/);
+assert.match(maintenance, /saved\.updatedBy !== ownerId/);
+assert.match(maintenance, /saved\.updatedAt !== record\.updatedAt/);
 assert.match(maintenancePolicy, /function maintenanceCommandAction/);
 assert.match(maintenancePolicy, /command === 'off'.*action: 'on'/);
 assert.match(maintenancePolicy, /command === 'on'.*action: 'off'/);
