@@ -22,6 +22,7 @@ assert.equal(maintenanceCallbackAllowed('mines:cashout'), true);
 assert.equal(maintenanceCallbackAllowed('shan:stay:room-1'), true);
 assert.equal(maintenanceCallbackAllowed('dice:cancel:challenge-1'), true);
 assert.equal(maintenanceCallbackAllowed('dice:accept:challenge-1'), false, 'maintenance must not start new Dice wagers');
+assert.equal(maintenanceCallbackAllowed('dice:resume:challenge-1'), true, 'saved Dice roll settlement must be retryable during maintenance');
 assert.equal(maintenanceCallbackAllowed('gift:cancel:gift-1'), true, 'pending gift can be cancelled during maintenance');
 assert.equal(maintenanceCallbackAllowed('gift:confirm:gift-1'), false, 'maintenance blocks new gift transfers');
 console.log('Maintenance policy tests passed (default OFF, explicit OFF, ON, corrupt-state fail-closed, legacy command semantics, owner fail-closed).');
