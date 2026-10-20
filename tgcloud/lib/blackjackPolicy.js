@@ -1,5 +1,3 @@
-import assert from 'node:assert/strict';
-
 export const BLACKJACK_RULES = Object.freeze({
   minBet: 50,
   maxBet: 300000,
