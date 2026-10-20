@@ -20,7 +20,7 @@ assert.equal(BLACKJACK_RULES.minBet, 50);
 assert.equal(BLACKJACK_RULES.maxBet, 300000);
 assert.equal(BLACKJACK_RULES.cooldownMs, 1500);
 assert.equal(BLACKJACK_RULES.actionTimeoutMs, 90000);
-assert.equal(clampBlackjackRtp(process.env.BLACKJACK_DEFAULT_RTP ?? 50), Math.max(0, Math.min(100, Number(process.env.BLACKJACK_DEFAULT_RTP ?? 50))));
+assert.equal(BLACKJACK_RULES.defaultRtp, (() => { const raw = process.env.BLACKJACK_DEFAULT_RTP; if (raw == null || String(raw).trim() === '') return 50; const parsed = Number(raw); return Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : 50; })());
 assert.equal(clampBlackjackRtp(130), 100);
 assert.equal(clampBlackjackRtp(-2), 0);
 assert.equal(clampBlackjackRtp('not-a-rate'), 50);
