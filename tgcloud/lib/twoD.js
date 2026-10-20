@@ -45,7 +45,7 @@ async function sendText(chatId, text) {
   return api.sendMessage({ chat_id: chatId, text, disable_web_page_preview: true });
 }
 
-async function settingsChannelIdForOwner(actorId, rawChatId) {
+export async function settingsChannelIdForOwner(actorId, rawChatId) {
   owner(actorId);
   const chatId = channelIdNumber(rawChatId);
   if (!chatId) {
