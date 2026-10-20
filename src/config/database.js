@@ -243,11 +243,16 @@ async function migrateTransactionHistory({ batchSize = 100, maxDocuments = Infin
   if (verifyBatchDocs.length) await verifyBatch(verifyBatchDocs);
 
   const targetCount = await target.countDocuments({});
-  const verified = maxDocuments === Infinity && missing === 0 && mismatched === 0 && targetCount >= sourceCount;
+  const outboxStats = await db.collection(OUTBOX_COLLECTION).countDocuments({ status: 'pending' });
+  const verified = maxDocuments === Infinity &&
+    missing === 0 &&
+    mismatched === 0 &&
+    targetCount >= sourceCount &&
+    outboxStats === 0;
   return recordTransactionMigrationReport(
     { count: sourceCount },
     { count: targetCountBefore, finalCount: targetCount },
-    { attempted: copied, missing, mismatched },
+    { attempted: copied, missing, mismatched, pendingOutbox: outboxStats },
     verified,
   );
 }
