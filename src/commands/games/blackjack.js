@@ -366,6 +366,7 @@ async function deleteGameMessage(bot, game) {
 }
 
 async function sendReplacementGameMessage(bot, game, html, replyMarkup) {
+  html = await localizeForUser(game?.userId, html);
   await deleteGameMessage(bot, game);
 
   const extra = {
@@ -393,6 +394,7 @@ async function sendReplacementGameMessage(bot, game, html, replyMarkup) {
 }
 
 async function editGameMessage(bot, game, html, replyMarkup) {
+  html = await localizeForUser(game?.userId, html);
   try {
     return await telegramWithRetry(
       'BLACKJACK_EDIT_MESSAGE',
