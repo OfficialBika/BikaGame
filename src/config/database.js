@@ -376,8 +376,14 @@ async function stopTransactionHistoryOutbox() {
 
 async function connectMongo() {
   client = new MongoClient(env.MONGO_URI, { maxPoolSize: 20, minPoolSize: 1, retryWrites: true });
-  await client.connect();
-  db = client.db(env.DB_NAME);
+  try {
+    await client.connect();
+    db = client.db(env.DB_NAME);
+  } catch (err) {
+    try { await client.close(); } catch (_) {}
+    client = null;
+    throw err;
+  }
 
   collections.users = db.collection('users');
   collections.transactions = db.collection('transactions');
