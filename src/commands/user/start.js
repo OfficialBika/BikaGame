@@ -9,6 +9,7 @@ const { fmt } = require('../../utils/format');
 const { mentionHtml } = require('../../utils/helpers');
 const { openStarsPurchaseMenu } = require('./balance');
 const dailyCommand = require('./daily');
+const { languageKeyboard, languagePickerText, getLanguage, t, mainMenuKeyboard } = require('../../services/i18nService');
 
 module.exports = (bot) => bot.start(async (ctx) => {
   const requestedStarsPurchase = String(ctx.startPayload || '') === 'buybal';
@@ -44,6 +45,7 @@ module.exports = (bot) => bot.start(async (ctx) => {
         return { duplicate: false, balance: Number(user.balance || 0) };
       });
       const user = await getUser(ctx.from.id);
+      if (!u?.language) { await replyHTML(ctx, languagePickerText(), { reply_markup: languageKeyboard() }); return; }
       await replyHTML(ctx, '🎉 <b>Welcome Bonus</b>\n━━━━━━━━━━━━━━━\n👤 ' + mentionHtml(ctx.from) + '\n➕ Bonus: <b>' + fmt(env.START_BONUS) + '</b> ' + COIN + '\n💼 Balance: <b>' + fmt(user?.balance ?? result.balance) + '</b> ' + COIN + '\n━━━━━━━━━━━━━━\nCommands: <code>/dailyclaim</code>, <code>.slot 100</code>, <code>.dice 200</code>, <code>.shan 500</code>, <code>.mybalance</code>, <code>.top10</code>, <code>/shop</code>');
       if (requestedStarsPurchase) return openStarsPurchaseMenu(ctx);
       if (requestedDailyClaim) return dailyCommand.claimDaily(ctx);
@@ -53,5 +55,7 @@ module.exports = (bot) => bot.start(async (ctx) => {
 
   if (requestedStarsPurchase) return openStarsPurchaseMenu(ctx);
   if (requestedDailyClaim) return dailyCommand.claimDaily(ctx);
-  return replyHTML(ctx, '👋 <b>Welcome to BIKA Bot</b>\n━━━━━━━━━━━━━━━\nCommands: <code>/dailyclaim</code>, <code>.slot 100</code>, <code>.dice 200</code>, <code>.shan 500</code>, <code>.blackjack 500</code>, <code>.mybalance</code>, <code>.top10</code>, <code>/shop</code>');
+  if (!u?.language) return replyHTML(ctx, languagePickerText(), { reply_markup: languageKeyboard() });
+  const language = getLanguage(u);
+  return replyHTML(ctx, t(language, 'start_title'), { reply_markup: mainMenuKeyboard(language) });
 });
