@@ -444,6 +444,7 @@ function getDb() { if (!db) throw new Error('DB_NOT_CONNECTED'); return db; }
 function col(name) { if (!collections[name]) throw new Error(`COLLECTION_NOT_READY:${name}`); return collections[name]; }
 function isHistoryReady() { return !env.DB_TWO_ENABLED || historyReady; }
 function isDbOneWriteBlocked() { return dbOneWriteBlocked; }
+function markDbOneWriteBlocked() { dbOneWriteBlocked = true; }
 async function closeMongo() { await stopTransactionHistoryOutbox(); if (client) await client.close(); if (historyClient) await historyClient.close(); }
 function txUnsupported(err) {
   const m = String(err?.message || err);
@@ -474,4 +475,4 @@ async function withRequiredTx(work) {
   } finally { try { await session.endSession(); } catch (_) {} }
 }
 async function pingMs(){ const s=Date.now(); try{ await getDb().command({ping:1}); return Date.now()-s; }catch(_){return null;} }
-module.exports = { connectMongo, closeMongo, getDb, col, withMaybeTx, withRequiredTx, pingMs, enqueueTransactionHistory, flushTransactionHistoryOutbox, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryCollection, getTransactionHistoryStats, initializeTransactionHistoryStorage, hasVerifiedInitialMigration, copyVerifiedHistoryDocument, migrateTransactionHistory, isHistoryReady, isDbOneWriteBlocked };
+module.exports = { connectMongo, closeMongo, getDb, col, withMaybeTx, withRequiredTx, pingMs, enqueueTransactionHistory, flushTransactionHistoryOutbox, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryCollection, getTransactionHistoryStats, initializeTransactionHistoryStorage, hasVerifiedInitialMigration, copyVerifiedHistoryDocument, migrateTransactionHistory, isHistoryReady, isDbOneWriteBlocked, markDbOneWriteBlocked };
