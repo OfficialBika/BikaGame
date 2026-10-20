@@ -31,5 +31,5 @@ export function maintenanceCallbackAllowed(data) {
   const value = String(data || '');
   return value === 'crash:cashout' || value === 'mines:cashout' || value.startsWith('gift:cancel:') ||
     /^bj:stand:[^:]+$/.test(value) || /^shan:stay:[^:]+$/.test(value) ||
-    /^dice:cancel:[^:]+$/.test(value);
+    /^dice:cancel:[^:]+$/.test(value) || /^dice:resume:[^:]+$/.test(value);
 }
