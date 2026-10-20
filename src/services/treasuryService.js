@@ -3,6 +3,8 @@
 const { env } = require('../config/env');
 const { toNum } = require('../utils/format');
 const treasuryModel = require('../models/treasuryModel');
+const { isDbOneWriteBlocked } = require('../config/database');
+const logger = require('../utils/logger');
 
 function clampPercent(value, fallback = 0) {
   const n = Number(value);
@@ -27,6 +29,14 @@ async function ensureTreasury() {
       vipWinRate: clampPercent(exist.vipWinRate, 90),
       rtpWinRate: clampPercent(exist.rtpWinRate, 35),
     };
+  }
+
+  // When Atlas has blocked all DB1 writes due to quota exhaustion, do not make
+  // startup depend on creating a missing treasury row. All money operations are
+  // separately guarded by the transaction layer until writes become available.
+  if (isDbOneWriteBlocked()) {
+    logger.error('Treasury initialization skipped: DB1 is write-blocked by Atlas quota.');
+    return null;
   }
 
   await c.insertOne({
