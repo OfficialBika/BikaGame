@@ -430,6 +430,7 @@ async function connectMongo() {
   collections.sports_bets = db.collection('sports_bets');
   collections.auctions = db.collection('auctions');
   collections.auction_bids = db.collection('auction_bids');
+  collections.daily_tournaments = db.collection('daily_tournaments');
 
   await connectTransactionHistory();
 
