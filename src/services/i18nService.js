@@ -135,4 +135,52 @@ function mainMenuKeyboard(language) {
 function languagePickerText() {
   return '<b>BIKA GAME BOT</b>\n\n' + MESSAGES.en.choose_language;
 }
-module.exports = { LANGUAGES, DEFAULT_LANGUAGE, normalizeLanguage, getLanguage, t, languageKeyboard, mainMenuKeyboard, languagePickerText, MESSAGES };
+
+const LANGUAGE_CACHE_TTL_MS = 300000;
+const languageCache = new Map();
+const PHRASES = {
+  'Bet amount မမှန်ပါ။': { my:'လောင်းကြေးပမာဏ မမှန်ပါ။', en:'Invalid bet amount.', cn:'下注金额无效。', jp:'ベット額が無効です。', kr:'베팅 금액이 올바르지 않습니다.', fr:'Montant de mise invalide.', ru:'Неверная сумма ставки.', hi:'बेट राशि अमान्य है।', ar:'مبلغ الرهان غير صالح.' },
+  'Balance မလုံလောက်ပါ။': { my:'လက်ကျန်ငွေ မလုံလောက်ပါ။', en:'Insufficient balance.', cn:'余额不足。', jp:'残高が不足しています。', kr:'잔액이 부족합니다.', fr:'Solde insuffisant.', ru:'Недостаточно средств.', hi:'बैलेंस अपर्याप्त है।', ar:'الرصيد غير كافٍ.' },
+  'Please wait, your slot spin is currently running.': { my:'ခဏစောင့်ပါ။ Slot လှည့်နေဆဲပါ။', en:'Please wait, your slot spin is in progress.', cn:'请稍候，老虎机正在旋转。', jp:'スロットが進行中です。お待ちください。', kr:'슬롯이 진행 중입니다. 잠시 기다려 주세요.', fr:'Veuillez patienter, le tour de slot est en cours.', ru:'Подождите, вращение слота ещё идёт.', hi:'कृपया प्रतीक्षा करें, स्लॉट चल रहा है।', ar:'يرجى الانتظار، لعبة السلوت قيد التشغيل.' },
+  '⛔ Slot Busy Now! Please wait & try again.': { my:'⛔ Slot ကစားသူများနေပါတယ်။ ခဏစောင့်ပြီး ပြန်ကြိုးစားပါ။', en:'⛔ Slots are busy. Please try again shortly.', cn:'⛔ 当前老虎机繁忙，请稍后重试。', jp:'⛔ スロットが混雑しています。後でもう一度お試しください。', kr:'⛔ 슬롯이 혼잡합니다. 잠시 후 다시 시도하세요.', fr:'⛔ Les slots sont occupés. Réessayez bientôt.', ru:'⛔ Слоты заняты. Попробуйте позже.', hi:'⛔ स्लॉट व्यस्त हैं। थोड़ी देर बाद प्रयास करें।', ar:'⛔ السلوت مشغولة. حاول مجددًا بعد قليل.' },
+  'Start Rolling...': { my:'လှည့်နေပါပြီ...', en:'Spinning...', cn:'正在旋转...', jp:'回転中...', kr:'회전 중...', fr:'Rotation en cours...', ru:'Вращение...', hi:'घुमाया जा रहा है...', ar:'جارٍ الدوران...' },
+  'Bet:': { my:'လောင်းကြေး:', en:'Bet:', cn:'下注：', jp:'ベット：', kr:'베팅:', fr:'Mise :', ru:'Ставка:', hi:'बेट:', ar:'الرهان:' },
+  'Payout:': { my:'ပြန်ရငွေ:', en:'Payout:', cn:'派彩：', jp:'払戻：', kr:'지급액:', fr:'Gain :', ru:'Выплата:', hi:'भुगतान:', ar:'العائد:' },
+  'Net:': { my:'အမြတ်/အရှုံး:', en:'Net:', cn:'净额：', jp:'差引：', kr:'순손익:', fr:'Net :', ru:'Итог:', hi:'शुद्ध:', ar:'الصافي:' },
+  'Usage:': { my:'အသုံးပြုပုံ:', en:'Usage:', cn:'用法：', jp:'使い方：', kr:'사용법:', fr:'Utilisation :', ru:'Использование:', hi:'उपयोग:', ar:'طريقة الاستخدام:' },
+  'Min:': { my:'အနည်းဆုံး:', en:'Min:', cn:'最低：', jp:'最小：', kr:'최소:', fr:'Min. :', ru:'Мин.:', hi:'न्यूनतम:', ar:'الحد الأدنى:' },
+  'Max:': { my:'အများဆုံး:', en:'Max:', cn:'最高：', jp:'最大：', kr:'최대:', fr:'Max. :', ru:'Макс.:', hi:'अधिकतम:', ar:'الحد الأقصى:' },
+  'Invalid language': { my:'ဘာသာစကား မမှန်ပါ။', en:'Invalid language.', cn:'语言无效。', jp:'言語が無効です。', kr:'잘못된 언어입니다.', fr:'Langue invalide.', ru:'Неверный язык.', hi:'अमान्य भाषा।', ar:'اللغة غير صالحة.' },
+};
+function translateText(language, text) {
+  const lang = normalizeLanguage(language) || DEFAULT_LANGUAGE;
+  let result = String(text ?? '');
+  for (const phrase of Object.keys(PHRASES).sort((a, b) => b.length - a.length)) {
+    const translated = PHRASES[phrase][lang] || PHRASES[phrase].en;
+    if (translated && translated !== phrase) result = result.split(phrase).join(translated);
+  }
+  return result;
+}
+function rememberLanguage(userId, language) {
+  const code = normalizeLanguage(language);
+  if (code && userId != null) languageCache.set(String(userId), { language: code, expiresAt: Date.now() + LANGUAGE_CACHE_TTL_MS });
+}
+async function getPreferredLanguage(userId) {
+  if (userId == null) return DEFAULT_LANGUAGE;
+  const key = String(userId), now = Date.now(), cached = languageCache.get(String(userId));
+  if (cached && cached.expiresAt > now) return cached.language;
+  try {
+    const { col } = require('../config/database');
+    const ids = [key];
+    if (/^\\d+$/.test(key) && Number.isSafeInteger(Number(key))) ids.push(Number(key));
+    const user = await col('users').findOne({ userId: { $in: ids } }, { projection: { language: 1 } });
+    const language = getLanguage(user);
+    rememberLanguage(key, language);
+    return language;
+  } catch (_) { return DEFAULT_LANGUAGE; }
+}
+async function localizeForUser(userId, text) {
+  return translateText(await getPreferredLanguage(userId), text);
+}
+
+module.exports = { LANGUAGES, DEFAULT_LANGUAGE, normalizeLanguage, getLanguage, t, languageKeyboard, mainMenuKeyboard, languagePickerText, MESSAGES, translateText, rememberLanguage, getPreferredLanguage, localizeForUser };
