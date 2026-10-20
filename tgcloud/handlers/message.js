@@ -29,7 +29,7 @@ import { startBroadcast, resumeBroadcast, cancelBroadcast, getBroadcastStatus, a
 import { createStarsInvoice, creditSuccessfulStars, STAR_PACKAGES, packageBalance } from '../lib/stars.js';
 import {
   playSlot, playPlinko, wheelSpin, crashStart, minesStart,
-  blackjackJoin, shanCreate, shanJoin, history as getGameHistory,
+  blackjackJoin, blackjackStatus, shanCreate, shanJoin, history as getGameHistory,
 } from '../lib/game.js';
 import {
   reconcileTwoDOnUpdate, handleTwoDBet, settingsChannelIdForOwner,
@@ -923,11 +923,24 @@ export default async function (message) {
     if (command.name === 'blackjack' || command.name === 'bj') {
       await assertGameEnabled('blackjack');
       const room = parsedArgs[1] || 'solo';
-      const result = await blackjackJoin(user.tgId, room, bet);
+      let result;
+      try {
+        result = await blackjackJoin(user.tgId, room, bet, 'tg:' + chatId + ':' + message.message_id);
+      } catch (error) {
+        const reason = String(error?.message || error);
+        if (reason.includes('BJ_ROOM_INVALID')) return send(chatId, '🂡 Room name မမှန်ပါ။ A–Z, 0–9, _ နှင့် - ကိုသာသုံးပါ။', message.message_id);
+        if (reason.includes('BJ_SESSION_CHANGED')) return send(chatId, '⏳ Blackjack room ပြောင်းလဲသွားပါတယ်။ ပြန်စမ်းပါ။', message.message_id);
+        throw error;
+      }
       const cards = (result.player?.cards || []).map((card) => card.r + card.s).join(' ');
+      if (!result.active) {
+        return send(chatId, '🂡 BLACKJACK\nRoom: ' + room + '\nဒီ round က ပိတ်ပြီးပါပြီ။ New room သုံးပါ။', message.message_id);
+      }
       return send(
         chatId,
-        '🂡 BLACKJACK\nRoom: ' + room + '\nYour cards: ' + cards,
+        '🂡 BLACKJACK\nRoom: ' + room + '\nBet: ' + formatCoin(Number(result.player?.bet || bet)) + ' Bal\nYour cards: ' + cards +
+          '\nValue: ' + (result.player ? (result.player.cards ? result.player.cards.length : 0) : 0) +
+          '\n⏱ Timeout: 90s. HIT/STAND လုပ်ပါ။',
         message.message_id,
         keyboard([[
           { text: 'HIT', callback_data: 'bj:hit:' + room },
@@ -935,7 +948,7 @@ export default async function (message) {
         ]]),
       );
     }
-    if (command.name === 'shan') {
+        if (command.name === 'shan') {
       await assertGameEnabled('shan');
       const room = parsedArgs[1];
       if (room) {
