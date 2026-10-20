@@ -39,6 +39,9 @@ jobs:
         run: |
           BOT_TOKEN=ci-test MONGO_URI=mongodb://127.0.0.1:27017/bika_ci OWNER_ID=1 node -e "require('./src/utils/helpers'); require('./src/middlewares/maintenance'); require('./src/middlewares/groupApproval'); require('./src/services/broadcastService'); require('./src/commands/admin/broadcast'); console.log('middleware/broadcast modules OK')"
 
+      - name: Verify DB1 cleanup script syntax
+        run: node --check scripts/clear-db1-transactions.js
+
       - name: Verify DB2 history modules load
         run: |
           BOT_TOKEN=ci-test MONGO_URI=mongodb://127.0.0.1:27017/bika_ci MONGO_URI_2=mongodb://127.0.0.1:27018/bika_ci_history DB_TWO_ENABLED=true DB_TWO_NAME=bika_ci_history OWNER_ID=1 node -e "require('./src/config/database'); require('./src/services/webBetHistoryService'); require('./src/services/gameHistoryRetentionService'); require('./src/services/transactionService'); console.log('DB2 history modules OK')"
