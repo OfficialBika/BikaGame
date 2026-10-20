@@ -517,6 +517,7 @@ async function migrateTransactionHistoryReadOnly({ batchSize = 100, verifyOnly =
   let missing = 0;
   let mismatched = 0;
   let sourceSeen = 0;
+  const migrationStartedAt = new Date();
   const cursor = source.find({}).sort({ _id: 1 }).batchSize(batchSize);
   let batch = [];
 
@@ -568,11 +569,13 @@ async function migrateTransactionHistoryReadOnly({ batchSize = 100, verifyOnly =
     pendingOutbox = null;
   }
   const sourceStable = sourceCountBefore === sourceCountAfter && sourceSeen === sourceCountAfter;
+  const postCutoverWrites = await source.countDocuments({ createdAt: { $gte: migrationStartedAt } }).catch(() => null);
   const verified = sourceStable &&
     missing === 0 &&
     mismatched === 0 &&
     targetCountAfter >= sourceCountAfter &&
-    sourceIndexes.length > 0;
+    sourceIndexes.length > 0 &&
+    postCutoverWrites === 0;
   const report = {
     migration: 'transactions-v1-readonly',
     mode: verifyOnly ? 'verify-only' : 'copy-and-verify',
@@ -582,6 +585,7 @@ async function migrateTransactionHistoryReadOnly({ batchSize = 100, verifyOnly =
     missing,
     mismatched,
     sourceStable,
+    postCutoverWrites,
     verified,
     db1PendingOutbox: pendingOutbox,
     checkedAt: new Date().toISOString(),
