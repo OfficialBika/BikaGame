@@ -1,4 +1,4 @@
-import { table, integer, text, boolean, json, index, real } from 'sdk/db';
+import { table, integer, text, boolean, json, index, uniqueIndex, real } from 'sdk/db';
 
 export const users = table('users', {
   tgId: integer('tg_id').primaryKey(),
@@ -20,7 +20,7 @@ export const users = table('users', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
 }, (t) => ({
   balanceIdx: index('idx_users_balance').on(t.balance),
-  walletIdUniqueIdx: index('idx_users_wallet_id_unique').on(t.walletId),
+  walletIdUniqueIdx: uniqueIndex('idx_users_wallet_id_unique').on(t.walletId),
 }));
 
 export const transactions = table('transactions', {
