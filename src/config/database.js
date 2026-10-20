@@ -11,11 +11,26 @@ const OUTBOX_COLLECTION = 'transaction_outbox';
 const LEGACY_CLEANUP_DISABLED = true;
 const HISTORY_COLLECTION = 'transactions';
 
+function isStorageQuotaError(err) {
+  return err?.code === 8000 ||
+    err?.codeName === 'AtlasError' ||
+    /over your space quota|writes are blocked on your cluster/i.test(String(err?.message || err));
+}
+
 async function safeCreateIndex(col, keys, options = {}) {
   try { return await col.createIndex(keys, options); }
   catch (err) {
     if ([85,86].includes(err?.code) || ['IndexOptionsConflict','IndexKeySpecsConflict'].includes(err?.codeName)) {
       logger.warn(`Skipping conflicting index ${col.collectionName} ${JSON.stringify(keys)}`); return null;
+    }
+    // Index creation is an optimization/bootstrap concern. Atlas Free blocks all
+    // writes when the cluster exceeds quota, including createIndex. Permit the
+    // process to continue booting so read-only/admin recovery paths can be used;
+    // the affected index remains absent and ordinary DB1 writes still fail until
+    // storage quota is actually resolved.
+    if (isStorageQuotaError(err)) {
+      logger.error(`MongoDB storage quota blocked index creation for ${col.collectionName}; continuing startup without index ${JSON.stringify(keys)}`);
+      return null;
     }
     throw err;
   }
