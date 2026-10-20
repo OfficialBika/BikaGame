@@ -207,7 +207,7 @@ function minesText(game, note, revealAll = false, finalPayout = null) {
   const safeTotal = TOTAL_CELLS - game.mineCount;
   const riskySafe = paidSafeOpened(game);
   const cashoutLine = finalPayout == null && !revealAll && !canCashOut(game)
-    ? `Cash Out: <b>Locked</b> (${MIN_CASHOUT_SAFE_PICKS} safe required)\n`
+    ? `Cash Out: <b>Locked</b>\n`
     : `Cash Out: <b>${fmt(cashout)}</b> ${COIN}\n`;
 
   return (
