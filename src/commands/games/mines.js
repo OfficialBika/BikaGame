@@ -513,7 +513,8 @@ module.exports = (bot) => {
           game.chatId,
           game.messageId,
           minesText(game, '❌ Mines round cancelled. Bet refund ပြန်ပေးထားပါတယ်။', true, game.bet),
-          { reply_markup: minesKeyboard(game, true) }
+          { reply_markup: minesKeyboard(game, true) },
+          game.userId
         );
       }
 
@@ -579,8 +580,9 @@ module.exports = (bot) => {
         game.chatId,
         game.messageId,
         minesText(game, note),
-        { reply_markup: minesKeyboard(game) }
-      , game.userId);
+        { reply_markup: minesKeyboard(game) },
+        game.userId
+      );
     } catch (err) {
       console.error('MINES_ACTION_ERROR:', err?.stack || err?.message || err);
 
@@ -591,8 +593,9 @@ module.exports = (bot) => {
           game.chatId,
           game.messageId,
           minesText(game, '⚠️ Telegram rate limit ဖြစ်နေပါတယ်။ ခဏစောင့်ပြီး ထပ်နှိပ်ပါ။'),
-          { reply_markup: minesKeyboard(game) }
-        , game.userId);
+          { reply_markup: minesKeyboard(game) },
+          game.userId
+        );
       } catch (editErr) {
         console.error('MINES_ACTION_NOTICE_FAILED:', editErr?.stack || editErr?.message || editErr);
       }
