@@ -7,6 +7,7 @@ const collections = {};
 let historyClient = null;
 let historyDb = null;
 let historyReady = false;
+let dbOneWriteBlocked = false;
 const OUTBOX_COLLECTION = 'transaction_outbox';
 const LEGACY_CLEANUP_DISABLED = true;
 const HISTORY_COLLECTION = 'transactions';
@@ -433,6 +434,8 @@ async function connectMongo() {
 }
 function getDb() { if (!db) throw new Error('DB_NOT_CONNECTED'); return db; }
 function col(name) { if (!collections[name]) throw new Error(`COLLECTION_NOT_READY:${name}`); return collections[name]; }
+function isHistoryReady() { return !env.DB_TWO_ENABLED || historyReady; }
+function isDbOneWriteBlocked() { return dbOneWriteBlocked; }
 async function closeMongo() { await stopTransactionHistoryOutbox(); if (client) await client.close(); if (historyClient) await historyClient.close(); }
 function txUnsupported(err) {
   const m = String(err?.message || err);
