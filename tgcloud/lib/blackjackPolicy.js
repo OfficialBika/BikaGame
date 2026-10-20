@@ -3,7 +3,7 @@ export const BLACKJACK_RULES = Object.freeze({
   maxBet: 300000,
   cooldownMs: 1500,
   actionTimeoutMs: 90000,
-  defaultRtp: (() => { const raw = process.env.BLACKJACK_DEFAULT_RTP; if (raw == null || String(raw).trim() === '') return 50; const parsed = Number(raw); return Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : 50; })(),
+  defaultRtp: (() => { const raw = globalThis?.process?.env?.BLACKJACK_DEFAULT_RTP; if (raw == null || String(raw).trim() === '') return 50; const parsed = Number(raw); return Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : 50; })(),
   maxPlayers: 5,
 });
 
