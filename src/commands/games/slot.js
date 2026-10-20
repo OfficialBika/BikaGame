@@ -119,9 +119,8 @@ async function resolveSlotRtp(chatId, treasury) {
   };
 }
 
-function resultText(reels, bet, payout) {
+function resultText(reels, bet, payout, userId) {
   const { translateCachedText } = require('../../services/i18nService');
-  const userId = arguments[3];
   const net = payout - bet;
   const isJackpot = reels[0] === '7' && reels[1] === '7' && reels[2] === '7';
   const isTwoMatch = payout > 0 && engine.isAnyTwo(reels[0], reels[1], reels[2]);
@@ -129,7 +128,7 @@ function resultText(reels, bet, payout) {
   const headline =
     payout > 0
       ? isJackpot
-        ? '🏆 JACKPOT 777!'
+        ? translateCachedText(userId, '🏆 JACKPOT 777!')
         : isTwoMatch
           ? translateCachedText(userId, '✅ TWO MATCH WIN')
           : translateCachedText(userId, '✅ WIN')
@@ -141,9 +140,9 @@ function resultText(reels, bet, payout) {
     `<pre>${engine.art(reels)}</pre>\n` +
     `━━━━━━━━━━━\n` +
     `<b>${headline}</b>\n` +
-    `Bet: <b>${fmt(bet)}</b> ${COIN}\n` +
-    `Payout: <b>${fmt(payout)}</b> ${COIN}\n` +
-    `Net: <b>${fmt(net)}</b> ${COIN}`
+    `${translateCachedText(userId, 'Bet:')} <b>${fmt(bet)}</b> ${COIN}\n` +
+    `${translateCachedText(userId, 'Payout:')} <b>${fmt(payout)}</b> ${COIN}\n` +
+    `${translateCachedText(userId, 'Net:')} <b>${fmt(net)}</b> ${COIN}`
   );
 }
 
