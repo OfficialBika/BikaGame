@@ -3,7 +3,9 @@
 const { getTransactionHistoryDb, safeCreateIndex } = require('../config/database');
 
 const COLLECTION = 'web_game_history';
-const TTL_SECONDS = Math.max(3600, Number(process.env.WEB_GAME_HISTORY_TTL_SECONDS || 24 * 60 * 60));
+// Keep user-facing web game history for seven days. The permanent transaction ledger
+// in DB2 is intentionally not subject to this retention policy.
+const TTL_SECONDS = Math.max(3600, Number(process.env.WEB_GAME_HISTORY_TTL_SECONDS || 7 * 24 * 60 * 60));
 let indexPromise = null;
 
 function collection() {
@@ -37,7 +39,7 @@ async function ensureIndexes() {
     indexPromise = (async () => {
       const col = await collection();
       await Promise.all([
-        safeCreateIndex(col, { createdAt: 1 }, { expireAfterSeconds: TTL_SECONDS, name: 'ttl_createdAt_24h' }),
+        safeCreateIndex(col, { createdAt: 1 }, { expireAfterSeconds: TTL_SECONDS, name: 'ttl_createdAt_7d' }),
         safeCreateIndex(col, { userId: 1, game: 1, createdAt: -1 }, { name: 'user_game_createdAt' }),
       ]);
     })().catch((err) => {
