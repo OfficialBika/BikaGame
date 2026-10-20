@@ -266,9 +266,6 @@ async function connectMongo() {
   collections.auctions = db.collection('auctions');
   collections.auction_bids = db.collection('auction_bids');
 
-  // Free expired history before building indexes; index creation can fail at the free-tier storage cap.
-  // DB Two experiment: do not purge DB1 transaction rows before external history is migrated and verified.
-
   await safeCreateIndex(collections.users, { userId: 1 }, { unique: true });
   await safeCreateIndex(collections.users, { username: 1 }, { sparse: true });
   await safeCreateIndex(collections.users, { balance: -1 });
