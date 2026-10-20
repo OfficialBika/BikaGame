@@ -498,7 +498,6 @@ async function migrateTransactionHistoryReadOnly({ batchSize = 100, verifyOnly =
   const sourceCountBefore = await source.countDocuments({});
   const targetCountBefore = await target.countDocuments({});
   const sourceStats = await source.stats().catch(() => null);
-  const targetStatsBefore = await target.stats().catch(() => null);
 
   const stable = (value) => {
     if (Array.isArray(value)) return value.map(stable);
@@ -561,7 +560,7 @@ async function migrateTransactionHistoryReadOnly({ batchSize = 100, verifyOnly =
     migration: 'transactions-v1-readonly',
     mode: verifyOnly ? 'verify-only' : 'copy-and-verify',
     source: { countBefore: sourceCountBefore, countAfter: sourceCountAfter, storageSize: sourceStats?.storageSize ?? null },
-    target: { countBefore: targetCountBefore, countAfter: targetCountAfter, storageSize: target.stats().catch(() => null) },
+    target: { countBefore: targetCountBefore, countAfter: targetCountAfter, storageSize: null },
     copied,
     missing,
     mismatched,
