@@ -18,8 +18,8 @@ const MESSAGES = {
     language_saved: '✅ ဘာသာစကားကို မြန်မာဘာသာအဖြစ် ပြောင်းပြီးပါပြီ။',
     start_title: '🎮 <b>BIKA GAME BOT</b>\nသင့်ရဲ့ game ခရီးစဉ်ကို စတင်လိုက်ပါ။',
     user: '👤 User', owner: '🛡 Owner', game_chat: '🎮 Game Chat', channel: '📢 Channel',
-    user_help: '👤 <b>User Commands</b>\n/dailyclaim — Daily reward\n/language — ဘာသာစကားရွေးရန်\n/mybalance — လက်ကျန်ငွေ\n/top10 — ထိပ်ဆုံးကစားသမားများ\n/shop — ဆိုင်\n\nGame commands: .slot, .dice, .shan, .bj, .mine, 2D, Auction, Event',
-    owner_help: '🛡 <b>Owner Commands</b>\n/admin — Admin dashboard\n/status — Bot status\n/treasury — Treasury\n/broadcast — Broadcast tools\n/maintenance — Maintenance controls\n\nဤ menu သည် Owner အတွက်သာဖြစ်သည်။',
+    user_help: '👤 <b>أوامر المستخدم</b>\n/language — تغيير اللغة\n/dailyclaim — المكافأة اليومية\n/mybalance, /bal — عرض الرصيد\n/top10 — قائمة المتصدرين\n/shop — المتجر\n/wallet — المحفظة\n/gift — إهداء الرصيد\n/webapp — تطبيق الألعاب المصغّر\n/dailytournament — البطولة\n\nالألعاب: .slot و.crash و.mines و.bj و.shan و.dice و2D والمزادات والفعاليات',
+    owner_help: '🛡 <b>أوامر المالك</b>\n/admin — لوحة الإدارة\n/status, /ping — الحالة وزمن الاستجابة\n/treasury — أدوات الخزينة\n/addbal, /rmbal — تعديل رصيد المستخدم\n/setrtp, /setbjrtp, /setvipwr — إعدادات RTP/VIP\n/promortp — RTP ترويجي\n/broadcast, /broadcastend — التحكم بالبث\n/off, /on — تشغيل/إيقاف الصيانة\n/approve, /reject, /groupstatus — إدارة المجموعات\n\nأوامر الإدارة متاحة للمالك فقط.',
     daily_done: '⏳ ဒီနေ့ Daily reward ကို ရယူပြီးပါပြီ။ မနက်ဖြန် ပြန်လာပါ။',
   },
   en: {
