@@ -900,10 +900,22 @@ export default async function (message) {
     }
     if (command.name === 'mines' || command.name === 'mine') {
       await assertGameEnabled('mines');
-      await minesStart(user.tgId, bet, 'tg:' + chatId + ':' + message.message_id);
+      let started;
+      try {
+        started = await minesStart(user.tgId, bet, 'tg:' + chatId + ':' + message.message_id, parsedArgs[1]);
+      } catch (error) {
+        const reason = String(error?.message || error);
+        if (reason.includes('INVALID_MINE_COUNT')) {
+          return send(chatId, '💣 MINES\\nUsage: /mines <bet> [5|7|9|10]\\nExample: /mines 1000 7', message.message_id);
+        }
+        if (reason.includes('MINES_ACTIVE')) {
+          return send(chatId, '⏳ သင့် Mines round လက်ရှိရှိနေပါတယ်။ အဲဒီ round ကို ပြီးအောင်လုပ်ပြီးမှ ပြန်စပါ။', message.message_id);
+        }
+        throw error;
+      }
       return send(
         chatId,
-        '💣 MINES\nRound started. Multiplier x1.00\nChoose a tile.',
+        '💣 MINES\\nMines: ' + started.mineCount + '\\nBet: ' + formatCoin(Number(bet)) + ' Bal\\nCash Out after 4 safe picks.\\nChoose your first tile (first pick is protected).',
         message.message_id,
         minesKeyboard(),
       );
