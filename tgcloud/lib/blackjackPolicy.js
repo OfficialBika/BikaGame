@@ -73,6 +73,33 @@ export function blackjackPayout(result, bet) {
   throw new TypeError('BJ_RESULT_INVALID');
 }
 
+export function chooseBlackjackTargetResult(playerCards, dealerCards, fairResult, rtpRate, random = Math.random) {
+  const playerValue = cardValue(playerCards);
+  if (isNaturalBlackjack(playerCards) || isNaturalBlackjack(dealerCards) || playerValue > 21) {
+    return fairResult;
+  }
+  const rate = clampBlackjackRtp(rtpRate);
+  if (Number(random()) * 100 < rate) return 'WIN';
+  return playerValue >= 21 ? 'PUSH' : 'LOSE';
+}
+
+export function buildBlackjackSettlementPlan(players, dealerCards, reason = 'actions_complete', rtpRate = BLACKJACK_RULES.defaultRtp, random = Math.random) {
+  return (players || []).map((player) => {
+    const fairResult = resultForBlackjack(player.cards, dealerCards);
+    const result = reason === 'timeout'
+      ? 'REFUND'
+      : (player.finalResult || chooseBlackjackTargetResult(player.cards, dealerCards, fairResult, rtpRate, random));
+    return {
+      userId: Number(player.id),
+      bet: Number(player.bet),
+      result,
+      payout: result === 'REFUND' ? Number(player.bet) : blackjackPayout(result, Number(player.bet)),
+      playerValue: cardValue(player.cards),
+      natural: isNaturalBlackjack(player.cards),
+    };
+  });
+}
+
 const deckFor = (random = Math.random) => {
   const suits = ['♠', '♥', '♦', '♣'];
   const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
@@ -116,4 +143,15 @@ assert.equal(normalizeBlackjackRoom('solo'), 'solo');
 assert.equal(normalizeBlackjackRoom('bj:room-1'), 'room-1');
 assert.throws(() => normalizeBlackjackRoom('room with spaces'), /BJ_ROOM_INVALID/);
 assert.throws(() => blackjackPayout('WIN', 1), /BJ_BET_INVALID/);
+
+assert.equal(chooseBlackjackTargetResult([{r:'A'},{r:'K'}], [{r:'9'},{r:'7'}], 'BLACKJACK', 0, () => 0.99), 'BLACKJACK');
+assert.equal(chooseBlackjackTargetResult([{r:'10'},{r:'9'}], [{r:'10'},{r:'8'}], 'WIN', 100, () => 0), 'WIN');
+assert.equal(chooseBlackjackTargetResult([{r:'10'},{r:'8'}], [{r:'10'},{r:'9'}], 'LOSE', 0, () => 0.99), 'LOSE');
+const savedPlan = buildBlackjackSettlementPlan([{id:7,bet:100,cards:[{r:'A'},{r:'K'}]}],[{r:'9'},{r:'7'}],'actions_complete',50,()=>0);
+assert.equal(savedPlan[0].result, 'BLACKJACK');
+assert.equal(savedPlan[0].payout, 250);
+const timeoutPlan = buildBlackjackSettlementPlan([{id:7,bet:100,cards:[{r:'10'},{r:'8'}]}],[{r:'A'},{r:'Q'}],'timeout');
+assert.equal(timeoutPlan[0].result, 'REFUND');
+assert.equal(timeoutPlan[0].payout, 100);
+
 console.log('Blackjack policy tests passed (main bet/cooldown/timeout/natural payout, soft aces, result parity, room validation and deck integrity).');
