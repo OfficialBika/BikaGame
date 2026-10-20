@@ -24,11 +24,11 @@ async function safeCreateIndex(col, keys, options = {}) {
     if ([85,86].includes(err?.code) || ['IndexOptionsConflict','IndexKeySpecsConflict'].includes(err?.codeName)) {
       logger.warn(`Skipping conflicting index ${col.collectionName} ${JSON.stringify(keys)}`); return null;
     }
-    // A database can be online but write-blocked because it exceeded its storage
-    // tier. Do not hide other index failures: only known quota errors are degraded.
+    // Index creation is optional bootstrap metadata, but a quota error proves DB1
+    // cannot currently accept writes. Keep startup possible for diagnostics only.
     if (isStorageQuotaError(err)) {
       dbOneWriteBlocked = true;
-      logger.error(`MongoDB quota blocked index creation for ${col.collectionName}; continuing startup without index ${JSON.stringify(keys)}. DB1 writes remain unavailable until the quota is resolved.`);
+      logger.error(`MongoDB quota blocked index creation for ${col.collectionName}; continuing diagnostic startup without index ${JSON.stringify(keys)}. Money operations remain blocked until DB1 writes recover.`);
       return null;
     }
     throw err;
