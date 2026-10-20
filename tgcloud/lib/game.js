@@ -5,6 +5,7 @@ import { ensureEconomy, ensureUser, userById as accountUserById, debit as ledger
 import { spin as slotSpinEngine, multiplier as slotMultiplier, art as slotArt } from './slotPolicy.js';
 import { getActivePromoRtp } from './eventMarkets.js';
 import { MINES_RULES, normalizeMineCount, generateMineLayout, calculateMinesMultiplier, canCashOutMines, minesExpiryTime, isMinesExpired } from './minesPolicy.js';
+import { BLACKJACK_RULES, normalizeBlackjackRoom, clampBlackjackRtp, createBlackjackDeck, cardValue as blackjackCardValue, isNaturalBlackjack, resultForBlackjack, blackjackPayout } from './blackjackPolicy.js';
 
 const MIN_BET = 1;
 const MAX_BET = 1000000;
@@ -611,16 +612,262 @@ export async function minesCashout(userId) {
   return finalizeMinesSession(userId, s, 'cashout');
 }
 
-function deck() { const suits=['♠','♥','♦','♣']; const ranks=['A','2','3','4','5','6','7','8','9','10','J','Q','K']; return suits.flatMap(s=>ranks.map(r=>({r,s}))).sort(()=>Math.random()-0.5); }
-function cardValue(cards) { let total=0, aces=0; for(const c of cards){ if(c.r==='A'){total+=11;aces++;} else total += ['K','Q','J'].includes(c.r)?10:Number(c.r); } while(total>21&&aces--) total-=10; return total; }
-export async function blackjackJoin(userId, roomId, amount) {
-  const id = String(roomId || 'solo'); const existing = await db.select().from(gameSessions).where(eq(gameSessions.id, `bj:${id}`)).get();
-  const bet=betOf(amount);
-  if (!existing) { await debit(userId,bet,'blackjack_bet',{game:'blackjack',room:id},`bj:${id}:${userId}`); const d=deck(); const state={players:[{id:Number(userId),bet,cards:[d.pop(),d.pop()]}],dealer:[d.pop(),d.pop()],deck:d,started:true}; await db.insert(gameSessions).values({id:`bj:${id}`,userId:Number(userId),game:'blackjack',status:'active',state,createdAt:now(),updatedAt:now()}).run(); return blackjackStatus(userId,id); }
-  const state=existing.state||{}; if(state.players.some(p=>p.id===Number(userId))) return blackjackStatus(userId,id); if(state.players.length>=5) throw new Error('BJ_TABLE_FULL'); await debit(userId,bet,'blackjack_bet',{game:'blackjack',room:id},`bj:${id}:${userId}`); state.players.push({id:Number(userId),bet,cards:[state.deck.pop(),state.deck.pop()]}); await updateSession(existing.id,state); return blackjackStatus(userId,id);
+function deck() {
+  return createBlackjackDeck();
 }
-export async function blackjackStatus(userId, roomId) { const s=await db.select().from(gameSessions).where(eq(gameSessions.id,`bj:${String(roomId||'solo')}`)).get(); if(!s) return {ok:true,roomId:String(roomId||'solo'),active:false}; const me=s.state.players.find(p=>p.id===Number(userId)); return {ok:true,roomId:String(roomId||'solo'),active:s.status==='active',player:me||null,dealer:s.state.dealer.map((c,i)=>i===0&&s.state.players.some(p=>p.id===Number(userId))?c:{r:'?',s:'?'}),players:s.state.players.map(p=>({id:p.id,value:cardValue(p.cards)}))}; }
-export async function blackjackAction(userId, roomId, action) { const s=await db.select().from(gameSessions).where(eq(gameSessions.id,`bj:${String(roomId||'solo')}`)).get(); if(!s) throw new Error('BJ_ROOM_NOT_FOUND'); const st=s.state; const me=st.players.find(p=>p.id===Number(userId)); if(!me) throw new Error('BJ_NOT_JOINED'); if(action==='hit'){me.cards.push(st.deck.pop()); if(cardValue(me.cards)>21) action='stand';} if(action==='stand'){me.stood=true;} if(!['hit','stand'].includes(action)) throw new Error('BJ_NOT_PLAYING'); if(st.players.every(p=>p.stood||cardValue(p.cards)>21)){while(cardValue(st.dealer)<17) st.dealer.push(st.deck.pop()); for(const p of st.players){const pv=cardValue(p.cards), dv=cardValue(st.dealer); let payout=0; if(pv<=21&&(dv>21||pv>dv)) payout=Math.floor(p.bet*2); else if(pv===dv) payout=p.bet; if(payout) await credit(p.id,payout,'blackjack_win',{game:'blackjack',roomId},`bj-win:${s.id}:${p.id}`); await recordGame(p.id,'blackjack',p.bet,payout,{player:pv,dealer:dv},payout/p.bet,'blackjack:'+s.id+':'+p.id);} await updateSession(s.id,st,'settled');} else await updateSession(s.id,st); return blackjackStatus(userId,roomId); }
+
+function blackjackRoomId(value) {
+  return normalizeBlackjackRoom(value);
+}
+
+function blackjackPlayerResult(state, player) {
+  return resultForBlackjack(player.cards, state.dealer);
+}
+
+function blackjackExpiry(session) {
+  return Number(session?.state?.expiresAt || 0) > 0 && Number(session.state.expiresAt) <= Date.now();
+}
+
+async function updateBlackjackSession(session, state, status = 'active') {
+  const version = Number(session.version || 0);
+  const result = await db.update(gameSessions)
+    .set({ state, status, version: version + 1, updatedAt: now(), expiresAt: state.expiresAt ? new Date(state.expiresAt) : null })
+    .where(and(
+      eq(gameSessions.id, session.id),
+      eq(gameSessions.version, version),
+      eq(gameSessions.status, session.status),
+    ))
+    .run();
+  const changed = Number(result?.rowsAffected ?? result?.changes ?? (Array.isArray(result) ? result.length : 0));
+  if (changed !== 1) throw new Error('BJ_SESSION_CHANGED');
+  return db.select().from(gameSessions).where(eq(gameSessions.id, session.id)).get();
+}
+
+async function getBlackjackSession(roomId) {
+  const id = blackjackRoomId(roomId);
+  return db.select().from(gameSessions).where(eq(gameSessions.id, 'bj:' + id)).get();
+}
+
+async function settleBlackjackSession(roomId, state, reason) {
+  const sessionId = 'bj:' + roomId;
+  const plan = Array.isArray(state.settlementPlan) ? state.settlementPlan : (state.players || []).map((player) => {
+    const result = player.finalResult || blackjackPlayerResult(state, player);
+    return {
+      userId: Number(player.id),
+      bet: Number(player.bet),
+      result,
+      payout: blackjackPayout(result, Number(player.bet)),
+      playerValue: blackjackCardValue(player.cards),
+      natural: isNaturalBlackjack(player.cards),
+    };
+  });
+  // Store immutable outcomes before ledger writes. On retry, each per-player
+  // idempotency key makes a partial settlement resumable without double payout.
+  const settling = await db.select().from(gameSessions).where(eq(gameSessions.id, sessionId)).get();
+  if (settling && settling.status === 'active') {
+    await updateBlackjackSession(settling, { ...state, settlementPlan: plan, settleReason: reason, settlingAt: Date.now() }, 'settling');
+  }
+  for (const entry of plan) {
+    const keyBase = 'blackjack:' + roomId + ':' + entry.userId;
+    if (reason === 'timeout' || entry.result === 'LOSE') {
+      if (reason === 'timeout') {
+        await credit(entry.userId, entry.bet, 'blackjack_refund', {
+          game: 'blackjack', roomId, playerId: entry.userId, reason,
+        }, 'bj-refund:' + keyBase);
+      }
+    } else if (entry.payout > 0) {
+      await credit(entry.userId, entry.payout, 'blackjack_win', {
+        game: 'blackjack', roomId, playerId: entry.userId,
+        result: entry.result, natural: entry.natural, reason,
+      }, 'bj-payout:' + keyBase);
+    }
+    await recordGame(entry.userId, 'blackjack', entry.bet, reason === 'timeout' ? entry.bet : entry.payout, {
+      player: entry.playerValue, dealer: blackjackCardValue(state.dealer),
+      result: reason === 'timeout' ? 'REFUND' : entry.result, natural: entry.natural, reason,
+    }, reason === 'timeout' ? 1 : (entry.bet ? entry.payout / entry.bet : 0), 'blackjack-history:' + keyBase);
+  }
+  const latest = await db.select().from(gameSessions).where(eq(gameSessions.id, sessionId)).get();
+  if (latest && latest.status !== 'settled') {
+    await updateBlackjackSession(latest, { ...state, settlementPlan: plan, settleReason: reason, settledAt: Date.now() }, 'settled');
+  }
+  return { ok: true, active: false, settled: true, roomId, settlementPlan: plan, balanceByUser: null };
+}
+
+export async function blackjackJoin(userId, roomId = 'solo', amount, requestId = null) {
+  await ensureEconomy();
+  const room = blackjackRoomId(roomId);
+  const user = Number(userId);
+  const bet = validBet(amount, BLACKJACK_RULES.minBet, BLACKJACK_RULES.maxBet);
+  const sessionId = 'bj:' + room;
+  let session = await db.select().from(gameSessions).where(eq(gameSessions.id, sessionId)).get();
+
+  if (!session) {
+    await consumeCooldown(user, 'blackjack', BLACKJACK_RULES.cooldownMs);
+    const rtpWinRate = clampBlackjackRtp(await getSetting('blackjack_rtp', BLACKJACK_RULES.defaultRtp));
+    const cards = deck();
+    const state = {
+      roomId: room,
+      players: [],
+      dealer: [cards.pop(), cards.pop()],
+      deck: cards,
+      startedAt: Date.now(),
+      expiresAt: Date.now() + BLACKJACK_RULES.actionTimeoutMs,
+      actionTimeoutMs: BLACKJACK_RULES.actionTimeoutMs,
+      rtpWinRate,
+      requestId: String(requestId || '').trim().slice(0, 120) || null,
+    };
+    state.players.push({ id: user, bet, cards: [state.deck.pop(), state.deck.pop()], stood: false });
+    const nowAt = now();
+    try {
+      await db.insert(gameSessions).values({
+        id: sessionId, userId: user, game: 'blackjack', status: 'active', state,
+        roomId: room, expiresAt: new Date(state.expiresAt), version: 0,
+        createdAt: nowAt, updatedAt: nowAt,
+      }).run();
+    } catch (error) {
+      session = await db.select().from(gameSessions).where(eq(gameSessions.id, sessionId)).get();
+      if (!session) throw error;
+      const existingState = session.state || {};
+      if ((existingState.players || []).some((player) => Number(player.id) === user)) return blackjackStatus(user, room);
+      throw new Error('BJ_ROOM_ALREADY_STARTED');
+    }
+    try {
+      await debit(user, bet, 'blackjack_bet', { game: 'blackjack', roomId: room }, 'bj-bet:' + sessionId + ':' + user);
+    } catch (error) {
+      const latest = await db.select().from(gameSessions).where(eq(gameSessions.id, sessionId)).get();
+      if (latest?.status === 'active') {
+        await updateBlackjackSession(latest, { ...latest.state, setupError: true }, 'cancelled');
+      }
+      throw error;
+    }
+    const latest = await db.select().from(gameSessions).where(eq(gameSessions.id, sessionId)).get();
+    if (latest?.status === 'active') {
+      await updateBlackjackSession(latest, { ...latest.state, funded: true }, 'active');
+    }
+    return blackjackStatus(user, room);
+  }
+
+  if (session.status !== 'active') throw new Error('BJ_ROOM_CLOSED');
+  const state = session.state || {};
+  if ((state.players || []).some((player) => Number(player.id) === user)) return blackjackStatus(user, room);
+  if ((state.players || []).length >= BLACKJACK_RULES.maxPlayers) throw new Error('BJ_TABLE_FULL');
+  if (blackjackExpiry(session)) {
+    await settleBlackjackSession(room, state, 'timeout');
+    throw new Error('BJ_ROOM_EXPIRED');
+  }
+  await consumeCooldown(user, 'blackjack', BLACKJACK_RULES.cooldownMs);
+  const latest = await getBlackjackSession(room);
+  if (!latest || latest.status !== 'active' || Number(latest.version || 0) !== Number(session.version || 0)) {
+    throw new Error('BJ_SESSION_CHANGED');
+  }
+  const latestState = latest.state || {};
+  if ((latestState.players || []).some((player) => Number(player.id) === user)) return blackjackStatus(user, room);
+  if ((latestState.players || []).length >= BLACKJACK_RULES.maxPlayers) throw new Error('BJ_TABLE_FULL');
+  await debit(user, bet, 'blackjack_bet', { game: 'blackjack', roomId: room }, 'bj-bet:' + sessionId + ':' + user);
+  const nextState = {
+    ...latestState,
+    players: [...latestState.players, { id: user, bet, cards: [latestState.deck.pop(), latestState.deck.pop()], stood: false }],
+  };
+  await updateBlackjackSession(latest, nextState, 'active');
+  return blackjackStatus(user, room);
+}
+
+export async function blackjackStatus(userId, roomId = 'solo') {
+  const room = blackjackRoomId(roomId);
+  const session = await getBlackjackSession(room);
+  if (!session) return { ok: true, roomId: room, active: false, player: null };
+  let state = session.state || {};
+  if (session.status === 'active' && blackjackExpiry(session)) {
+    await settleBlackjackSession(room, state, 'timeout');
+    const user = await userById(userId);
+    return { ok: true, roomId: room, active: false, expired: true, player: (state.players || []).find((p) => Number(p.id) === Number(userId)) || null, balance: Number(user?.balance || 0) };
+  }
+  if (session.status === 'settling') {
+    await settleBlackjackSession(room, state, state.settleReason || 'stand');
+    const refreshed = await getBlackjackSession(room);
+    state = refreshed?.state || state;
+  }
+  const player = (state.players || []).find((p) => Number(p.id) === Number(userId)) || null;
+  return {
+    ok: true,
+    roomId: room,
+    active: session.status === 'active',
+    player,
+    dealer: player ? (state.dealer || []).map((card, index) => index === 0 ? card : { r: '?', s: '?' }) : [],
+    players: (state.players || []).map((p) => ({ id: p.id, bet: p.bet, value: blackjackCardValue(p.cards), stood: !!p.stood })),
+    expiresAt: Number(state.expiresAt || 0) || null,
+    actionTimeoutMs: Number(state.actionTimeoutMs || BLACKJACK_RULES.actionTimeoutMs),
+    settlementPlan: state.settlementPlan || null,
+  };
+}
+
+export async function blackjackAction(userId, roomId, action) {
+  const room = blackjackRoomId(roomId);
+  const user = Number(userId);
+  if (!['hit', 'stand'].includes(action)) throw new Error('BJ_NOT_PLAYING');
+  const session = await getBlackjackSession(room);
+  if (!session || session.status !== 'active') throw new Error('BJ_ROOM_NOT_ACTIVE');
+  const state = session.state || {};
+  if (blackjackExpiry(session)) {
+    await settleBlackjackSession(room, state, 'timeout');
+    throw new Error('BJ_ROOM_EXPIRED');
+  }
+  const playerIndex = (state.players || []).findIndex((player) => Number(player.id) === user);
+  if (playerIndex < 0) throw new Error('BJ_NOT_JOINED');
+  const player = state.players[playerIndex];
+  if (player.stood || blackjackCardValue(player.cards) > 21) throw new Error('BJ_ACTION_ALREADY_DONE');
+
+  const nextState = {
+    ...state,
+    players: state.players.map((entry, index) => index === playerIndex ? { ...entry, cards: [...entry.cards] } : { ...entry }),
+    deck: [...(state.deck || [])],
+  };
+  const nextPlayer = nextState.players[playerIndex];
+  if (action === 'hit') {
+    const drawn = nextState.deck.pop();
+    if (!drawn) throw new Error('BJ_DECK_EMPTY');
+    nextPlayer.cards.push(drawn);
+    if (blackjackCardValue(nextPlayer.cards) > 21) {
+      nextPlayer.stood = true;
+      nextPlayer.finalResult = 'LOSE';
+    }
+  } else {
+    nextPlayer.stood = true;
+  }
+
+  if (nextState.players.every((entry) => entry.stood || entry.finalResult)) {
+    // Dealer draws once, then each player's immutable result/payout plan is saved.
+    while (blackjackCardValue(nextState.dealer) < 17 && nextState.deck.length) {
+      nextState.dealer.push(nextState.deck.pop());
+    }
+    nextState.players = nextState.players.map((entry) => {
+      const result = entry.finalResult || resultForBlackjack(entry.cards, nextState.dealer);
+      const natural = isNaturalBlackjack(entry.cards);
+      // Preserve main's target-RTP behavior for ordinary non-natural outcomes;
+      // natural/bust outcomes always retain the actual rule-based result.
+      let target = result;
+      if (!natural && blackjackCardValue(entry.cards) <= 21 && !isNaturalBlackjack(nextState.dealer)) {
+        const rate = clampBlackjackRtp(nextState.rtpWinRate);
+        target = Math.random() * 100 < rate ? 'WIN' : (blackjackCardValue(entry.cards) >= 21 ? 'PUSH' : 'LOSE');
+      }
+      return { ...entry, finalResult: target, natural };
+    });
+    nextState.settleReason = 'actions_complete';
+    nextState.settlementPlan = nextState.players.map((entry) => ({
+      userId: Number(entry.id),
+      bet: Number(entry.bet),
+      result: entry.finalResult,
+      payout: blackjackPayout(entry.finalResult, Number(entry.bet)),
+      playerValue: blackjackCardValue(entry.cards),
+      natural: !!entry.natural,
+    }));
+    await updateBlackjackSession(session, nextState, 'settling');
+    await settleBlackjackSession(room, nextState, 'actions_complete');
+  } else {
+    await updateBlackjackSession(session, nextState, 'active');
+  }
+  return blackjackStatus(user, room);
+}
 
 function shanCards() { const d=deck(); return [d.pop(),d.pop(),d.pop()]; }
 export async function shanCreate(userId,title='Bika Shan Koe Mee Pro Table') { const id=`shan:${uid()}`; await db.insert(gameSessions).values({id,userId:Number(userId),game:'shan',status:'waiting',state:{title,players:[]},createdAt:now(),updatedAt:now()}).run(); return {ok:true,roomId:id.replace(/^shan:/,''),title}; }
