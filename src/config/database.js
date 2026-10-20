@@ -394,8 +394,16 @@ async function connectMongo() {
         { _id: 'probe', createdAt: new Date() },
         { writeConcern: { w: 1, wtimeoutMS: 3000 } },
       );
-      await db.collection(probeName).deleteOne({ _id: 'probe' });
-      await db.collection(probeName).drop().catch(() => {});
+      try {
+        await db.collection(probeName).deleteOne({ _id: 'probe' });
+        await db.collection(probeName).drop();
+      } catch (cleanupErr) {
+        logger.warn('DB1 write probe cleanup failed; checking the actual write quota separately.');
+        if (isStorageQuotaError(cleanupErr)) {
+          dbOneWriteBlocked = true;
+          logger.error('DB1 is write-blocked while cleaning up the startup probe; money writes are blocked.');
+        }
+      }
     } catch (probeErr) {
       // The probe uses a dedicated fixed ID. If insertion succeeded but cleanup
       // failed, keep retrying cleanup without converting the condition into a
