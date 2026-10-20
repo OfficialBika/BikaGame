@@ -244,7 +244,7 @@ export default async function (query) {
       text = action === 'approve'
         ? '✅ Sell order approved\nOrder: ' + arg + '\nPaid: ' + Number(result.order?.price || 0).toLocaleString('en-US') + ' Bal'
         : '❌ Sell order cancelled\nOrder: ' + arg;
-    } else if (game === 'dice' && (action === 'accept' || action === 'cancel')) {
+    } else if (game === 'dice' && (action === 'accept' || action === 'cancel' || action === 'resume')) {
       let callbackAnswered = false;
       try {
         let session = await getDiceChallenge(arg);
@@ -255,7 +255,7 @@ export default async function (query) {
 
         // Even the recovery/resume path is restricted to the intended target.
         // A public inline button must not let unrelated users trigger settlement.
-        if (action === 'accept' && Number(user.id) !== Number(session.state?.targetUserId)) {
+        if ((action === 'accept' || action === 'resume') && Number(user.id) !== Number(session.state?.targetUserId)) {
           await api.answerCallbackQuery({
             callback_query_id: query.id,
             text: 'ဒီ duel ကို reply ထောက်ထားတဲ့သူပဲ Accept လုပ်နိုင်ပါတယ်။',
@@ -308,6 +308,11 @@ export default async function (query) {
           return;
         }
 
+        if (action === 'resume') {
+          await api.answerCallbackQuery({ callback_query_id: query.id, text: 'No saved roll result is available to resume.', show_alert: true });
+          return;
+        }
+
         const claimed = await claimDiceChallenge(arg, user.id);
         session = claimed.session || session;
         if (claimed.expired) {
@@ -351,7 +356,7 @@ export default async function (query) {
             await editDiceMessage(
               message,
               '⚠️ Dice results were saved. Settlement can be retried safely; no duplicate payout will occur.',
-              { inline_keyboard: [[{ text: '🔄 Resume settlement', callback_data: 'dice:accept:' + arg }]] },
+              { inline_keyboard: [[{ text: '🔄 Resume settlement', callback_data: 'dice:resume:' + arg }]] },
             );
           }
         }
