@@ -87,6 +87,9 @@ async function runMigration(sourceDb, targetDb, { batchSize, verifyOnly }) {
 
   const sourceCountAfter = await source.countDocuments({});
   const targetCountAfter = await target.countDocuments({});
+  // This count is a conservative change detector when transaction rows have timestamps.
+  // If the source keeps changing during migration, verification must fail and be rerun
+  // during a quiet/maintenance window before any cleanup is considered.
   const postCutoverWrites = await source.countDocuments({ createdAt: { $gte: migrationStartedAt } }).catch(() => null);
   const sourceStable = sourceCountBefore === sourceCountAfter && sourceSeen === sourceCountAfter;
   const verified = sourceStable &&
