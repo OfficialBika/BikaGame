@@ -3,7 +3,7 @@
 const { getTransactionHistoryDb, safeCreateIndex } = require('../config/database');
 
 const COLLECTION = 'web_game_history';
-const TTL_SECONDS = Math.max(7 * 24 * 60 * 60, Number(process.env.WEB_GAME_HISTORY_TTL_SECONDS || 7 * 24 * 60 * 60));
+const TTL_SECONDS = 7 * 24 * 60 * 60;
 let indexPromise = null;
 
 function collection() {

@@ -13,7 +13,7 @@ const logger = require('../utils/logger');
 const TZ = 'Asia/Yangon';
 const MIN_AUCTION_BID = 1;
 const AUCTION_TTL_MS = 10 * 60 * 1000;
-const AUCTION_HISTORY_RETENTION_MS = 24 * 60 * 60 * 1000;
+const AUCTION_HISTORY_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const AUCTION_TELEGRAM_TIMEOUT_MS = 7000;
 
 const auctions = () => col('auctions');
@@ -512,7 +512,7 @@ async function showBidHistoryCommand(ctx) {
 
   if (!a) {
     return ctx.reply(
-      emoji('HISTORY', '📊') + ' <b>BID HISTORY</b>\n\n<i>ဒီ Post အတွက် 24 နာရီအတွင်း သိမ်းထားတဲ့ Auction history မတွေ့ပါ။</i>',
+      emoji('HISTORY', '📊') + ' <b>BID HISTORY</b>\n\n<i>ဒီ Post အတွက် 7 ရက်အတွင်း သိမ်းထားတဲ့ Auction history မတွေ့ပါ။</i>',
       { parse_mode: 'HTML', reply_to_message_id: ctx.message.message_id }
     );
   }
@@ -702,7 +702,7 @@ async function closeAuction(bot, a) {
     }
   }
 
-  // Keep the closed auction + bid history for 24 hours so .bidhistory can read it.
+  // Keep the closed auction + bid history for 7 days so .bidhistory can read it.
   // Cleanup is handled separately by the scheduler after historyExpiresAt.
   return closed;
 }
@@ -746,7 +746,7 @@ async function init(bot) {
         }
       }
 
-      // Keep settled auction + bids for 24 hours, then clean them up.
+      // Keep settled auction + bids for 7 days, then clean them up.
       const expiredHistory = await auctions()
         .find({ status: 'closed', historyExpiresAt: { $lte: now } })
         .limit(20)
