@@ -143,7 +143,7 @@ module.exports = (bot) => {
       game.delShan(id);
 
       try {
-        await editByIds(bot, active.chatId, active.msgId, expiredText(active));
+        await editByIds(bot, active.chatId, active.msgId, expiredText(active), {}, active.challengerId);
       } catch (_) {}
     }, SHAN_CHALLENGE_TIMEOUT_MS);
 
