@@ -315,7 +315,7 @@ async function settleDuel({ duelId, typePrefix, challengerId, targetUserId, winn
 
   return withRequiredTx(async (session) => {
     const opts = { session };
-    const tx = transactionModel.collection();
+    const tx = col('transactions');
     const markerId = `__settlement:${String(typePrefix)}:${String(duelId)}`;
     const existing = await tx.findOne({ _id: markerId }, opts);
     if (existing) return { ok: true, duplicate: true, result: existing.result || null, winnerUserId: existing.winnerUserId || null };
