@@ -142,12 +142,11 @@ async function initializeTransactionHistoryStorage() {
 async function flushTransactionHistoryOutbox({ batchSize = 100, allowBeforeInitialMigration = false } = {}) {
   if (!env.DB_TWO_ENABLED) return { skipped: true, processed: 0 };
   if (!historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
-  // DB1 is only a rolling history source after the retention window is applied.
-  // The initial migration marker cannot be required forever: source history is
-  // intentionally purged after 30 days, while the outbox must keep forwarding
-  // newly created rows to DB2. Before initial verification, keep the safety gate.
+  // The marker is checked without blocking the timer on marker-read errors.
+  // Until retained-history verification is persisted, never mark outbox rows as
+  // delivered; retry safely after the reviewed migration completes.
   if (!allowBeforeInitialMigration && !(await hasVerifiedInitialMigration())) {
-    throw new Error('DB_TWO_HISTORY_NOT_VERIFIED: run the reviewed migration and verify the complete source copy first');
+    return { skipped: true, reason: 'retained_history_verification_required', processed: 0 };
   }
   const pending = await db.collection(OUTBOX_COLLECTION)
     .find({ status: 'pending' }).sort({ createdAt: 1 }).limit(batchSize).toArray();
