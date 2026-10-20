@@ -481,8 +481,8 @@ async function connectMongo() {
   await safeCreateIndex(collections.auctions, { channelMessageId: 1 }, { unique: true, sparse: true, name: 'auctions_channel_message_unique' });
   await safeCreateIndex(collections.auction_bids, { auctionId: 1, createdAt: 1 }, { name: 'auction_bids_time' });
   await safeCreateIndex(collections.auction_bids, { auctionId: 1, messageId: 1 }, { unique: true, name: 'auction_bids_message_unique' });
-  // Legacy cleanup timer was removed for this branch to prevent deleting records before migration/verification.
-  startTransactionHistoryOutbox();
+  // DB2-authoritative mode has no DB1 outbox. Live ledger writes are handled
+  // by the DB2 transaction journal inside withRequiredTx().
   logger.info('Mongo connected: DB1 app data, DB2 authoritative transaction ledger');
 }
 
