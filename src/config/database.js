@@ -4,6 +4,12 @@ const logger = require('../utils/logger');
 let client, db;
 let TX_SUPPORTED = true;
 const collections = {};
+let historyClient = null;
+let historyDb = null;
+let historyReady = false;
+const OUTBOX_COLLECTION = 'transaction_outbox';
+const HISTORY_COLLECTION = 'transactions';
+
 async function safeCreateIndex(col, keys, options = {}) {
   try { return await col.createIndex(keys, options); }
   catch (err) {
@@ -41,10 +47,105 @@ async function safeCreateShopCardsUniqueIndex() {
   }
 }
 
+
+async function connectTransactionHistory() {
+  if (!env.DB_TWO_ENABLED) {
+    logger.info('DB Two transaction history is disabled; using legacy DB1 ledger.');
+    return;
+  }
+  if (!env.MONGO_URI_2) throw new Error('DB_TWO_ENABLED requires MONGO_URI_2');
+  if (!env.DB_TWO_NAME) throw new Error('DB_TWO_ENABLED requires DB_TWO_NAME');
+  historyClient = new MongoClient(env.MONGO_URI_2, { maxPoolSize: 10, minPoolSize: 0, retryWrites: true });
+  await historyClient.connect();
+  historyDb = historyClient.db(env.DB_TWO_NAME);
+  await historyDb.command({ ping: 1 });
+  await safeCreateIndex(historyDb.collection(HISTORY_COLLECTION), { createdAt: -1 }, { name: 'tx_history_createdAt_desc' });
+  await safeCreateIndex(historyDb.collection(HISTORY_COLLECTION), { userId: 1, createdAt: -1 }, { name: 'tx_history_user_createdAt' });
+  await safeCreateIndex(historyDb.collection(HISTORY_COLLECTION), { type: 1, 'meta.eventId': 1, toUserId: 1 }, { name: 'tx_history_type_event_toUser' });
+  await safeCreateIndex(db.collection(OUTBOX_COLLECTION), { status: 1, createdAt: 1 }, { name: 'tx_outbox_status_createdAt' });
+  await safeCreateIndex(db.collection(OUTBOX_COLLECTION), { sourceId: 1 }, { unique: true, name: 'tx_outbox_sourceId_unique' });
+  historyReady = true;
+  logger.info('DB Two transaction history connected');
+}
+
+async function enqueueTransactionHistory(doc, session) {
+  if (!env.DB_TWO_ENABLED) return null;
+  if (!historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
+  const sourceId = String(doc._id || '');
+  if (!sourceId || sourceId.startsWith('__settlement:')) return null;
+  const createdAt = doc.createdAt instanceof Date ? doc.createdAt : new Date(doc.createdAt || Date.now());
+  return db.collection(OUTBOX_COLLECTION).updateOne(
+    { sourceId },
+    { $setOnInsert: { sourceId, payload: { ...doc, createdAt }, createdAt, status: 'pending', attempts: 0 } },
+    { upsert: true, ...(session ? { session } : {}) },
+  );
+}
+
+async function flushTransactionHistoryOutbox({ batchSize = 100 } = {}) {
+  if (!env.DB_TWO_ENABLED) return { skipped: true, processed: 0 };
+  if (!historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
+  const pending = await db.collection(OUTBOX_COLLECTION)
+    .find({ status: 'pending' }).sort({ createdAt: 1 }).limit(batchSize).toArray();
+  let processed = 0;
+  const outbox = db.collection(OUTBOX_COLLECTION);
+  const target = historyDb.collection(HISTORY_COLLECTION);
+  for (const row of pending) {
+    try {
+      const payload = row.payload;
+      const targetId = payload._id || row.sourceId;
+      await target.updateOne({ _id: targetId }, { $setOnInsert: payload }, { upsert: true });
+      const verified = await target.findOne({ _id: targetId }, { projection: { _id: 1 } });
+      if (!verified) throw new Error('DB_TWO_HISTORY_VERIFY_FAILED');
+      await outbox.updateOne({ _id: row._id, status: 'pending' }, { $set: { status: 'delivered', deliveredAt: new Date() }, $inc: { attempts: 1 } });
+      processed += 1;
+    } catch (err) {
+      await outbox.updateOne({ _id: row._id, status: 'pending' }, { $inc: { attempts: 1 }, $set: { lastError: String(err?.message || err).slice(0, 500), lastAttemptAt: new Date() } });
+      logger.error('DB Two transaction history delivery failed for ' + row.sourceId, err);
+      break;
+    }
+  }
+  return { skipped: false, processed };
+}
+
+async function findTransactionHistoryByIdempotency(type, key, session) {
+  if (!key) return null;
+  const query = { type, 'meta.idempotencyKey': key };
+  const primary = await collections.transactions.findOne(query, session ? { session } : {});
+  if (primary) return primary;
+  if (env.DB_TWO_ENABLED && historyReady) return historyDb.collection(HISTORY_COLLECTION).findOne(query);
+  return null;
+}
+
+async function getTransactionHistoryDb() {
+  if (env.DB_TWO_ENABLED) {
+    if (!historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
+    return historyDb;
+  }
+  return db;
+}
+
+let historyOutboxTimer = null;
+function startTransactionHistoryOutbox() {
+  if (!env.DB_TWO_ENABLED || historyOutboxTimer) return;
+  historyOutboxTimer = setInterval(() => {
+    flushTransactionHistoryOutbox().catch((err) => logger.error('DB Two history outbox flush failed', err));
+  }, 5000);
+  if (typeof historyOutboxTimer.unref === 'function') historyOutboxTimer.unref();
+}
+async function stopTransactionHistoryOutbox() {
+  if (historyOutboxTimer) clearInterval(historyOutboxTimer);
+  historyOutboxTimer = null;
+  if (env.DB_TWO_ENABLED) {
+    try { await flushTransactionHistoryOutbox({ batchSize: 1000 }); } catch (err) { logger.error('Final DB Two history flush failed', err); }
+  }
+}
+
 async function connectMongo() {
   client = new MongoClient(env.MONGO_URI, { maxPoolSize: 20, minPoolSize: 1, retryWrites: true });
   await client.connect();
   db = client.db(env.DB_NAME);
+  await connectTransactionHistory();
+
   collections.users = db.collection('users');
   collections.transactions = db.collection('transactions');
   collections.orders = db.collection('orders');
@@ -98,11 +199,12 @@ async function connectMongo() {
   await safeCreateIndex(collections.auction_bids, { auctionId: 1, createdAt: 1 }, { name: 'auction_bids_time' });
   await safeCreateIndex(collections.auction_bids, { auctionId: 1, messageId: 1 }, { unique: true, name: 'auction_bids_message_unique' });
   startRetentionCleanupSchedule();
+  startTransactionHistoryOutbox();
   logger.info('Mongo connected');
 }
 function getDb() { if (!db) throw new Error('DB_NOT_CONNECTED'); return db; }
 function col(name) { if (!collections[name]) throw new Error(`COLLECTION_NOT_READY:${name}`); return collections[name]; }
-async function closeMongo() { if (client) await client.close(); }
+async function closeMongo() { await stopTransactionHistoryOutbox(); if (client) await client.close(); if (historyClient) await historyClient.close(); }
 function txUnsupported(err) {
   const m = String(err?.message || err);
   return m.includes('Transaction numbers are only allowed') || m.includes('replica set') || m.includes('does not support transactions') || (m.includes('Transaction') && m.includes('not supported'));
@@ -132,4 +234,4 @@ async function withRequiredTx(work) {
   } finally { try { await session.endSession(); } catch (_) {} }
 }
 async function pingMs(){ const s=Date.now(); try{ await getDb().command({ping:1}); return Date.now()-s; }catch(_){return null;} }
-module.exports = { connectMongo, closeMongo, getDb, col, withMaybeTx, withRequiredTx, pingMs };
+module.exports = { connectMongo, closeMongo, getDb, col, withMaybeTx, withRequiredTx, pingMs, enqueueTransactionHistory, flushTransactionHistoryOutbox, findTransactionHistoryByIdempotency, getTransactionHistoryDb };
