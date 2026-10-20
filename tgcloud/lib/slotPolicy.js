@@ -1,5 +1,3 @@
-import { getSetting } from './economy.js';
-
 function chance(rate) { return Math.max(0, Math.min(100, Number(rate) || 90)) / 100; }
 
 const SYMBOLS = Object.freeze([
