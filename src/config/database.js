@@ -94,9 +94,10 @@ async function initializeTransactionHistoryStorage() {
 async function flushTransactionHistoryOutbox({ batchSize = 100 } = {}) {
   if (!env.DB_TWO_ENABLED) return { skipped: true, processed: 0 };
   if (!historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
-  // Never write new history into a database that hasn't been bootstrapped yet.
-  const historyExists = await historyDb.listCollections({ name: HISTORY_COLLECTION }, { nameOnly: true }).hasNext();
-  if (!historyExists) throw new Error('DB_TWO_HISTORY_NOT_INITIALIZED: run the reviewed migration/bootstrap first');
+  // Do not route live records into DB2 until a full copy and exact verification pass.
+  if (!(await hasVerifiedInitialMigration())) {
+    throw new Error('DB_TWO_HISTORY_NOT_VERIFIED: run the reviewed migration and verify the complete source copy first');
+  }
   const pending = await db.collection(OUTBOX_COLLECTION)
     .find({ status: 'pending' }).sort({ createdAt: 1 }).limit(batchSize).toArray();
   let processed = 0;
@@ -166,6 +167,12 @@ async function getTransactionHistoryStats() {
     target: { count: targetCount, storageSize: targetStats?.storageSize ?? null, totalIndexSize: targetStats?.totalIndexSize ?? null },
     outbox: { pending: pendingOutbox, delivered: deliveredOutbox },
   };
+}
+
+async function hasVerifiedInitialMigration() {
+  if (!env.DB_TWO_ENABLED || !historyReady) return false;
+  const report = await historyDb.collection('_migration_reports').findOne({ _id: 'initial-transactions-migration-v1', verified: true });
+  return !!report;
 }
 
 async function migrateTransactionHistory({ batchSize = 100, maxDocuments = Infinity } = {}) {
@@ -367,4 +374,4 @@ async function withRequiredTx(work) {
   } finally { try { await session.endSession(); } catch (_) {} }
 }
 async function pingMs(){ const s=Date.now(); try{ await getDb().command({ping:1}); return Date.now()-s; }catch(_){return null;} }
-module.exports = { connectMongo, closeMongo, getDb, col, withMaybeTx, withRequiredTx, pingMs, enqueueTransactionHistory, flushTransactionHistoryOutbox, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryCollection, getTransactionHistoryStats, initializeTransactionHistoryStorage, migrateTransactionHistory };
+module.exports = { connectMongo, closeMongo, getDb, col, withMaybeTx, withRequiredTx, pingMs, enqueueTransactionHistory, flushTransactionHistoryOutbox, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryCollection, getTransactionHistoryStats, initializeTransactionHistoryStorage, hasVerifiedInitialMigration, migrateTransactionHistory };
