@@ -130,9 +130,7 @@ async function recordTransactionMigrationReport(sourceStats, targetStats, copied
     status: verified ? 'verified' : 'verification_failed',
   };
   await historyDb.collection('_migration_reports').updateOne(
-    { _id: report._id },
-    { $set: report },
-    { upsert: true },
+    { _id: report._id }, { $set: report }, { upsert: true },
   );
   return report;
 }
@@ -156,27 +154,41 @@ async function getTransactionHistoryStats() {
   };
 }
 
-async function migrateTransactionHistory({ batchSize = 250, maxDocuments = Infinity } = {}) {
+async function migrateTransactionHistory({ batchSize = 100, maxDocuments = Infinity } = {}) {
   if (!env.DB_TWO_ENABLED || !historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
+  if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 500) throw new Error('INVALID_BATCH_SIZE');
+  if (!(maxDocuments === Infinity || (Number.isInteger(maxDocuments) && maxDocuments > 0))) throw new Error('INVALID_MAX_DOCUMENTS');
   const source = collections.transactions;
   const target = historyDb.collection(HISTORY_COLLECTION);
   const sourceCount = await source.countDocuments({});
   const targetCountBefore = await target.countDocuments({});
   let copied = 0;
   let lastId = null;
+
   while (copied < maxDocuments) {
     const filter = lastId == null ? {} : { _id: { $gt: lastId } };
-    const docs = await source.find(filter).sort({ _id: 1 }).limit(Math.min(batchSize, maxDocuments - copied)).toArray();
+    const docs = await source.find(filter).sort({ _id: 1 })
+      .limit(Math.min(batchSize, maxDocuments - copied)).toArray();
     if (!docs.length) break;
-    const ops = docs.map((doc) => ({ updateOne: { filter: { _id: doc._id }, update: { $setOnInsert: doc }, upsert: true } }));
+    const ops = docs.map((doc) => ({
+      updateOne: { filter: { _id: doc._id }, update: { $setOnInsert: doc }, upsert: true },
+    }));
     await target.bulkWrite(ops, { ordered: false });
     copied += docs.length;
     lastId = docs[docs.length - 1]._id;
   }
-  const targetCount = await target.countDocuments({});
+
   let missing = 0;
   let mismatched = 0;
-  // Verify exact documents, not just IDs. Keep batches small to avoid large memory use.
+  const stable = (value) => {
+    if (Array.isArray(value)) return value.map(stable);
+    if (value && typeof value === 'object' && !(value instanceof Date) && !Buffer.isBuffer(value)) {
+      return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
+    }
+    if (value instanceof Date) return { __date: value.toISOString() };
+    if (Buffer.isBuffer(value)) return { __buffer: value.toString('base64') };
+    return value;
+  };
   const verifyCursor = source.find({}).batchSize(batchSize);
   let batch = [];
   async function verifyBatch(sourceDocs) {
@@ -187,16 +199,6 @@ async function migrateTransactionHistory({ batchSize = 250, maxDocuments = Infin
     for (const sourceDoc of sourceDocs) {
       const targetDoc = targetById.get(String(sourceDoc._id));
       if (!targetDoc) { missing += 1; continue; }
-      // Stable serialization of nested document keys avoids insertion-order differences.
-      const stable = (value) => {
-        if (Array.isArray(value)) return value.map(stable);
-        if (value && typeof value === 'object' && !(value instanceof Date) && !Buffer.isBuffer(value)) {
-          return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
-        }
-        if (value instanceof Date) return { __date: value.toISOString() };
-        if (Buffer.isBuffer(value)) return { __buffer: value.toString('base64') };
-        return value;
-      };
       if (JSON.stringify(stable(sourceDoc)) !== JSON.stringify(stable(targetDoc))) mismatched += 1;
     }
   }
@@ -208,6 +210,8 @@ async function migrateTransactionHistory({ batchSize = 250, maxDocuments = Infin
     }
   }
   if (batch.length) await verifyBatch(batch);
+
+  const targetCount = await target.countDocuments({});
   const verified = missing === 0 && mismatched === 0 && targetCount >= sourceCount;
   return recordTransactionMigrationReport(
     { count: sourceCount },
