@@ -144,6 +144,8 @@ async function recordTransactionMigrationReport(sourceStats, targetStats, copied
     verified,
     checkedAt: new Date(),
     status: verified ? 'verified' : 'verification_failed',
+    missingSourceIds: copied?.missing ?? null,
+    contentMismatches: copied?.mismatched ?? null,
   };
   await historyDb.collection('_migration_reports').updateOne(
     { _id: report._id }, { $set: report }, { upsert: true },
@@ -238,7 +240,7 @@ async function migrateTransactionHistory({ batchSize = 100, maxDocuments = Infin
   return recordTransactionMigrationReport(
     { count: sourceCount },
     { count: targetCountBefore, finalCount: targetCount },
-    { attempted: copied },
+    { attempted: copied, missing, mismatched },
     verified,
   );
 }
