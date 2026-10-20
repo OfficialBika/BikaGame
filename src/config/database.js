@@ -397,12 +397,17 @@ async function connectMongo() {
       await db.collection(probeName).deleteOne({ _id: 'probe' });
       await db.collection(probeName).drop().catch(() => {});
     } catch (probeErr) {
+      // The probe uses a dedicated fixed ID. If insertion succeeded but cleanup
+      // failed, keep retrying cleanup without converting the condition into a
+      // quota result; only a recognized quota error enables the circuit breaker.
       if (isStorageQuotaError(probeErr)) {
         dbOneWriteBlocked = true;
         logger.error('DB1 storage quota probe failed; starting in recovery-only mode. Money writes will be blocked until DB1 write access recovers.');
       } else {
         logger.warn('DB1 write probe could not complete; startup will continue and writes will be guarded by runtime errors.');
       }
+      try { await db.collection(probeName).deleteOne({ _id: 'probe' }); } catch (_) {}
+      try { await db.collection(probeName).drop(); } catch (_) {}
     }
   } catch (err) {
     try { await client.close(); } catch (_) {}
