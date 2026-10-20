@@ -34,10 +34,12 @@ function stable(value) {
   return value;
 }
 
-async function runMigration(source, target, { batchSize, verifyOnly }) {
+async function runMigration(sourceDb, targetDb, { batchSize, verifyOnly }) {
+  const source = sourceDb.collection('transactions');
+  const target = targetDb.collection('transactions');
   const sourceCountBefore = await source.countDocuments({});
   const targetCountBefore = await target.countDocuments({});
-  const sourceStats = await source.stats().catch(() => null);
+  const sourceStats = await sourceDb.stats().catch(() => null);
   const sourceIndexes = await source.indexes().catch(() => []);
   const migrationStartedAt = new Date();
 
@@ -94,7 +96,7 @@ async function runMigration(source, target, { batchSize, verifyOnly }) {
     sourceIndexes.length > 0 &&
     postCutoverWrites === 0;
 
-  const targetStats = await target.stats().catch(() => null);
+  const targetStats = await targetDb.stats().catch(() => null);
   return {
     migration: 'transactions-v1-readonly',
     mode: verifyOnly ? 'verify-only' : 'copy-and-verify',
@@ -140,7 +142,7 @@ async function runMigration(source, target, { batchSize, verifyOnly }) {
     await Promise.all([sourceDb.command({ ping: 1 }), targetDb.command({ ping: 1 })]);
     console.log('Starting DB1(read-only) -> DB2 transaction history migration.');
     console.log('DB1 source documents will not be updated or deleted.');
-    const report = await runMigration(sourceDb.collection('transactions'), targetDb.collection('transactions'), args);
+    const report = await runMigration(sourceDb, targetDb, args);
     console.log(JSON.stringify(report, null, 2));
     if (!report.verified) {
       console.error('Verification failed. Keep DB1 data intact and do not cut over.');
