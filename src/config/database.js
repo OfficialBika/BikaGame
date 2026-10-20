@@ -137,6 +137,25 @@ async function recordTransactionMigrationReport(sourceStats, targetStats, copied
   return report;
 }
 
+async function getTransactionHistoryStats() {
+  if (!env.DB_TWO_ENABLED || !historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
+  const source = collections.transactions;
+  const target = historyDb.collection(HISTORY_COLLECTION);
+  const [sourceCount, targetCount, pendingOutbox, deliveredOutbox, sourceStats, targetStats] = await Promise.all([
+    source.countDocuments({}),
+    target.countDocuments({}),
+    db.collection(OUTBOX_COLLECTION).countDocuments({ status: 'pending' }),
+    db.collection(OUTBOX_COLLECTION).countDocuments({ status: 'delivered' }),
+    source.stats().catch(() => null),
+    target.stats().catch(() => null),
+  ]);
+  return {
+    source: { count: sourceCount, storageSize: sourceStats?.storageSize ?? null, totalIndexSize: sourceStats?.totalIndexSize ?? null },
+    target: { count: targetCount, storageSize: targetStats?.storageSize ?? null, totalIndexSize: targetStats?.totalIndexSize ?? null },
+    outbox: { pending: pendingOutbox, delivered: deliveredOutbox },
+  };
+}
+
 async function migrateTransactionHistory({ batchSize = 250, maxDocuments = Infinity } = {}) {
   if (!env.DB_TWO_ENABLED || !historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
   const source = collections.transactions;
