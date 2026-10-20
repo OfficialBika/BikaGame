@@ -556,7 +556,11 @@ async function migrateTransactionHistoryReadOnly({ batchSize = 100, verifyOnly =
   const targetCountAfter = await target.countDocuments({});
   const pendingOutbox = await db.collection(OUTBOX_COLLECTION).countDocuments({ status: 'pending' }).catch(() => null);
   const sourceStable = sourceCountBefore === sourceCountAfter && sourceSeen === sourceCountAfter;
-  const verified = sourceStable && missing === 0 && mismatched === 0 && targetCountAfter >= sourceCountAfter;
+  const verified = sourceStable &&
+    missing === 0 &&
+    mismatched === 0 &&
+    targetCountAfter >= sourceCountAfter &&
+    sourceIndexes.length > 0;
   const report = {
     migration: 'transactions-v1-readonly',
     mode: verifyOnly ? 'verify-only' : 'copy-and-verify',
