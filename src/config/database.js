@@ -88,6 +88,16 @@ async function enqueueTransactionHistory(doc, session) {
   );
 }
 
+async function initializeTransactionHistoryStorage() {
+  if (!env.DB_TWO_ENABLED || !historyReady) return { skipped: true };
+  // Explicit caller can choose the DB2 bootstrap step. Normal bot startup does
+  // not run bulk migration and never deletes the source ledger.
+  await historyDb.collection(HISTORY_COLLECTION).createIndex({ createdAt: -1 }, { name: 'tx_history_createdAt_desc' });
+  await historyDb.collection(HISTORY_COLLECTION).createIndex({ userId: 1, createdAt: -1 }, { name: 'tx_history_user_createdAt' });
+  await historyDb.collection(HISTORY_COLLECTION).createIndex({ type: 1, 'meta.eventId': 1, toUserId: 1 }, { name: 'tx_history_type_event_toUser' });
+  return { ready: true };
+}
+
 async function flushTransactionHistoryOutbox({ batchSize = 100 } = {}) {
   if (!env.DB_TWO_ENABLED) return { skipped: true, processed: 0 };
   if (!historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
@@ -352,4 +362,4 @@ async function withRequiredTx(work) {
   } finally { try { await session.endSession(); } catch (_) {} }
 }
 async function pingMs(){ const s=Date.now(); try{ await getDb().command({ping:1}); return Date.now()-s; }catch(_){return null;} }
-module.exports = { connectMongo, closeMongo, getDb, col, withMaybeTx, withRequiredTx, pingMs, enqueueTransactionHistory, flushTransactionHistoryOutbox, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryCollection, getTransactionHistoryStats, migrateTransactionHistory };
+module.exports = { connectMongo, closeMongo, getDb, col, withMaybeTx, withRequiredTx, pingMs, enqueueTransactionHistory, flushTransactionHistoryOutbox, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryCollection, getTransactionHistoryStats, initializeTransactionHistoryStorage, migrateTransactionHistory };
