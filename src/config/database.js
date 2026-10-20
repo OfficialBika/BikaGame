@@ -89,9 +89,11 @@ async function connectTransactionHistory() {
     historyClient = null;
     historyDb = null;
     historyReady = false;
-    // Startup can finish for diagnosis/recovery, but money writes are gated by
-    // isHistoryReady() while DB2 is requested. Do not fall back to DB1 history.
+    // DB2 is required while DB_TWO_ENABLED=true. Never silently send history to
+    // DB1 if DNS, authentication or Atlas availability fails.
     logger.error('DB Two connection failed; history writes remain disabled until MONGO_URI_2 and its Atlas hostname are corrected.', err);
+    // Permit app boot for recovery/admin diagnosis only. Financial transaction
+    // operations are blocked by withRequiredTx/logTx while historyReady is false.
     return;
   }
 
