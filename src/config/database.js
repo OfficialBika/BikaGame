@@ -149,6 +149,21 @@ async function hasVerifiedInitialMigration() {
   return !!report;
 }
 
+async function getUnresolvedTransactionJournals(limit = 10) {
+  if (!historyReady || !historyDb) throw new Error('DB_TWO_HISTORY_NOT_READY');
+  const cutoff = new Date(Date.now() - RECONCILIATION_GRACE_MS);
+  return historyDb.collection(TX_JOURNAL_COLLECTION)
+    .find({
+      $or: [
+        { status: 'reconciliation_required' },
+        { status: 'prepared', createdAt: { $lte: cutoff } },
+      ],
+    }, { projection: { _id: 1, status: 1, createdAt: 1, entryCount: 1, error: 1 } })
+    .sort({ createdAt: 1 })
+    .limit(Math.max(1, Math.min(100, Number(limit) || 10)))
+    .toArray();
+}
+
 function withoutClientSession(options) {
   if (!options || typeof options !== 'object' || !Object.prototype.hasOwnProperty.call(options, 'session')) return options;
   const { session, ...safeOptions } = options;
@@ -517,10 +532,16 @@ async function withRequiredTx(work) {
         try { await historyDb.collection(TX_RESERVATIONS_COLLECTION).deleteMany({ operationId }); } catch (_) {}
       }
     }
+    if (txUnsupported(err)) {
+      TX_SUPPORTED = false;
+      const required = new Error('MONGO_TRANSACTIONS_REQUIRED');
+      required.cause = err;
+      throw required;
+    }
     throw err;
   } finally {
     await session.endSession().catch(() => {});
   }
 }
 async function pingMs(){ const s=Date.now(); try{ await getDb().command({ping:1}); return Date.now()-s; }catch(_){return null;} }
-module.exports = { connectMongo, closeMongo, getDb, col, safeCreateIndex, withMaybeTx, withRequiredTx, pingMs, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryCollection, getTransactionHistoryStats, initializeTransactionHistoryStorage, hasVerifiedInitialMigration, isHistoryReady, isDbOneWriteBlocked, markDbOneWriteBlocked };
+module.exports = { connectMongo, closeMongo, getDb, col, safeCreateIndex, withMaybeTx, withRequiredTx, pingMs, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryCollection, getTransactionHistoryStats, getUnresolvedTransactionJournals, initializeTransactionHistoryStorage, hasVerifiedInitialMigration, isHistoryReady, isDbOneWriteBlocked, markDbOneWriteBlocked };
