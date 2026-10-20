@@ -164,13 +164,13 @@ async function connectMongo() {
   collections.auction_bids = db.collection('auction_bids');
 
   // Free expired history before building indexes; index creation can fail at the free-tier storage cap.
-  await cleanupExpiredData();
-  try { await ensureTransactionRetentionIndex(); }
-  catch (err) { logger.warn('Unable to install 3-day transaction TTL index yet: ' + (err?.message || err)); }
+  // DB Two experiment: do not purge DB1 transaction rows before external history is migrated and verified.
 
   await safeCreateIndex(collections.users, { userId: 1 }, { unique: true });
   await safeCreateIndex(collections.users, { username: 1 }, { sparse: true });
   await safeCreateIndex(collections.users, { balance: -1 });
+  await safeCreateIndex(collections.transactions, { _id: 1 }, { name: 'transactions_marker_id' });
+  await safeCreateIndex(collections.transactions, { type: 1, 'meta.idempotencyKey': 1 });
   await safeCreateIndex(collections.transactions, { userId: 1, createdAt: -1 });
   await safeCreateIndex(collections.transactions, { type: 1, 'meta.eventId': 1, toUserId: 1 });
   await safeCreateIndex(collections.orders, { status: 1, createdAt: -1 });
@@ -198,7 +198,7 @@ async function connectMongo() {
   await safeCreateIndex(collections.auctions, { channelMessageId: 1 }, { unique: true, sparse: true, name: 'auctions_channel_message_unique' });
   await safeCreateIndex(collections.auction_bids, { auctionId: 1, createdAt: 1 }, { name: 'auction_bids_time' });
   await safeCreateIndex(collections.auction_bids, { auctionId: 1, messageId: 1 }, { unique: true, name: 'auction_bids_message_unique' });
-  startRetentionCleanupSchedule();
+  // Legacy cleanup timer was removed for this branch to prevent deleting records before migration/verification.
   startTransactionHistoryOutbox();
   logger.info('Mongo connected');
 }
