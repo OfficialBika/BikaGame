@@ -116,6 +116,73 @@ async function findTransactionHistoryByIdempotency(type, key, session) {
   return null;
 }
 
+
+async function recordTransactionMigrationReport(sourceStats, targetStats, copied, verified) {
+  if (!env.DB_TWO_ENABLED || !historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
+  const report = {
+    _id: 'initial-transactions-migration-v1',
+    migration: 'transactions-v1',
+    source: sourceStats,
+    target: targetStats,
+    copied,
+    verified,
+    checkedAt: new Date(),
+    status: verified ? 'verified' : 'verification_failed',
+  };
+  await historyDb.collection('_migration_reports').updateOne(
+    { _id: report._id },
+    { $set: report },
+    { upsert: true },
+  );
+  return report;
+}
+
+async function migrateTransactionHistory({ batchSize = 250, maxDocuments = Infinity } = {}) {
+  if (!env.DB_TWO_ENABLED || !historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
+  const source = collections.transactions;
+  const target = historyDb.collection(HISTORY_COLLECTION);
+  const sourceCount = await source.countDocuments({});
+  const targetCountBefore = await target.countDocuments({});
+  let copied = 0;
+  let lastId = null;
+  while (copied < maxDocuments) {
+    const filter = lastId == null ? {} : { _id: { $gt: lastId } };
+    const docs = await source.find(filter).sort({ _id: 1 }).limit(Math.min(batchSize, maxDocuments - copied)).toArray();
+    if (!docs.length) break;
+    const ops = docs.map((doc) => ({ updateOne: { filter: { _id: doc._id }, update: { $setOnInsert: doc }, upsert: true } }));
+    await target.bulkWrite(ops, { ordered: false });
+    copied += docs.length;
+    lastId = docs[docs.length - 1]._id;
+  }
+  const targetCount = await target.countDocuments({});
+  let missing = 0;
+  // Verify every source _id exists on DB2. Avoid deleting or pruning DB1 rows here.
+  const verifyCursor = source.find({}, { projection: { _id: 1 } }).batchSize(batchSize);
+  let ids = [];
+  for await (const doc of verifyCursor) {
+    ids.push(doc._id);
+    if (ids.length >= batchSize) {
+      // Existence is checked in a small query to avoid huge in-memory comparisons.
+      const found = await target.find({ _id: { $in: ids } }, { projection: { _id: 1 } }).toArray();
+      const foundSet = new Set(found.map((x) => String(x._id)));
+      missing += ids.filter((id) => !foundSet.has(String(id))).length;
+      ids = [];
+    }
+  }
+  if (ids.length) {
+    const found = await target.find({ _id: { $in: ids } }, { projection: { _id: 1 } }).toArray();
+    const foundSet = new Set(found.map((x) => String(x._id)));
+    missing += ids.filter((id) => !foundSet.has(String(id))).length;
+  }
+  const verified = missing === 0 && targetCount >= sourceCount;
+  return recordTransactionMigrationReport(
+    { count: sourceCount },
+    { count: targetCountBefore, finalCount: targetCount },
+    { attempted: copied },
+    verified,
+  );
+}
+
 async function getTransactionHistoryDb() {
   if (env.DB_TWO_ENABLED) {
     if (!historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
