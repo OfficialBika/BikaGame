@@ -43,7 +43,8 @@ function createCallbackAnswerer(ctx) {
     answered = true;
 
     try {
-      await ctx.answerCbQuery(text, options);
+      const { localizeForUser } = require('../../services/i18nService');
+      await ctx.answerCbQuery(await localizeForUser(ctx.from?.id, text), options);
     } catch (_) {}
   };
 }
@@ -555,7 +556,8 @@ module.exports = (bot) => {
           game.chatId,
           game.messageId,
           minesText(game, `💥 <b>BOOM!</b> Mine ထိသွားပါပြီ။\nLost: <b>${fmt(game.bet)}</b> ${COIN}`, true, 0),
-          { reply_markup: minesKeyboard(game, true) }
+          { reply_markup: minesKeyboard(game, true) },
+          game.userId
         );
       }
 
