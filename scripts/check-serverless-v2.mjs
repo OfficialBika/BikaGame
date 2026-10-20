@@ -56,6 +56,7 @@ const twoDPolicy = await readFile(join(root, 'tgcloud/lib/twoDPolicy.js'), 'utf8
 const starsPolicy = await readFile(join(root, 'tgcloud/lib/starsPolicy.js'), 'utf8');
 const dailyPolicy = await readFile(join(root, 'tgcloud/lib/dailyPolicy.js'), 'utf8');
 const twoDService = await readFile(join(root, 'tgcloud/lib/twoD.js'), 'utf8');
+const minesPolicy = await readFile(join(root, 'tgcloud/lib/minesPolicy.js'), 'utf8');
 
 // V2 must keep production cutover explicitly blocked until main parity and import are proven.
 assert.match(parity, /Production status: BLOCKED/);
@@ -233,6 +234,17 @@ assert.ok(message.includes('successful_payment'), 'successful payment handler mu
 assert.ok(message.includes("command.name === 'stars'"), 'Stars invoice command must be wired');
 assert.ok(message.includes("callback_data: 'stars:buy:'"), 'Stars package buttons must be wired');
 assert.ok(callbacks.includes("game === 'mines'"), 'Mines callbacks must be wired');
+assert.match(game, /import \{ MINES_RULES, normalizeMineCount, generateMineLayout, calculateMinesMultiplier, canCashOutMines, minesExpiryTime, isMinesExpired \} from '\.\/minesPolicy\.js'/, 'Mines game service must import the shared policy');
+assert.match(game, /mines: null/, 'Mines layout must be deferred until the first tile so that tile can be protected');
+assert.match(game, /generateMineLayout\(mineCount, openedBefore\.length === 0 \? cell : null\)/, 'Mines first pick must be protected');
+assert.match(game, /calculateMinesMultiplier\(opened\.length, mineCount\)/, 'Mines payout must use the main-compatible multiplier policy');
+assert.match(game, /canCashOutMines\(opened\.length\)/, 'Mines cashout must enforce the four-safe-pick threshold');
+assert.match(game, /minesExpiryTime\(startedAt\)/, 'Mines must persist expiry metadata for restart/cold-start reconciliation');
+assert.match(game, /finalizeMinesSession\(userId, s, 'timeout'\)/, 'Mines status/actions must reconcile expired funded rounds');
+assert.doesNotMatch(game, /minesLayout\(3\)|1 \+ opened\.length \* 0\.35/, 'legacy hardcoded three-mine/linear multiplier implementation must not return');
+assert.match(minesPolicy, /allowedMineCounts: Object\.freeze\(\[5, 7, 9, 10\]\)/);
+assert.match(message, /parsedArgs\[1\]/, 'Telegram Mines command must pass the optional mine count');
+assert.match(miniHandler, /minesStart\(userId, body\.bet, body\.requestId, body\.mineCount\)/, 'Mini App Mines start must pass the optional mine count');
 assert.ok(stars.includes('creditExternalPurchase'), 'paid Stars balance must use external-credit ledger');
 assert.ok(stars.includes('telegram_payment_charge_id'), 'payment charge ID must be checked');
 assert.ok(preCheckout.includes('validatePreCheckout'), 'pre-checkout validation must be wired');
