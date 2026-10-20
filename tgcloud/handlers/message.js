@@ -3,6 +3,7 @@ import { SERVERLESS_OWNER_TELEGRAM_ID } from '../lib/config.js';
 import { parseCommand } from '../lib/commandParser.js';
 import { ensureUser, formatCoin, displayName, listTopUsers } from '../lib/users.js';
 import { claimDailyReward, getSetting, setSetting, transferByWalletId, recordLedgerOperation, getTreasury } from '../lib/economy.js';
+import { createGiftRequest } from '../lib/gifts.js';
 import { getFeatureStatus } from '../lib/featureStatus.js';
 import { getMaintenanceMode, setMaintenanceMode, isConfiguredOwner, maintenanceCommandAction } from '../lib/maintenance.js';
 import { ownerAdjustBalance, setLegacySlotWinRate, getLegacySlotWinRate, setVipWinRate, setTotalSupply, getTreasuryDashboard } from '../lib/adminEconomy.js';
@@ -81,6 +82,7 @@ function helpText() {
     '/blackjack <bet> [room] — Blackjack preview',
     '/shan <bet> [room] — Shan Koe Mee preview',
     '/wallet — preview wallet ID and balance',
+    '/gift <amount> or .gift <amount> — reply to another group member to send a confirmed gift',
     '/2dchannel <channel_id> — Owner-only: configure the 2D posting channel (bot must be admin)',
     '/2dstatus, /mybet, /betclose, /2dwin <00–99> — 2D preview controls',
     '.2d 00.33.66 5000 — 2D bet by replying to the open post in its linked discussion',
@@ -224,6 +226,35 @@ export default async function (message) {
     }
 
     const adminValues = args(command?.args);
+    if (command?.name === 'gift') {
+      if (!isGroupChat(message.chat)) return send(chatId, 'ℹ️ Gift ကို group ထဲမှာပဲ အသုံးပြုနိုင်ပါတယ်။', message.message_id);
+      const target = message.reply_to_message?.from;
+      if (!target?.id) return send(chatId, 'Gift ပို့မယ့်သူရဲ့ message ကို reply လုပ်ပြီး /gift 500 သို့မဟုတ် .gift 500 သုံးပါ။', message.message_id);
+      const amount = Number(String(command.args || '').replace(/,/g, '').trim());
+      try {
+        const result = await createGiftRequest({ sender: from, recipient: target, chatId, messageId: message.message_id, amount });
+        return send(chatId, '🎁 Gift Confirm\\n━━━━━━━━━━━━━━━━\\nFrom: ' +
+          (from.username ? '@' + from.username : String(from.first_name || from.id)) +
+          '\\nTo: ' + (target.username ? '@' + target.username : String(target.first_name || target.id)) +
+          '\\nAmount: ' + formatCoin(result.amount) + ' Bal\\n\\nConfirm နှိပ်မှ Balance လွှဲပါမယ်။ 60 seconds အတွင်း အတည်ပြုပါ။',
+          message.message_id, keyboard([[
+            { text: '✅ Confirm Gift', callback_data: 'gift:confirm:' + result.id },
+            { text: '❌ Cancel', callback_data: 'gift:cancel:' + result.id },
+          ]]));
+      } catch (error) {
+        const code = String(error?.code || error?.message || error);
+        const friendly = {
+          GIFT_AMOUNT_INVALID: 'Gift amount ကို positive whole number ထည့်ပါ။',
+          GIFT_SELF: 'ကိုယ့်ကိုကိုယ် gift မပို့နိုင်ပါ။',
+          GIFT_BOT_TARGET: 'Bot ကို gift မပို့နိုင်ပါ။',
+          USER_INSUFFICIENT: 'လက်ကျန်ငွေ မလုံလောက်ပါ။',
+          GIFT_USER_INVALID: 'User ID မမှန်ပါ။',
+          COOLDOWN: 'Gift ကို ခဏစောင့်ပြီးမှ ထပ်ပို့ပါ။',
+        };
+        return send(chatId, '⚠️ ' + (friendly[code] || 'Gift request မဖန်တီးနိုင်ပါ။'), message.message_id);
+      }
+    }
+
     if (command?.name === 'promortp') {
       if (!isGroupChat(message.chat)) return send(chatId, '/promortp ကို group ထဲမှာပဲ သုံးပါ။', message.message_id);
       const promo = await startPromoRtp({ actorId: from.id, chatId, chatTitle: message.chat.title || message.chat.username || String(chatId), rtpInput: adminValues[0], durationText: adminValues[1] });
