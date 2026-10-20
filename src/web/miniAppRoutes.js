@@ -212,6 +212,7 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
           totalWon: Number(doc.totalWon || 0),
           totalLost: Number(doc.totalLost || 0),
           isVip: !!doc.isVip,
+          language: doc.language || 'en',
         },
       });
     } catch (err) {
@@ -219,6 +220,24 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
     }
   });
 
+
+  app.post('/api/mini/language', authMiddleware, async (req, res) => {
+    try {
+      const languageService = require('../services/i18nService');
+      const language = languageService.normalizeLanguage(req.body?.language);
+      if (!language) return res.status(400).json({ ok: false, message: 'Invalid language.' });
+      const tgUser = normalizeTelegramUser(req.telegramUser);
+      const doc = await ensureUser(tgUser);
+      await require('../models/userModel').collection().updateOne(
+        { _id: doc._id },
+        { $set: { language, updatedAt: new Date() } },
+      );
+      languageService.rememberLanguage(tgUser.id, language);
+      return res.json({ ok: true, language });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
 
   app.post('/api/mini/history', authMiddleware, async (req, res) => {
     try {
