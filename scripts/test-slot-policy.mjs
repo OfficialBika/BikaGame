@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const mainConstants = await readFile(resolve(root, 'src/config/constants.js'), 'utf8');
+const game = await readFile(resolve(root, 'tgcloud/lib/game.js'), 'utf8');
+const slotPolicy = await readFile(resolve(root, 'tgcloud/lib/slotPolicy.js'), 'utf8');
+const slotFacade = await readFile(resolve(root, 'tgcloud/lib/slotEngine.js'), 'utf8');
+const message = await readFile(resolve(root, 'tgcloud/handlers/message.js'), 'utf8');
+
+assert.match(mainConstants, /SLOT: \{ minBet: 50, maxBet: 15000, cooldownMs: 700, capPercent: 0\.30/);
+const slotStart = game.slice(game.indexOf('export async function playSlot'), game.indexOf('function buildPlinkoPath'));
+assert.match(slotStart, /validBet\(amount, 50, 15000\)/);
+assert.match(slotStart, /consumeCooldown\(id, 'slot', 700\)/);
+assert.match(slotStart, /capPayout\(bet, rawPayout, 0\.30/);
+assert.match(slotStart, /options\?\.source === 'telegram'/);
+assert.match(slotStart, /getActivePromoRtp\(options\.groupId\)/);
+assert.match(slotStart, /getSetting\('legacy_slot_win_rate', 35\)/);
+assert.match(slotStart, /getSetting\('web_game_rtp_slot', 65\)/);
+assert.match(slotStart, /rtpMode/);
+assert.match(slotStart, /promoRtpId/);
+assert.match(slotPolicy, /function controlledSpin/);
+assert.match(slotPolicy, /function multiplier\(reels\)/);
+assert.match(slotPolicy, /function calculatePayout/);
+assert.match(slotFacade, /from '\.\/slotPolicy\.js'/);
+assert.match(message, /playSlot\(user\.tgId, bet, 'tg:' \+ chatId \+ ':' \+ message\.message_id, \{ groupId: chatId, source: 'telegram' \}\)/);
+assert.match(game, /__settlement:.*settlementId|priorSettlement\('web_slot', settlementId\)/);
+console.log('Slot policy parity tests passed (main limits/cooldown/cap, RTP sources, promo fallback, duplicate settlement and compatibility facade).');
