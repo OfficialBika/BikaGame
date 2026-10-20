@@ -8,6 +8,7 @@ let historyClient = null;
 let historyDb = null;
 let historyReady = false;
 const OUTBOX_COLLECTION = 'transaction_outbox';
+const LEGACY_CLEANUP_DISABLED = true;
 const HISTORY_COLLECTION = 'transactions';
 
 async function safeCreateIndex(col, keys, options = {}) {
