@@ -384,6 +384,24 @@ async function connectMongo() {
   try {
     await client.connect();
     db = client.db(env.DB_NAME);
+    // Probe whether DB1 can write without changing any data. A quota error sets
+    // a process-wide circuit breaker before any Telegram handlers are started.
+    const probeName = '__bika_db1_write_probe';
+    try {
+      await db.collection(probeName).insertOne(
+        { _id: 'probe', createdAt: new Date() },
+        { writeConcern: { w: 1, wtimeoutMS: 3000 } },
+      );
+      await db.collection(probeName).deleteOne({ _id: 'probe' });
+      await db.collection(probeName).drop().catch(() => {});
+    } catch (probeErr) {
+      if (isStorageQuotaError(probeErr)) {
+        dbOneWriteBlocked = true;
+        logger.error('DB1 storage quota probe failed; starting in recovery-only mode. Money writes will be blocked until DB1 write access recovers.');
+      } else {
+        logger.warn('DB1 write probe could not complete; startup will continue and writes will be guarded by runtime errors.');
+      }
+    }
   } catch (err) {
     try { await client.close(); } catch (_) {}
     client = null;
