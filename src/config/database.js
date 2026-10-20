@@ -498,6 +498,7 @@ async function migrateTransactionHistoryReadOnly({ batchSize = 100, verifyOnly =
   const sourceCountBefore = await source.countDocuments({});
   const targetCountBefore = await target.countDocuments({});
   const sourceStats = await source.stats().catch(() => null);
+  const sourceIndexes = await source.indexes().catch(() => []);
 
   const stable = (value) => {
     if (Array.isArray(value)) return value.map(stable);
