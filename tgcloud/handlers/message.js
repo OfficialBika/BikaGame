@@ -1033,7 +1033,7 @@ export default async function (message) {
     // Keep user-facing failures generic, but preserve a bounded diagnostic in runtime logs
     // so a real preview failure can be fixed without exposing internals to Telegram users.
     const diagnosticMessage = String(error?.message || error || 'unknown error')
-      .replace(/\\s+/g, ' ')
+      .replace(/\s+/g, ' ')
       .slice(0, 240);
     console.error('BIKA_PREVIEW_COMMAND_FAILED', JSON.stringify({
       command: String(command?.name || (gameToggle ? 'game_toggle' : 'unknown')).slice(0, 40),
