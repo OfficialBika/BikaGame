@@ -4,6 +4,7 @@ import { gameHistory, gameSessions, users } from '../schema.js';
 import { ensureEconomy, ensureUser, userById as accountUserById, debit as ledgerDebit, credit as ledgerCredit, settleSingleGame, settleAward, getTreasury, getSetting, consumeCooldown, getTransaction, hasIdempotencyKey, recordGame as ledgerRecordGame } from './economy.js';
 import { spin as slotSpinEngine, multiplier as slotMultiplier, art as slotArt } from './slotEngine.js';
 import { getActivePromoRtp } from './eventMarkets.js';
+import { MINES_RULES, normalizeMineCount, generateMineLayout, calculateMinesMultiplier, canCashOutMines, minesExpiryTime, isMinesExpired } from './minesPolicy.js';
 
 const MIN_BET = 1;
 const MAX_BET = 1000000;
@@ -372,33 +373,206 @@ export async function crashCashout(userId) {
   return { ok: true, cashedOut: true, multiplier: status.multiplier, payout, balance: Number(user?.balance || 0) };
 }
 
-function minesLayout(count = 3) { const set = new Set(); while (set.size < count) set.add(Math.floor(Math.random() * 25)); return [...set]; }
-export async function minesStart(userId, amount, requestId = null) {
-  const s = await startWagerSession(userId, 'mines', amount, requestId, (bet) => ({
-    bet, mines: minesLayout(3), opened: [], multiplier: 1,
-  }));
-  return { ok: true, sessionId: s.id, active: true, opened: [], multiplier: 1, balance: (await userById(userId)).balance };
+function minesLayout(count = MINES_RULES.defaultMineCount, firstSafeIndex = null) {
+  return generateMineLayout(count, firstSafeIndex);
 }
-export async function minesStatus(userId) { const s = await activeSession(userId, 'mines'); const u = await userById(userId); return s ? { ok:true, active:true, opened:s.state.opened, multiplier:s.state.multiplier, balance:u.balance } : { ok:true, active:false, balance:u?.balance||0 }; }
-export async function minesOpen(userId, index) {
-  const s = await activeSession(userId, 'mines'); if (!s) throw new Error('NO_ACTIVE_MINES');
-  if (s.state?.funded === false) throw new Error('SESSION_STARTING');
-  const i = Math.floor(n(index, -1)); if (i < 0 || i >= 25) throw new Error('INVALID_TILE');
-  if (s.state.opened.includes(i)) throw new Error('TILE_OPENED');
-  if (s.state.mines.includes(i)) { await updateSession(s.id, { ...s.state, hitMine:i }, 'lost'); await recordGame(userId,'mines',s.state.bet,0,{mine:i},0,'mines:'+s.id); return { ok:true, active:false, mine:i, exploded:true, bet:Number(s.state.bet||0), multiplier:0, payout:0, balance:(await userById(userId)).balance }; }
-  const opened = [...s.state.opened, i]; const multiplier = Number((1 + opened.length * 0.35).toFixed(2));
-  await updateSession(s.id, { ...s.state, opened, multiplier });
-  return { ok:true, active:true, opened, multiplier, balance:(await userById(userId)).balance };
+
+function minesExpiryState(session) {
+  return isMinesExpired(session?.state?.expiresAt, Date.now());
 }
-export async function minesCashout(userId) {
-  const s = await activeSession(userId, 'mines'); if (!s) throw new Error('NO_ACTIVE_MINES');
-  if (s.state?.funded === false) throw new Error('SESSION_STARTING');
-  if (!s.state.opened.length) throw new Error('MINES_CASHOUT_LOCKED');
-  const payout = Math.floor(s.state.bet * s.state.multiplier); await credit(userId,payout,'mines_win',{game:'mines',multiplier:s.state.multiplier},`mines-win:${s.id}`);
-  await updateSession(s.id,{...s.state,payout},'settled');
-  await recordGame(userId,'mines',s.state.bet,payout,{opened:s.state.opened},s.state.multiplier,'mines:'+s.id);
+
+async function finalizeMinesSession(userId, session, reason = 'timeout') {
+  if (!session || session.status !== 'active') {
+    const user = await userById(userId);
+    return { ok: true, active: false, expired: reason === 'timeout', balance: Number(user?.balance || 0) };
+  }
+  if (session.state?.funded === false) throw new Error('SESSION_STARTING');
+
+  const state = session.state || {};
+  const mineCount = Number.isSafeInteger(Number(state.mineCount))
+    ? Number(state.mineCount)
+    : (Array.isArray(state.mines) ? state.mines.length : MINES_RULES.defaultMineCount);
+  const opened = Array.isArray(state.opened) ? state.opened : [];
+  const multiplier = Number(state.multiplier || 1);
+  const canCashout = canCashOutMines(opened.length, MINES_RULES);
+
+  if (canCashout) {
+    const rawPayout = Math.floor(Number(state.bet || 0) * multiplier);
+    const treasury = await getTreasury();
+    const ownerBalance = Math.max(0, Number(treasury?.ownerBalance || 0));
+    const maxByCap = Math.floor(ownerBalance * MINES_RULES.capPercent);
+    const maxByMultiplier = Math.floor(Number(state.bet || 0) * MINES_RULES.maxPayoutMultiplier);
+    const payout = Math.max(0, Math.min(
+      rawPayout,
+      ownerBalance,
+      maxByMultiplier,
+      maxByCap > 0 ? maxByCap : ownerBalance,
+    ));
+    try {
+      await credit(userId, payout, 'mines_win', {
+        game: 'mines',
+        multiplier,
+        mineCount,
+        opened: opened.length,
+        reason,
+        rawPayout,
+      }, 'mines-win:' + session.id);
+      await updateSession(session.id, { ...state, payout, settledReason: reason }, 'settled');
+      await recordGame(userId, 'mines', Number(state.bet || 0), payout, {
+        opened,
+        mines: mineCount,
+        reason,
+      }, multiplier, 'mines:' + session.id);
+      const user = await userById(userId);
+      return { ok: true, active: false, expired: reason === 'timeout', payout, bet: Number(state.bet || 0), multiplier, balance: Number(user?.balance || 0) };
+    } catch (error) {
+      // If an eligible payout cannot be completed, refund the original wager
+      // under a separate stable ledger key, as in the production game.
+      await credit(userId, Number(state.bet || 0), 'mines_refund', {
+        game: 'mines',
+        reason: 'mines_payout_failed',
+        sessionId: session.id,
+      }, 'mines-refund:' + session.id);
+      await updateSession(session.id, { ...state, refunded: true, settledReason: 'payout_failed' }, 'refunded');
+      const user = await userById(userId);
+      return { ok: true, active: false, expired: reason === 'timeout', refunded: true, payout: 0, bet: Number(state.bet || 0), multiplier, balance: Number(user?.balance || 0) };
+    }
+  }
+
+  await credit(userId, Number(state.bet || 0), 'mines_refund', {
+    game: 'mines',
+    reason: reason === 'timeout' ? 'mines_timeout_before_cashout_unlock' : 'mines_cancel_before_cashout_unlock',
+    sessionId: session.id,
+    opened: opened.length,
+  }, 'mines-refund:' + session.id);
+  await updateSession(session.id, { ...state, refunded: true, settledReason: reason }, 'refunded');
   const user = await userById(userId);
-  return {ok:true,active:false,bet:Number(s.state.bet||0),payout,multiplier:s.state.multiplier,balance:Number(user?.balance || 0)};
+  return { ok: true, active: false, expired: reason === 'timeout', refunded: true, payout: 0, bet: Number(state.bet || 0), balance: Number(user?.balance || 0) };
+}
+
+export async function minesStart(userId, amount, requestId = null, requestedMineCount = undefined) {
+  const mineCount = normalizeMineCount(requestedMineCount);
+  const existing = await activeSession(userId, 'mines');
+  if (existing && minesExpiryState(existing)) {
+    await finalizeMinesSession(userId, existing, 'timeout');
+  }
+
+  const startedAt = Date.now();
+  const s = await startWagerSession(userId, 'mines', amount, requestId, (bet) => ({
+    bet,
+    mineCount,
+    mines: null,
+    opened: [],
+    multiplier: 1,
+    startedAt,
+    expiresAt: minesExpiryTime(startedAt),
+  }));
+  const savedMineCount = Number.isSafeInteger(Number(s.state?.mineCount))
+    ? Number(s.state.mineCount)
+    : (Array.isArray(s.state?.mines) ? s.state.mines.length : mineCount);
+  if (savedMineCount !== mineCount) throw new Error('MINES_ACTIVE');
+  return {
+    ok: true,
+    sessionId: s.id,
+    active: true,
+    mineCount,
+    opened: Array.isArray(s.state?.opened) ? s.state.opened : [],
+    multiplier: Number(s.state?.multiplier || 1),
+    expiresAt: Number(s.state?.expiresAt || minesExpiryTime(startedAt)),
+    balance: Number((await userById(userId))?.balance || 0),
+  };
+}
+
+export async function minesStatus(userId) {
+  const s = await activeSession(userId, 'mines');
+  const u = await userById(userId);
+  if (!s) return { ok: true, active: false, balance: Number(u?.balance || 0) };
+  if (s.state?.funded === false) throw new Error('SESSION_STARTING');
+  if (minesExpiryState(s)) return finalizeMinesSession(userId, s, 'timeout');
+  return {
+    ok: true,
+    active: true,
+    sessionId: s.id,
+    mineCount: Number(s.state?.mineCount || (Array.isArray(s.state?.mines) ? s.state.mines.length : MINES_RULES.defaultMineCount)),
+    opened: Array.isArray(s.state?.opened) ? s.state.opened : [],
+    multiplier: Number(s.state?.multiplier || 1),
+    cashoutAvailable: canCashOutMines((s.state?.opened || []).length),
+    expiresAt: Number(s.state?.expiresAt || 0) || null,
+    balance: Number(u?.balance || 0),
+  };
+}
+
+export async function minesOpen(userId, index) {
+  const s = await activeSession(userId, 'mines');
+  if (!s) throw new Error('NO_ACTIVE_MINES');
+  if (s.state?.funded === false) throw new Error('SESSION_STARTING');
+  if (minesExpiryState(s)) return finalizeMinesSession(userId, s, 'timeout');
+
+  const cell = Number(index);
+  if (!Number.isInteger(cell) || cell < 0 || cell >= MINES_RULES.boardSize ** 2) {
+    throw new Error('INVALID_TILE');
+  }
+  const state = s.state || {};
+  const openedBefore = Array.isArray(state.opened) ? state.opened : [];
+  if (openedBefore.includes(cell)) throw new Error('TILE_OPENED');
+
+  const mineCount = Number.isSafeInteger(Number(state.mineCount))
+    ? Number(state.mineCount)
+    : (Array.isArray(state.mines) ? state.mines.length : MINES_RULES.defaultMineCount);
+  // Delay mine layout until the first pick so that the selected cell is
+  // excluded from mines, matching the main branch's first-safe protection.
+  const mines = Array.isArray(state.mines)
+    ? state.mines
+    : minesLayout(mineCount, openedBefore.length === 0 ? cell : null);
+
+  if (mines.includes(cell)) {
+    await updateSession(s.id, { ...state, mines, hitMine: cell }, 'lost');
+    await recordGame(userId, 'mines', Number(state.bet || 0), 0, {
+      mine: cell,
+      mines: mineCount,
+      opened: openedBefore,
+    }, 0, 'mines:' + s.id);
+    return {
+      ok: true,
+      active: false,
+      exploded: true,
+      mine: cell,
+      bet: Number(state.bet || 0),
+      multiplier: 0,
+      payout: 0,
+      balance: Number((await userById(userId))?.balance || 0),
+    };
+  }
+
+  const opened = [...openedBefore, cell];
+  const multiplier = calculateMinesMultiplier(opened.length, mineCount);
+  const expiresAt = Number(state.expiresAt || minesExpiryTime(state.startedAt || Date.now()));
+  const allSafeOpened = opened.length >= (MINES_RULES.boardSize ** 2) - mineCount;
+  await updateSession(s.id, { ...state, mines, mineCount, opened, multiplier, expiresAt, startedAt: state.startedAt || Date.now() });
+  if (allSafeOpened) return finalizeMinesSession(userId, {
+    ...s,
+    state: { ...state, mines, mineCount, opened, multiplier, expiresAt },
+  }, 'perfect_clear');
+  return {
+    ok: true,
+    active: true,
+    opened,
+    mineCount,
+    multiplier,
+    cashoutAvailable: canCashOutMines(opened.length),
+    expiresAt,
+    balance: Number((await userById(userId))?.balance || 0),
+  };
+}
+
+export async function minesCashout(userId) {
+  const s = await activeSession(userId, 'mines');
+  if (!s) throw new Error('NO_ACTIVE_MINES');
+  if (s.state?.funded === false) throw new Error('SESSION_STARTING');
+  if (minesExpiryState(s)) return finalizeMinesSession(userId, s, 'timeout');
+  const opened = Array.isArray(s.state?.opened) ? s.state.opened : [];
+  if (!canCashOutMines(opened.length)) throw new Error('MINES_CASHOUT_LOCKED');
+  return finalizeMinesSession(userId, s, 'cashout');
 }
 
 function deck() { const suits=['♠','♥','♦','♣']; const ranks=['A','2','3','4','5','6','7','8','9','10','J','Q','K']; return suits.flatMap(s=>ranks.map(r=>({r,s}))).sort(()=>Math.random()-0.5); }
