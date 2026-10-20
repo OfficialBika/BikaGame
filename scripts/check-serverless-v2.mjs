@@ -192,7 +192,7 @@ assert.match(game, /wheelDailyStatus/);
 assert.doesNotMatch(game, /const user = await recordGame/);
 assert.doesNotMatch(game, /const u=await recordGame/);
 assert.match(game, /return \{ ok: true, cashedOut: true, multiplier: status\.multiplier, payout, balance: Number\(user\?\.balance \|\| 0\) \}/);
-assert.match(game, /balance:Number\(user\?\.balance \|\| 0\)/);
+assert.match(game, /balance: Number\(user\?\.balance \|\| 0\)/);
 assert.doesNotMatch(game, /db\.update\(users\)\.set\(\{\s*balance/);
 assert.match(economy, /CREATE TRIGGER IF NOT EXISTS bika_transactions_after_insert/);
 assert.match(economy, /idempotencyKeys/);
