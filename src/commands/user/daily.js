@@ -146,8 +146,6 @@ async function dailyClaim(ctx) {
     }
   }
 
-}
-
 async function dailyDotCommand(ctx) {
   if (!isGroupChat(ctx)) return dailyClaim(ctx);
 
