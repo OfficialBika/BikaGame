@@ -233,9 +233,9 @@ async function migrateTransactionHistory({ batchSize = 100, maxDocuments = Infin
   const sourceCountBefore = await source.countDocuments({});
   const targetCountBefore = await target.countDocuments({});
 
-  await target.createIndex({ createdAt: -1 }, { name: 'tx_history_createdAt_desc' });
-  await target.createIndex({ userId: 1, createdAt: -1 }, { name: 'tx_history_user_createdAt' });
-  await target.createIndex({ type: 1, 'meta.eventId': 1, toUserId: 1 }, { name: 'tx_history_type_event_toUser' });
+  await target.createIndex({ createdAt: -1 }, { name: 'tx_history_createdAt_desc' }).catch((err) => { if (!isStorageQuotaError(err) && ![85,86].includes(err?.code)) throw err; logger.warn('DB2 history index creation deferred/ skipped due to bootstrap error.'); });
+  await target.createIndex({ userId: 1, createdAt: -1 }, { name: 'tx_history_user_createdAt' }).catch((err) => { if (!isStorageQuotaError(err) && ![85,86].includes(err?.code)) throw err; logger.warn('DB2 history index creation deferred/ skipped due to bootstrap error.'); });
+  await target.createIndex({ type: 1, 'meta.eventId': 1, toUserId: 1 }, { name: 'tx_history_type_event_toUser' }).catch((err) => { if (!isStorageQuotaError(err) && ![85,86].includes(err?.code)) throw err; logger.warn('DB2 history index creation deferred/ skipped due to bootstrap error.'); });
 
   let copied = 0;
   const copyCursor = source.find({}).sort({ _id: 1 }).batchSize(batchSize);
