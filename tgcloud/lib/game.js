@@ -222,19 +222,55 @@ export async function playSlot(userId, amount, spinId = null, options = {}) {
   const settlementId = operationId('slot', id, spinId);
   const prior = await priorSettlement('web_slot', settlementId);
   if (prior) return slotResponse(prior, user.balance);
+
   await consumeCooldown(id, 'slot', 700);
   if (Number(user.balance || 0) < bet) throw new EndpointError('Balance မလုံလောက်ပါ။', { code: 'USER_INSUFFICIENT' });
-  let rtp = Number(await getSetting('web_game_rtp_slot', 65));
-  if (options?.source === 'telegram') {
-    const promo = await getActivePromoRtp(options.groupId);
-    rtp = Number(promo?.rtp ?? await getSetting('legacy_slot_win_rate', 35));
-  }
+
+  // Main branch semantics: global /setrtp applies to Telegram slot; promo RTP
+  // overrides it for that group. The Mini App has a separately configurable RTP.
+  const source = options?.source === 'telegram' ? 'telegram' : 'miniapp';
   const house = await getTreasury();
+  const globalRtp = Math.max(0, Math.min(100, Number(house?.rtpWinRate ?? 35)));
+  let rtp = source === 'telegram'
+    ? globalRtp
+    : Math.max(0, Math.min(100, Number(await getSetting('web_game_rtp_slot', 65))));
+  let rtpMode = source === 'telegram' ? 'global' : 'miniapp';
+  let promoRtpId = null;
+  let promoExpiresAt = null;
+  if (source === 'telegram') {
+    try {
+      const promo = await getActivePromoRtp(options.groupId);
+      if (promo) {
+        rtp = Math.max(0, Math.min(100, Number(promo.rtp ?? globalRtp)));
+        rtpMode = 'promo';
+        promoRtpId = promo._id?.toString?.() || String(promo._id || '');
+        promoExpiresAt = promo.expiresAt || null;
+      }
+    } catch (_) {
+      // Match main: a promo lookup failure falls back to the global RTP.
+      rtp = globalRtp;
+    }
+  }
+
   const reels = slotSpinEngine(user, Number(house?.vipWinRate ?? 90), Math.random, rtp);
   const multiplier = Number(slotMultiplier(reels)) || 0;
   const rawPayout = Math.floor(bet * multiplier);
   const payout = await capPayout(bet, rawPayout, 0.30, 999999999, true);
-  const meta = { source: 'miniapp', title: reels.join(' '), outcome: payout > bet ? 'win' : payout > 0 ? 'paid' : 'lose', reels, rawPayout, multiplier, rtp, vip: !!user.isVip };
+  const meta = {
+    source,
+    groupId: source === 'telegram' ? String(options.groupId || '') : null,
+    title: reels.join(' '),
+    outcome: payout > bet ? 'win' : payout > 0 ? 'paid' : 'lose',
+    reels,
+    rawPayout,
+    multiplier,
+    rtp,
+    globalRtpWinRate: globalRtp,
+    rtpMode,
+    promoRtpId,
+    promoExpiresAt,
+    vip: !!user.isVip,
+  };
   const result = await settlementGame({ userId: id, game: 'slot', typePrefix: 'web_slot', bet, payout, multiplier, result: reels, meta, settlementId });
   const settled = await getTransaction(keyFor('web_slot', settlementId));
   const output = settled ? slotResponse(settled, result.balance) : slotResponse({ ...result, meta }, result.balance);
