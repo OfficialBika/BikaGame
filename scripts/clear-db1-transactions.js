@@ -129,14 +129,15 @@ async function main() {
     const target = targetDb.collection('transactions');
     const outbox = sourceDb.collection('transaction_outbox');
 
-    const [sourceCount, targetCount, pendingOutbox, sourceStats] = await Promise.all([
+    // Avoid Collection.stats(), which uses an aggregation cursor in the Node driver.
+    // The cleanup decision needs counts and exact document verification, not storage metrics.
+    const [sourceCount, targetCount, pendingOutbox] = await Promise.all([
       source.countDocuments({}),
       target.countDocuments({}),
       outbox.countDocuments({ status: 'pending' }).catch((err) => {
         if (err && (err.codeName === 'NamespaceNotFound' || err.code === 26)) return 0;
         throw err;
       }),
-      source.stats().catch(() => null),
     ]);
 
     const report = {
@@ -148,7 +149,6 @@ async function main() {
       sourceCount,
       targetCount,
       pendingOutbox,
-      sourceStorageSizeBytes: sourceStats?.storageSize ?? null,
       deleted: 0,
       backup: null,
     };
