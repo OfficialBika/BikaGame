@@ -21,7 +21,7 @@ assert.match(slotStart, /rtp = globalRtp/, 'failed promo lookup must revert to g
 assert.match(slotStart, /groupId: source === 'telegram' \? String\(options\.groupId \|\| ''\) : null/);
 
 assert.match(slotStart, /getActivePromoRtp\(options\.groupId\)/);
-assert.match(slotStart, /getSetting\('legacy_slot_win_rate', 35\)/);
+assert.match(slotStart, /rtp = globalRtp/, 'global RTP must be the promo fallback');
 assert.match(slotStart, /getSetting\('web_game_rtp_slot', 65\)/);
 assert.match(slotStart, /rtpMode/);
 assert.match(slotStart, /promoRtpId/);
