@@ -178,9 +178,15 @@ async function dailyDotCommand(ctx) {
   );
 }
 
+async function dailySlashCommand(ctx) {
+  // A group slash command should behave like .daily and send the DM button.
+  if (isGroupChat(ctx)) return dailyDotCommand(ctx);
+  return dailyClaim(ctx);
+}
+
 function registerDailyCommands(bot) {
   bot.command('dailyclaim', groupOnlyDailyClaim);
-  bot.command('daily', dailyClaim);
+  bot.command('daily', dailySlashCommand);
   bot.hears(/^\.(dailyclaim)\s*$/i, groupOnlyDailyClaim);
   bot.hears(/^\.(daily)\s*$/i, dailyDotCommand);
 }
