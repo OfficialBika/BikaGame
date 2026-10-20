@@ -1,13 +1,13 @@
 'use strict';
 
-const { getDb } = require('../config/database');
+const { getTransactionHistoryDb, getTransactionHistoryCollection } = require('../config/database');
 
 const COLLECTION = 'web_game_history';
 const TTL_SECONDS = Math.max(3600, Number(process.env.WEB_GAME_HISTORY_TTL_SECONDS || 24 * 60 * 60));
 let indexPromise = null;
 
 function collection() {
-  return getDb().collection(COLLECTION);
+  return getTransactionHistoryDb().then((db) => db.collection(COLLECTION));
 }
 
 function cleanUserId(value) {
@@ -34,13 +34,16 @@ function safeNumber(value, fallback = 0) {
 
 async function ensureIndexes() {
   if (!indexPromise) {
-    indexPromise = Promise.all([
-      collection().createIndex({ createdAt: 1 }, { expireAfterSeconds: TTL_SECONDS, name: 'ttl_createdAt_24h' }).catch((err) => {
-        if ([85, 86].includes(err?.code) || ['IndexOptionsConflict', 'IndexKeySpecsConflict'].includes(err?.codeName)) return null;
-        throw err;
-      }),
-      collection().createIndex({ userId: 1, game: 1, createdAt: -1 }, { name: 'user_game_createdAt' }).catch(() => null),
-    ]);
+    indexPromise = (async () => {
+      const col = await collection();
+      await Promise.all([
+        col.createIndex({ createdAt: 1 }, { expireAfterSeconds: TTL_SECONDS, name: 'ttl_createdAt_24h' }).catch((err) => {
+          if ([85, 86].includes(err?.code) || ['IndexOptionsConflict', 'IndexKeySpecsConflict'].includes(err?.codeName)) return null;
+          throw err;
+        }),
+        col.createIndex({ userId: 1, game: 1, createdAt: -1 }, { name: 'user_game_createdAt' }).catch(() => null),
+      ]);
+    })();
   }
   return indexPromise;
 }
@@ -69,7 +72,7 @@ async function recordWebGameHistory(entry = {}) {
       createdAt: now,
       createdAtMs: now.getTime(),
     };
-    await collection().insertOne(doc);
+    await (await collection()).insertOne(doc);
     return doc;
   } catch (err) {
     console.error('WEB_GAME_HISTORY_RECORD_FAILED:', err?.message || err);
@@ -84,7 +87,7 @@ async function getWebGameHistory(userId, game = 'all', limit = 20) {
   const query = { userId: finalUserId };
   const normalized = normalizeGame(game);
   if (normalized && normalized !== 'all') query.game = normalized;
-  const docs = await collection()
+  const docs = await (await collection())
     .find(query)
     .sort({ createdAt: -1 })
     .limit(Math.max(1, Math.min(50, Number(limit) || 20)))
