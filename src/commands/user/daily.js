@@ -146,6 +146,18 @@ async function dailyClaim(ctx) {
     }
   }
 
+async function groupOnlyDailyClaim(ctx) {
+  if (!isGroupChat(ctx)) {
+    return replyHTML(
+      ctx,
+      'ℹ️ <code>/dailyclaim</code> ကို group ထဲမှာပဲ သုံးနိုင်ပါတယ်။',
+      replyOptions(ctx)
+    );
+  }
+
+  return dailyClaim(ctx);
+}
+
 async function dailyDotCommand(ctx) {
   if (!isGroupChat(ctx)) return dailyClaim(ctx);
 
@@ -167,9 +179,9 @@ async function dailyDotCommand(ctx) {
 }
 
 function registerDailyCommands(bot) {
-  bot.command('dailyclaim', dailyClaim);
+  bot.command('dailyclaim', groupOnlyDailyClaim);
   bot.command('daily', dailyClaim);
-  bot.hears(/^\.(dailyclaim)\s*$/i, dailyClaim);
+  bot.hears(/^\.(dailyclaim)\s*$/i, groupOnlyDailyClaim);
   bot.hears(/^\.(daily)\s*$/i, dailyDotCommand);
 }
 
