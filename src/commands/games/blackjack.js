@@ -11,7 +11,7 @@ const { getDb } = require('../../config/database');
 const { ensureTreasury, isOwner } = require('../../services/treasuryService');
 const { replyHTML } = require('../../utils/telegram');
 const { fmt } = require('../../utils/format');
-const { localizeForUser } = require('../../services/i18nService');
+const { localizeForUser, translateCachedText } = require('../../services/i18nService');
 
 const activeGames = new Map();
 const activeUsers = new Map();
@@ -99,12 +99,12 @@ function successButton(text, callbackData) {
   };
 }
 
-function actionKeyboard(gameId) {
+function actionKeyboard(gameId, userId) {
   return {
     inline_keyboard: [
       [
-        successButton('🃏 Hit / ထပ်ဆွဲမယ်', `BJ:HIT:${gameId}`),
-        primaryButton('✋ Stand / ရပ်မယ်', `BJ:STAND:${gameId}`),
+        successButton(translateCachedText(userId, '🃏 Hit / ထပ်ဆွဲမယ်'), `BJ:HIT:${gameId}`),
+        primaryButton(translateCachedText(userId, '✋ Stand / ရပ်မယ်'), `BJ:STAND:${gameId}`),
       ],
     ],
   };
@@ -618,7 +618,7 @@ module.exports = (bot) => {
         ),
         {
           reply_to_message_id: commandMessageId,
-          reply_markup: actionKeyboard(game.id),
+          reply_markup: actionKeyboard(game.id, game.userId),
         }
       );
 
@@ -671,7 +671,7 @@ module.exports = (bot) => {
     const game = activeGames.get(gameId);
 
     if (!game) {
-      await ctx.answerCbQuery('Blackjack round expired.', { show_alert: true }).catch(() => {});
+      await ctx.answerCbQuery(await localizeForUser(ctx.from?.id, 'Blackjack round expired.'), { show_alert: true }).catch(() => {});
       return;
     }
 
@@ -704,7 +704,7 @@ module.exports = (bot) => {
           bot,
           game,
           gameTableText(game, false, 'ကဒ်တစ်ကဒ်ထပ်ဆွဲပြီးပါပြီ။ ထပ်ဆွဲမလား၊ ရပ်မလား ရွေးပါ။'),
-          actionKeyboard(game.id)
+          actionKeyboard(game.id, game.userId)
         );
         return;
       }
@@ -720,7 +720,7 @@ module.exports = (bot) => {
           bot,
           game,
           gameTableText(game, false, '⚠️ Telegram rate limit ဖြစ်နေပါတယ်။ ခဏစောင့်ပြီး ထပ်နှိပ်ပါ။'),
-          actionKeyboard(game.id)
+          actionKeyboard(game.id, game.userId)
         );
       } catch (editErr) {
         console.error('BLACKJACK_ACTION_ERROR_NOTICE_FAILED:', editErr?.stack || editErr?.message || editErr);
