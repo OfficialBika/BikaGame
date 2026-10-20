@@ -1,6 +1,6 @@
 'use strict';
 
-const { col, withRequiredTx } = require('../config/database');
+const { col, withRequiredTx, getTransactionHistoryDb } = require('../config/database');
 const { ensureUser, treasuryPayToUser } = require('./economyService');
 const { logTx } = require('./transactionService');
 const { env } = require('../config/env');
