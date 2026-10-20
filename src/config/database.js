@@ -560,9 +560,13 @@ async function migrateTransactionHistoryReadOnly({ batchSize = 100, verifyOnly =
   // The DB1 outbox may not exist yet because DB1 is write-blocked. Pending
   // outbox count is reported only when the source already has that collection;
   // it is not part of this read-only direct-copy verification.
-  const pendingOutbox = await db.listCollections({ name: OUTBOX_COLLECTION }, { nameOnly: true }).hasNext()
-    .then((exists) => exists ? db.collection(OUTBOX_COLLECTION).countDocuments({ status: 'pending' }) : null)
-    .catch(() => null);
+  let pendingOutbox = null;
+  try {
+    const outboxExists = await db.listCollections({ name: OUTBOX_COLLECTION }, { nameOnly: true }).hasNext();
+    if (outboxExists) pendingOutbox = await db.collection(OUTBOX_COLLECTION).countDocuments({ status: 'pending' });
+  } catch (_) {
+    pendingOutbox = null;
+  }
   const sourceStable = sourceCountBefore === sourceCountAfter && sourceSeen === sourceCountAfter;
   const verified = sourceStable &&
     missing === 0 &&
