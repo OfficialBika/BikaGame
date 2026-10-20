@@ -165,11 +165,11 @@ export default async function (message) {
       if (maintenanceVerb === 'status') {
         const state = await getMaintenanceMode();
         return send(chatId, '🛠️ Maintenance Mode: ' + (state.enabled ? 'ON' : 'OFF') +
-          '\\nUpdated: ' + (state.updatedAt || '—') +
-          '\\nUpdated by: ' + (state.updatedBy || '—'), message.message_id);
+          '\nUpdated: ' + (state.updatedAt || '—') +
+          '\nUpdated by: ' + (state.updatedBy || '—'), message.message_id);
       }
       if (!['on', 'off'].includes(maintenanceVerb)) {
-        return send(chatId, 'အသုံးပြုပုံ: /maintenance on|off|status\\nMain-compatible: /off = Maintenance ON, /on = Maintenance OFF', message.message_id);
+        return send(chatId, 'အသုံးပြုပုံ: /maintenance on|off|status\nMain-compatible: /off = Maintenance ON, /on = Maintenance OFF', message.message_id);
       }
       const state = await setMaintenanceMode(from.id, maintenanceVerb === 'on');
       const legacyHint = legacyMaintenance
@@ -185,7 +185,7 @@ export default async function (message) {
     const maintenance = await getMaintenanceMode();
     if (maintenance.enabled && !isConfiguredOwner(from.id)) {
       return send(chatId,
-        '🛠️ Bot Maintenance Mode\\n━━━━━━━━━━━━\\nလက်ရှိ Bot ကို ပြုပြင်နေပါတယ်။\\nOwner သာ အသုံးပြုနိုင်ပါတယ်။\\nခဏစောင့်ပြီး ပြန်သုံးပေးပါ။',
+        '🛠️ Bot Maintenance Mode\n━━━━━━━━━━━━\nလက်ရှိ Bot ကို ပြုပြင်နေပါတယ်။\nOwner သာ အသုံးပြုနိုင်ပါတယ်။\nခဏစောင့်ပြီး ပြန်သုံးပေးပါ။',
         message.message_id);
     }
 
@@ -227,8 +227,8 @@ export default async function (message) {
     if (command?.name === 'promortp') {
       if (!isGroupChat(message.chat)) return send(chatId, '/promortp ကို group ထဲမှာပဲ သုံးပါ။', message.message_id);
       const promo = await startPromoRtp({ actorId: from.id, chatId, chatTitle: message.chat.title || message.chat.username || String(chatId), rtpInput: adminValues[0], durationText: adminValues[1] });
-      const notice = await send(chatId, '🎰 Promotion Time Start\\nPromo RTP: ' + promo.rtp + '%\\nPromo Time: ' + promo.durationText +
-        '\\nPromo Group: ' + (promo.groupName || chatId) + '\\nExpiry: ' + new Date(promo.expiresAt).toISOString(), message.message_id);
+      const notice = await send(chatId, '🎰 Promotion Time Start\nPromo RTP: ' + promo.rtp + '%\nPromo Time: ' + promo.durationText +
+        '\nPromo Group: ' + (promo.groupName || chatId) + '\nExpiry: ' + new Date(promo.expiresAt).toISOString(), message.message_id);
       const noticeId = Number(notice?.message_id ?? notice?.result?.message_id);
       if (noticeId > 0) { try { await api.pinChatMessage({ chat_id: chatId, message_id: noticeId, disable_notification: false }); } catch (_) {} }
       return notice;
@@ -244,9 +244,9 @@ export default async function (message) {
         return send(chatId, '🎮 ' + adminValues[0].toUpperCase() + ' Web RTP: ' + rtp + '%', message.message_id);
       }
       const values = await getAllWebGameRtps();
-      return send(chatId, '🎮 Web Game RTP Dashboard\\n' +
-        Object.entries(values).map(([game, rtp]) => game.toUpperCase() + ': ' + rtp + '%').join('\\n') +
-        '\\nChange with /setwebrtp <game> <percent>', message.message_id);
+      return send(chatId, '🎮 Web Game RTP Dashboard\n' +
+        Object.entries(values).map(([game, rtp]) => game.toUpperCase() + ': ' + rtp + '%').join('\n') +
+        '\nChange with /setwebrtp <game> <percent>', message.message_id);
     }
     if (command?.name === 'setrtp') {
       if (adminValues.length >= 2) {
@@ -265,7 +265,7 @@ export default async function (message) {
         } catch (_) {}
       }
       const rtp = await getLegacySlotWinRate();
-      return send(chatId, '🎰 Legacy Slot win rate: ' + rtp + '%\\nWeb games: /webrtp', message.message_id);
+      return send(chatId, '🎰 Legacy Slot win rate: ' + rtp + '%\nWeb games: /webrtp', message.message_id);
     }
     if (command?.name === 'setvipwr') {
       if (!adminValues[0]) return send(chatId, 'Usage: /setvipwr <0–100>', message.message_id);
@@ -280,16 +280,16 @@ export default async function (message) {
       if (!adminValues[0]) return send(chatId, 'Usage: /settotal <amount>', message.message_id);
       const total = await setTotalSupply(from.id, adminValues[0]);
       const dashboard = await getTreasuryDashboard(from.id);
-      return send(chatId, '✅ Preview Treasury Initialized\\nTotal Supply: ' + formatCoin(total) +
-        ' Bal\\nBot Bank: ' + formatCoin(dashboard.ownerBalance) + ' Bal', message.message_id);
+      return send(chatId, '✅ Preview Treasury Initialized\nTotal Supply: ' + formatCoin(total) +
+        ' Bal\nBot Bank: ' + formatCoin(dashboard.ownerBalance) + ' Bal', message.message_id);
     }
     if (command?.name === 'treasury') {
       const d = await getTreasuryDashboard(from.id);
       const web = await getAllWebGameRtps();
-      return send(chatId, '🏦 Treasury Dashboard (isolated preview)\\n━━━━━━━━━━━━━━━━\\n' +
-        'Total Supply: ' + formatCoin(d.totalSupply) + ' Bal\\n' +
-        'Bot Bank: ' + formatCoin(d.ownerBalance) + ' Bal\\n' +
-        'VIP WR: ' + d.vipWinRate + '%\\nLegacy Slot WR: ' + d.legacySlotWinRate + '%\\n' +
+      return send(chatId, '🏦 Treasury Dashboard (isolated preview)\n━━━━━━━━━━━━━━━━\n' +
+        'Total Supply: ' + formatCoin(d.totalSupply) + ' Bal\n' +
+        'Bot Bank: ' + formatCoin(d.ownerBalance) + ' Bal\n' +
+        'VIP WR: ' + d.vipWinRate + '%\nLegacy Slot WR: ' + d.legacySlotWinRate + '%\n' +
         Object.entries(web).map(([game, rtp]) => game.toUpperCase() + ': ' + rtp + '%').join(' · '), message.message_id);
     }
     if (command?.name === 'addbal' || command?.name === 'rmbal') {
@@ -304,10 +304,10 @@ export default async function (message) {
         idempotencyKey: 'owner-' + mode + ':' + from.id + ':' + chatId + ':' + message.message_id,
       });
       return send(chatId, (mode === 'add' ? '✅ Balance Added' : '✅ Balance Removed') +
-        '\\nUser ID: ' + targetId + '\\nAmount: ' + (mode === 'add' ? '+' : '-') + formatCoin(result.amount) +
-        ' Bal\\nBefore: ' + formatCoin(result.before) + ' Bal\\nAfter: ' + formatCoin(result.after) +
-        ' Bal\\nBot Bank: ' + formatCoin(result.treasury) + ' Bal' +
-        (result.duplicate ? '\\n(Duplicate request safely ignored)' : ''), message.message_id);
+        '\nUser ID: ' + targetId + '\nAmount: ' + (mode === 'add' ? '+' : '-') + formatCoin(result.amount) +
+        ' Bal\nBefore: ' + formatCoin(result.before) + ' Bal\nAfter: ' + formatCoin(result.after) +
+        ' Bal\nBot Bank: ' + formatCoin(result.treasury) + ' Bal' +
+        (result.duplicate ? '\n(Duplicate request safely ignored)' : ''), message.message_id);
     }
 
     if (command?.name === 'shopon' || command?.name === 'shopoff') {
@@ -325,73 +325,73 @@ export default async function (message) {
       if (message.chat?.type !== 'private') return send(chatId, 'ℹ️ /shop ကို bot private chat ထဲမှာပဲ သုံးပါ။', message.message_id);
       if (!(await getShopEnabled()) && !isConfiguredOwner(from.id)) return send(chatId, '⛔ Shop System ပိတ်ထားပါတယ်။', message.message_id);
       const cards = await listAvailableShopCards(25);
-      if (!cards.length) return send(chatId, '🎁 BIKA Card Shop\\nStock မရှိသေးပါ။ Owner က /shopstock နဲ့ preview catalog ဖြည့်ပေးရပါမယ်။', message.message_id);
+      if (!cards.length) return send(chatId, '🎁 BIKA Card Shop\nStock မရှိသေးပါ။ Owner က /shopstock နဲ့ preview catalog ဖြည့်ပေးရပါမယ်။', message.message_id);
       const rows = [];
       for (let i = 0; i < cards.length; i += 2) rows.push(cards.slice(i, i + 2).map(card => ({
         text: String(card.botKey || 'BIKA') + ' · ' + String(card.rarity || 'Card') + ' · #' + card.id,
         callback_data: 'shop:view:' + card.id,
       })));
       rows.push([{ text: '📦 My Orders', callback_data: 'shop:myorders:0' }, { text: '🎒 Inventory', callback_data: 'shop:inventory:0' }]);
-      return send(chatId, '🎁 BIKA Coin To Card Shop\\nCard တစ်ခုရွေးပြီး price ကြည့်ပါ။ Confirm လုပ်ပြီး Owner approve ဖြစ်မှ card ကို inventory ထဲထည့်ပေးပါမယ်။',
+      return send(chatId, '🎁 BIKA Coin To Card Shop\nCard တစ်ခုရွေးပြီး price ကြည့်ပါ။ Confirm လုပ်ပြီး Owner approve ဖြစ်မှ card ကို inventory ထဲထည့်ပေးပါမယ်။',
         message.message_id, keyboard(rows));
     }
     if (command?.name === 'shopstock') {
       const values = args(command.args);
       if (values.length < 4) return send(chatId, 'Usage: /shopstock <botKey> <cardId> <rarity> <price> <name>', message.message_id);
       const result = await addShopCard({ actorId: from.id, botKey: values[0], cardId: values[1], rarity: values[2], price: values[3], name: values.slice(4).join(' ') || values[1] });
-      return send(chatId, '✅ Shop stock added\\nBot: ' + result.botKey + '\\nCard ID: ' + result.cardId + '\\nRarity: ' + result.rarity + '\\nPrice: ' + formatCoin(result.price) + ' Bal', message.message_id);
+      return send(chatId, '✅ Shop stock added\nBot: ' + result.botKey + '\nCard ID: ' + result.cardId + '\nRarity: ' + result.rarity + '\nPrice: ' + formatCoin(result.price) + ' Bal', message.message_id);
     }
     if (command?.name === 'inventory') {
       const cards = await listUserInventory(from.id, 50);
-      if (!cards.length) return send(chatId, '🎒 Inventory\\nOwned card မရှိသေးပါ။', message.message_id);
-      return send(chatId, '🎒 Your Inventory\\n' + cards.map((card, i) => (i + 1) + '. ' + (card.name || card.cardId) +
-        ' · ' + card.botKey + ' · ' + card.rarity + ' · #' + card.id).join('\\n'), message.message_id);
+      if (!cards.length) return send(chatId, '🎒 Inventory\nOwned card မရှိသေးပါ။', message.message_id);
+      return send(chatId, '🎒 Your Inventory\n' + cards.map((card, i) => (i + 1) + '. ' + (card.name || card.cardId) +
+        ' · ' + card.botKey + ' · ' + card.rarity + ' · #' + card.id).join('\n'), message.message_id);
     }
     if (command?.name === 'myorders') {
       const orders = await listUserShopOrders(from.id, 10);
-      if (!orders.length) return send(chatId, '📦 My Orders\\nOrder မရှိသေးပါ။', message.message_id);
-      return send(chatId, '📦 My Shop Orders\\n' + orders.map((order, i) => (i + 1) + '. ' + order.id +
-        ' · ' + order.status.toUpperCase() + ' · ' + formatCoin(order.amount) + ' Bal').join('\\n'), message.message_id);
+      if (!orders.length) return send(chatId, '📦 My Orders\nOrder မရှိသေးပါ။', message.message_id);
+      return send(chatId, '📦 My Shop Orders\n' + orders.map((order, i) => (i + 1) + '. ' + order.id +
+        ' · ' + order.status.toUpperCase() + ' · ' + formatCoin(order.amount) + ' Bal').join('\n'), message.message_id);
     }
     if (command?.name === 'shoporders') {
       if (!isConfiguredOwner(from.id)) throw new Error('OWNER_ONLY');
       const orders = await listPendingShopOrders(20);
       if (!orders.length) return send(chatId, '📦 Pending shop order မရှိပါ။', message.message_id);
-      return send(chatId, '📦 Pending Shop Orders\\n' + orders.map((order, i) => (i + 1) + '. ' + order.id +
-        ' · User ' + order.userId + ' · ' + formatCoin(order.amount) + ' Bal').join('\\n'), message.message_id);
+      return send(chatId, '📦 Pending Shop Orders\n' + orders.map((order, i) => (i + 1) + '. ' + order.id +
+        ' · User ' + order.userId + ' · ' + formatCoin(order.amount) + ' Bal').join('\n'), message.message_id);
     }
     if (command?.name === 'sellpriceadd') {
       const values = args(command.args);
       if (values.length < 3) return send(chatId, 'Usage: /sellpriceadd <botKey> <rarity> <price>', message.message_id);
       const result = await setSellPrice({ actorId: from.id, botKey: values[0], rarity: values[1], price: values[2] });
-      return send(chatId, '✅ Sell price saved\\nKey: ' + result.key + '\\nPrice: ' + formatCoin(result.price) + ' Bal', message.message_id);
+      return send(chatId, '✅ Sell price saved\nKey: ' + result.key + '\nPrice: ' + formatCoin(result.price) + ' Bal', message.message_id);
     }
     if (command?.name === 'sell') {
       if (message.chat?.type !== 'private') return send(chatId, 'ℹ️ /sell ကို bot private chat ထဲမှာပဲ သုံးပါ။', message.message_id);
       const values = args(command.args);
-      if (values.length < 3) return send(chatId, '💳 Card Sell System\\nUsage: /sell <botKey> <rarity> <Telegram_Gift_Message_Link>\\nဥပမာ: /sell catchbot legendary https://t.me/YourGiftChannel/123\\nOwner approve လုပ်ပြီးမှ preview Bal ထည့်ပေးပါမယ်။', message.message_id);
+      if (values.length < 3) return send(chatId, '💳 Card Sell System\nUsage: /sell <botKey> <rarity> <Telegram_Gift_Message_Link>\nဥပမာ: /sell catchbot legendary https://t.me/YourGiftChannel/123\nOwner approve လုပ်ပြီးမှ preview Bal ထည့်ပေးပါမယ်။', message.message_id);
       const order = await createSellOrder({ seller: from, botKey: values[0], rarity: values[1], giftLink: values.slice(2).join(' ') });
       let ownerAlertSent = false;
       if (Number(SERVERLESS_OWNER_TELEGRAM_ID) > 0 && !isConfiguredOwner(Number(from.id))) {
         try {
-          await api.sendMessage({ chat_id: Number(SERVERLESS_OWNER_TELEGRAM_ID), text: '💳 New Sell Order\\nID: ' + order.order.id +
-            '\\nSeller: ' + from.id + '\\nType: ' + order.order.data.botKey + ' / ' + order.order.data.rarity +
-            '\\nPrice: ' + formatCoin(order.order.price) + ' Bal\\nGift Link: ' + order.order.data.giftLink,
+          await api.sendMessage({ chat_id: Number(SERVERLESS_OWNER_TELEGRAM_ID), text: '💳 New Sell Order\nID: ' + order.order.id +
+            '\nSeller: ' + from.id + '\nType: ' + order.order.data.botKey + ' / ' + order.order.data.rarity +
+            '\nPrice: ' + formatCoin(order.order.price) + ' Bal\nGift Link: ' + order.order.data.giftLink,
             reply_markup: keyboard([[{ text: '✅ Approve', callback_data: 'selladmin:approve:' + order.order.id },
               { text: '❌ Cancel', callback_data: 'selladmin:cancel:' + order.order.id }]]) });
           ownerAlertSent = true;
         } catch (_) {}
       }
-      return send(chatId, '✅ Sell order created\\nOrder ID: ' + order.order.id + '\\nReceipt: ' + order.order.receiptCode +
-        '\\nPrice: ' + formatCoin(order.order.price) + ' Bal\\nStatus: PENDING OWNER APPROVAL\\nOwner Alert: ' + (ownerAlertSent ? 'SENT' : 'FAILED / OWNER NOT CONFIGURED'), message.message_id);
+      return send(chatId, '✅ Sell order created\nOrder ID: ' + order.order.id + '\nReceipt: ' + order.order.receiptCode +
+        '\nPrice: ' + formatCoin(order.order.price) + ' Bal\nStatus: PENDING OWNER APPROVAL\nOwner Alert: ' + (ownerAlertSent ? 'SENT' : 'FAILED / OWNER NOT CONFIGURED'), message.message_id);
     }
     if (command?.name === 'sellorders') {
       const ownerView = isConfiguredOwner(from.id);
       const list = await listSellOrders({ userId: ownerView ? null : from.id, pendingOnly: ownerView, limit: 20 });
-      if (!list.length) return send(chatId, '💳 Sell Orders\\nOrder မရှိသေးပါ။', message.message_id);
-      return send(chatId, (ownerView ? '🔔 Pending Sell Orders' : '💳 My Sell Orders') + '\\n' +
+      if (!list.length) return send(chatId, '💳 Sell Orders\nOrder မရှိသေးပါ။', message.message_id);
+      return send(chatId, (ownerView ? '🔔 Pending Sell Orders' : '💳 My Sell Orders') + '\n' +
         list.map((order, i) => (i + 1) + '. ' + order.id + ' · ' + order.status.toUpperCase() +
-          ' · ' + formatCoin(order.price) + ' Bal · User ' + order.sellerId).join('\\n'), message.message_id);
+          ' · ' + formatCoin(order.price) + ' Bal · User ' + order.sellerId).join('\n'), message.message_id);
     }
 
     if (command?.name === 'setevent') {
@@ -413,10 +413,10 @@ export default async function (message) {
         sourceText: root.text || root.caption || '', title: parsed.title, teams: parsed.teams, createdBy: from.id,
       });
       const announcement = await send(chatId,
-        '🎯 NEW SPORTS EVENT\\n━━━━━━━━━━━━━━━━\\n' + event.title + '\\n' +
-        event.data.teams.map(t => t.name + ' — ' + t.odd + 'x (' + t.alias + ')').join('\\n') +
-        '\\n━━━━━━━━━━━━━━━━\\nBet တင်ရန် event post ကို reply လုပ်ပါ။\\n' +
-        '.bet ' + event.data.teams[0].alias + ' 1000\\n.bet ' + event.data.teams[1].alias + ' 1000',
+        '🎯 NEW SPORTS EVENT\n━━━━━━━━━━━━━━━━\n' + event.title + '\n' +
+        event.data.teams.map(t => t.name + ' — ' + t.odd + 'x (' + t.alias + ')').join('\n') +
+        '\n━━━━━━━━━━━━━━━━\nBet တင်ရန် event post ကို reply လုပ်ပါ။\n' +
+        '.bet ' + event.data.teams[0].alias + ' 1000\n.bet ' + event.data.teams[1].alias + ' 1000',
         root.message_id);
       const sentMessageId = Number(announcement?.message_id ?? announcement?.result?.message_id);
       if (sentMessageId > 0) await rememberSportsThreadMessage(event.id, sentMessageId);
@@ -436,8 +436,8 @@ export default async function (message) {
       const winners = result.bets.filter(b => String(b.choice || '').toLowerCase() === String(alias).toLowerCase()).length;
       const totalPaid = result.bets.filter(b => b.choice === alias.toLowerCase()).reduce((sum, b) => sum + Number(b.potentialWin || 0), 0);
       return send(chatId, (result.duplicate ? 'ℹ️ Event settle လုပ်ပြီးသားပါ။' : '✅ Sports settlement complete.') +
-        '\\nEvent: ' + event.title + '\\nWinner: ' + alias.toLowerCase() +
-        '\\nWinning bets: ' + winners + '\\nTotal payout: ' + formatCoin(totalPaid) + ' Bal', message.message_id);
+        '\nEvent: ' + event.title + '\nWinner: ' + alias.toLowerCase() +
+        '\nWinning bets: ' + winners + '\nTotal payout: ' + formatCoin(totalPaid) + ' Bal', message.message_id);
     }
 
     if (command?.name === 'bet') {
@@ -450,10 +450,10 @@ export default async function (message) {
       if (!event) return send(chatId, 'Sports Event post ကို reply လုပ်ပေးပါ။', message.message_id);
       const result = await placeSportsBet({ event, telegramUser: from, alias: parsed[0], amount: parsed[1], messageId: message.message_id });
       const team = event.data.teams.find(t => t.alias === String(parsed[0]).toLowerCase());
-      return send(chatId, '✅ SPORTS BET ACCEPTED\\n' + team.name + ' (' + team.alias + ')' +
-        '\\nBet: ' + formatCoin(result.bet.amount) + ' Bal' +
-        '\\nPotential win: ' + formatCoin(result.bet.potentialWin) + ' Bal' +
-        '\\nBalance: ' + formatCoin(result.balance) + ' Bal', message.message_id);
+      return send(chatId, '✅ SPORTS BET ACCEPTED\n' + team.name + ' (' + team.alias + ')' +
+        '\nBet: ' + formatCoin(result.bet.amount) + ' Bal' +
+        '\nPotential win: ' + formatCoin(result.bet.potentialWin) + ' Bal' +
+        '\nBalance: ' + formatCoin(result.balance) + ' Bal', message.message_id);
     }
 
     if (command?.name === 'auctionchannel') {
@@ -466,28 +466,28 @@ export default async function (message) {
     if (command?.name === 'auction') {
       const values = args(command.args);
       if (values.length < 3) {
-        return send(chatId, 'အသုံးပြုပုံ: /auction <starting_bid> <min_increment> <minutes> <title>\\nဥပမာ: /auction 10000 1000 30 Yae Miko Card', message.message_id);
+        return send(chatId, 'အသုံးပြုပုံ: /auction <starting_bid> <min_increment> <minutes> <title>\nဥပမာ: /auction 10000 1000 30 Yae Miko Card', message.message_id);
       }
       const media = message.reply_to_message;
       const mediaType = media?.photo?.length ? 'photo' : media?.video?.file_id ? 'video' : null;
       const fileId = mediaType === 'photo' ? media.photo[media.photo.length - 1].file_id : mediaType === 'video' ? media.video.file_id : null;
       const result = await createAuction({ actorId: from.id, chatId, startingBid: values[0], minIncrement: values[1], minutes: values[2], title: values.slice(3).join(' ') || 'Auction Item', mediaType, fileId });
-      return send(chatId, '✅ Auction created and posted.\\nAuction ID: ' + result.auctionId +
-        '\\nChannel: ' + result.channelId + '\\nEnds: ' + result.endAt, message.message_id);
+      return send(chatId, '✅ Auction created and posted.\nAuction ID: ' + result.auctionId +
+        '\nChannel: ' + result.channelId + '\nEnds: ' + result.endAt, message.message_id);
     }
     if (command?.name === 'auctionstatus') {
       if (!isConfiguredOwner(from.id)) throw new Error('OWNER_ONLY');
       const rows = await showAuctionStatus(command.args.trim() || null);
       if (!rows.length) return send(chatId, 'Auction record မရှိသေးပါ။', message.message_id);
-      return send(chatId, rows.map(a => '💎 ' + a.title + '\\nID: ' + a.auctionId + '\\nStatus: ' + a.status +
-        '\\nCurrent bid: ' + formatCoin(a.currentBid || a.startingBid) + ' Bal\\nBids: ' + a.totalBids +
-        '\\nHighest bidder: ' + (a.highestBidderName || a.highestBidderId || 'None') +
-        '\\nEnds: ' + (a.endAt ? new Date(a.endAt).toISOString() : '—')).join('\\n\\n'), message.message_id);
+      return send(chatId, rows.map(a => '💎 ' + a.title + '\nID: ' + a.auctionId + '\nStatus: ' + a.status +
+        '\nCurrent bid: ' + formatCoin(a.currentBid || a.startingBid) + ' Bal\nBids: ' + a.totalBids +
+        '\nHighest bidder: ' + (a.highestBidderName || a.highestBidderId || 'None') +
+        '\nEnds: ' + (a.endAt ? new Date(a.endAt).toISOString() : '—')).join('\n\n'), message.message_id);
     }
     if (command?.name === 'auctionfinish') {
       const result = await finalizeAuction(String(command.args || '').trim(), from.id, true);
       return send(chatId, result.duplicate ? 'ℹ️ Auction already finalized.' : '✅ Auction finalized: ' + result.auction.auctionId +
-        '\\nStatus: ' + result.auction.status, message.message_id);
+        '\nStatus: ' + result.auction.status, message.message_id);
     }
     if (command?.name === 'auctioncancel') {
       const result = await cancelAuction(String(command.args || '').trim(), from.id);
@@ -498,20 +498,20 @@ export default async function (message) {
       const auction = await findAuctionForReply(message);
       if (!auction) return send(chatId, 'Auction post ကို reply လုပ်ပြီး .bid <amount> သို့မဟုတ် amount တစ်ခု ပို့ပါ။', message.message_id);
       const result = await placeAuctionBid({ auction, telegramUser: from, amount: bidAmount, messageId: message.message_id, bidChatId: chatId });
-      return send(chatId, '✅ AUCTION BID ACCEPTED\\nAuction: ' + auction.auctionId +
-        '\\nNew bid: ' + formatCoin(result.auction.currentBid) + ' Bal' +
-        '\\nBalance: ' + formatCoin(result.balance) + ' Bal' +
-        (result.previousBidderId ? '\\nPrevious top bid refunded.' : ''), message.message_id);
+      return send(chatId, '✅ AUCTION BID ACCEPTED\nAuction: ' + auction.auctionId +
+        '\nNew bid: ' + formatCoin(result.auction.currentBid) + ' Bal' +
+        '\nBalance: ' + formatCoin(result.balance) + ' Bal' +
+        (result.previousBidderId ? '\nPrevious top bid refunded.' : ''), message.message_id);
     }
 
     if (command?.name === 'dailytournament' || command?.name === 'tournament') {
       if (!['group', 'supergroup'].includes(message.chat?.type)) return send(chatId, 'Daily Tournament ကို group ထဲမှာပဲ ကြည့်နိုင်ပါတယ်။', message.message_id);
       const rows = await getDailyTournament({ game: 'mines', chatId, limit: 10 });
-      if (!rows.length) return send(chatId, '🏆 BIKA Daily Mines Tournament\\nဒီနေ့ record မရှိသေးပါ။\\nစတင်ရန်: /mines 1000', message.message_id);
+      if (!rows.length) return send(chatId, '🏆 BIKA Daily Mines Tournament\nဒီနေ့ record မရှိသေးပါ။\nစတင်ရန်: /mines 1000', message.message_id);
       const lines = rows.map((row, i) => (i + 1) + '. ' + (row.username ? '@' + row.username : (row.firstName || 'Player ' + row.userId)) +
         ' — Profit: ' + formatCoin(row.score || 0) + ' Bal · Best: ' + formatCoin(row.bestWin || 0) +
         ' · Games: ' + Number(row.games || 0));
-      return send(chatId, '🏆 BIKA DAILY MINES TOURNAMENT\\n' + lines.join('\\n'), message.message_id);
+      return send(chatId, '🏆 BIKA DAILY MINES TOURNAMENT\n' + lines.join('\n'), message.message_id);
     }
 
     if (isTwoDBet) {
@@ -686,8 +686,8 @@ export default async function (message) {
       const transferId = 'tg:' + String(chatId) + ':' + String(message.message_id);
       const result = await transferByWalletId(from.id, transferArgs[0], transferArgs[1],
         { source: 'telegram_command', chatId, messageId: message.message_id }, 'wallet-transfer:' + from.id + ':' + transferId);
-      return send(chatId, '✅ Transfer complete\\nAmount: ' + formatCoin(result.amount) + ' Bal\\nYour balance: ' +
-        formatCoin(result.sender?.balance || 0) + ' Bal\\nRecipient: ' + (result.recipient?.walletId || transferArgs[0]), message.message_id);
+      return send(chatId, '✅ Transfer complete\nAmount: ' + formatCoin(result.amount) + ' Bal\nYour balance: ' +
+        formatCoin(result.sender?.balance || 0) + ' Bal\nRecipient: ' + (result.recipient?.walletId || transferArgs[0]), message.message_id);
     }
 
     const user = await ensureUser(from);
