@@ -68,8 +68,14 @@ async function connectTransactionHistory() {
     logger.info('DB Two transaction history is disabled; using legacy DB1 ledger.');
     return;
   }
-  if (!env.MONGO_URI_2) throw new Error('DB_TWO_ENABLED requires MONGO_URI_2');
-  if (!env.DB_TWO_NAME) throw new Error('DB_TWO_ENABLED requires DB_TWO_NAME');
+  if (!env.MONGO_URI_2) {
+    logger.error('DB_TWO_ENABLED is true but MONGO_URI_2 is missing; history writes stay disabled.');
+    return;
+  }
+  if (!env.DB_TWO_NAME) {
+    logger.error('DB_TWO_ENABLED is true but DB_TWO_NAME is missing; history writes stay disabled.');
+    return;
+  }
 
   historyClient = new MongoClient(env.MONGO_URI_2, { maxPoolSize: 10, minPoolSize: 0, retryWrites: true });
   try {
@@ -83,14 +89,13 @@ async function connectTransactionHistory() {
     historyClient = null;
     historyDb = null;
     historyReady = false;
-    // Do not silently fall back to DB1 for history writes when DB2 is requested.
-    // The bot may start for health/recovery access, but DB2 history functionality
-    // remains explicitly unavailable and must not accept money transactions.
-    logger.error('DB Two connection failed; history writes are disabled until MONGO_URI_2 is fixed.', err);
+    // Startup can finish for diagnosis/recovery, but money writes are gated by
+    // isHistoryReady() while DB2 is requested. Do not fall back to DB1 history.
+    logger.error('DB Two connection failed; history writes remain disabled until MONGO_URI_2 and its Atlas hostname are corrected.', err);
     return;
   }
 
-  // DB1 quota can block optional outbox-index creation even while read queries work.
+  // DB1 quota can block optional outbox-index creation even while reads work.
   await safeCreateIndex(db.collection(OUTBOX_COLLECTION), { status: 1, createdAt: 1 }, { name: 'tx_outbox_status_createdAt' });
   await safeCreateIndex(db.collection(OUTBOX_COLLECTION), { sourceId: 1 }, { unique: true, name: 'tx_outbox_sourceId_unique' });
 }
