@@ -8,6 +8,7 @@ const { col, withRequiredTx } = require('../../config/database');
 const { logTx } = require('../../services/transactionService');
 const { getUser } = require('../../services/economyService');
 const { getTreasury } = require('../../services/treasuryService');
+const { getLanguage, t } = require('../../services/i18nService');
 const { replyHTML } = require('../../utils/telegram');
 const { getBotInfo } = require('../../config/bot');
 const { fmt, formatYangon } = require('../../utils/format');
@@ -139,7 +140,7 @@ async function dailyClaim(ctx) {
 
       return replyHTML(ctx, dailySuccessText(ctx, result.amount, result.balance, now), options);
     } catch (err) {
-      if (String(err?.message||err) === 'DAILY_ALREADY_CLAIMED') return replyHTML(ctx, '⏳ ဒီနေ့ claim လုပ်ပြီးပြီလေ! တစ်ရက် ဘယ်နှကြိမ်ယူချင်နေတာလဲ လစ်လစ် နောက်နေ့မှ ပြန်လုပ်', options);
+      if (String(err?.message||err) === 'DAILY_ALREADY_CLAIMED') { const user = await getUser(userId); return replyHTML(ctx, t(getLanguage(user), 'daily_done'), options); }
       if (String(err?.message||err) === 'TREASURY_INSUFFICIENT') return replyHTML(ctx, '🏦 ဘဏ်ငွေလက်ကျန် မလုံလောက်လို့ daily claim မပေးနိုင်သေးပါ။', options);
       if (String(err?.message||err) === 'MONGO_TRANSACTIONS_REQUIRED') return replyHTML(ctx, '⚠️ Database transaction support မရသေးလို့ daily claim မလုပ်နိုင်သေးပါ။', options);
       return replyHTML(ctx, '⚠️ Daily claim error ဖြစ်လို့ ပြန်စမ်းကြည့်ပါ။', options);
