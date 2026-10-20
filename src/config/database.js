@@ -241,24 +241,6 @@ async function stopTransactionHistoryOutbox() {
 }
 
 
-async function pruneVerifiedLegacyLedger({ confirm = false } = {}) {
-  if (confirm !== true) throw new Error('EXPLICIT_CONFIRMATION_REQUIRED');
-  if (!env.DB_TWO_ENABLED || !historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
-  const stats = await getTransactionHistoryStats();
-  if (stats.outbox.pending > 0 || stats.target.count < stats.source.count) {
-    throw new Error('DB_TWO_HISTORY_NOT_FULLY_COPIED');
-  }
-  const report = await historyDb.collection('_migration_reports').findOne({
-    _id: 'initial-transactions-migration-v1',
-    verified: true,
-  });
-  if (!report) throw new Error('DB_TWO_MIGRATION_NOT_VERIFIED');
-  // Keep settlement markers in DB1: current retry/duplicate checks intentionally use the DB1 session.
-  // Do not drop the legacy source ledger automatically. Delete only after a
-  // separate reviewed cutover, backup, and exact document-level verification.
-  throw new Error('SOURCE_LEDGER_PRUNE_DISABLED: migration is copy-and-verify only in this branch');
-
-}
 
 async function connectMongo() {
   client = new MongoClient(env.MONGO_URI, { maxPoolSize: 20, minPoolSize: 1, retryWrites: true });
@@ -354,4 +336,4 @@ async function withRequiredTx(work) {
   } finally { try { await session.endSession(); } catch (_) {} }
 }
 async function pingMs(){ const s=Date.now(); try{ await getDb().command({ping:1}); return Date.now()-s; }catch(_){return null;} }
-module.exports = { connectMongo, closeMongo, getDb, col, withMaybeTx, withRequiredTx, pingMs, enqueueTransactionHistory, flushTransactionHistoryOutbox, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryStats, migrateTransactionHistory, pruneVerifiedLegacyLedger };
+module.exports = { connectMongo, closeMongo, getDb, col, withMaybeTx, withRequiredTx, pingMs, enqueueTransactionHistory, flushTransactionHistoryOutbox, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryStats, migrateTransactionHistory };
