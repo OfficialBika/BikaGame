@@ -124,7 +124,7 @@ async function getTransactionHistoryStats() {
   const reservations = historyDb.collection(TX_RESERVATIONS_COLLECTION);
   const [count, stats, prepared, reconciliationRequired, reservationCount] = await Promise.all([
     ledger.countDocuments({}),
-    ledger.stats().catch(() => null),
+    historyDb.command({ collStats: HISTORY_COLLECTION }).catch(() => null),
     journal.countDocuments({ status: 'prepared' }),
     journal.countDocuments({ status: 'reconciliation_required' }),
     reservations.countDocuments({}),
