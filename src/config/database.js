@@ -101,11 +101,22 @@ async function enqueueTransactionHistory(doc, session) {
   const createdAt = doc.createdAt instanceof Date ? doc.createdAt : new Date(doc.createdAt || Date.now());
   const outboxId = require('crypto').createHash('sha256').update(sourceId).digest('hex');
   const targetId = doc._id || sourceId;
-  return db.collection(OUTBOX_COLLECTION).updateOne(
-    { _id: outboxId },
-    { $setOnInsert: { sourceId, targetId, payload: { ...doc, createdAt }, createdAt, status: 'pending', attempts: 0 } },
-    { upsert: true, ...(session ? { session } : {}) },
-  );
+  try {
+    return await db.collection(OUTBOX_COLLECTION).updateOne(
+      { _id: outboxId },
+      { $setOnInsert: { sourceId, targetId, payload: { ...doc, createdAt }, createdAt, status: 'pending', attempts: 0 } },
+      { upsert: true, ...(session ? { session } : {}) },
+    );
+  } catch (err) {
+    // DB1 can accept reads but reject all writes after Atlas quota is exceeded.
+    // Callers must treat this as fatal inside transactional money flows so their
+    // balance/treasury changes roll back rather than recording an untracked ledger.
+    if (isStorageQuotaError(err)) {
+      logger.error('DB1 is write-blocked by Atlas storage quota; DB2 ledger enqueue did not persist.', err);
+      throw new Error('DB1_STORAGE_QUOTA_BLOCKED');
+    }
+    throw err;
+  }
 }
 
 async function initializeTransactionHistoryStorage() {
