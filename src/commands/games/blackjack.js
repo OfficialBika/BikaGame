@@ -609,6 +609,7 @@ module.exports = (bot) => {
       game.player.push(drawCard(game));
       game.dealer.push(drawCard(game));
 
+      await require('../../services/i18nService').getPreferredLanguage(userId);
       const sent = await replyHTML(
         ctx,
         gameTableText(
