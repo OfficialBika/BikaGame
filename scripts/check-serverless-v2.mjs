@@ -123,7 +123,7 @@ assert.match(maintenancePolicy, /function maintenanceActionAllowed/);
 assert.match(maintenancePolicy, /function maintenanceCallbackAllowed/);
 assert.match(callbacks, /maintenanceCallbackAllowed\(data\)/);
 assert.ok(maintenancePolicy.includes('dice:resume:'), 'Maintenance must permit only the explicit saved-roll resume callback');
-assert.ok(callbacks.includes("callback_data: 'dice:resume:' + arg), 'Dice settlement retry must use its maintenance-safe callback');
+assert.ok(callbacks.includes("callback_data: 'dice:resume:' + arg"), 'Dice settlement retry must use its maintenance-safe callback');
 assert.match(callbacks, /action === 'accept' \|\| action === 'resume'/, 'Dice settlement resume remains target-only');
 assert.match(callbacks, /if \(action === 'resume'\)[\s\S]*No saved roll result is available to resume/, 'resume must never accept a new wager');
 assert.match(maintenance, /getSetting\(KEY, false\)/);
