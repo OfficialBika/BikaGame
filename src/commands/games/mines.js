@@ -397,7 +397,7 @@ async function startMines(ctx, bot, parsed) {
       ctx,
       minesText(
         game,
-        `❔ Safe tile ကိုရွေးပါ။ ပထမ tile က safe protection ပါ၊ payout multiplier မတက်သေးပါ။ Cash Out က safe ${MIN_CASHOUT_SAFE_PICKS} ခုဖွင့်ပြီးမှပေါ်မယ်။`
+        `❔ Choose a safe tile. The first safe tile is free and does not increase the multiplier. At least ${MIN_CASHOUT_SAFE_PICKS} safe tiles must be opened before Cash Out.`
       ),
       {
         ...options,
@@ -524,7 +524,7 @@ module.exports = (bot) => {
 
       if (action === 'CASH') {
         if (!canCashOut(game)) {
-          await answerOnce(`Safe tile အနည်းဆုံး ${MIN_CASHOUT_SAFE_PICKS} ခုဖွင့်ပြီးမှ Cash Out လုပ်ပါ။`, { show_alert: true });
+          await answerOnce(`At least ${MIN_CASHOUT_SAFE_PICKS} safe tiles must be opened before Cash Out.`, { show_alert: true });
           return;
         }
 
@@ -558,7 +558,7 @@ module.exports = (bot) => {
           bot,
           game.chatId,
           game.messageId,
-          minesText(game, `💥 <b>BOOM!</b> Mine ထိသွားပါပြီ။\nLost: <b>${fmt(game.bet)}</b> ${COIN}`, true, 0),
+          minesText(game, `💥 <b>BOOM!</b> You hit a mine.\nLost: <b>${fmt(game.bet)}</b> ${COIN}`, true, 0),
           { reply_markup: minesKeyboard(game, true) },
           game.userId
         );
@@ -575,10 +575,10 @@ module.exports = (bot) => {
       await answerOnce(`Safe! x${currentMultiplier(game).toFixed(2)}`);
 
       const note = canCashOut(game)
-        ? '✅ Safe tile ဖွင့်ပြီးပါပြီ။ ဆက်ရွေးမလား Cash Out လုပ်မလား ရွေးပါ။'
+        ? '✅ Safe tile opened. Choose whether to continue or Cash Out.'
         : game.openedSafe.size <= FIRST_SAFE_FREE_PICKS
-          ? `✅ First safe ဖွင့်ပြီးပါပြီ။ ဒီ free safe ကို multiplier ထဲမတွက်ပါ။ Cash Out ပေါ်ဖို့ safe ${MIN_CASHOUT_SAFE_PICKS} ခုလိုပါတယ်။`
-          : `✅ Safe tile ဖွင့်ပြီးပါပြီ။ Cash Out ပေါ်ဖို့ safe ${MIN_CASHOUT_SAFE_PICKS} ခုလိုပါတယ်။ ဆက်ရွေးပါ သို့မဟုတ် Cancel / Refund လုပ်နိုင်ပါတယ်။`;
+          ? `✅ Safe tile opened. The first safe tile is free and does not increase the multiplier. At least ${MIN_CASHOUT_SAFE_PICKS} safe tiles must be opened before Cash Out.`
+          : `✅ Safe tile opened. At least ${MIN_CASHOUT_SAFE_PICKS} safe tiles must be opened before Cash Out. Continue, or choose Cancel / Refund.`;
 
       return editByIds(
         bot,
