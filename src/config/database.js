@@ -82,9 +82,10 @@ async function enqueueTransactionHistory(doc, session) {
   if (!sourceId || sourceId.startsWith('__settlement:')) return null;
   const createdAt = doc.createdAt instanceof Date ? doc.createdAt : new Date(doc.createdAt || Date.now());
   const outboxId = require('crypto').createHash('sha256').update(sourceId).digest('hex');
+  const targetId = doc._id || sourceId;
   return db.collection(OUTBOX_COLLECTION).updateOne(
     { _id: outboxId },
-    { $setOnInsert: { sourceId, payload: { ...doc, createdAt }, createdAt, status: 'pending', attempts: 0 } },
+    { $setOnInsert: { sourceId, targetId, payload: { ...doc, createdAt }, createdAt, status: 'pending', attempts: 0 } },
     { upsert: true, ...(session ? { session } : {}) },
   );
 }
@@ -110,7 +111,7 @@ async function flushTransactionHistoryOutbox({ batchSize = 100 } = {}) {
   for (const row of pending) {
     try {
       const payload = row.payload;
-      const targetId = payload._id || row.sourceId;
+      const targetId = row.targetId || payload._id || row.sourceId;
       await target.updateOne({ _id: targetId }, { $setOnInsert: payload }, { upsert: true });
       const verified = await target.findOne({ _id: targetId }, { projection: { _id: 1 } });
       if (!verified) throw new Error('DB_TWO_HISTORY_VERIFY_FAILED');
