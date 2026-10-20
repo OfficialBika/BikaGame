@@ -293,6 +293,24 @@ async function findTransactionHistoryByIdempotency(type, key) {
 async function assertNoUnresolvedTransactionJournal() {
   const cutoff = new Date(Date.now() - RECONCILIATION_GRACE_MS);
   const journal = historyDb.collection(TX_JOURNAL_COLLECTION);
+
+  // A previous process may have stopped after the DB1 transaction committed
+  // but before DB2's journal was finalized. Recover only journals older than
+  // the grace period; recent "prepared" entries may belong to another live
+  // bot instance. Never guess whether a DB1 transaction committed.
+  const stalePrepared = await journal.find({
+    status: 'prepared',
+    createdAt: { $lte: cutoff },
+  }).sort({ createdAt: 1 }).limit(10).toArray();
+
+  for (const record of stalePrepared) {
+    await setTransactionJournalState(
+      String(record._id),
+      'reconciliation_required',
+      new Error('Stale prepared journal found during startup/transaction guard; manual reconciliation is required.'),
+    );
+  }
+
   const unresolved = await journal.findOne({
     $or: [
       { status: 'reconciliation_required' },
