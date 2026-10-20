@@ -108,9 +108,7 @@ async function flushTransactionHistoryOutbox({ batchSize = 100, allowBeforeIniti
     try {
       const payload = row.payload;
       const targetId = row.targetId || payload._id || row.sourceId;
-      await target.updateOne({ _id: targetId }, { $setOnInsert: payload }, { upsert: true });
-      const verified = await target.findOne({ _id: targetId }, { projection: { _id: 1 } });
-      if (!verified) throw new Error('DB_TWO_HISTORY_VERIFY_FAILED');
+      await copyVerifiedHistoryDocument({ ...payload, _id: targetId });
       await outbox.updateOne({ _id: row._id, status: 'pending' }, { $set: { status: 'delivered', deliveredAt: new Date() }, $inc: { attempts: 1 } });
       processed += 1;
     } catch (err) {
@@ -279,6 +277,28 @@ async function migrateTransactionHistory({ batchSize = 100, maxDocuments = Infin
   return report;
 }
 
+async function copyVerifiedHistoryDocument(sourceDoc) {
+  if (!env.DB_TWO_ENABLED || !historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
+  const target = historyDb.collection(HISTORY_COLLECTION);
+  const targetId = sourceDoc._id;
+  await target.updateOne({ _id: targetId }, { $setOnInsert: sourceDoc }, { upsert: true });
+  const stored = await target.findOne({ _id: targetId });
+  if (!stored) throw new Error('DB_TWO_HISTORY_VERIFY_FAILED');
+  const stable = (value) => {
+    if (Array.isArray(value)) return value.map(stable);
+    if (value && typeof value === 'object' && !(value instanceof Date) && !Buffer.isBuffer(value)) {
+      return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
+    }
+    if (value instanceof Date) return { __date: value.toISOString() };
+    if (Buffer.isBuffer(value)) return { __buffer: value.toString('base64') };
+    return value;
+  };
+  if (JSON.stringify(stable(sourceDoc)) !== JSON.stringify(stable(stored))) {
+    throw new Error('DB_TWO_HISTORY_CONTENT_MISMATCH');
+  }
+  return { verified: true, id: String(targetId) };
+}
+
 async function getTransactionHistoryCollection() {
   if (env.DB_TWO_ENABLED) {
     if (!historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
@@ -405,4 +425,4 @@ async function withRequiredTx(work) {
   } finally { try { await session.endSession(); } catch (_) {} }
 }
 async function pingMs(){ const s=Date.now(); try{ await getDb().command({ping:1}); return Date.now()-s; }catch(_){return null;} }
-module.exports = { connectMongo, closeMongo, getDb, col, withMaybeTx, withRequiredTx, pingMs, enqueueTransactionHistory, flushTransactionHistoryOutbox, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryCollection, getTransactionHistoryStats, initializeTransactionHistoryStorage, hasVerifiedInitialMigration, migrateTransactionHistory };
+module.exports = { connectMongo, closeMongo, getDb, col, withMaybeTx, withRequiredTx, pingMs, enqueueTransactionHistory, flushTransactionHistoryOutbox, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryCollection, getTransactionHistoryStats, initializeTransactionHistoryStorage, hasVerifiedInitialMigration, copyVerifiedHistoryDocument, migrateTransactionHistory };
