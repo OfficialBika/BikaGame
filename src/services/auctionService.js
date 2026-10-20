@@ -1,6 +1,6 @@
 'use strict';
 
-const { col, withRequiredTx } = require('../config/database');
+const { col, withRequiredTx, safeCreateIndex } = require('../config/database');
 const userModel = require('../models/userModel');
 const { ensureTreasury } = require('./treasuryService');
 const treasuryModel = require('../models/treasuryModel');
@@ -715,12 +715,12 @@ async function init(bot) {
     return () => {};
   }
 
-  await auctions().createIndex({ auctionId: 1 }, { unique: true, name: 'auctions_id_unique' });
-  await auctions().createIndex({ channelId: 1, status: 1, endAt: 1 }, { name: 'auctions_active_end' });
-  await auctions().createIndex({ channelMessageId: 1 }, { unique: true, sparse: true, name: 'auctions_channel_message_unique' });
-  await auctionBids().createIndex({ auctionId: 1, createdAt: 1 }, { name: 'auction_bids_time' });
-  await auctionBids().createIndex({ auctionId: 1, messageId: 1 }, { unique: true, name: 'auction_bids_message_unique' });
-  await auctions().createIndex({ status: 1, historyExpiresAt: 1 }, { name: 'auctions_history_expiry' });
+  await safeCreateIndex(auctions(), { auctionId: 1 }, { unique: true, name: 'auctions_id_unique' });
+  await safeCreateIndex(auctions(), { channelId: 1, status: 1, endAt: 1 }, { name: 'auctions_active_end' });
+  await safeCreateIndex(auctions(), { channelMessageId: 1 }, { unique: true, sparse: true, name: 'auctions_channel_message_unique' });
+  await safeCreateIndex(auctionBids(), { auctionId: 1, createdAt: 1 }, { name: 'auction_bids_time' });
+  await safeCreateIndex(auctionBids(), { auctionId: 1, messageId: 1 }, { unique: true, name: 'auction_bids_message_unique' });
+  await safeCreateIndex(auctions(), { status: 1, historyExpiresAt: 1 }, { name: 'auctions_history_expiry' });
 
   let busy = false;
   const lastCountdownBucket = new Map();
