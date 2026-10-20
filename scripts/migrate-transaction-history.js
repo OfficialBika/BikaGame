@@ -129,15 +129,36 @@ async function runMigration(sourceDb, targetDb, { batchSize, verifyOnly }) {
     const sourceDb = sourceClient.db(process.env.DB_NAME || 'bika_slot');
     const targetDb = targetClient.db(process.env.DB_TWO_NAME);
     await Promise.all([sourceDb.command({ ping: 1 }), targetDb.command({ ping: 1 })]);
-    console.log('Starting DB1(read-only) -> DB2 transaction history migration.');
-    console.log('DB1 source documents will not be updated or deleted.');
+    console.log('Starting DB1(read-only) -> DB2 retained transaction history verification (30 days).');
+    console.log('DB1 source documents are never updated or deleted by this script.');
     const report = await runMigration(sourceDb, targetDb, args);
     console.log(JSON.stringify(report, null, 2));
     if (!report.verified) {
-      console.error('Verification failed. Keep DB1 data intact and do not cut over.');
+      console.error('Retained history verification failed. DB1 data remains intact; cutover is not verified.');
       exitCode = 2;
     } else {
-      console.log('Source/target content verification passed. No DB1 data was deleted.');
+      if (!args.verifyOnly) {
+        const migrationCollection = targetDb.collection('_migration_reports');
+        await migrationCollection.updateOne(
+          { _id: 'initial-transactions-migration-v1' },
+          { $set: {
+            migration: 'transactions-v1',
+            policy: { retentionDays: 30, scope: 'createdAt-gte-cutoff', preservesOlderDb2History: true },
+            source: { countBefore: report.source.countBefore, countAfter: report.source.countAfter, retainedCount: report.source.retainedCountAfter },
+            target: { countBefore: report.target.countBefore, countAfter: report.target.countAfter, retainedCount: report.target.retainedCountAfter },
+            copied: { attempted: report.copied, missing: report.missing, mismatched: report.mismatched, pendingOutbox: report.pendingOutbox },
+            verified: true,
+            sourceStable: report.sourceStable,
+            checkedAt: new Date(report.checkedAt),
+            status: 'verified',
+          } },
+          { upsert: true },
+        );
+        console.log('Verified retained 30-day history and saved the migration policy marker.');
+      } else {
+        console.log('Retained history verification passed (read-only; no migration marker changed).');
+      }
+      console.log('No DB1 data was deleted.');
     }
   } catch (err) {
     console.error('HISTORY_MIGRATION_FAILED:', err?.stack || err);
