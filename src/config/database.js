@@ -251,7 +251,7 @@ async function getTransactionHistoryCollection() {
     if (!historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
     return historyDb.collection(HISTORY_COLLECTION);
   }
-  return collections.transactions;
+  return db.collection('transactions');
 }
 
 async function getTransactionHistoryDb() {
