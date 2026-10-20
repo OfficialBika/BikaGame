@@ -11,6 +11,7 @@ const { getDb } = require('../../config/database');
 const { ensureTreasury, isOwner } = require('../../services/treasuryService');
 const { replyHTML } = require('../../utils/telegram');
 const { fmt } = require('../../utils/format');
+const { localizeForUser } = require('../../services/i18nService');
 
 const activeGames = new Map();
 const activeUsers = new Map();
@@ -675,19 +676,19 @@ module.exports = (bot) => {
     }
 
     if (ctx.from?.id !== game.userId) {
-      await ctx.answerCbQuery('ဒီ Blackjack button ကို သက်ဆိုင်တဲ့ user ပဲနှိပ်နိုင်ပါတယ်။', {
+      await ctx.answerCbQuery(await localizeForUser(ctx.from?.id, 'ဒီ Blackjack button ကို သက်ဆိုင်တဲ့ user ပဲနှိပ်နိုင်ပါတယ်။'), {
         show_alert: true,
       }).catch(() => {});
       return;
     }
 
     if (game.processing) {
-      await ctx.answerCbQuery('Processing... ခဏစောင့်ပါ။').catch(() => {});
+      await ctx.answerCbQuery(await localizeForUser(ctx.from?.id, 'Processing... ခဏစောင့်ပါ။')).catch(() => {});
       return;
     }
 
     game.processing = true;
-    await ctx.answerCbQuery(action === 'HIT' ? 'Card drawn.' : 'Stand.').catch(() => {});
+    await ctx.answerCbQuery(await localizeForUser(ctx.from?.id, action === 'HIT' ? 'Card drawn.' : 'Stand.')).catch(() => {});
 
     try {
       if (action === 'HIT') {
