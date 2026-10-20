@@ -178,10 +178,15 @@ async function migrateTransactionHistory({ batchSize = 100, maxDocuments = Infin
   const target = historyDb.collection(HISTORY_COLLECTION);
   const sourceCount = await source.countDocuments({});
   const targetCountBefore = await target.countDocuments({});
+  const startReport = await historyDb.collection('_migration_reports').findOne({ _id: 'initial-transactions-migration-v1' });
   let copied = 0;
-  let lastId = null;
+  // Keyset pagination is safe for ObjectId-backed ledger records. Legacy records
+  // use both ObjectId and string IDs; sort and resume by _id without assuming type.
+  let lastId = startReport?.lastCopiedId ?? null;
 
   while (copied < maxDocuments) {
+    // Skip only documents already acknowledged by the checkpoint; IDs can be
+    // mixed BSON types, so checkpoint paging uses the last _id and Mongo sort.
     const filter = lastId == null ? {} : { _id: { $gt: lastId } };
     const docs = await source.find(filter).sort({ _id: 1 })
       .limit(Math.min(batchSize, maxDocuments - copied)).toArray();
@@ -192,6 +197,11 @@ async function migrateTransactionHistory({ batchSize = 100, maxDocuments = Infin
     await target.bulkWrite(ops, { ordered: false });
     copied += docs.length;
     lastId = docs[docs.length - 1]._id;
+    await historyDb.collection('_migration_reports').updateOne(
+      { _id: 'initial-transactions-migration-v1' },
+      { $set: { lastCopiedId: lastId, copiedSoFar: copied, updatedAt: new Date(), status: 'copying' } },
+      { upsert: true },
+    );
   }
 
   let missing = 0;
