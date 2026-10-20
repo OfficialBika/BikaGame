@@ -25,7 +25,7 @@ const groups = [
     label: 'Global maintenance mode',
     status: 'preview-implemented-needs-runtime-test',
     features: ['/off enables maintenance', '/on disables maintenance', '/maintenance on|off|status', 'Persisted setting with read-after-write verification', 'Owner-only bypass for messages and callbacks', 'Successful-payment updates still credited'],
-    detail: 'Maintenance state is stored in the isolated settings table. Main-compatible /off turns maintenance ON and /on turns it OFF; explicit /maintenance on|off|status removes ambiguity. Non-owner commands and callbacks are blocked while ON, owner controls remain available, and successful Telegram payment updates are processed before the gate. Mini App HTTP endpoint-wide enforcement and test-bot runtime checks remain a release gate.',
+    detail: 'Maintenance state is stored in the isolated settings table. Main-compatible /off turns maintenance ON and /on turns it OFF; explicit /maintenance on|off|status removes ambiguity. Non-owner commands and callbacks are blocked while ON, owner controls remain available, and successful Telegram payment updates are processed before the gate. The shared Mini App dispatch path applies the maintenance gate to its actions, and the Stars invoice route checks maintenance separately. Provider/runtime smoke tests and end-to-end test-bot checks remain a release gate.',
   },
   {
     id: 'game-controls',
@@ -51,9 +51,9 @@ const groups = [
   {
     id: 'auction',
     label: 'Auction',
-    status: 'schema-only',
-    features: ['Auction creation and bids', 'Escrow holds and bidder refunds', 'Auction expiry/finalization', 'Discussion thread bid handling'],
-    detail: 'Auction tables exist, but the creation, bid/escrow/refund workflow and retry-safe scheduled finalization are not ported. Exact timer parity needs a scheduler or a runtime with persistent workers.',
+    status: 'implemented-needs-runtime-test',
+    features: ['Owner-only text/photo/video auction posting', 'Reply-based bids with minimum increment', 'Ledger-backed bid debit and previous-bid refund', 'Idempotent seller payout and cancellation refund', 'Expiry reconciliation on inbound updates'],
+    detail: 'V2 has owner-only auction creation/posting, reply-based bids, ledger-backed bid transitions with prior top-bid refunds, idempotent seller payout/cancellation refund, and expiry reconciliation. It has no persistent scheduler, so finalization waits for an inbound update rather than running at the exact deadline. Telegram, concurrency/restart, retry/replay, treasury and deadline tests remain; this is not yet production parity.',
   },
   {
     id: 'group-approval',
@@ -72,9 +72,9 @@ const groups = [
   {
     id: 'other-main-features',
     label: 'Remaining main features',
-    status: 'schema-foundation',
-    features: ['Sports betting/events', 'Tournaments', 'Promo RTP', 'Admin/owner controls', 'Shop/inventory/sell', 'Scheduled/background jobs', 'Production data import'],
-    detail: 'Schema or partial route presence is not feature parity. Mini App wallet transfer has a single-row atomic ledger implementation; Auctions, 2D, sports betting, full shop/inventory/sell, tournament parity, background scheduling, handlers, configuration, migrations, import, and behavioral tests remain required.',
+    status: 'partial-services-present',
+    features: ['Sports event creation, betting and settlement', 'Daily tournament tracking', 'Promo and web-game RTP settings', 'Shop, inventory, exchange orders and sell-order services', 'Scheduled/background jobs', 'Production data import'],
+    detail: 'Sports event, daily tournament, promo RTP and commerce service code is present in V2, and auction/2D flows are implemented to varying levels. Presence of service code does not prove main-branch behavioral parity: permissions, all aliases/handlers, retry/concurrency behavior, scheduler guarantees, real Telegram integration, migration/reconciliation and rollback testing remain incomplete.',
   },
 ];
 export function getFeatureStatus() {
