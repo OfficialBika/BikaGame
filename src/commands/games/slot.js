@@ -160,7 +160,7 @@ module.exports = (bot) => {
     if (!Number.isInteger(bet) || bet <= 0) {
       return replyHTML(
         ctx,
-        '⚠️ Bet amount မမှန်ပါ။ Example: <code>.slot 1000</code>',
+        '⚠️ Invalid bet amount. Example: <code>.slot 1000</code>',
         options
       );
     }
@@ -192,7 +192,7 @@ module.exports = (bot) => {
     const cooldownLeft = checkCooldown(`slot:${userId}`, cooldownSeconds);
 
     if (cooldownLeft > 0) {
-      return replyHTML(ctx, `⏳ ခဏစောင့်ပါ… (${cooldownLeft}s)`, options);
+      return replyHTML(ctx, `⏳ Please wait… (${cooldownLeft}s)`, options);
     }
 
     activeSlots.add(userId);
@@ -223,7 +223,7 @@ module.exports = (bot) => {
           bot,
           chatId,
           sent.message_id,
-          '⚠️ User data မတွေ့ပါ။ Bot ကို <code>/start</code> အရင်လုပ်ပါ။',
+          '⚠️ User data not found. Please run <code>/start</code> first.',
           {}, userId
         );
       }
@@ -280,7 +280,7 @@ module.exports = (bot) => {
         const message = String(settlementErr?.message || '');
 
         if (message === 'USER_INSUFFICIENT') {
-          return editByIds(bot, chatId, sent.message_id, '❌ Balance မလုံလောက်ပါ။', {}, userId);
+          return editByIds(bot, chatId, sent.message_id, '❌ Insufficient balance.', {}, userId);
         }
 
         return editByIds(
