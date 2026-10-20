@@ -166,18 +166,18 @@ export default async function (query) {
       if (message?.chat?.type !== 'private') throw new Error('SHOP_PRIVATE_CHAT_REQUIRED');
       const card = await getShopCard(arg);
       if (!card || card.status !== 'AVAILABLE') throw new Error('SHOP_CARD_UNAVAILABLE');
-      text = '🎁 CARD EXCHANGE PREVIEW\\n━━━━━━━━━━━━━━━━\\n' +
-        'Bot: ' + String(card.botKey || 'BIKA') + '\\nCard: ' + String(card.name || card.cardId) +
-        '\\nCard ID: ' + String(card.cardId) + '\\nRarity: ' + String(card.rarity) +
-        '\\nPrice: ' + Number(card.price || 0).toLocaleString('en-US') + ' Bal\\n' +
-        '\\nConfirm လုပ်ပြီး Owner approve ဖြစ်မှ inventory ထဲဝင်ပါမယ်။';
+      text = '🎁 CARD EXCHANGE PREVIEW\n━━━━━━━━━━━━━━━━\n' +
+        'Bot: ' + String(card.botKey || 'BIKA') + '\nCard: ' + String(card.name || card.cardId) +
+        '\nCard ID: ' + String(card.cardId) + '\nRarity: ' + String(card.rarity) +
+        '\nPrice: ' + Number(card.price || 0).toLocaleString('en-US') + ' Bal\n' +
+        '\nConfirm လုပ်ပြီး Owner approve ဖြစ်မှ inventory ထဲဝင်ပါမယ်။';
       markup = { inline_keyboard: [[
         { text: '✅ Confirm Exchange', callback_data: 'shop:buy:' + card.id },
         { text: '⬅️ Back to Shop', callback_data: 'shop:back:0' },
       ]] };
     } else if (game === 'shop' && action === 'back') {
       const rows = await listAvailableShopCards(25);
-      text = '🎁 BIKA Card Shop\\nCard တစ်ခုရွေးပါ။';
+      text = '🎁 BIKA Card Shop\nCard တစ်ခုရွေးပါ။';
       markup = { inline_keyboard: rows.reduce((out, card, index) => {
         if (index % 2 === 0) out.push([]);
         out[out.length - 1].push({ text: String(card.botKey || 'BIKA') + ' · ' + String(card.rarity) + ' · #' + card.id, callback_data: 'shop:view:' + card.id });
@@ -191,8 +191,8 @@ export default async function (query) {
         try {
           await api.sendMessage({
             chat_id: Number(SERVERLESS_OWNER_TELEGRAM_ID),
-            text: '🎁 New Card Exchange\\nOrder: ' + order.id + '\\nUser: ' + order.userId +
-              '\\nItem: ' + (order.meta?.name || order.itemId) + '\\nPrice: ' + Number(order.amount).toLocaleString('en-US') + ' Bal',
+            text: '🎁 New Card Exchange\nOrder: ' + order.id + '\nUser: ' + order.userId +
+              '\nItem: ' + (order.meta?.name || order.itemId) + '\nPrice: ' + Number(order.amount).toLocaleString('en-US') + ' Bal',
             reply_markup: { inline_keyboard: [[
               { text: '✅ Approve', callback_data: 'shopadmin:approve:' + order.id },
               { text: '❌ Cancel + Refund', callback_data: 'shopadmin:cancel:' + order.id },
@@ -201,33 +201,33 @@ export default async function (query) {
         } catch (error) { console.warn('BIKA_SHOP_OWNER_ALERT_FAILED', String(error?.message || error)); }
       }
       markup = { inline_keyboard: [] };
-      text = '✅ Exchange request created\\nOrder: ' + order.id + '\\nReceipt: ' + String(order.receiptCode || '—') +
-        '\\nPrice: ' + Number(order.amount).toLocaleString('en-US') + ' Bal\\nStatus: PENDING OWNER APPROVAL';
+      text = '✅ Exchange request created\nOrder: ' + order.id + '\nReceipt: ' + String(order.receiptCode || '—') +
+        '\nPrice: ' + Number(order.amount).toLocaleString('en-US') + ' Bal\nStatus: PENDING OWNER APPROVAL';
     } else if (game === 'shop' && action === 'myorders') {
       const rows = await listUserShopOrders(user.id, 10);
-      text = rows.length ? '📦 MY SHOP ORDERS\\n' + rows.map((order, i) => (i + 1) + '. ' + order.id +
-        ' · ' + String(order.status).toUpperCase() + ' · ' + Number(order.amount).toLocaleString('en-US') + ' Bal').join('\\n')
-        : '📦 My Orders\\nOrder မရှိသေးပါ။';
+      text = rows.length ? '📦 MY SHOP ORDERS\n' + rows.map((order, i) => (i + 1) + '. ' + order.id +
+        ' · ' + String(order.status).toUpperCase() + ' · ' + Number(order.amount).toLocaleString('en-US') + ' Bal').join('\n')
+        : '📦 My Orders\nOrder မရှိသေးပါ။';
     } else if (game === 'shop' && action === 'inventory') {
       const rows = await listUserInventory(user.id, 50);
-      text = rows.length ? '🎒 INVENTORY\\n' + rows.map((card, i) => (i + 1) + '. ' + (card.name || card.cardId) +
-        ' · ' + card.botKey + ' · ' + card.rarity).join('\\n') : '🎒 Inventory\\nOwned card မရှိသေးပါ။';
+      text = rows.length ? '🎒 INVENTORY\n' + rows.map((card, i) => (i + 1) + '. ' + (card.name || card.cardId) +
+        ' · ' + card.botKey + ' · ' + card.rarity).join('\n') : '🎒 Inventory\nOwned card မရှိသေးပါ။';
     } else if (game === 'shopadmin' && (action === 'approve' || action === 'cancel')) {
       const result = action === 'approve'
         ? await approveShopOrder({ actorId: user.id, orderId: arg })
         : await cancelShopOrder({ actorId: user.id, orderId: arg });
       markup = { inline_keyboard: [] };
       text = action === 'approve'
-        ? '✅ Shop order approved\\nOrder: ' + arg + '\\nCard ကို inventory ထဲထည့်ပြီးပါပြီ။'
-        : '❌ Shop order cancelled\\nOrder: ' + arg + '\\nRefund: ' + Number(result.order?.amount || 0).toLocaleString('en-US') + ' Bal';
+        ? '✅ Shop order approved\nOrder: ' + arg + '\nCard ကို inventory ထဲထည့်ပြီးပါပြီ။'
+        : '❌ Shop order cancelled\nOrder: ' + arg + '\nRefund: ' + Number(result.order?.amount || 0).toLocaleString('en-US') + ' Bal';
     } else if (game === 'selladmin' && (action === 'approve' || action === 'cancel')) {
       const result = action === 'approve'
         ? await approveSellOrder({ actorId: user.id, orderId: arg })
         : await cancelSellOrder({ actorId: user.id, orderId: arg });
       markup = { inline_keyboard: [] };
       text = action === 'approve'
-        ? '✅ Sell order approved\\nOrder: ' + arg + '\\nPaid: ' + Number(result.order?.price || 0).toLocaleString('en-US') + ' Bal'
-        : '❌ Sell order cancelled\\nOrder: ' + arg;
+        ? '✅ Sell order approved\nOrder: ' + arg + '\nPaid: ' + Number(result.order?.price || 0).toLocaleString('en-US') + ' Bal'
+        : '❌ Sell order cancelled\nOrder: ' + arg;
     } else if (game === 'dice' && (action === 'accept' || action === 'cancel')) {
       let callbackAnswered = false;
       try {
