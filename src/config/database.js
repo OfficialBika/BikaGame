@@ -60,9 +60,15 @@ async function connectTransactionHistory() {
   await historyClient.connect();
   historyDb = historyClient.db(env.DB_TWO_NAME);
   await historyDb.command({ ping: 1 });
-  await safeCreateIndex(historyDb.collection(HISTORY_COLLECTION), { createdAt: -1 }, { name: 'tx_history_createdAt_desc' });
-  await safeCreateIndex(historyDb.collection(HISTORY_COLLECTION), { userId: 1, createdAt: -1 }, { name: 'tx_history_user_createdAt' });
-  await safeCreateIndex(historyDb.collection(HISTORY_COLLECTION), { type: 1, 'meta.eventId': 1, toUserId: 1 }, { name: 'tx_history_type_event_toUser' });
+
+  // History collections may not exist on a fresh Atlas cluster. Avoid requiring
+  // index creation against DB2 until an explicit migration creates the collection.
+  const existing = await historyDb.listCollections({ name: HISTORY_COLLECTION }, { nameOnly: true }).hasNext();
+  if (existing) {
+    await safeCreateIndex(historyDb.collection(HISTORY_COLLECTION), { createdAt: -1 }, { name: 'tx_history_createdAt_desc' });
+    await safeCreateIndex(historyDb.collection(HISTORY_COLLECTION), { userId: 1, createdAt: -1 }, { name: 'tx_history_user_createdAt' });
+    await safeCreateIndex(historyDb.collection(HISTORY_COLLECTION), { type: 1, 'meta.eventId': 1, toUserId: 1 }, { name: 'tx_history_type_event_toUser' });
+  }
   await safeCreateIndex(db.collection(OUTBOX_COLLECTION), { status: 1, createdAt: 1 }, { name: 'tx_outbox_status_createdAt' });
   await safeCreateIndex(db.collection(OUTBOX_COLLECTION), { sourceId: 1 }, { unique: true, name: 'tx_outbox_sourceId_unique' });
   historyReady = true;
