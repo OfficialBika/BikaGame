@@ -187,6 +187,11 @@ function translateText(language, text) {
   }
   return result;
 }
+function translateCachedText(userId, text) {
+  const entry = userId == null ? null : languageCache.get(String(userId));
+  const language = entry && entry.expiresAt > Date.now() ? entry.language : DEFAULT_LANGUAGE;
+  return translateText(language, text);
+}
 function rememberLanguage(userId, language) {
   const code = normalizeLanguage(language);
   if (code && userId != null) languageCache.set(String(userId), { language: code, expiresAt: Date.now() + LANGUAGE_CACHE_TTL_MS });
@@ -209,4 +214,4 @@ async function localizeForUser(userId, text) {
   return translateText(await getPreferredLanguage(userId), text);
 }
 
-module.exports = { LANGUAGES, DEFAULT_LANGUAGE, normalizeLanguage, getLanguage, t, languageKeyboard, mainMenuKeyboard, languagePickerText, MESSAGES, translateText, rememberLanguage, getPreferredLanguage, localizeForUser };
+module.exports = { LANGUAGES, DEFAULT_LANGUAGE, normalizeLanguage, getLanguage, t, languageKeyboard, mainMenuKeyboard, languagePickerText, MESSAGES, translateText, translateCachedText, rememberLanguage, getPreferredLanguage, localizeForUser };
