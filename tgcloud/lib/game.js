@@ -2,7 +2,7 @@ import { db, EndpointError } from 'sdk';
 import { and, desc, eq, gte, sql } from 'sdk/db';
 import { gameHistory, gameSessions, users } from '../schema.js';
 import { ensureEconomy, ensureUser, userById as accountUserById, debit as ledgerDebit, credit as ledgerCredit, settleSingleGame, settleAward, getTreasury, getSetting, consumeCooldown, getTransaction, hasIdempotencyKey, recordGame as ledgerRecordGame } from './economy.js';
-import { spin as slotSpinEngine, multiplier as slotMultiplier, art as slotArt } from './slotEngine.js';
+import { spin as slotSpinEngine, multiplier as slotMultiplier, art as slotArt } from './slotPolicy.js';
 import { getActivePromoRtp } from './eventMarkets.js';
 import { MINES_RULES, normalizeMineCount, generateMineLayout, calculateMinesMultiplier, canCashOutMines, minesExpiryTime, isMinesExpired } from './minesPolicy.js';
 
