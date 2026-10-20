@@ -42,7 +42,9 @@ module.exports = async (ctx, next) => {
    * Always allow owner/group approval commands to reach the command handler.
    * This prevents /approve from being blocked before it can reply.
    */
-  if (!isCallback && isApprovalCommand(text)) {
+  // /daily only redirects users to the bot DM; it does not run a group claim.
+  // Let it reach the command handler even when this group is not approved.
+  if (!isCallback && (isApprovalCommand(text) || normalizeCommand(text) === '/daily')) {
     return next();
   }
 
