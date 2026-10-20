@@ -1,6 +1,7 @@
 import { EndpointError } from 'sdk';
 import { getSetting, setSetting } from './economy.js';
 import { normalizeGameKey } from './gameControlNames.js';
+import { enabledFromSetting } from './gameControlsPolicy.js';
 import { SERVERLESS_OWNER_TELEGRAM_ID } from './config.js';
 
 const settingKey = (game) => 'game_enabled:' + game;
@@ -8,11 +9,6 @@ const settingKey = (game) => 'game_enabled:' + game;
 function configuredOwnerId() {
   const value = Number(SERVERLESS_OWNER_TELEGRAM_ID);
   return Number.isSafeInteger(value) && value > 0 ? value : null;
-}
-
-function enabledFromSetting(value) {
-  if (value && typeof value === 'object') return value.enabled !== false;
-  return value !== false;
 }
 
 export async function getGameState(game) {
