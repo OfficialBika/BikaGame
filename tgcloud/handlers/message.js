@@ -233,10 +233,10 @@ export default async function (message) {
       const amount = Number(String(command.args || '').replace(/,/g, '').trim());
       try {
         const result = await createGiftRequest({ sender: from, recipient: target, chatId, messageId: message.message_id, amount });
-        return send(chatId, '🎁 Gift Confirm\\n━━━━━━━━━━━━━━━━\\nFrom: ' +
+        return send(chatId, '🎁 Gift Confirm\n━━━━━━━━━━━━━━━━\nFrom: ' +
           (from.username ? '@' + from.username : String(from.first_name || from.id)) +
-          '\\nTo: ' + (target.username ? '@' + target.username : String(target.first_name || target.id)) +
-          '\\nAmount: ' + formatCoin(result.amount) + ' Bal\\n\\nConfirm နှိပ်မှ Balance လွှဲပါမယ်။ 60 seconds အတွင်း အတည်ပြုပါ။',
+          '\nTo: ' + (target.username ? '@' + target.username : String(target.first_name || target.id)) +
+          '\nAmount: ' + formatCoin(result.amount) + ' Bal\n\nConfirm နှိပ်မှ Balance လွှဲပါမယ်။ 60 seconds အတွင်း အတည်ပြုပါ။',
           message.message_id, keyboard([[
             { text: '✅ Confirm Gift', callback_data: 'gift:confirm:' + result.id },
             { text: '❌ Cancel', callback_data: 'gift:cancel:' + result.id },
