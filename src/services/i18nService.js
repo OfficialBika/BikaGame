@@ -151,6 +151,21 @@ const PHRASES = {
   'Min:': { my:'အနည်းဆုံး:', en:'Min:', cn:'最低：', jp:'最小：', kr:'최소:', fr:'Min. :', ru:'Мин.:', hi:'न्यूनतम:', ar:'الحد الأدنى:' },
   'Max:': { my:'အများဆုံး:', en:'Max:', cn:'最高：', jp:'最大：', kr:'최대:', fr:'Max. :', ru:'Макс.:', hi:'अधिकतम:', ar:'الحد الأقصى:' },
   'Invalid language': { my:'ဘာသာစကား မမှန်ပါ။', en:'Invalid language.', cn:'语言无效。', jp:'言語が無効です。', kr:'잘못된 언어입니다.', fr:'Langue invalide.', ru:'Неверный язык.', hi:'अमान्य भाषा।', ar:'اللغة غير صالحة.' },
+  '🎁 <b>Daily Claim Success</b>': { my:'🎁 <b>နေ့စဉ်ဆု ရယူအောင်မြင်ပါပြီ</b>', en:'🎁 <b>Daily Claim Success</b>', cn:'🎁 <b>每日奖励领取成功</b>', jp:'🎁 <b>デイリー報酬を受け取りました</b>', kr:'🎁 <b>일일 보상 수령 완료</b>', fr:'🎁 <b>Récompense quotidienne reçue</b>', ru:'🎁 <b>Ежедневная награда получена</b>', hi:'🎁 <b>दैनिक इनाम प्राप्त हुआ</b>', ar:'🎁 <b>تم استلام المكافأة اليومية</b>' },
+  'Reward:': { my:'ဆု:', en:'Reward:', cn:'奖励：', jp:'報酬：', kr:'보상:', fr:'Récompense :', ru:'Награда:', hi:'इनाम:', ar:'المكافأة:' },
+  'Balance:': { my:'လက်ကျန်ငွေ:', en:'Balance:', cn:'余额：', jp:'残高：', kr:'잔액:', fr:'Solde :', ru:'Баланс:', hi:'बैलेंस:', ar:'الرصيد:' },
+  '✅ WIN': { my:'✅ အနိုင်ရ', en:'✅ WIN', cn:'✅ 获胜', jp:'✅ 勝利', kr:'✅ 승리', fr:'✅ GAGNÉ', ru:'✅ ПОБЕДА', hi:'✅ जीत', ar:'✅ فوز' },
+  '❌ LOSE': { my:'❌ ရှုံး', en:'❌ LOSE', cn:'❌ 失败', jp:'❌ 敗北', kr:'❌ 패배', fr:'❌ PERDU', ru:'❌ ПОРАЖЕНИЕ', hi:'❌ हार', ar:'❌ خسارة' },
+  '🏆 JACKPOT 777!': { my:'🏆 JACKPOT 777!', en:'🏆 JACKPOT 777!', cn:'🏆 777大奖！', jp:'🏆 777ジャックポット！', kr:'🏆 777 잭팟!', fr:'🏆 JACKPOT 777 !', ru:'🏆 ДЖЕКПОТ 777!', hi:'🏆 जैकपॉट 777!', ar:'🏆 جائزة كبرى 777!' },
+  '✅ TWO MATCH WIN': { my:'✅ နှစ်ခုတူ အနိုင်ရ', en:'✅ TWO MATCH WIN', cn:'✅ 两个相同，获胜', jp:'✅ 2つ一致で勝利', kr:'✅ 두 개 일치 승리', fr:'✅ GAGNÉ — DEUX IDENTIQUES', ru:'✅ ДВА СОВПАДЕНИЯ — ПОБЕДА', hi:'✅ दो मिलान — जीत', ar:'✅ تطابقان — فوز' },
+  'Cash Out Success!': { my:'ငွေထုတ်ယူမှု အောင်မြင်ပါပြီ!', en:'Cash Out Success!', cn:'提现成功！', jp:'キャッシュアウト成功！', kr:'캐시아웃 성공!', fr:'Retrait réussi !', ru:'Вывод выполнен!', hi:'कैश आउट सफल!', ar:'تم السحب بنجاح!' },
+  '⏳ Please wait': { my:'⏳ ခဏစောင့်ပါ', en:'⏳ Please wait', cn:'⏳ 请稍候', jp:'⏳ お待ちください', kr:'⏳ 잠시 기다려 주세요', fr:'⏳ Veuillez patienter', ru:'⏳ Подождите', hi:'⏳ कृपया प्रतीक्षा करें', ar:'⏳ يرجى الانتظار' },
+  'Processing...': { my:'လုပ်ဆောင်နေပါတယ်...', en:'Processing...', cn:'处理中...', jp:'処理中...', kr:'처리 중...', fr:'Traitement...', ru:'Обработка...', hi:'प्रोसेस हो रहा है...', ar:'جارٍ المعالجة...' },
+  'Game Over': { my:'ဂိမ်းပြီးဆုံးပါပြီ', en:'Game Over', cn:'游戏结束', jp:'ゲーム終了', kr:'게임 종료', fr:'Fin de partie', ru:'Игра окончена', hi:'खेल समाप्त', ar:'انتهت اللعبة' },
+  'Waiting for players': { my:'ကစားသမားများကို စောင့်နေပါတယ်', en:'Waiting for players', cn:'等待玩家加入', jp:'プレイヤーを待っています', kr:'플레이어 대기 중', fr:'En attente des joueurs', ru:'Ожидание игроков', hi:'खिलाड़ियों की प्रतीक्षा', ar:'بانتظار اللاعبين' },
+  'Multiplier:': { my:'မြှောက်ကိန်း:', en:'Multiplier:', cn:'倍数：', jp:'倍率：', kr:'배수:', fr:'Multiplicateur :', ru:'Множитель:', hi:'गुणक:', ar:'المضاعف:' },
+  'Status:': { my:'အခြေအနေ:', en:'Status:', cn:'状态：', jp:'状態：', kr:'상태:', fr:'Statut :', ru:'Статус:', hi:'स्थिति:', ar:'الحالة:' },
+  'Time Limit:': { my:'အချိန်ကန့်သတ်ချက်:', en:'Time Limit:', cn:'时间限制：', jp:'制限時間：', kr:'시간 제한:', fr:'Limite de temps :', ru:'Лимит времени:', hi:'समय सीमा:', ar:'الحد الزمني:' },
 };
 function translateText(language, text) {
   const lang = normalizeLanguage(language) || DEFAULT_LANGUAGE;
