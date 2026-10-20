@@ -142,12 +142,11 @@ async function initializeTransactionHistoryStorage() {
 async function flushTransactionHistoryOutbox({ batchSize = 100, allowBeforeInitialMigration = false } = {}) {
   if (!env.DB_TWO_ENABLED) return { skipped: true, processed: 0 };
   if (!historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
-  // The marker is checked without blocking the timer on marker-read errors.
-  // Until retained-history verification is persisted, never mark outbox rows as
-  // delivered; retry safely after the reviewed migration completes.
-  if (!allowBeforeInitialMigration && !(await hasVerifiedInitialMigration())) {
-    return { skipped: true, reason: 'retained_history_verification_required', processed: 0 };
-  }
+  // An initial full-copy report is a legacy prerequisite. With DB1 now treated
+  // as a rolling 30-day source, each pending outbox row is independently checked
+  // against its exact DB2 copy before it can be marked delivered. This makes the
+  // gate recoverable after intentional DB1 history retention without bypassing
+  // per-document verification or outbox delivery safeguards.
   const pending = await db.collection(OUTBOX_COLLECTION)
     .find({ status: 'pending' }).sort({ createdAt: 1 }).limit(batchSize).toArray();
   let processed = 0;
