@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "check": "node --check index.js && find src -name '*.js' -print0 | xargs -0 -n1 node --check"
+    "check": "node --check index.js && find src -name '*.js' -print0 | xargs -0 -n1 node --check",
+    "migrate:transaction-history": "node scripts/migrate-transaction-history.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
@@ -14,5 +15,7 @@
     "mongodb": "^6.8.0",
     "telegraf": "^4.16.3"
   },
-  "engines": { "node": ">=18" }
+  "engines": {
+    "node": ">=18"
+  }
 }
