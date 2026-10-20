@@ -117,6 +117,20 @@ export { deckFor as createBlackjackDeck };
 // Deterministic unit checks for parity with main. Keep this file dependency-free,
 // so it runs on Node without the serverless SDK.
 assert.equal(BLACKJACK_RULES.minBet, 50);
+const gameSource = await (await import('node:fs/promises')).readFile(new URL('./game.js', import.meta.url), 'utf8');
+const messageSource = await (await import('node:fs/promises')).readFile(new URL('../handlers/message.js', import.meta.url), 'utf8');
+const callbackSource = await (await import('node:fs/promises')).readFile(new URL('../handlers/callback_query.js', import.meta.url), 'utf8');
+const miniSource = await (await import('node:fs/promises')).readFile(new URL('./mini.js', import.meta.url), 'utf8');
+assert.ok(gameSource.includes("getSetting('blackjack_rtp', BLACKJACK_RULES.defaultRtp)"));
+assert.ok(gameSource.includes("BLACKJACK_RULES.actionTimeoutMs"));
+assert.ok(gameSource.includes("'bj-refund:' + keyBase"));
+assert.ok(gameSource.includes("'bj-payout:' + keyBase"));
+assert.ok(gameSource.includes("updateBlackjackSession(session, nextState, 'settling')"));
+assert.ok(gameSource.includes("eq(gameSessions.version, version)"), 'Blackjack session updates must use optimistic version guards');
+assert.ok(messageSource.includes("await assertGameEnabled('blackjack')"));
+assert.ok(callbackSource.includes("await assertGameEnabled('blackjack')"));
+assert.ok(miniSource.includes("await assertGameEnabled('blackjack')"));
+
 assert.equal(BLACKJACK_RULES.maxBet, 300000);
 assert.equal(BLACKJACK_RULES.cooldownMs, 1500);
 assert.equal(BLACKJACK_RULES.actionTimeoutMs, 90000);
