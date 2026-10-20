@@ -23,17 +23,27 @@ function isStorageQuotaError(err) {
     /over your space quota|writes are blocked on your cluster/i.test(String(err?.message || err));
 }
 
+function isDbOneCollection(collection) {
+  const namespace = String(collection?.namespace || '');
+  const internalDbName = collection?.s?.namespace?.db;
+  return internalDbName === env.DB_NAME || namespace.startsWith(String(env.DB_NAME) + '.');
+}
+
 async function safeCreateIndex(col, keys, options = {}) {
   try { return await col.createIndex(keys, options); }
   catch (err) {
     if ([85,86].includes(err?.code) || ['IndexOptionsConflict','IndexKeySpecsConflict'].includes(err?.codeName)) {
       logger.warn(`Skipping conflicting index ${col.collectionName} ${JSON.stringify(keys)}`); return null;
     }
-    // Index creation is optional bootstrap metadata, but a quota error proves DB1
-    // cannot currently accept writes. Keep startup possible for diagnostics only.
     if (isStorageQuotaError(err)) {
-      dbOneWriteBlocked = true;
-      logger.error(`MongoDB quota blocked index creation for ${col.collectionName}; continuing diagnostic startup without index ${JSON.stringify(keys)}. Money operations remain blocked until DB1 writes recover.`);
+      const dbOneCollection = isDbOneCollection(col);
+      if (dbOneCollection) dbOneWriteBlocked = true;
+      logger.error(
+        `MongoDB storage quota blocked index creation for ${col.collectionName} in ${dbOneCollection ? 'DB1' : 'a non-DB1 database'}; ` +
+        `continuing startup without index ${JSON.stringify(keys)}.` +
+        (dbOneCollection ? ' DB1 money operations remain blocked until writes recover.' : ''),
+        err,
+      );
       return null;
     }
     throw err;
@@ -276,7 +286,7 @@ async function findTransactionHistoryByIdempotency(type, key) {
   if (existing) return existing;
   const context = transactionContext.getStore();
   if (!context) throw new Error('DB2_IDEMPOTENCY_CONTEXT_REQUIRED');
-  await reserveTransactionKey(context, String(type) + ':' + String(key), 'idempotency');
+  await reserveTransactionKey(context, JSON.stringify([String(type), String(key)]), 'idempotency');
   return null;
 }
 
