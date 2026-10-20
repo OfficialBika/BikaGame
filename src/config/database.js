@@ -243,6 +243,14 @@ async function migrateTransactionHistory({ batchSize = 100, maxDocuments = Infin
   );
 }
 
+async function getTransactionHistoryCollection() {
+  if (env.DB_TWO_ENABLED) {
+    if (!historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
+    return historyDb.collection(HISTORY_COLLECTION);
+  }
+  return collections.transactions;
+}
+
 async function getTransactionHistoryDb() {
   if (env.DB_TWO_ENABLED) {
     if (!historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
