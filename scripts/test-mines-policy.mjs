@@ -55,4 +55,18 @@ assert.equal(minesExpiryTime(1000), 151000);
 assert.equal(isMinesExpired(151000, 150999), false);
 assert.equal(isMinesExpired(151000, 151000), true);
 assert.equal(isMinesExpired(null, 999999), false);
-console.log('Mines rules tests passed (25-cell board, supported mine counts, first-safe protection, cashout threshold, multiplier and timeout boundary).');
+
+// Keep the pure policy tests tied to the actual production entry points, not just
+// the helper module. These checks catch a future hardcoded rule in service code.
+const gameSource = await readFile(resolve(root, 'tgcloud/lib/game.js'), 'utf8');
+const botSource = await readFile(resolve(root, 'tgcloud/handlers/message.js'), 'utf8');
+const miniSource = await readFile(resolve(root, 'tgcloud/lib/mini.js'), 'utf8');
+assert.match(gameSource, /generateMineLayout\(mineCount, openedBefore\.length === 0 \? cell : null\)/);
+assert.match(gameSource, /calculateMinesMultiplier\(opened\.length, mineCount\)/);
+assert.match(gameSource, /canCashOutMines\(opened\.length\)/);
+assert.match(gameSource, /minesExpiryTime\(startedAt\)/);
+assert.doesNotMatch(gameSource, /minesLayout\(3\)|1 \+ opened\.length \* 0\.35/);
+assert.match(botSource, /minesStart\(user\.tgId, bet, 'tg:' \+ chatId \+ ':' \+ message\.message_id, parsedArgs\[1\]\)/);
+assert.match(miniSource, /minesStart\(userId, body\.bet, body\.requestId, body\.mineCount\)/);
+console.log('Mines rules and service wiring tests passed (main defaults, first-safe pick, cashout gate, expiry and Telegram/Mini App inputs).');
+
