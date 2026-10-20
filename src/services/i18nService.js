@@ -166,6 +166,17 @@ const PHRASES = {
   'Multiplier:': { my:'မြှောက်ကိန်း:', en:'Multiplier:', cn:'倍数：', jp:'倍率：', kr:'배수:', fr:'Multiplicateur :', ru:'Множитель:', hi:'गुणक:', ar:'المضاعف:' },
   'Status:': { my:'အခြေအနေ:', en:'Status:', cn:'状态：', jp:'状態：', kr:'상태:', fr:'Statut :', ru:'Статус:', hi:'स्थिति:', ar:'الحالة:' },
   'Time Limit:': { my:'အချိန်ကန့်သတ်ချက်:', en:'Time Limit:', cn:'时间限制：', jp:'制限時間：', kr:'시간 제한:', fr:'Limite de temps :', ru:'Лимит времени:', hi:'समय सीमा:', ar:'الحد الزمني:' },
+  '✅ Accept Dice Duel': { my:'✅ Dice စိန်ခေါ်မှု လက်ခံမယ်', en:'✅ Accept Dice Duel', cn:'✅ 接受骰子对决', jp:'✅ ダイス対決を受ける', kr:'✅ 주사위 대결 수락', fr:'✅ Accepter le duel de dés', ru:'✅ Принять дуэль на кубиках', hi:'✅ डाइस द्वंद्व स्वीकारें', ar:'✅ قبول تحدي النرد' },
+  '✅ Accept Shan Duel': { my:'✅ ရှမ်းကိုးမီး စိန်ခေါ်မှု လက်ခံမယ်', en:'✅ Accept Shan Duel', cn:'✅ 接受掸牌对决', jp:'✅ シャン対決を受ける', kr:'✅ 샨 대결 수락', fr:'✅ Accepter le duel Shan', ru:'✅ Принять дуэль Shan', hi:'✅ शान द्वंद्व स्वीकारें', ar:'✅ قبول تحدي شان' },
+  '❌ Cancel': { my:'❌ ပယ်ဖျက်မယ်', en:'❌ Cancel', cn:'❌ 取消', jp:'❌ キャンセル', kr:'❌ 취소', fr:'❌ Annuler', ru:'❌ Отмена', hi:'❌ रद्द करें', ar:'❌ إلغاء' },
+  '🃏 Hit / ထပ်ဆွဲမယ်': { my:'🃏 ကဒ်ထပ်ဆွဲမယ်', en:'🃏 Hit', cn:'🃏 要牌', jp:'🃏 ヒット', kr:'🃏 히트', fr:'🃏 Tirer', ru:'🃏 Взять карту', hi:'🃏 कार्ड लें', ar:'🃏 اسحب بطاقة' },
+  '✋ Stand / ရပ်မယ်': { my:'✋ ရပ်မယ်', en:'✋ Stand', cn:'✋ 停牌', jp:'✋ スタンド', kr:'✋ 스탠드', fr:'✋ Rester', ru:'✋ Остановиться', hi:'✋ रुकें', ar:'✋ توقف' },
+  '💰 Cash Out •': { my:'💰 ငွေထုတ် •', en:'💰 Cash Out •', cn:'💰 兑现 •', jp:'💰 キャッシュアウト •', kr:'💰 캐시아웃 •', fr:'💰 Encaisser •', ru:'💰 Забрать •', hi:'💰 कैश आउट •', ar:'💰 سحب •' },
+  '❌ Cancel / Refund': { my:'❌ ပယ်ဖျက် / ငွေပြန်ယူ', en:'❌ Cancel / Refund', cn:'❌ 取消 / 退款', jp:'❌ キャンセル / 返金', kr:'❌ 취소 / 환불', fr:'❌ Annuler / Rembourser', ru:'❌ Отмена / Возврат', hi:'❌ रद्द / रिफंड', ar:'❌ إلغاء / استرداد' },
+  'Cash Out:': { my:'ငွေထုတ်ယူရန်:', en:'Cash Out:', cn:'兑现：', jp:'キャッシュアウト：', kr:'캐시아웃:', fr:'Encaisser :', ru:'Забрать:', hi:'कैश आउट:', ar:'السحب:' },
+  'Player:': { my:'ကစားသူ:', en:'Player:', cn:'玩家：', jp:'プレイヤー：', kr:'플레이어:', fr:'Joueur :', ru:'Игрок:', hi:'खिलाड़ी:', ar:'اللاعب:' },
+  'Dealer:': { my:'ဒိုင်:', en:'Dealer:', cn:'庄家：', jp:'ディーラー：', kr:'딜러:', fr:'Croupier :', ru:'Дилер:', hi:'डीलर:', ar:'الموزع:' },
+  '✅ Safe tile': { my:'✅ လုံခြုံသောအကွက်', en:'✅ Safe tile', cn:'✅ 安全格', jp:'✅ セーフマス', kr:'✅ 안전 타일', fr:'✅ Case sûre', ru:'✅ Безопасная ячейка', hi:'✅ सुरक्षित टाइल', ar:'✅ خانة آمنة' },
 };
 function translateText(language, text) {
   const lang = normalizeLanguage(language) || DEFAULT_LANGUAGE;
