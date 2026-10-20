@@ -110,10 +110,9 @@ async function flushTransactionHistoryOutbox({ batchSize = 100 } = {}) {
 async function findTransactionHistoryByIdempotency(type, key, session) {
   if (!key) return null;
   const query = { type, 'meta.idempotencyKey': key };
-  const primary = await collections.transactions.findOne(query, session ? { session } : {});
-  if (primary) return primary;
-  if (env.DB_TWO_ENABLED && historyReady) return historyDb.collection(HISTORY_COLLECTION).findOne(query);
-  return null;
+  // DB1 is authoritative for money operations. A DB2 history copy is not a
+  // transactional idempotency gate, because it may lag behind the outbox.
+  return collections.transactions.findOne(query, session ? { session } : {});
 }
 
 
