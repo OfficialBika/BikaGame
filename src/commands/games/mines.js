@@ -151,8 +151,10 @@ async function capPayout(game, payout) {
   return Math.max(0, Math.min(Number(payout) || 0, maxAllowed));
 }
 
-function button(text, callbackData, style = 'primary') {
-  return { text, callback_data: callbackData, style };
+function button(text, callbackData, style = 'primary', userId = null) {
+  const { translateCachedText } = require('../../services/i18nService');
+  const localizedText = userId == null ? text : translateCachedText(userId, text);
+  return { text: localizedText, callback_data: callbackData, style };
 }
 
 function cellButton(game, index, revealAll = false) {
@@ -186,13 +188,13 @@ function minesKeyboard(game, revealAll = false) {
 
   if (!revealAll && canCashOut(game)) {
     rows.push([
-      button(`💰 Cash Out • ${fmt(cashoutAmount(game))} ${COIN}`, `MINES:CASH:${game.id}`, 'success'),
+      button(`💰 Cash Out • ${fmt(cashoutAmount(game))} ${COIN}`, `MINES:CASH:${game.id}`, 'success', game.userId),
     ]);
   }
 
   if (!revealAll && !canCashOut(game)) {
     rows.push([
-      button('❌ Cancel / Refund', `MINES:CANCEL:${game.id}`, 'danger'),
+      button('❌ Cancel / Refund', `MINES:CANCEL:${game.id}`, 'danger', game.userId),
     ]);
   }
 
