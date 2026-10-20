@@ -164,8 +164,8 @@ const AudioFX = (() => {
 })();
 
 
-function setText(id, value) { const el = $(id); if (el) el.textContent = value; return el; }
-function setHTML(id, value) { const el = $(id); if (el) el.innerHTML = value; return el; }
+function setText(id, value) { const el = $(id); if (el) el.textContent = window.bikaTranslateText ? window.bikaTranslateText(value) : value; return el; }
+function setHTML(id, value) { const el = $(id); if (el) el.innerHTML = window.bikaTranslateText ? window.bikaTranslateText(value) : value; return el; }
 function setClass(id, value) { const el = $(id); if (el) el.className = value; return el; }
 function setBusy(btn, busy, label) { if (!btn) return; if (busy) { btn.dataset.oldText = btn.textContent; btn.textContent = label || 'Loading...'; btn.disabled = true; } else { btn.textContent = btn.dataset.oldText || btn.textContent; btn.disabled = false; } }
 function setBalance(value) { const text = `${fmt(value)} ${coin()}`; setText('balanceText', text); setText('stickyBalanceText', text); }
