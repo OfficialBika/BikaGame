@@ -7,7 +7,7 @@ export const users = table('users', {
   lastName: text('last_name'),
   photoUrl: text('photo_url'),
   languageCode: text('language_code'),
-  walletId: text('wallet_id').unique(),
+  walletId: text('wallet_id'),
   isBanned: boolean('is_banned').notNull().default(false),
   balance: integer('balance').notNull().default(0),
   totalWon: integer('total_won').notNull().default(0),
