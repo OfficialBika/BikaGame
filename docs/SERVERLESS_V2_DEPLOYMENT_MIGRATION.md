@@ -35,9 +35,9 @@ This is not yet identical to the production long-running worker: once the batch 
 The Broadcast implementation adds the `broadcast_targets` and `broadcast_locks` tables. Review the generated schema migration before applying it to the test app, verify the target/lock indexes and JSON payload columns, and test a rollback plan. The existing `broadcast_jobs` table alone is not enough to run this worker.
 ## Phase 2 — feature parity before any real data
 
-The following are still blockers in V2 and must be implemented and tested against `main` contracts: complete slot/BJ/Shan/Mines game lifecycle parity, Dice gameplay, Auction state transitions and expiry, 2D schedules and settlement, broadcast text/copy/progress/cancel/429 handling, group approval, remaining admin/settings/commerce/sports/tournament/background jobs, and exact-once/concurrency/replay tests. See [SERVERLESS_V2_PARITY.md](SERVERLESS_V2_PARITY.md).
+The following remain production blockers even where V2 service code now exists: exact `main` behavior and lifecycle parity for Slot/BJ/Shan/Mines; real Telegram verification of Dice Duel's persistent challenge and atomic settlement; Auction posting/bidding/refund/payout flows plus a scheduler that guarantees deadline finalization; exact-time 2D open/close/result scheduling; fully automatic broadcast continuation beyond the 100-target invocation cap; and remaining admin/settings/commerce/sports/tournament/background-job parity. Run behavior-level exact-once, concurrency, retry/replay and restart tests for every money-changing path. See [SERVERLESS_V2_PARITY.md](SERVERLESS_V2_PARITY.md).
 
-A passing syntax/parser/static-contract workflow is not proof that Telegram runtime, accounting, payment callbacks, auctions, 2D payouts or broadcast work end to end.
+The CI workflow now includes syntax/import/contract checks, policy tests and isolated SQLite trigger tests for ledger settlement, wallet transfers, daily claims, 2D bets, Stars purchases and event-market accounting. These tests validate isolated rules only: they do not prove Telegram SDK/runtime return shapes, real Stars checkout/refunds, callback authorization end to end, scheduler guarantees, broadcast 429 behavior or production data migration.
 
 ## Phase 3 — choose the database destination before migration
 
