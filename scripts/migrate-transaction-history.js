@@ -1,7 +1,7 @@
 'use strict';
 
 require('dotenv').config();
-const { migrateTransactionHistoryReadOnly, closeMongo } = require('../src/config/database');
+const { MongoClient } = require('mongodb');
 
 function parseArgs(argv) {
   const args = { batchSize: 100, verifyOnly: false };
@@ -24,8 +24,106 @@ function parseArgs(argv) {
   return args;
 }
 
+function stable(value) {
+  if (Array.isArray(value)) return value.map(stable);
+  if (value && typeof value === 'object' && !(value instanceof Date) && !Buffer.isBuffer(value)) {
+    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
+  }
+  if (value instanceof Date) return { __date: value.toISOString() };
+  if (Buffer.isBuffer(value)) return { __buffer: value.toString('base64') };
+  return value;
+}
+
+async function runMigration(source, target, { batchSize, verifyOnly }) {
+  const sourceCountBefore = await source.countDocuments({});
+  const targetCountBefore = await target.countDocuments({});
+  const sourceStats = await source.stats().catch(() => null);
+  const sourceIndexes = await source.indexes().catch(() => []);
+  const migrationStartedAt = new Date();
+
+  let copied = 0;
+  let missing = 0;
+  let mismatched = 0;
+  let sourceSeen = 0;
+  let lastSourceId = null;
+  const cursor = source.find({}).sort({ _id: 1 }).batchSize(batchSize);
+  let batch = [];
+
+  async function handleBatch(docs) {
+    if (!docs.length) return;
+    if (!verifyOnly) {
+      const operations = docs.map((doc) => ({
+        updateOne: {
+          filter: { _id: doc._id },
+          update: { $setOnInsert: doc },
+          upsert: true,
+        },
+      }));
+      await target.bulkWrite(operations, { ordered: false });
+      copied += docs.length;
+    }
+
+    const found = await target.find({ _id: { $in: docs.map((doc) => doc._id) } }).toArray();
+    const byId = new Map(found.map((doc) => [String(doc._id), doc]));
+    for (const doc of docs) {
+      const destination = byId.get(String(doc._id));
+      if (!destination) missing += 1;
+      else if (JSON.stringify(stable(doc)) !== JSON.stringify(stable(destination))) mismatched += 1;
+    }
+  }
+
+  for await (const doc of cursor) {
+    sourceSeen += 1;
+    lastSourceId = doc._id;
+    batch.push(doc);
+    if (batch.length >= batchSize) {
+      await handleBatch(batch);
+      batch = [];
+    }
+  }
+  if (batch.length) await handleBatch(batch);
+
+  const sourceCountAfter = await source.countDocuments({});
+  const targetCountAfter = await target.countDocuments({});
+  const postCutoverWrites = await source.countDocuments({ createdAt: { $gte: migrationStartedAt } }).catch(() => null);
+  const sourceStable = sourceCountBefore === sourceCountAfter && sourceSeen === sourceCountAfter;
+  const verified = sourceStable &&
+    missing === 0 &&
+    mismatched === 0 &&
+    targetCountAfter >= sourceCountAfter &&
+    sourceIndexes.length > 0 &&
+    postCutoverWrites === 0;
+
+  const targetStats = await target.stats().catch(() => null);
+  return {
+    migration: 'transactions-v1-readonly',
+    mode: verifyOnly ? 'verify-only' : 'copy-and-verify',
+    source: {
+      countBefore: sourceCountBefore,
+      countAfter: sourceCountAfter,
+      storageSize: sourceStats?.storageSize ?? null,
+      lastIdScanned: lastSourceId == null ? null : String(lastSourceId),
+    },
+    target: {
+      countBefore: targetCountBefore,
+      countAfter: targetCountAfter,
+      storageSize: targetStats?.storageSize ?? null,
+    },
+    copied,
+    missing,
+    mismatched,
+    sourceStable,
+    postCutoverWrites,
+    verified,
+    checkedAt: new Date().toISOString(),
+    sourceDeletionPerformed: false,
+  };
+}
+
 (async () => {
   let exitCode = 0;
+  let sourceClient;
+  let targetClient;
   try {
     if (String(process.env.DB_TWO_ENABLED || '').toLowerCase() !== 'true') {
       throw new Error('Refusing migration: set DB_TWO_ENABLED=true.');
@@ -34,9 +132,15 @@ function parseArgs(argv) {
       throw new Error('Missing MONGO_URI, MONGO_URI_2 or DB_TWO_NAME.');
     }
     const args = parseArgs(process.argv.slice(2));
+    sourceClient = new MongoClient(process.env.MONGO_URI, { maxPoolSize: 5, minPoolSize: 0, retryWrites: true });
+    targetClient = new MongoClient(process.env.MONGO_URI_2, { maxPoolSize: 5, minPoolSize: 0, retryWrites: true });
+    await Promise.all([sourceClient.connect(), targetClient.connect()]);
+    const sourceDb = sourceClient.db(process.env.DB_NAME || 'bika_slot');
+    const targetDb = targetClient.db(process.env.DB_TWO_NAME);
+    await Promise.all([sourceDb.command({ ping: 1 }), targetDb.command({ ping: 1 })]);
     console.log('Starting DB1(read-only) -> DB2 transaction history migration.');
     console.log('DB1 source documents will not be updated or deleted.');
-    const report = await migrateTransactionHistoryReadOnly(args);
+    const report = await runMigration(sourceDb.collection('transactions'), targetDb.collection('transactions'), args);
     console.log(JSON.stringify(report, null, 2));
     if (!report.verified) {
       console.error('Verification failed. Keep DB1 data intact and do not cut over.');
@@ -48,7 +152,10 @@ function parseArgs(argv) {
     console.error('HISTORY_MIGRATION_FAILED:', err?.stack || err);
     exitCode = 1;
   } finally {
-    try { await closeMongo(); } catch (err) { console.error('Mongo shutdown warning:', err?.message || err); }
+    await Promise.all([
+      sourceClient?.close().catch(() => {}),
+      targetClient?.close().catch(() => {}),
+    ]);
     process.exitCode = exitCode;
   }
 })();
