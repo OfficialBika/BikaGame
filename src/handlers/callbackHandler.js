@@ -228,13 +228,13 @@ module.exports = (bot) => {
         return editChallengeHTML(bot, challenge, '❌ <b>Dice Duel Cancelled</b>');
       }
       if (action === 'ACCEPT') return withLock(`dice:${id}`, async () => {
-        if (ctx.from.id !== challenge.targetUserId) return answerLocalized(ctx, 'ဒီ duel ကို reply ထောက်ထားတဲ့သူပဲ Accept လုပ်နိုင်ပါတယ်', { show_alert: true });
+        if (ctx.from.id !== challenge.targetUserId) return answerLocalized(ctx, 'Only the challenged player can accept this duel.', { show_alert: true });
         await answerLocalized(ctx, 'Rolling dice...');
         const challenger = await getUser(challenge.challengerId);
         const target = await getUser(challenge.targetUserId);
         if (!challenger || !target || Number(challenger.balance || 0) < challenge.bet || Number(target.balance || 0) < challenge.bet) {
           game.delDice(id);
-          return editChallengeHTML(bot, challenge, '⚠️ Balance မလုံလောက်လို့ challenge failed.');
+          return editChallengeHTML(bot, challenge, '⚠️ Challenge failed because a player has insufficient balance.');
         }
         try {
           const treasury = await getTreasury();
