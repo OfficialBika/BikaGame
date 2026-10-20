@@ -16,7 +16,7 @@ import {
 } from '../lib/diceDuel.js';
 import { createStarsInvoice, STAR_PACKAGES, packageBalance } from '../lib/stars.js';
 import {
-  crashCashout, minesOpen, minesCashout, minesStatus, blackjackAction, shanDeal,
+  crashCashout, minesOpen, minesCashout, minesStatus, blackjackAction, blackjackStatus, shanDeal,
 } from '../lib/game.js';
 
 function sleep(ms) {
@@ -406,6 +406,7 @@ export default async function (query) {
       }
       text = '💰 Mines Cash Out x' + result.multiplier + ' — +' + result.payout + ' Bal';
     } else if (game === 'bj' && (action === 'hit' || action === 'stand')) {
+      await assertGameEnabled('blackjack');
       const result = await blackjackAction(user.id, arg, action);
       text = '🂡 Blackjack — ' + ((result.player?.cards || []).map((card) => card.r + card.s).join(' '));
       if (result.active) {
