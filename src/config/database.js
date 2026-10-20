@@ -46,7 +46,7 @@ const TRANSACTION_RETENTION_SECONDS = 3 * 24 * 60 * 60;
 let retentionCleanupTimer = null;
 
 function escapeRegExp(value) {
-  return String(value).replace(/[.*+?^$()|[\]\\{}]/g, '\\async function connectMongo() {');
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 async function cleanupExpiredData() {
