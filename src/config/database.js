@@ -469,6 +469,115 @@ async function connectMongo() {
   startTransactionHistoryOutbox();
   logger.info('Mongo connected');
 }
+async function connectTransactionHistoryForMigration() {
+  if (!env.DB_TWO_ENABLED || !env.MONGO_URI_2 || !env.DB_TWO_NAME) {
+    throw new Error('Set DB_TWO_ENABLED=true, MONGO_URI_2 and DB_TWO_NAME before migration.');
+  }
+  if (!client) {
+    client = new MongoClient(env.MONGO_URI, { maxPoolSize: 5, minPoolSize: 0, retryWrites: true });
+    await client.connect();
+    db = client.db(env.DB_NAME);
+    collections.transactions = db.collection('transactions');
+  }
+  if (!historyClient) {
+    historyClient = new MongoClient(env.MONGO_URI_2, { maxPoolSize: 5, minPoolSize: 0, retryWrites: true });
+    await historyClient.connect();
+    historyDb = historyClient.db(env.DB_TWO_NAME);
+    await historyDb.command({ ping: 1 });
+    historyReady = true;
+  }
+  return { source: db.collection(HISTORY_COLLECTION), target: historyDb.collection(HISTORY_COLLECTION) };
+}
+
+async function migrateTransactionHistoryReadOnly({ batchSize = 100, verifyOnly = false } = {}) {
+  if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 500) throw new Error('INVALID_BATCH_SIZE');
+  const { source, target } = await connectTransactionHistoryForMigration();
+
+  // Do not create indexes, use the DB1 outbox, update DB1, or delete from DB1.
+  // The source is only read; DB2 writes are upserts keyed by the original _id.
+  const sourceCountBefore = await source.countDocuments({});
+  const targetCountBefore = await target.countDocuments({});
+  const sourceStats = await source.stats().catch(() => null);
+  const targetStatsBefore = await target.stats().catch(() => null);
+
+  const stable = (value) => {
+    if (Array.isArray(value)) return value.map(stable);
+    if (value && typeof value === 'object' && !(value instanceof Date) && !Buffer.isBuffer(value)) {
+      return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
+    }
+    if (value instanceof Date) return { __date: value.toISOString() };
+    if (Buffer.isBuffer(value)) return { __buffer: value.toString('base64') };
+    return value;
+  };
+
+  let copied = 0;
+  let missing = 0;
+  let mismatched = 0;
+  let sourceSeen = 0;
+  const cursor = source.find({}).sort({ _id: 1 }).batchSize(batchSize);
+  let batch = [];
+
+  async function handleBatch(docs) {
+    if (!docs.length) return;
+    if (!verifyOnly) {
+      const operations = docs.map((doc) => ({
+        updateOne: {
+          filter: { _id: doc._id },
+          update: { $setOnInsert: doc },
+          upsert: true,
+        },
+      }));
+      await target.bulkWrite(operations, { ordered: false });
+      copied += docs.length;
+    }
+    const found = await target.find({ _id: { $in: docs.map((doc) => doc._id) } }).toArray();
+    const byId = new Map(found.map((doc) => [String(doc._id), doc]));
+    for (const doc of docs) {
+      const dest = byId.get(String(doc._id));
+      if (!dest) {
+        missing += 1;
+      } else if (JSON.stringify(stable(doc)) !== JSON.stringify(stable(dest))) {
+        mismatched += 1;
+      }
+    }
+  }
+
+  for await (const doc of cursor) {
+    sourceSeen += 1;
+    batch.push(doc);
+    if (batch.length >= batchSize) {
+      await handleBatch(batch);
+      batch = [];
+    }
+  }
+  if (batch.length) await handleBatch(batch);
+
+  const sourceCountAfter = await source.countDocuments({});
+  const targetCountAfter = await target.countDocuments({});
+  const pendingOutbox = await db.collection(OUTBOX_COLLECTION).countDocuments({ status: 'pending' }).catch(() => null);
+  const sourceStable = sourceCountBefore === sourceCountAfter && sourceSeen === sourceCountAfter;
+  const verified = sourceStable && missing === 0 && mismatched === 0 && targetCountAfter >= sourceCountAfter;
+  const report = {
+    migration: 'transactions-v1-readonly',
+    mode: verifyOnly ? 'verify-only' : 'copy-and-verify',
+    source: { countBefore: sourceCountBefore, countAfter: sourceCountAfter, storageSize: sourceStats?.storageSize ?? null },
+    target: { countBefore: targetCountBefore, countAfter: targetCountAfter, storageSize: target.stats().catch(() => null) },
+    copied,
+    missing,
+    mismatched,
+    sourceStable,
+    verified,
+    db1PendingOutbox: pendingOutbox,
+    checkedAt: new Date().toISOString(),
+    sourceDeletionPerformed: false,
+  };
+  // Report only to stdout. This CLI intentionally does not write migration
+  // markers/reports to DB1 or DB2 and therefore can run against quota-locked DB1.
+  const targetStats = await target.stats().catch(() => null);
+  report.target.storageSize = targetStats?.storageSize ?? null;
+  return report;
+}
+
 function getDb() { if (!db) throw new Error('DB_NOT_CONNECTED'); return db; }
 function col(name) { if (!collections[name]) throw new Error(`COLLECTION_NOT_READY:${name}`); return collections[name]; }
 function isHistoryReady() { return !env.DB_TWO_ENABLED || historyReady; }
@@ -508,4 +617,4 @@ async function withRequiredTx(work) {
   } finally { try { await session.endSession(); } catch (_) {} }
 }
 async function pingMs(){ const s=Date.now(); try{ await getDb().command({ping:1}); return Date.now()-s; }catch(_){return null;} }
-module.exports = { connectMongo, closeMongo, getDb, col, safeCreateIndex, withMaybeTx, withRequiredTx, pingMs, enqueueTransactionHistory, flushTransactionHistoryOutbox, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryCollection, getTransactionHistoryStats, initializeTransactionHistoryStorage, hasVerifiedInitialMigration, copyVerifiedHistoryDocument, migrateTransactionHistory, isHistoryReady, isDbOneWriteBlocked, markDbOneWriteBlocked };
+module.exports = { connectMongo, closeMongo, getDb, col, safeCreateIndex, withMaybeTx, withRequiredTx, pingMs, enqueueTransactionHistory, flushTransactionHistoryOutbox, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryCollection, getTransactionHistoryStats, initializeTransactionHistoryStorage, hasVerifiedInitialMigration, copyVerifiedHistoryDocument, migrateTransactionHistory, migrateTransactionHistoryReadOnly, isHistoryReady, isDbOneWriteBlocked, markDbOneWriteBlocked };
