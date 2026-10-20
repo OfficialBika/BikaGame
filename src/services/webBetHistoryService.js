@@ -1,6 +1,6 @@
 'use strict';
 
-const { getTransactionHistoryDb, getTransactionHistoryCollection } = require('../config/database');
+const { getTransactionHistoryDb } = require('../config/database');
 
 const COLLECTION = 'web_game_history';
 const TTL_SECONDS = Math.max(3600, Number(process.env.WEB_GAME_HISTORY_TTL_SECONDS || 24 * 60 * 60));
