@@ -1,6 +1,6 @@
 'use strict';
 
-const { col, withRequiredTx, getTransactionHistoryDb } = require('../config/database');
+const { col, withRequiredTx, getTransactionHistoryCollection } = require('../config/database');
 const userModel = require('../models/userModel');
 const { env } = require('../config/env');
 const { logTx } = require('./transactionService');
@@ -761,8 +761,8 @@ async function verifyDailySettlement(event) {
   if (!event || event.status !== 'result' || !event.resultAt) return false;
   const winnerCount = Number(event.winnerCount || 0);
   const totalPayout = Number(event.totalPayout || 0);
-  const historyDb = await getTransactionHistoryDb();
-  const txAgg = await historyDb.collection('transactions').aggregate([
+  const historyCollection = await getTransactionHistoryCollection();
+  const txAgg = await historyCollection.aggregate([
     { $match: { type: '2d_win', 'meta.eventId': event.eventId } },
     { $group: { _id: null, count: { $sum: 1 }, total: { $sum: '$amount' } } }
   ]).toArray();
