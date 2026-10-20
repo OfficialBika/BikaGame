@@ -2,9 +2,9 @@
 
 const { col } = require('../../config/database');
 const { ensureTreasury, isOwner } = require('../../services/treasuryService');
-const { getUser } = require('../../services/economyService');
+const { getUser, ensureUser } = require('../../services/economyService');
 const { replyHTML, editHTML } = require('../../utils/telegram');
-const { getLanguage, t, languageKeyboard, mainMenuKeyboard, languagePickerText, normalizeLanguage } = require('../../services/i18nService');
+const { getLanguage, t, languageKeyboard, mainMenuKeyboard, languagePickerText, normalizeLanguage, rememberLanguage } = require('../../services/i18nService');
 
 function isOwnerHelpAllowed(ctx, treasury) {
   return Boolean(treasury && isOwner(ctx, treasury));
@@ -26,12 +26,13 @@ module.exports = (bot) => {
       try { await ctx.answerCbQuery('Invalid language'); } catch (_) {}
       return;
     }
-    const ids = [String(ctx.from.id), Number(ctx.from.id)];
+    // ensureUser resolves existing string/number ID variants without touching balance.
+    const user = await ensureUser(ctx.from);
     await col('users').updateOne(
-      { userId: { $in: ids } },
-      { $set: { language, updatedAt: new Date() } },
-      { upsert: true, setDefaultsOnInsert: true }
+      { _id: user._id },
+      { $set: { language, updatedAt: new Date() } }
     );
+    rememberLanguage(ctx.from.id, language);
     try { await ctx.answerCbQuery(t(language, 'language_saved')); } catch (_) {}
     return editHTML(ctx, mainText(language), { reply_markup: mainMenuKeyboard(language) });
   });
