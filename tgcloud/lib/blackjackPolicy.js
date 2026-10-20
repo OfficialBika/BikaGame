@@ -112,7 +112,7 @@ const deckFor = (random = Math.random) => {
   return cards;
 };
 
-export { deckFor as createBlackjackDeck };
+export const createBlackjackDeck = deckFor;
 
 // Deterministic unit checks for parity with main. Keep this file dependency-free,
 // so it runs on Node without the serverless SDK.
