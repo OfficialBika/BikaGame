@@ -652,11 +652,14 @@ export default async function (message) {
     if (gameToggle) {
       const state = await setGameEnabled(gameToggle.game, gameToggle.enabled, from.id);
       const label = state.game === 'blackjack' ? 'Blackjack' : state.game === 'mines' ? 'Mines' : state.game.toUpperCase();
-      return send(chatId, (state.enabled ? '✅ ' : '⛔ ') + label + ' ' + (state.enabled ? 'ENABLED' : 'DISABLED') + '\n' + 'Changed by Owner · persisted setting saved.', message.message_id);
+      return send(chatId, (state.enabled ? '✅ ' : '⛔ ') + label + ' ' + (state.enabled ? 'ENABLED' : 'DISABLED') +
+        '\nChanged by: ' + (state.updatedBy || from.id) +
+        '\nUpdated: ' + (state.updatedAt || '—'), message.message_id);
     }
     if (command.name === 'gamestatus') {
       const states = await listGameStates();
-      const lines = states.map((item) => (item.enabled ? '✅ ON  ' : '⛔ OFF ') + item.game.toUpperCase());
+      const lines = states.map((item) => (item.enabled ? '✅ ON  ' : '⛔ OFF ') + item.game.toUpperCase() +
+        ' · by ' + (item.updatedBy || 'default') + ' · ' + (item.updatedAt || 'no change record'));
       return send(chatId, '🎮 Per-game controls (preview DB)\n' + lines.join('\n'), message.message_id);
     }
     if (command.name === 'stars' || command.name === 'buy') {
