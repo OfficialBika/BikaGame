@@ -9,6 +9,7 @@ import { resumeBroadcast } from '../lib/broadcast.js';
 import { SERVERLESS_OWNER_TELEGRAM_ID } from '../lib/config.js';
 import { getShopCard, listAvailableShopCards, createShopOrder, listUserInventory, listUserShopOrders, approveShopOrder, cancelShopOrder, approveSellOrder, cancelSellOrder } from '../lib/commerce.js';
 import { recordDailyTournament } from '../lib/eventMarkets.js';
+import { confirmGiftRequest, cancelGiftRequest } from '../lib/gifts.js';
 import {
   getDiceChallenge, cancelDiceChallenge, claimDiceChallenge, storeDiceRollResult,
   settleDiceChallenge, failDiceChallenge,
@@ -162,7 +163,22 @@ export default async function (query) {
     }
     let markup;
 
-    if (game === 'shop' && action === 'view') {
+    if (game === 'gift' && (action === 'confirm' || action === 'cancel')) {
+      const result = action === 'confirm'
+        ? await confirmGiftRequest({ actorId: user.id, giftId: arg })
+        : await cancelGiftRequest({ actorId: user.id, giftId: arg });
+      const request = result.request || {};
+      const sender = request.data?.sender || {};
+      const recipient = request.data?.recipient || {};
+      const senderName = sender.username ? '@' + sender.username : (sender.firstName || String(request.fromUserId || 'Sender'));
+      const recipientName = recipient.username ? '@' + recipient.username : (recipient.firstName || String(request.toUserId || 'Recipient'));
+      markup = { inline_keyboard: [] };
+      text = action === 'confirm'
+        ? '🎁 Gift Success\\nFrom: ' + senderName + '\\nTo: ' + recipientName + '\\nAmount: ' + Number(request.amount || 0).toLocaleString('en-US') + ' Bal' +
+          (result.duplicate ? '\\n(Already processed; no duplicate transfer)' : '')
+        : '❌ Gift ' + String(result.status || request.status || 'cancelled').toUpperCase() +
+          '\\nNo balance was transferred.';
+    } else if (game === 'shop' && action === 'view') {
       if (message?.chat?.type !== 'private') throw new Error('SHOP_PRIVATE_CHAT_REQUIRED');
       const card = await getShopCard(arg);
       if (!card || card.status !== 'AVAILABLE') throw new Error('SHOP_CARD_UNAVAILABLE');
