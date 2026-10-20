@@ -259,7 +259,7 @@ async function updateAuctionPost(auction) {
     '👥 <b>TOTAL BIDS</b> ' + Number(data.totalBids || 0),
     '⏳ <b>ENDS</b> ' + (auction.endAt ? new Date(auction.endAt).toISOString() : '—'),
     '', 'Reply with <code>.bid ' + Number(auction.highestBidderId ? Number(auction.currentBid) + Number(data.minIncrement || 1) : Number(data.startingBid || 1)) + '</code> or just the amount.'
-  ].join('\\n');
+  ].join('\n');
   try {
     const payload = { chat_id: Number(auction.channelId), message_id: Number(auction.channelMessageId), parse_mode: 'HTML', disable_web_page_preview: true };
     if (data.mediaType === 'photo' || data.mediaType === 'video') await api.editMessageCaption({ ...payload, caption: body });
@@ -495,7 +495,7 @@ async function getActivePromoForAllGroups() {
     try {
       const sent = await api.sendMessage({
         chat_id: Number(promo.chatId),
-        text: '🎰 Promotion Time End\\nပုံမှန် Global RTP အဖြစ်သို့ ပြန်လည် ပြောင်းလဲသွားပါပြီ။',
+        text: '🎰 Promotion Time End\nပုံမှန် Global RTP အဖြစ်သို့ ပြန်လည် ပြောင်းလဲသွားပါပြီ။',
       });
       const messageId = Number(sent?.message_id ?? sent?.result?.message_id);
       if (messageId > 0) {
