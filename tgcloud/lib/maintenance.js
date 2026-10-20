@@ -44,7 +44,7 @@ export async function setMaintenanceMode(actorUserId, enabled) {
   };
   await setSetting(KEY, record);
   const saved = await getMaintenanceMode();
-  if (saved.enabled !== record.enabled) {
+  if (saved.enabled !== record.enabled || saved.updatedBy !== ownerId || saved.updatedAt !== record.updatedAt) {
     throw new EndpointError('Maintenance setting ကို သိမ်းဆည်းပြီး ပြန်စစ်မရပါ။', {
       code: 'MAINTENANCE_WRITE_UNVERIFIED',
     });
