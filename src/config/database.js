@@ -284,7 +284,6 @@ async function connectMongo() {
   client = new MongoClient(env.MONGO_URI, { maxPoolSize: 20, minPoolSize: 1, retryWrites: true });
   await client.connect();
   db = client.db(env.DB_NAME);
-  await connectTransactionHistory();
 
   collections.users = db.collection('users');
   collections.transactions = db.collection('transactions');
@@ -302,6 +301,8 @@ async function connectMongo() {
   collections.sports_bets = db.collection('sports_bets');
   collections.auctions = db.collection('auctions');
   collections.auction_bids = db.collection('auction_bids');
+
+  await connectTransactionHistory();
 
   await safeCreateIndex(collections.users, { userId: 1 }, { unique: true });
   await safeCreateIndex(collections.users, { username: 1 }, { sparse: true });
