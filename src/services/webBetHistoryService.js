@@ -1,6 +1,6 @@
 'use strict';
 
-const { getTransactionHistoryDb } = require('../config/database');
+const { getTransactionHistoryDb, safeCreateIndex } = require('../config/database');
 
 const COLLECTION = 'web_game_history';
 const TTL_SECONDS = Math.max(3600, Number(process.env.WEB_GAME_HISTORY_TTL_SECONDS || 24 * 60 * 60));
@@ -37,13 +37,13 @@ async function ensureIndexes() {
     indexPromise = (async () => {
       const col = await collection();
       await Promise.all([
-        col.createIndex({ createdAt: 1 }, { expireAfterSeconds: TTL_SECONDS, name: 'ttl_createdAt_24h' }).catch((err) => {
-          if ([85, 86].includes(err?.code) || ['IndexOptionsConflict', 'IndexKeySpecsConflict'].includes(err?.codeName)) return null;
-          throw err;
-        }),
-        col.createIndex({ userId: 1, game: 1, createdAt: -1 }, { name: 'user_game_createdAt' }).catch(() => null),
+        safeCreateIndex(col, { createdAt: 1 }, { expireAfterSeconds: TTL_SECONDS, name: 'ttl_createdAt_24h' }),
+        safeCreateIndex(col, { userId: 1, game: 1, createdAt: -1 }, { name: 'user_game_createdAt' }),
       ]);
-    })();
+    })().catch((err) => {
+      indexPromise = null;
+      throw err;
+    });
   }
   return indexPromise;
 }
