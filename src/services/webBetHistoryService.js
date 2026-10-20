@@ -3,7 +3,7 @@
 const { getTransactionHistoryDb, safeCreateIndex } = require('../config/database');
 
 const COLLECTION = 'web_game_history';
-// Keep user-facing game history for seven days. The permanent transaction ledger
+// Keep user-facing web game history for seven days. The permanent transaction ledger
 // in DB2 is intentionally not subject to this retention policy.
 const TTL_SECONDS = Math.max(3600, Number(process.env.WEB_GAME_HISTORY_TTL_SECONDS || 7 * 24 * 60 * 60));
 let indexPromise = null;
