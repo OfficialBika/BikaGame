@@ -174,25 +174,40 @@ async function migrateTransactionHistory({ batchSize = 250, maxDocuments = Infin
   }
   const targetCount = await target.countDocuments({});
   let missing = 0;
-  // Verify every source _id exists on DB2. Avoid deleting or pruning DB1 rows here.
-  const verifyCursor = source.find({}, { projection: { _id: 1 } }).batchSize(batchSize);
-  let ids = [];
-  for await (const doc of verifyCursor) {
-    ids.push(doc._id);
-    if (ids.length >= batchSize) {
-      // Existence is checked in a small query to avoid huge in-memory comparisons.
-      const found = await target.find({ _id: { $in: ids } }, { projection: { _id: 1 } }).toArray();
-      const foundSet = new Set(found.map((x) => String(x._id)));
-      missing += ids.filter((id) => !foundSet.has(String(id))).length;
-      ids = [];
+  let mismatched = 0;
+  // Verify exact documents, not just IDs. Keep batches small to avoid large memory use.
+  const verifyCursor = source.find({}).batchSize(batchSize);
+  let batch = [];
+  async function verifyBatch(sourceDocs) {
+    if (!sourceDocs.length) return;
+    const ids = sourceDocs.map((doc) => doc._id);
+    const found = await target.find({ _id: { $in: ids } }).toArray();
+    const targetById = new Map(found.map((doc) => [String(doc._id), doc]));
+    for (const sourceDoc of sourceDocs) {
+      const targetDoc = targetById.get(String(sourceDoc._id));
+      if (!targetDoc) { missing += 1; continue; }
+      // Stable serialization of nested document keys avoids insertion-order differences.
+      const stable = (value) => {
+        if (Array.isArray(value)) return value.map(stable);
+        if (value && typeof value === 'object' && !(value instanceof Date) && !Buffer.isBuffer(value)) {
+          return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
+        }
+        if (value instanceof Date) return { __date: value.toISOString() };
+        if (Buffer.isBuffer(value)) return { __buffer: value.toString('base64') };
+        return value;
+      };
+      if (JSON.stringify(stable(sourceDoc)) !== JSON.stringify(stable(targetDoc))) mismatched += 1;
     }
   }
-  if (ids.length) {
-    const found = await target.find({ _id: { $in: ids } }, { projection: { _id: 1 } }).toArray();
-    const foundSet = new Set(found.map((x) => String(x._id)));
-    missing += ids.filter((id) => !foundSet.has(String(id))).length;
+  for await (const doc of verifyCursor) {
+    batch.push(doc);
+    if (batch.length >= batchSize) {
+      await verifyBatch(batch);
+      batch = [];
+    }
   }
-  const verified = missing === 0 && targetCount >= sourceCount;
+  if (batch.length) await verifyBatch(batch);
+  const verified = missing === 0 && mismatched === 0 && targetCount >= sourceCount;
   return recordTransactionMigrationReport(
     { count: sourceCount },
     { count: targetCountBefore, finalCount: targetCount },
