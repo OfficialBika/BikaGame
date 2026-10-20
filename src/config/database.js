@@ -405,9 +405,8 @@ async function connectMongo() {
         }
       }
     } catch (probeErr) {
-      // The probe uses a dedicated fixed ID. If insertion succeeded but cleanup
-      // failed, keep retrying cleanup without converting the condition into a
-      // quota result; only a recognized quota error enables the circuit breaker.
+      // This probe is deliberately limited to an isolated collection and fixed
+      // document ID. Only quota errors trip the circuit breaker.
       if (isStorageQuotaError(probeErr)) {
         dbOneWriteBlocked = true;
         logger.error('DB1 storage quota probe failed; starting in recovery-only mode. Money writes will be blocked until DB1 write access recovers.');
