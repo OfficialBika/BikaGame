@@ -18,7 +18,7 @@ const groups = [
     label: 'Session and multiplayer games',
     status: 'in-progress',
     features: ['Crash', 'Mines', 'Blackjack', 'Shan Koe Mee', 'Dice Duel'],
-    detail: 'Preview implementations exist; exact main parity, durable lifecycle, concurrent-session, timeout/retry and payout-replay tests are not complete. Dice Duel has a persistent challenge flow and atomic idempotent settlement plan; isolated settlement-plan and real SQLite ledger-trigger tests now pass in CI, while Telegram runtime tests remain.',
+    detail: 'Blackjack now uses durable rooms, version-guarded updates, per-player idempotent payout/refund keys and tested main bet/cooldown/timeout/natural payout policy. Slot source/fallback and settlement wiring have CI coverage. Exact main slot spin-odds/VIP behavior, Blackjack target-result parity, distributed timeout recovery and live Telegram/Mini App concurrency/replay verification remain before production parity.',
   },
   {
     id: 'maintenance-mode',
