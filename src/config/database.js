@@ -456,6 +456,8 @@ function txUnsupported(err) {
   return m.includes('Transaction numbers are only allowed') || m.includes('replica set') || m.includes('does not support transactions') || (m.includes('Transaction') && m.includes('not supported'));
 }
 async function withMaybeTx(work) {
+  if (dbOneWriteBlocked) throw new Error('DB1_STORAGE_QUOTA_BLOCKED');
+  if (env.DB_TWO_ENABLED && !historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
   if (!TX_SUPPORTED) return work(null);
   const session = client.startSession();
   try { return await session.withTransaction(() => work(session)); }
@@ -465,6 +467,8 @@ async function withMaybeTx(work) {
   } finally { try { await session.endSession(); } catch(_) {} }
 }
 async function withRequiredTx(work) {
+  if (dbOneWriteBlocked) throw new Error('DB1_STORAGE_QUOTA_BLOCKED');
+  if (env.DB_TWO_ENABLED && !historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
   if (!TX_SUPPORTED) throw new Error('MONGO_TRANSACTIONS_REQUIRED');
   const session = client.startSession();
   try { return await session.withTransaction(() => work(session)); }
