@@ -5,7 +5,7 @@ import { ensureEconomy, ensureUser, userById as accountUserById, debit as ledger
 import { spin as slotSpinEngine, multiplier as slotMultiplier, art as slotArt } from './slotPolicy.js';
 import { getActivePromoRtp } from './eventMarkets.js';
 import { MINES_RULES, normalizeMineCount, generateMineLayout, calculateMinesMultiplier, canCashOutMines, minesExpiryTime, isMinesExpired } from './minesPolicy.js';
-import { BLACKJACK_RULES, normalizeBlackjackRoom, clampBlackjackRtp, createBlackjackDeck, cardValue as blackjackCardValue, isNaturalBlackjack, resultForBlackjack, blackjackPayout } from './blackjackPolicy.js';
+import { BLACKJACK_RULES, normalizeBlackjackRoom, clampBlackjackRtp, createBlackjackDeck, cardValue as blackjackCardValue, isNaturalBlackjack, resultForBlackjack, blackjackPayout, buildBlackjackSettlementPlan } from './blackjackPolicy.js';
 
 const MIN_BET = 1;
 const MAX_BET = 1000000;
@@ -650,17 +650,9 @@ async function getBlackjackSession(roomId) {
 
 async function settleBlackjackSession(roomId, state, reason) {
   const sessionId = 'bj:' + roomId;
-  const plan = Array.isArray(state.settlementPlan) ? state.settlementPlan : (state.players || []).map((player) => {
-    const result = player.finalResult || blackjackPlayerResult(state, player);
-    return {
-      userId: Number(player.id),
-      bet: Number(player.bet),
-      result,
-      payout: blackjackPayout(result, Number(player.bet)),
-      playerValue: blackjackCardValue(player.cards),
-      natural: isNaturalBlackjack(player.cards),
-    };
-  });
+  const plan = Array.isArray(state.settlementPlan)
+    ? state.settlementPlan
+    : buildBlackjackSettlementPlan(state.players || [], state.dealer || [], reason, state.rtpWinRate);
   // Store immutable outcomes before ledger writes. On retry, each per-player
   // idempotency key makes a partial settlement resumable without double payout.
   const settling = await db.select().from(gameSessions).where(eq(gameSessions.id, sessionId)).get();
@@ -669,22 +661,20 @@ async function settleBlackjackSession(roomId, state, reason) {
   }
   for (const entry of plan) {
     const keyBase = 'blackjack:' + roomId + ':' + entry.userId;
-    if (reason === 'timeout' || entry.result === 'LOSE') {
-      if (reason === 'timeout') {
-        await credit(entry.userId, entry.bet, 'blackjack_refund', {
-          game: 'blackjack', roomId, playerId: entry.userId, reason,
-        }, 'bj-refund:' + keyBase);
-      }
+    if (reason === 'timeout' || entry.result === 'REFUND') {
+      await credit(entry.userId, entry.bet, 'blackjack_refund', {
+        game: 'blackjack', roomId, playerId: entry.userId, reason,
+      }, 'bj-refund:' + keyBase);
     } else if (entry.payout > 0) {
       await credit(entry.userId, entry.payout, 'blackjack_win', {
         game: 'blackjack', roomId, playerId: entry.userId,
         result: entry.result, natural: entry.natural, reason,
       }, 'bj-payout:' + keyBase);
     }
-    await recordGame(entry.userId, 'blackjack', entry.bet, reason === 'timeout' ? entry.bet : entry.payout, {
+    await recordGame(entry.userId, 'blackjack', entry.bet, entry.payout, {
       player: entry.playerValue, dealer: blackjackCardValue(state.dealer),
-      result: reason === 'timeout' ? 'REFUND' : entry.result, natural: entry.natural, reason,
-    }, reason === 'timeout' ? 1 : (entry.bet ? entry.payout / entry.bet : 0), 'blackjack-history:' + keyBase);
+      result: entry.result, natural: entry.natural, reason,
+    }, entry.bet ? entry.payout / entry.bet : 0, 'blackjack-history:' + keyBase);
   }
   const latest = await db.select().from(gameSessions).where(eq(gameSessions.id, sessionId)).get();
   if (latest && latest.status !== 'settled') {
@@ -840,27 +830,18 @@ export async function blackjackAction(userId, roomId, action) {
     while (blackjackCardValue(nextState.dealer) < 17 && nextState.deck.length) {
       nextState.dealer.push(nextState.deck.pop());
     }
-    nextState.players = nextState.players.map((entry) => {
-      const result = entry.finalResult || resultForBlackjack(entry.cards, nextState.dealer);
-      const natural = isNaturalBlackjack(entry.cards);
-      // Preserve main's target-RTP behavior for ordinary non-natural outcomes;
-      // natural/bust outcomes always retain the actual rule-based result.
-      let target = result;
-      if (!natural && blackjackCardValue(entry.cards) <= 21 && !isNaturalBlackjack(nextState.dealer)) {
-        const rate = clampBlackjackRtp(nextState.rtpWinRate);
-        target = Math.random() * 100 < rate ? 'WIN' : (blackjackCardValue(entry.cards) >= 21 ? 'PUSH' : 'LOSE');
-      }
-      return { ...entry, finalResult: target, natural };
-    });
-    nextState.settleReason = 'actions_complete';
-    nextState.settlementPlan = nextState.players.map((entry) => ({
-      userId: Number(entry.id),
-      bet: Number(entry.bet),
-      result: entry.finalResult,
-      payout: blackjackPayout(entry.finalResult, Number(entry.bet)),
-      playerValue: blackjackCardValue(entry.cards),
-      natural: !!entry.natural,
+    nextState.settlementPlan = buildBlackjackSettlementPlan(
+      nextState.players,
+      nextState.dealer,
+      'actions_complete',
+      nextState.rtpWinRate,
+    );
+    nextState.players = nextState.players.map((entry, index) => ({
+      ...entry,
+      finalResult: nextState.settlementPlan[index].result,
+      natural: nextState.settlementPlan[index].natural,
     }));
+    nextState.settleReason = 'actions_complete';
     await updateBlackjackSession(session, nextState, 'settling');
     await settleBlackjackSession(room, nextState, 'actions_complete');
   } else {
