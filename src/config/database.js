@@ -27,6 +27,7 @@ async function safeCreateIndex(col, keys, options = {}) {
     // A database can be online but write-blocked because it exceeded its storage
     // tier. Do not hide other index failures: only known quota errors are degraded.
     if (isStorageQuotaError(err)) {
+      dbOneWriteBlocked = true;
       logger.error(`MongoDB quota blocked index creation for ${col.collectionName}; continuing startup without index ${JSON.stringify(keys)}. DB1 writes remain unavailable until the quota is resolved.`);
       return null;
     }
@@ -109,6 +110,7 @@ async function enqueueTransactionHistory(doc, session) {
       { upsert: true, ...(session ? { session } : {}) },
     );
   } catch (err) {
+    if (isStorageQuotaError(err)) dbOneWriteBlocked = true;
     // DB1 can accept reads but reject all writes after Atlas quota is exceeded.
     // Callers must treat this as fatal inside transactional money flows so their
     // balance/treasury changes roll back rather than recording an untracked ledger.
