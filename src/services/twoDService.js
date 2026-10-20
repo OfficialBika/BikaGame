@@ -1,6 +1,6 @@
 'use strict';
 
-const { col, withRequiredTx, getTransactionHistoryCollection } = require('../config/database');
+const { col, withRequiredTx, getTransactionHistoryCollection, safeCreateIndex } = require('../config/database');
 const userModel = require('../models/userModel');
 const { env } = require('../config/env');
 const { logTx } = require('./transactionService');
@@ -945,14 +945,14 @@ async function init(bot) {
       logger.error('2D channel check failed: ' + (err && err.message ? err.message : err));
     }
   }
-  await events().createIndex({ eventId: 1 }, { unique: true, name: 'two_d_events_event_unique' });
-  await events().createIndex({ channelId: 1, status: 1, openAt: -1 }, { name: 'two_d_events_channel_status' });
-  await events().createIndex({ status: 1, closeAt: 1 }, { name: 'two_d_events_close' });
-  await bets().createIndex({ eventId: 1, userId: 1, createdAt: -1 }, { name: 'two_d_bets_user' });
-  await bets().createIndex({ eventId: 1, sourceChatId: 1, sourceMessageId: 1 }, { unique: true, name: 'two_d_bets_source_unique' });
-  await positions().createIndex({ eventId: 1, userId: 1, number: 1 }, { unique: true, name: 'two_d_positions_unique' });
-  await positions().createIndex({ eventId: 1, number: 1, totalAmount: -1 }, { name: 'two_d_positions_number' });
-  await offdates().createIndex({ dateKey: 1 }, { unique: true, name: 'two_d_offdates_unique' });
+  await safeCreateIndex(events(), { eventId: 1 }, { unique: true, name: 'two_d_events_event_unique' });
+  await safeCreateIndex(events(), { channelId: 1, status: 1, openAt: -1 }, { name: 'two_d_events_channel_status' });
+  await safeCreateIndex(events(), { status: 1, closeAt: 1 }, { name: 'two_d_events_close' });
+  await safeCreateIndex(bets(), { eventId: 1, userId: 1, createdAt: -1 }, { name: 'two_d_bets_user' });
+  await safeCreateIndex(bets(), { eventId: 1, sourceChatId: 1, sourceMessageId: 1 }, { unique: true, name: 'two_d_bets_source_unique' });
+  await safeCreateIndex(positions(), { eventId: 1, userId: 1, number: 1 }, { unique: true, name: 'two_d_positions_unique' });
+  await safeCreateIndex(positions(), { eventId: 1, number: 1, totalAmount: -1 }, { name: 'two_d_positions_number' });
+  await safeCreateIndex(offdates(), { dateKey: 1 }, { unique: true, name: 'two_d_offdates_unique' });
   if (!env.TWO_D_CHANNEL_ID) { logger.warn('2D scheduler disabled: TWO_D_CHANNEL_ID is not configured'); return function () {}; }
   let busy = false;
   const tick = async function () {
