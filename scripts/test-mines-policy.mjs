@@ -61,12 +61,12 @@ assert.equal(isMinesExpired(null, 999999), false);
 const gameSource = await readFile(resolve(root, 'tgcloud/lib/game.js'), 'utf8');
 const botSource = await readFile(resolve(root, 'tgcloud/handlers/message.js'), 'utf8');
 const miniSource = await readFile(resolve(root, 'tgcloud/lib/mini.js'), 'utf8');
-assert.match(gameSource, /generateMineLayout\(mineCount, openedBefore\.length === 0 \? cell : null\)/);
-assert.match(gameSource, /calculateMinesMultiplier\(opened\.length, mineCount\)/);
-assert.match(gameSource, /canCashOutMines\(opened\.length\)/);
-assert.match(gameSource, /minesExpiryTime\(startedAt\)/);
+assert.ok(gameSource.includes('minesLayout(mineCount, openedBefore.length === 0 ? cell : null)'));
+assert.ok(gameSource.includes('calculateMinesMultiplier(opened.length, mineCount)'));
+assert.ok(gameSource.includes('canCashOutMines(opened.length)'));
+assert.ok(gameSource.includes('expiresAt: minesExpiryTime(startedAt)'));
 assert.doesNotMatch(gameSource, /minesLayout\(3\)|1 \+ opened\.length \* 0\.35/);
-assert.match(botSource, /minesStart\(user\.tgId, bet, 'tg:' \+ chatId \+ ':' \+ message\.message_id, parsedArgs\[1\]\)/);
-assert.match(miniSource, /minesStart\(userId, body\.bet, body\.requestId, body\.mineCount\)/);
+assert.ok(botSource.includes("minesStart(user.tgId, bet, 'tg:' + chatId + ':' + message.message_id, parsedArgs[1])"));
+assert.ok(miniSource.includes('minesStart(userId, body.bet, body.requestId, body.mineCount)'));
 console.log('Mines rules and service wiring tests passed (main defaults, first-safe pick, cashout gate, expiry and Telegram/Mini App inputs).');
 
