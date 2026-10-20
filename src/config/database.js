@@ -218,16 +218,25 @@ async function getTransactionHistoryStats() {
 
 async function hasVerifiedInitialMigration() {
   if (!env.DB_TWO_ENABLED || !historyReady) return false;
+  const reports = historyDb.collection('_migration_reports');
   try {
-    const report = await historyDb.collection('_migration_reports').findOne({
+    const report = await reports.findOne({
       _id: 'initial-transactions-migration-v1',
       verified: true,
       'policy.retentionDays': 30,
       'policy.scope': 'createdAt-gte-cutoff',
     });
-    return !!report;
+    if (report) return true;
+
+    // DB1/DB2 were pruned to the same 30-day window manually. A fresh startup
+    // can establish the retained-window baseline only after checking every
+    // source row against DB2 and proving there is no stranded outbox work.
+    // This is not a bypass: the same exact comparison is required as the
+    // explicit migration command, and financial writes remain gated if it fails.
+    const marker = await verifyRetainedTransactionHistory({ retentionDays: 30, batchSize: 250 });
+    return marker.verified === true;
   } catch (err) {
-    logger.error('Unable to read the retained transaction history verification marker.', err);
+    logger.error('Unable to verify retained transaction history.', err);
     return false;
   }
 }
