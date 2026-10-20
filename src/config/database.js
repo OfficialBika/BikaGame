@@ -142,8 +142,10 @@ async function initializeTransactionHistoryStorage() {
 async function flushTransactionHistoryOutbox({ batchSize = 100, allowBeforeInitialMigration = false } = {}) {
   if (!env.DB_TWO_ENABLED) return { skipped: true, processed: 0 };
   if (!historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
-  // Initial migration can flush pre-cutover outbox rows; live delivery stays gated
-  // until a full copy + exact verification has succeeded.
+  // DB1 is only a rolling history source after the retention window is applied.
+  // The initial migration marker cannot be required forever: source history is
+  // intentionally purged after 30 days, while the outbox must keep forwarding
+  // newly created rows to DB2. Before initial verification, keep the safety gate.
   if (!allowBeforeInitialMigration && !(await hasVerifiedInitialMigration())) {
     throw new Error('DB_TWO_HISTORY_NOT_VERIFIED: run the reviewed migration and verify the complete source copy first');
   }
