@@ -173,7 +173,7 @@ export async function dispatch(action, input, ctx) {
 
     case 'minesStart':
       await assertGameEnabled('mines');
-      return minesStart(userId, body.bet, body.requestId);
+      return minesStart(userId, body.bet, body.requestId, body.mineCount);
 
     case 'minesStatus':
       return minesStatus(userId);
