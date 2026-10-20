@@ -242,6 +242,13 @@ async function getTransactionHistoryDb() {
   }
   return db;
 }
+async function getTransactionHistoryCollection() {
+  if (env.DB_TWO_ENABLED) {
+    if (!historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
+    return historyDb.collection(HISTORY_COLLECTION);
+  }
+  return collections.transactions;
+}
 
 let historyOutboxTimer = null;
 function startTransactionHistoryOutbox() {
