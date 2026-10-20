@@ -71,79 +71,86 @@ async function cleanupExpiredGameHistory({ now = new Date(), dryRun = false } = 
     },
   };
 
-  async function cleanupParents({ parentName, childName, parentFilter, childFilterForIds, idField = '_id', reportKey, keepChildStatuses = null }) {
+  async function cleanupLinkedHistory({ parentName, childName, parentFilter, parentIdField, childFilterForIds, extraChildCollections = [] }) {
+    let matchedAtStart = 0;
     let parentsDeleted = 0;
     let childrenDeleted = 0;
-    let rowsSeen = 0;
-    while (true) {
-      const rows = await db1.collection(parentName).find(parentFilter, { projection: { _id: 1, [idField]: 1 } })
-        .sort({ _id: 1 }).limit(BATCH_SIZE).toArray();
-      if (!rows.length) break;
-      rowsSeen += rows.length;
-      if (dryRun) break;
+    let childStats = {};
+    let lastId = null;
 
-      const ids = rows.map((row) => row[idField]).filter((value) => value != null);
+    while (true) {
+      const filter = {
+        ...parentFilter,
+        ...(lastId != null ? { _id: { $gt: lastId } } : {}),
+      };
+      const rows = await db1.collection(parentName).find(filter, {
+        projection: { _id: 1, [parentIdField]: 1 },
+      }).sort({ _id: 1 }).limit(BATCH_SIZE).toArray();
+      if (!rows.length) break;
+      matchedAtStart += rows.length;
+      lastId = rows[rows.length - 1]._id;
+      if (dryRun) continue;
+
+      const ids = rows.map((row) => row[parentIdField]).filter((id) => id != null);
       if (ids.length) {
         const childFilter = childFilterForIds(ids);
-        childrenDeleted += await deleteRowsInBatches(db1.collection(childName), childFilter);
+        const removedChildren = await deleteRowsInBatches(db1.collection(childName), childFilter);
+        childrenDeleted += removedChildren;
+        for (const extra of extraChildCollections) {
+          const removed = await deleteRowsInBatches(db1.collection(extra.name), extra.filterForIds(ids));
+          childStats[extra.name] = (childStats[extra.name] || 0) + removed;
+        }
       }
-      const deleted = await db1.collection(parentName).deleteMany({
-        _id: { $in: rows.map((row) => row._id) },
+      const parentIds = rows.map((row) => row._id);
+      const removedParents = await db1.collection(parentName).deleteMany({
+        _id: { $in: parentIds },
         ...parentFilter,
       });
-      parentsDeleted += Number(deleted.deletedCount || 0);
+      parentsDeleted += Number(removedParents.deletedCount || 0);
       if (rows.length < BATCH_SIZE) break;
     }
-    report.db1[reportKey] = {
-      matchedAtStart: rowsSeen,
+
+    report.db1[parentName] = {
+      matchedAtStart,
       deleted: parentsDeleted,
       remainingExpired: await db1.collection(parentName).countDocuments(parentFilter),
     };
     report.db1[childName] = { deleted: childrenDeleted };
-    return { parentsDeleted, childrenDeleted };
+    for (const [name, deleted] of Object.entries(childStats)) {
+      report.db1[name] = { deleted };
+    }
   }
 
-  // Only settled/result records older than seven days are removed. Balances,
-  // treasury, off-date config, and permanent DB2 transaction journals are not.
-  await cleanupParents({
+  // Completed 2D outcomes only. Keep today's/active/settling events and the
+  // permanent transaction ledger untouched.
+  await cleanupLinkedHistory({
     parentName: 'two_d_events',
     childName: 'two_d_bets',
     parentFilter: { status: 'result', resultAt: { $type: 'date', $lte: cutoff } },
+    parentIdField: 'eventId',
     childFilterForIds: (ids) => ({ eventId: { $in: ids } }),
-    idField: 'eventId',
-    reportKey: 'two_d_events',
-  }).then(async () => {
-    // The 2D positions share eventId and must be cleaned with the same parent IDs.
-    const oldEventIds = await db1.collection('two_d_events').find(
-      { status: 'result', resultAt: { $type: 'date', $lte: cutoff } },
-      { projection: { eventId: 1 } },
-    ).limit(BATCH_SIZE).toArray().then((rows) => rows.map((row) => row.eventId).filter(Boolean));
-    if (!dryRun && oldEventIds.length) {
-      report.db1.two_d_positions = { deleted: await deleteRowsInBatches(db1.collection('two_d_positions'), { eventId: { $in: oldEventIds } }) };
-    } else {
-      report.db1.two_d_positions = { deleted: 0 };
-    }
+    extraChildCollections: [
+      { name: 'two_d_positions', filterForIds: (ids) => ({ eventId: { $in: ids } }) },
+    ],
   });
 
-  await cleanupParents({
+  // Closed auctions remain visible for seven days, then the parent and all
+  // associated bids are removed in small batches.
+  await cleanupLinkedHistory({
     parentName: 'auctions',
     childName: 'auction_bids',
     parentFilter: { status: 'closed', settledAt: { $type: 'date', $lte: cutoff } },
+    parentIdField: 'auctionId',
     childFilterForIds: (ids) => ({ auctionId: { $in: ids } }),
-    idField: 'auctionId',
-    reportKey: 'auctions',
   });
 
-  await cleanupParents({
+  // Only fully settled sports bets are eligible; pending/unsettled bets remain.
+  await cleanupLinkedHistory({
     parentName: 'sports_events',
     childName: 'sports_bets',
     parentFilter: { status: 'settled', settledAt: { $type: 'date', $lte: cutoff } },
-    childFilterForIds: (ids) => ({
-      eventId: { $in: ids },
-      status: { $in: ['won', 'lost'] },
-    }),
-    idField: '_id',
-    reportKey: 'sports_events',
+    parentIdField: '_id',
+    childFilterForIds: (ids) => ({ eventId: { $in: ids }, status: { $in: ['won', 'lost'] } }),
   });
 
   const tournamentFilter = { createdAt: { $type: 'date', $lte: cutoff } };
@@ -152,7 +159,11 @@ async function cleanupExpiredGameHistory({ now = new Date(), dryRun = false } = 
     report.db1.daily_tournaments = { matched: await tournaments.countDocuments(tournamentFilter), deleted: 0 };
   } else {
     const deleted = await deleteRowsInBatches(tournaments, tournamentFilter);
-    report.db1.daily_tournaments = { matched: deleted, deleted, remainingExpired: await tournaments.countDocuments(tournamentFilter) };
+    report.db1.daily_tournaments = {
+      matched: deleted,
+      deleted,
+      remainingExpired: await tournaments.countDocuments(tournamentFilter),
+    };
   }
 
   const webHistory = db2.collection('web_game_history');
@@ -161,7 +172,11 @@ async function cleanupExpiredGameHistory({ now = new Date(), dryRun = false } = 
     report.db2.web_game_history = { matched: await webHistory.countDocuments(webFilter), deleted: 0 };
   } else {
     const deleted = await deleteRowsInBatches(webHistory, webFilter);
-    report.db2.web_game_history = { matched: deleted, deleted, remainingExpired: await webHistory.countDocuments(webFilter) };
+    report.db2.web_game_history = {
+      matched: deleted,
+      deleted,
+      remainingExpired: await webHistory.countDocuments(webFilter),
+    };
   }
   return report;
 }
