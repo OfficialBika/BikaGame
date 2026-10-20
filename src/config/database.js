@@ -180,17 +180,17 @@ async function migrateTransactionHistory({ batchSize = 100, maxDocuments = Infin
   if (!env.DB_TWO_ENABLED || !historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
   if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 500) throw new Error('INVALID_BATCH_SIZE');
   if (!(maxDocuments === Infinity || (Number.isInteger(maxDocuments) && maxDocuments > 0))) throw new Error('INVALID_MAX_DOCUMENTS');
+
   const source = collections.transactions;
   const target = historyDb.collection(HISTORY_COLLECTION);
-  const sourceCount = await source.countDocuments({});
+  const migrationId = 'initial-transactions-migration-v1';
+  const sourceCountBefore = await source.countDocuments({});
   const targetCountBefore = await target.countDocuments({});
-  // Bootstrap the destination collection before copying. This writes to DB2 only.
+
   await target.createIndex({ createdAt: -1 }, { name: 'tx_history_createdAt_desc' });
   await target.createIndex({ userId: 1, createdAt: -1 }, { name: 'tx_history_user_createdAt' });
   await target.createIndex({ type: 1, 'meta.eventId': 1, toUserId: 1 }, { name: 'tx_history_type_event_toUser' });
-  // Safely deliver any pre-existing transactional outbox rows before verification.
-  await flushTransactionHistoryOutbox({ batchSize: 500, allowBeforeInitialMigration: true });
-  // Re-scanning is safe for mixed BSON _id types because target writes are idempotent.
+
   let copied = 0;
   const copyCursor = source.find({}).sort({ _id: 1 }).batchSize(batchSize);
   let copyBatchDocs = [];
@@ -212,6 +212,7 @@ async function migrateTransactionHistory({ batchSize = 100, maxDocuments = Infin
   }
   if (copyBatchDocs.length && copied < maxDocuments) await copyBatch(copyBatchDocs);
 
+  // Verify source documents byte-for-logical-value, not just matching _id.
   let missing = 0;
   let mismatched = 0;
   const stable = (value) => {
@@ -245,19 +246,37 @@ async function migrateTransactionHistory({ batchSize = 100, maxDocuments = Infin
   }
   if (verifyBatchDocs.length) await verifyBatch(verifyBatchDocs);
 
+  // A second flush catches new outbox records committed during the copy. A clean cutover
+  // still requires pausing writes and running this migration again before verification.
+  await flushTransactionHistoryOutbox({ batchSize: 500, allowBeforeInitialMigration: true });
+  const sourceCountAfter = await source.countDocuments({});
   const targetCount = await target.countDocuments({});
-  const outboxStats = await db.collection(OUTBOX_COLLECTION).countDocuments({ status: 'pending' });
+  const pendingOutbox = await db.collection(OUTBOX_COLLECTION).countDocuments({ status: 'pending' });
+  const sourceStable = sourceCountAfter === sourceCountBefore;
   const verified = maxDocuments === Infinity &&
     missing === 0 &&
     mismatched === 0 &&
-    targetCount >= sourceCount &&
-    outboxStats === 0;
-  return recordTransactionMigrationReport(
-    { count: sourceCount },
-    { count: targetCountBefore, finalCount: targetCount },
-    { attempted: copied, missing, mismatched, pendingOutbox: outboxStats },
+    targetCount >= sourceCountAfter &&
+    sourceStable &&
+    pendingOutbox === 0;
+
+  const report = {
+    _id: migrationId,
+    migration: 'transactions-v1',
+    source: { countBefore: sourceCountBefore, countAfter: sourceCountAfter },
+    target: { countBefore: targetCountBefore, countAfter: targetCount },
+    copied: { attempted: copied, missing, mismatched, pendingOutbox },
     verified,
+    sourceStable,
+    checkedAt: new Date(),
+    status: verified ? 'verified' : 'verification_failed',
+  };
+  await historyDb.collection('_migration_reports').updateOne(
+    { _id: migrationId },
+    { $set: report },
+    { upsert: true },
   );
+  return report;
 }
 
 async function getTransactionHistoryCollection() {
