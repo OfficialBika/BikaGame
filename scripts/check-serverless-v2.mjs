@@ -201,7 +201,7 @@ assert.match(mini, /case 'walletTransfer':[\s\S]*transferByWalletId/);
 assert.match(walletPolicy, /walletIdForUserId/);
 assert.match(walletPolicy, /userIdFromWalletId/);
 assert.match(walletPolicy, /walletSuffix/);
-assert.match(schema, /walletIdUniqueIdx:\s*index\('idx_users_wallet_id_unique'\)\.on\(t\.walletId\)/);
+assert.match(schema, /walletIdUniqueIdx:\s*uniqueIndex\('idx_users_wallet_id_unique'\)\.on\(t\.walletId\)/);
 assert.doesNotMatch(schema, /walletId:\s*text\('wallet_id'\)\.unique\(\)/);
 assert.match(usersModule, /WALLET_ID_ASSIGNMENT_FAILED/);
 assert.match(usersModule, /isNull\(users\.walletId\)/);
