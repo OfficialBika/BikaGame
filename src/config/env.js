@@ -9,6 +9,9 @@ function num(name, fallback = null) {
 const env = {
   BOT_TOKEN: process.env.BOT_TOKEN,
   MONGO_URI: process.env.MONGO_URI,
+  MONGO_URI_2: process.env.MONGO_URI_2 || '',
+  DB_TWO_NAME: process.env.DB_TWO_NAME || '',
+  DB_TWO_ENABLED: String(process.env.DB_TWO_ENABLED || 'false').toLowerCase() === 'true',
   DB_NAME: process.env.DB_NAME || 'bika_slot',
   OWNER_ID: num('OWNER_ID'),
   PORT: num('PORT', 3000),
