@@ -9,6 +9,9 @@ const BATCH_SIZE = 500;
 async function ensureIndexes() {
   const db1 = getDb();
   const db2 = await getTransactionHistoryDb();
+
+  // Use stable index names per collection; keep the permanent transaction
+  // ledger and journal outside automatic retention.
   await safeCreateIndex(db1.collection('daily_tournaments'), { createdAt: 1 }, {
     expireAfterSeconds: RETENTION_SECONDS,
     name: 'ttl_createdAt_7d',
@@ -16,6 +19,27 @@ async function ensureIndexes() {
   await safeCreateIndex(db2.collection('web_game_history'), { createdAt: 1 }, {
     expireAfterSeconds: RETENTION_SECONDS,
     name: 'ttl_createdAt_7d',
+  });
+  await safeCreateIndex(db1.collection('two_d_events'), { status: 1, resultAt: 1 }, {
+    name: 'two_d_result_retention',
+  });
+  await safeCreateIndex(db1.collection('auctions'), { status: 1, settledAt: 1 }, {
+    name: 'auction_settled_retention',
+  });
+  await safeCreateIndex(db1.collection('sports_events'), { status: 1, settledAt: 1 }, {
+    name: 'sports_settled_retention',
+  });
+  await safeCreateIndex(db1.collection('two_d_bets'), { eventId: 1 }, {
+    name: 'two_d_bets_event_retention',
+  });
+  await safeCreateIndex(db1.collection('two_d_positions'), { eventId: 1 }, {
+    name: 'two_d_positions_event_retention',
+  });
+  await safeCreateIndex(db1.collection('auction_bids'), { auctionId: 1 }, {
+    name: 'auction_bids_retention',
+  });
+  await safeCreateIndex(db1.collection('sports_bets'), { eventId: 1, status: 1 }, {
+    name: 'sports_bets_retention',
   });
 }
 
