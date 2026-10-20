@@ -566,13 +566,13 @@ module.exports = (bot) => {
     const cooldownLeft = checkCooldown(`bj:${userId}`, cooldownSeconds);
 
     if (cooldownLeft > 0) {
-      return replyHTML(ctx, `⏳ ခဏစောင့်ပါ… (${cooldownLeft}s)`);
+      return replyHTML(ctx, `⏳ Please wait… (${cooldownLeft}s)`);
     }
 
     const user = await getUser(userId);
 
     if (Number(user?.balance || 0) < bet) {
-      return replyHTML(ctx, '❌ Balance မလုံလောက်ပါ။');
+      return replyHTML(ctx, '❌ Insufficient balance.');
     }
 
     let betTaken = false;
@@ -679,7 +679,7 @@ module.exports = (bot) => {
     }
 
     if (ctx.from?.id !== game.userId) {
-      await ctx.answerCbQuery(await localizeForUser(ctx.from?.id, 'ဒီ Blackjack button ကို သက်ဆိုင်တဲ့ user ပဲနှိပ်နိုင်ပါတယ်။'), {
+      await ctx.answerCbQuery(await localizeForUser(ctx.from?.id, 'Only the player who owns this Blackjack game can use these buttons.'), {
         show_alert: true,
       }).catch(() => {});
       return;
@@ -706,7 +706,7 @@ module.exports = (bot) => {
         await editGameMessage(
           bot,
           game,
-          gameTableText(game, false, 'ကဒ်တစ်ကဒ်ထပ်ဆွဲပြီးပါပြီ။ ထပ်ဆွဲမလား၊ ရပ်မလား ရွေးပါ။'),
+          gameTableText(game, false, 'You drew another card. Choose Hit or Stand.'),
           actionKeyboard(game.id, game.userId)
         );
         return;
@@ -722,7 +722,7 @@ module.exports = (bot) => {
         await editGameMessage(
           bot,
           game,
-          gameTableText(game, false, '⚠️ Telegram rate limit ဖြစ်နေပါတယ်။ ခဏစောင့်ပြီး ထပ်နှိပ်ပါ။'),
+          gameTableText(game, false, '⚠️ Telegram rate limit is active. Wait briefly and try again.'),
           actionKeyboard(game.id, game.userId)
         );
       } catch (editErr) {
