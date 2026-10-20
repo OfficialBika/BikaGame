@@ -351,6 +351,53 @@ def test_wallet_transfer_is_atomic_idempotent_and_not_a_game_result():
     assert con.execute("SELECT COUNT(*) FROM transactions WHERE type='gift'").fetchone()[0] == 1
 
 
+def test_stars_purchase_is_atomic_replay_safe_and_does_not_require_house_float():
+    con = database()
+    charge_id = "telegram-charge-10-stars"
+    invoice_payload = json.dumps({"v": 1, "kind": "bal_purchase", "stars": 10, "userId": "101"})
+    meta = json.dumps({
+        "stars": 10,
+        "exchangeRate": 45000,
+        "chargeId": charge_id,
+        "telegramPaymentChargeId": charge_id,
+        "invoicePayload": invoice_payload,
+        "providerPaymentChargeId": "provider-charge-1",
+    })
+    insert_purchase = """
+      INSERT INTO transactions (
+        type, from_user_id, to_user_id, amount, idempotency_key, account_user_id,
+        balance_delta, required_balance, total_won_delta, total_lost_delta,
+        treasury_delta, required_treasury, bet_amount, payout_amount, meta, created_at
+      ) VALUES (
+        'stars_bal_purchase', 'TELEGRAM_STARS', '101', 450000, ?, 101,
+        450000, 0, 0, 0, 450000, 0, 0, 450000, ?, 123
+      )
+    """
+
+    # Purchased Bal can be credited even when the house has zero starting float.
+    con.execute(insert_purchase, ("__stars_purchase:" + charge_id, meta))
+    user = dict(con.execute("SELECT * FROM users WHERE tg_id=101").fetchone())
+    treasury = con.execute("SELECT owner_balance FROM treasury WHERE key='treasury'").fetchone()[0]
+    assert user["balance"] == 450500, user
+    assert user["total_won"] == 0 and user["total_lost"] == 0, user
+    assert treasury == 450000, treasury
+
+    payment = dict(con.execute("SELECT * FROM payment_events WHERE id=?", (charge_id,)).fetchone())
+    assert payment["user_id"] == 101 and payment["stars"] == 10, payment
+    assert payment["amount"] == 450000 and payment["status"] == "completed", payment
+    assert payment["telegram_payment_charge_id"] == charge_id, payment
+    assert payment["invoice_payload"] == invoice_payload, payment
+
+    # Replayed successful_payment cannot re-credit the balance or duplicate the
+    # reconciliation record, because the charge-based ledger key is durable.
+    con.execute(insert_purchase, ("__stars_purchase:" + charge_id, meta))
+    user = dict(con.execute("SELECT * FROM users WHERE tg_id=101").fetchone())
+    assert user["balance"] == 450500, user
+    assert con.execute("SELECT owner_balance FROM treasury WHERE key='treasury'").fetchone()[0] == 450000
+    assert con.execute("SELECT COUNT(*) FROM transactions WHERE type='stars_bal_purchase'").fetchone()[0] == 1
+    assert con.execute("SELECT COUNT(*) FROM payment_events WHERE id=?", (charge_id,)).fetchone()[0] == 1
+
+
 if __name__ == "__main__":
     test_winner_accounting_and_idempotency()
     test_tie_refund_does_not_count_as_winnings()
@@ -358,4 +405,5 @@ if __name__ == "__main__":
     test_wallet_transfer_is_atomic_idempotent_and_not_a_game_result()
     test_daily_claim_is_atomic_yangon_day_guarded_and_treasury_funded()
     test_two_d_bet_ledger_and_position_triggers()
-    print("SQLite ledger trigger tests passed (winner, tie refund, idempotency, insufficient balance, wallet transfer, daily claim, 2D bets and limits).")
+    test_stars_purchase_is_atomic_replay_safe_and_does_not_require_house_float()
+    print("SQLite ledger trigger tests passed (winner, tie refund, insufficient balance, wallet transfer, daily claim, 2D bets, Stars purchase accounting and replay protection).")
