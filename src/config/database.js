@@ -241,6 +241,18 @@ async function findTransactionHistoryByIdempotency(type, key, session) {
   return db.collection('financial_idempotency').findOne({ _id: id }, options);
 }
 
+async function reserveTransactionIdempotency(type, key, session) {
+  if (key == null || String(key) === '') return null;
+  if (!db) throw new Error('DB_NOT_CONNECTED');
+  const id = String(type) + ':' + String(key);
+  return db.collection('financial_idempotency').insertOne({
+    _id: id,
+    type: String(type),
+    key: String(key),
+    createdAt: new Date(),
+  }, session ? { session } : {});
+}
+
 async function recordTransactionMigrationReport() {
   throw new Error('DB2_IS_AUTHORITATIVE_LEDGER; DB1_TRANSACTION_MIGRATION_IS_DISABLED');
 }
@@ -285,13 +297,6 @@ async function getTransactionHistoryCollection() {
 async function getTransactionHistoryDb() {
   if (!env.DB_TWO_ENABLED || !historyReady || !historyDb) throw new Error('DB_TWO_HISTORY_NOT_READY');
   return historyDb;
-}
-
-function startTransactionHistoryOutbox() {
-  // Deprecated: DB2 is authoritative; no DB1 outbox is used.
-}
-async function stopTransactionHistoryOutbox() {
-  // Deprecated: there is no runtime outbox to flush.
 }
 
 async function connectMongo() {
@@ -350,6 +355,8 @@ async function connectMongo() {
   collections.transactions = historyReady && historyDb ? historyDb.collection(HISTORY_COLLECTION) : null;
 
   await safeCreateIndex(collections.transaction_outbox, { status: 1, createdAt: 1 }, { name: 'transaction_outbox_pending_createdAt' });
+  await safeCreateIndex(collections.financial_idempotency, { createdAt: 1 }, { expireAfterSeconds: 7 * 24 * 60 * 60, name: 'ttl_financial_idempotency_7d' });
+  await safeCreateIndex(collections.financial_settlements, { createdAt: 1 }, { expireAfterSeconds: 7 * 24 * 60 * 60, name: 'ttl_financial_settlements_7d' });
   await safeCreateIndex(collections.users, { userId: 1 }, { unique: true });
   await safeCreateIndex(collections.users, { username: 1 }, { sparse: true });
   await safeCreateIndex(collections.users, { balance: -1 });
@@ -427,4 +434,4 @@ async function withRequiredTx(work) {
   } finally { try { await session.endSession(); } catch (_) {} }
 }
 async function pingMs(){ const s=Date.now(); try{ await getDb().command({ping:1}); return Date.now()-s; }catch(_){return null;} }
-module.exports = { startTransactionHistoryOutbox, stopTransactionHistoryOutbox, connectMongo, closeMongo, getDb, col, safeCreateIndex, withMaybeTx, withRequiredTx, pingMs, enqueueTransactionHistory, flushTransactionHistoryOutbox, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryCollection, getTransactionHistoryStats, initializeTransactionHistoryStorage, hasVerifiedInitialMigration, copyVerifiedHistoryDocument, migrateTransactionHistory, verifyRetainedTransactionHistory, isHistoryReady, isDbOneWriteBlocked, markDbOneWriteBlocked };
+module.exports = { startTransactionHistoryOutbox, stopTransactionHistoryOutbox, reserveTransactionIdempotency, connectMongo, closeMongo, getDb, col, safeCreateIndex, withMaybeTx, withRequiredTx, pingMs, enqueueTransactionHistory, flushTransactionHistoryOutbox, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryCollection, getTransactionHistoryStats, initializeTransactionHistoryStorage, hasVerifiedInitialMigration, copyVerifiedHistoryDocument, migrateTransactionHistory, verifyRetainedTransactionHistory, isHistoryReady, isDbOneWriteBlocked, markDbOneWriteBlocked };
