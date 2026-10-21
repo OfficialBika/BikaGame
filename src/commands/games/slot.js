@@ -204,11 +204,11 @@ module.exports = (bot) => {
     let sent = null;
 
     try {
-      // Send once, then use one animation edit after 300ms.
-      // Presentation-only timing; settlement and balances remain unchanged.
+      // Send the rolling state once, wait 300ms, then edit once to the final result.
+      // No intermediate animation edits; financial settlement logic remains unchanged.
       sent = await replyHTML(
         ctx,
-        animationText(randomFrame(), `${START_ROLLING_EMOJI} Start Rolling...`),
+        animationText(randomFrame(), `${START_ROLLING_EMOJI} Rolling...`),
         options
       );
 
@@ -217,13 +217,6 @@ module.exports = (bot) => {
       }
 
       await sleep(300);
-      await editByIds(
-        bot,
-        chatId,
-        sent.message_id,
-        animationText(randomFrame(), `${START_ROLLING_EMOJI} Rolling...`),
-        {}, userId
-      );
 
       // DB work starts here after user already sees slot response.
       const user = await getUser(userId);
