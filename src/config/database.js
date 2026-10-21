@@ -7,6 +7,7 @@ const collections = {};
 let historyClient = null;
 let historyDb = null;
 let historyReady = false;
+let transactionsShareClient = false;
 let dbOneWriteBlocked = false;
 const OUTBOX_COLLECTION = 'transaction_outbox';
 const LEGACY_CLEANUP_DISABLED = true;
@@ -65,68 +66,61 @@ async function safeCreateShopCardsUniqueIndex() {
 
 async function connectTransactionHistory() {
   if (!env.DB_TWO_ENABLED) {
-    logger.info('DB Two transaction history is disabled; using legacy DB1 ledger.');
+    logger.error('DB_TWO_ENABLED must be true. Runtime transaction ledger fallback to DB1 is disabled.');
     return;
   }
-  if (!env.MONGO_URI_2) {
-    logger.error('DB_TWO_ENABLED is true but MONGO_URI_2 is missing; history writes stay disabled.');
-    return;
-  }
-  if (!env.DB_TWO_NAME) {
-    logger.error('DB_TWO_ENABLED is true but DB_TWO_NAME is missing; history writes stay disabled.');
+  if (!env.MONGO_URI_2 || !env.DB_TWO_NAME) {
+    logger.error('DB_TWO_ENABLED is true but MONGO_URI_2/DB_TWO_NAME is missing; financial transactions remain blocked.');
     return;
   }
 
-  historyClient = new MongoClient(env.MONGO_URI_2, { maxPoolSize: 10, minPoolSize: 0, retryWrites: true });
-  try {
-    await historyClient.connect();
-    historyDb = historyClient.db(env.DB_TWO_NAME);
-    await historyDb.command({ ping: 1 });
-    historyReady = true;
-    logger.info('DB Two transaction history connected');
-  } catch (err) {
-    try { await historyClient.close(); } catch (_) {}
-    historyClient = null;
-    historyDb = null;
-    historyReady = false;
-    // DB2 is required while DB_TWO_ENABLED=true. Never silently send history to
-    // DB1 if DNS, authentication or Atlas availability fails.
-    logger.error('DB Two connection failed; history writes remain disabled until MONGO_URI_2 and its Atlas hostname are corrected.', err);
-    // Permit app boot for recovery/admin diagnosis only. Financial transaction
-    // operations are blocked by withRequiredTx/logTx while historyReady is false.
-    return;
+  // The DB1 balance/treasury updates and DB2 ledger rows must participate in the
+  // same MongoDB session. Reuse the primary client when both env vars identify
+  // the same deployment; never pass a DB1 session to a different MongoClient.
+  if (env.MONGO_URI_2 === env.MONGO_URI) {
+    historyClient = client;
+    historyDb = client.db(env.DB_TWO_NAME);
+    try {
+      await historyDb.command({ ping: 1 });
+      historyReady = true;
+      transactionsShareClient = true;
+      logger.info('DB2 transaction ledger connected on shared MongoClient; DB1 transactions collection will not be used.');
+    } catch (err) {
+      historyDb = null;
+      historyReady = false;
+      transactionsShareClient = false;
+      logger.error('DB2 transaction ledger connection failed; financial operations remain blocked.', err);
+      return;
+    }
+  } else {
+    historyClient = new MongoClient(env.MONGO_URI_2, { maxPoolSize: 10, minPoolSize: 0, retryWrites: true });
+    try {
+      await historyClient.connect();
+      historyDb = historyClient.db(env.DB_TWO_NAME);
+      await historyDb.command({ ping: 1 });
+      historyReady = true;
+      transactionsShareClient = false;
+      logger.error('DB2 ledger is reachable, but MONGO_URI_2 differs from MONGO_URI. Financial operations are blocked because cross-client transactions are not atomic.');
+    } catch (err) {
+      try { await historyClient.close(); } catch (_) {}
+      historyClient = null;
+      historyDb = null;
+      historyReady = false;
+      transactionsShareClient = false;
+      logger.error('DB2 transaction ledger connection failed; financial operations remain blocked.', err);
+    }
   }
 
-  // DB1 quota can block optional outbox-index creation even while reads work.
-  await safeCreateIndex(db.collection(OUTBOX_COLLECTION), { status: 1, createdAt: 1 }, { name: 'tx_outbox_status_createdAt' });
-  await safeCreateIndex(db.collection(OUTBOX_COLLECTION), { sourceId: 1 }, { unique: true, name: 'tx_outbox_sourceId_unique' });
+  if (historyReady) {
+    await safeCreateIndex(historyDb.collection(HISTORY_COLLECTION), { type: 1, 'meta.idempotencyKey': 1 }, { name: 'tx_type_idempotency' });
+    await safeCreateIndex(historyDb.collection(HISTORY_COLLECTION), { userId: 1, createdAt: -1 }, { name: 'tx_user_createdAt' });
+    await safeCreateIndex(historyDb.collection(HISTORY_COLLECTION), { type: 1, 'meta.eventId': 1, toUserId: 1 }, { name: 'tx_type_event_toUser' });
+  }
 }
 
-async function enqueueTransactionHistory(doc, session) {
-  if (!env.DB_TWO_ENABLED) return null;
-  if (!historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
-  const sourceId = String(doc._id || '');
-  if (!sourceId || sourceId.startsWith('__settlement:')) return null;
-  const createdAt = doc.createdAt instanceof Date ? doc.createdAt : new Date(doc.createdAt || Date.now());
-  const outboxId = require('crypto').createHash('sha256').update(sourceId).digest('hex');
-  const targetId = doc._id || sourceId;
-  try {
-    return await db.collection(OUTBOX_COLLECTION).updateOne(
-      { _id: outboxId },
-      { $setOnInsert: { sourceId, targetId, payload: { ...doc, createdAt }, createdAt, status: 'pending', attempts: 0 } },
-      { upsert: true, ...(session ? { session } : {}) },
-    );
-  } catch (err) {
-    if (isStorageQuotaError(err)) dbOneWriteBlocked = true;
-    // DB1 can accept reads but reject all writes after Atlas quota is exceeded.
-    // Callers must treat this as fatal inside transactional money flows so their
-    // balance/treasury changes roll back rather than recording an untracked ledger.
-    if (isStorageQuotaError(err)) {
-      logger.error('DB1 is write-blocked by Atlas storage quota; DB2 ledger enqueue did not persist.', err);
-      throw new Error('DB1_STORAGE_QUOTA_BLOCKED');
-    }
-    throw err;
-  }
+// DB2 is the only transaction ledger. No runtime transaction outbox is written to DB1.
+async function enqueueTransactionHistory() {
+  return null;
 }
 
 async function initializeTransactionHistoryStorage() {
@@ -139,340 +133,72 @@ async function initializeTransactionHistoryStorage() {
   return { ready: true };
 }
 
-async function flushTransactionHistoryOutbox({ batchSize = 100, allowBeforeInitialMigration = false } = {}) {
-  if (!env.DB_TWO_ENABLED) return { skipped: true, processed: 0 };
-  if (!historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
-  // An initial full-copy report is a legacy prerequisite. With DB1 now treated
-  // as a rolling 30-day source, each pending outbox row is independently checked
-  // against its exact DB2 copy before it can be marked delivered. This makes the
-  // gate recoverable after intentional DB1 history retention without bypassing
-  // per-document verification or outbox delivery safeguards.
-  const pending = await db.collection(OUTBOX_COLLECTION)
-    .find({ status: 'pending' }).sort({ createdAt: 1 }).limit(batchSize).toArray();
-  let processed = 0;
-  const outbox = db.collection(OUTBOX_COLLECTION);
-  const target = historyDb.collection(HISTORY_COLLECTION);
-  for (const row of pending) {
-    try {
-      const payload = row.payload;
-      const targetId = row.targetId || payload._id || row.sourceId;
-      await copyVerifiedHistoryDocument({ ...payload, _id: targetId });
-      await outbox.updateOne({ _id: row._id, status: 'pending' }, { $set: { status: 'delivered', deliveredAt: new Date() }, $inc: { attempts: 1 } });
-      processed += 1;
-    } catch (err) {
-      await outbox.updateOne({ _id: row._id, status: 'pending' }, { $inc: { attempts: 1 }, $set: { lastError: String(err?.message || err).slice(0, 500), lastAttemptAt: new Date() } });
-      logger.error('DB Two transaction history delivery failed for ' + row.sourceId, err);
-      break;
-    }
-  }
-  return { skipped: false, processed };
+async function flushTransactionHistoryOutbox() {
+  return { skipped: true, processed: 0, reason: 'DB2_IS_AUTHORITATIVE_LEDGER' };
 }
 
 async function findTransactionHistoryByIdempotency(type, key, session) {
   if (!key) return null;
-  const query = { type, 'meta.idempotencyKey': key };
-  // DB1 is authoritative for money operations. A DB2 history copy is not a
-  // transactional idempotency gate, because it may lag behind the outbox.
-  return collections.transactions.findOne(query, session ? { session } : {});
+  if (!env.DB_TWO_ENABLED || !historyReady || !historyDb) throw new Error('DB_TWO_HISTORY_NOT_READY');
+  if (session && !transactionsShareClient) throw new Error('DB_TWO_MUST_SHARE_MONGO_CLIENT_FOR_ATOMIC_TRANSACTIONS');
+  return historyDb.collection(HISTORY_COLLECTION).findOne(
+    { type, 'meta.idempotencyKey': key },
+    session ? { session } : {},
+  );
 }
 
-
-async function recordTransactionMigrationReport(sourceStats, targetStats, copied, verified) {
-  if (!env.DB_TWO_ENABLED || !historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
-  const report = {
-    _id: 'initial-transactions-migration-v1',
-    migration: 'transactions-v1',
-    source: sourceStats,
-    target: targetStats,
-    copied,
-    verified,
-    checkedAt: new Date(),
-    status: verified ? 'verified' : 'verification_failed',
-    missingSourceIds: copied?.missing ?? null,
-    contentMismatches: copied?.mismatched ?? null,
-  };
-  await historyDb.collection('_migration_reports').updateOne(
-    { _id: report._id }, { $set: report }, { upsert: true },
-  );
-  return report;
+async function recordTransactionMigrationReport() {
+  throw new Error('DB2_IS_AUTHORITATIVE_LEDGER; DB1_TRANSACTION_MIGRATION_IS_DISABLED');
 }
 
 async function getTransactionHistoryStats() {
-  if (!env.DB_TWO_ENABLED || !historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
-  const source = collections.transactions;
-  const target = historyDb.collection(HISTORY_COLLECTION);
-  const [sourceCount, targetCount, pendingOutbox, deliveredOutbox, sourceStats, targetStats] = await Promise.all([
-    source.countDocuments({}),
-    target.countDocuments({}),
-    db.collection(OUTBOX_COLLECTION).countDocuments({ status: 'pending' }),
-    db.collection(OUTBOX_COLLECTION).countDocuments({ status: 'delivered' }),
-    source.stats().catch(() => null),
-    target.stats().catch(() => null),
+  if (!env.DB_TWO_ENABLED || !historyReady || !historyDb) throw new Error('DB_TWO_HISTORY_NOT_READY');
+  const transactions = historyDb.collection(HISTORY_COLLECTION);
+  const [count, stats] = await Promise.all([
+    transactions.countDocuments({}),
+    transactions.stats().catch(() => null),
   ]);
   return {
-    source: { count: sourceCount, storageSize: sourceStats?.storageSize ?? null, totalIndexSize: sourceStats?.totalIndexSize ?? null },
-    target: { count: targetCount, storageSize: targetStats?.storageSize ?? null, totalIndexSize: targetStats?.totalIndexSize ?? null },
-    outbox: { pending: pendingOutbox, delivered: deliveredOutbox },
+    mode: 'db2-authoritative',
+    legacyDb1TransactionsRead: false,
+    source: null,
+    target: { count, storageSize: stats?.storageSize ?? null, totalIndexSize: stats?.totalIndexSize ?? null },
   };
 }
 
 async function hasVerifiedInitialMigration() {
-  if (!env.DB_TWO_ENABLED || !historyReady) return false;
-  const reports = historyDb.collection('_migration_reports');
-  try {
-    const report = await reports.findOne({
-      _id: 'initial-transactions-migration-v1',
-      verified: true,
-      'policy.retentionDays': 30,
-      'policy.scope': 'createdAt-gte-cutoff',
-    });
-    if (report) return true;
-
-    // DB1/DB2 were pruned to the same 30-day window manually. A fresh startup
-    // can establish the retained-window baseline only after checking every
-    // source row against DB2 and proving there is no stranded outbox work.
-    // This is not a bypass: the same exact comparison is required as the
-    // explicit migration command, and financial writes remain gated if it fails.
-    const marker = await verifyRetainedTransactionHistory({ retentionDays: 30, batchSize: 250 });
-    return marker.verified === true;
-  } catch (err) {
-    logger.error('Unable to verify retained transaction history.', err);
-    return false;
-  }
+  // Runtime no longer gates transactions on the old DB1-to-DB2 mirror migration.
+  return Boolean(env.DB_TWO_ENABLED && historyReady && historyDb);
 }
 
-async function verifyRetainedTransactionHistory({ retentionDays = 30, batchSize = 250 } = {}) {
-  if (!env.DB_TWO_ENABLED || !historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
-  if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 500) throw new Error('INVALID_BATCH_SIZE');
-  if (!Number.isInteger(retentionDays) || retentionDays < 1 || retentionDays > 365) throw new Error('INVALID_RETENTION_DAYS');
-
-  const source = collections.transactions;
-  const target = historyDb.collection(HISTORY_COLLECTION);
-  const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
-  const filter = { createdAt: { $gte: cutoff } };
-  const sourceCountBefore = await source.countDocuments(filter);
-  let scanned = 0;
-  let missing = 0;
-  let mismatched = 0;
-  const stable = (value) => {
-    if (Array.isArray(value)) return value.map(stable);
-    if (value && typeof value === 'object' && !(value instanceof Date) && !Buffer.isBuffer(value)) {
-      return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
-    }
-    if (value instanceof Date) return { __date: value.toISOString() };
-    if (Buffer.isBuffer(value)) return { __buffer: value.toString('base64') };
-    return value;
-  };
-
-  let batch = [];
-  async function verifyBatch(docs) {
-    if (!docs.length) return;
-    const counterparts = await target.find({ _id: { $in: docs.map((doc) => doc._id) } }).toArray();
-    const byId = new Map(counterparts.map((doc) => [String(doc._id), doc]));
-    for (const doc of docs) {
-      const counterpart = byId.get(String(doc._id));
-      if (!counterpart) missing += 1;
-      else if (JSON.stringify(stable(doc)) !== JSON.stringify(stable(counterpart))) mismatched += 1;
-    }
-  }
-
-  for await (const doc of source.find(filter).sort({ _id: 1 }).batchSize(batchSize)) {
-    scanned += 1;
-    batch.push(doc);
-    if (batch.length >= batchSize) {
-      await verifyBatch(batch);
-      batch = [];
-    }
-  }
-  if (batch.length) await verifyBatch(batch);
-
-  const sourceCountAfter = await source.countDocuments(filter);
-  const targetCount = await target.countDocuments(filter);
-  const pendingOutbox = await db.collection(OUTBOX_COLLECTION).countDocuments({ status: 'pending' });
-  const sourceStable = sourceCountBefore === sourceCountAfter && scanned === sourceCountAfter;
-  const verified = sourceStable && missing === 0 && mismatched === 0 && pendingOutbox === 0 && targetCount >= sourceCountAfter;
-  // The old DB1 ledger rows before cutoff are intentionally outside the current
-  // retention policy. New DB2 transaction documents with synthetic settlement IDs
-  // may not have an ordinary createdAt timestamp; they are outside this source-copy
-  // comparison and are preserved in DB2.
-  const report = {
-    _id: 'initial-transactions-migration-v1',
-    migration: 'transactions-v1',
-    policy: { retentionDays, scope: 'createdAt-gte-cutoff', preservesOlderDb2History: true },
-    source: { countBefore: sourceCountBefore, countAfter: sourceCountAfter },
-    target: { retainedCount: targetCount },
-    copied: { scanned, missing, mismatched, pendingOutbox },
-    verified,
-    sourceStable,
-    checkedAt: new Date(),
-    status: verified ? 'verified' : 'verification_failed',
-  };
-  await historyDb.collection('_migration_reports').updateOne(
-    { _id: report._id },
-    { $set: report },
-    { upsert: true },
-  );
-  return report;
+async function verifyRetainedTransactionHistory() {
+  throw new Error('DB2_IS_AUTHORITATIVE_LEDGER; DB1_TRANSACTION_VERIFICATION_IS_DISABLED');
 }
 
-async function migrateTransactionHistory({ batchSize = 100, maxDocuments = Infinity } = {}) {
-  if (!env.DB_TWO_ENABLED || !historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
-  if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 500) throw new Error('INVALID_BATCH_SIZE');
-  if (!(maxDocuments === Infinity || (Number.isInteger(maxDocuments) && maxDocuments > 0))) throw new Error('INVALID_MAX_DOCUMENTS');
-
-  const source = collections.transactions;
-  const target = historyDb.collection(HISTORY_COLLECTION);
-  const migrationId = 'initial-transactions-migration-v1';
-  const sourceCountBefore = await source.countDocuments({});
-  const targetCountBefore = await target.countDocuments({});
-
-  await safeCreateIndex(target, { createdAt: -1 }, { name: 'tx_history_createdAt_desc' });
-  await safeCreateIndex(target, { userId: 1, createdAt: -1 }, { name: 'tx_history_user_createdAt' });
-  await safeCreateIndex(target, { type: 1, 'meta.eventId': 1, toUserId: 1 }, { name: 'tx_history_type_event_toUser' });
-
-  let copied = 0;
-  const copyCursor = source.find({}).sort({ _id: 1 }).batchSize(batchSize);
-  let copyBatchDocs = [];
-  async function copyBatch(docs) {
-    if (!docs.length) return;
-    const ops = docs.map((doc) => ({
-      updateOne: { filter: { _id: doc._id }, update: { $setOnInsert: doc }, upsert: true },
-    }));
-    await target.bulkWrite(ops, { ordered: false });
-    copied += docs.length;
-  }
-  for await (const doc of copyCursor) {
-    if (copied >= maxDocuments) break;
-    copyBatchDocs.push(doc);
-    if (copyBatchDocs.length >= Math.min(batchSize, maxDocuments - copied)) {
-      await copyBatch(copyBatchDocs);
-      copyBatchDocs = [];
-    }
-  }
-  if (copyBatchDocs.length && copied < maxDocuments) await copyBatch(copyBatchDocs);
-
-  // Verify source documents byte-for-logical-value, not just matching _id.
-  let missing = 0;
-  let mismatched = 0;
-  const stable = (value) => {
-    if (Array.isArray(value)) return value.map(stable);
-    if (value && typeof value === 'object' && !(value instanceof Date) && !Buffer.isBuffer(value)) {
-      return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
-    }
-    if (value instanceof Date) return { __date: value.toISOString() };
-    if (Buffer.isBuffer(value)) return { __buffer: value.toString('base64') };
-    return value;
-  };
-  const verifyCursor = source.find({}).batchSize(batchSize);
-  let verifyBatchDocs = [];
-  async function verifyBatch(sourceDocs) {
-    if (!sourceDocs.length) return;
-    const ids = sourceDocs.map((doc) => doc._id);
-    const found = await target.find({ _id: { $in: ids } }).toArray();
-    const targetById = new Map(found.map((doc) => [String(doc._id), doc]));
-    for (const sourceDoc of sourceDocs) {
-      const targetDoc = targetById.get(String(sourceDoc._id));
-      if (!targetDoc) { missing += 1; continue; }
-      if (JSON.stringify(stable(sourceDoc)) !== JSON.stringify(stable(targetDoc))) mismatched += 1;
-    }
-  }
-  for await (const doc of verifyCursor) {
-    verifyBatchDocs.push(doc);
-    if (verifyBatchDocs.length >= batchSize) {
-      await verifyBatch(verifyBatchDocs);
-      verifyBatchDocs = [];
-    }
-  }
-  if (verifyBatchDocs.length) await verifyBatch(verifyBatchDocs);
-
-  // A second flush catches new outbox records committed during the copy. A clean cutover
-  // still requires pausing writes and running this migration again before verification.
-  await flushTransactionHistoryOutbox({ batchSize: 500, allowBeforeInitialMigration: true });
-  const sourceCountAfter = await source.countDocuments({});
-  const targetCount = await target.countDocuments({});
-  const pendingOutbox = await db.collection(OUTBOX_COLLECTION).countDocuments({ status: 'pending' });
-  const sourceStable = sourceCountAfter === sourceCountBefore;
-  const verified = maxDocuments === Infinity &&
-    missing === 0 &&
-    mismatched === 0 &&
-    targetCount >= sourceCountAfter &&
-    sourceStable &&
-    pendingOutbox === 0;
-
-  const report = {
-    _id: migrationId,
-    migration: 'transactions-v1',
-    source: { countBefore: sourceCountBefore, countAfter: sourceCountAfter },
-    target: { countBefore: targetCountBefore, countAfter: targetCount },
-    copied: { attempted: copied, missing, mismatched, pendingOutbox },
-    verified,
-    sourceStable,
-    checkedAt: new Date(),
-    status: verified ? 'verified' : 'verification_failed',
-  };
-  await historyDb.collection('_migration_reports').updateOne(
-    { _id: migrationId },
-    { $set: report },
-    { upsert: true },
-  );
-  return report;
+async function migrateTransactionHistory() {
+  throw new Error('DB2_IS_AUTHORITATIVE_LEDGER; DB1_TRANSACTION_MIGRATION_IS_DISABLED');
 }
 
-async function copyVerifiedHistoryDocument(sourceDoc) {
-  if (!env.DB_TWO_ENABLED || !historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
-  const target = historyDb.collection(HISTORY_COLLECTION);
-  const targetId = sourceDoc._id;
-  await target.updateOne({ _id: targetId }, { $setOnInsert: sourceDoc }, { upsert: true });
-  const stored = await target.findOne({ _id: targetId });
-  if (!stored) throw new Error('DB_TWO_HISTORY_VERIFY_FAILED');
-  const stable = (value) => {
-    if (Array.isArray(value)) return value.map(stable);
-    if (value && typeof value === 'object' && !(value instanceof Date) && !Buffer.isBuffer(value)) {
-      return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stable(value[key])]));
-    }
-    if (value instanceof Date) return { __date: value.toISOString() };
-    if (Buffer.isBuffer(value)) return { __buffer: value.toString('base64') };
-    return value;
-  };
-  if (JSON.stringify(stable(sourceDoc)) !== JSON.stringify(stable(stored))) {
-    throw new Error('DB_TWO_HISTORY_CONTENT_MISMATCH');
-  }
-  return { verified: true, id: String(targetId) };
+async function copyVerifiedHistoryDocument() {
+  throw new Error('DB2_IS_AUTHORITATIVE_LEDGER; DB1_HISTORY_COPY_IS_DISABLED');
 }
 
 async function getTransactionHistoryCollection() {
-  if (env.DB_TWO_ENABLED) {
-    if (!historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
-    return historyDb.collection(HISTORY_COLLECTION);
-  }
-  return db.collection('transactions');
+  if (!env.DB_TWO_ENABLED || !historyReady || !historyDb) throw new Error('DB_TWO_HISTORY_NOT_READY');
+  return historyDb.collection(HISTORY_COLLECTION);
 }
 
 async function getTransactionHistoryDb() {
-  if (env.DB_TWO_ENABLED) {
-    if (!historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
-    return historyDb;
-  }
-  return db;
+  if (!env.DB_TWO_ENABLED || !historyReady || !historyDb) throw new Error('DB_TWO_HISTORY_NOT_READY');
+  return historyDb;
 }
 
-let historyOutboxTimer = null;
 function startTransactionHistoryOutbox() {
-  if (!env.DB_TWO_ENABLED || historyOutboxTimer) return;
-  historyOutboxTimer = setInterval(() => {
-    flushTransactionHistoryOutbox().catch((err) => logger.error('DB Two history outbox flush failed', err));
-  }, 5000);
-  if (typeof historyOutboxTimer.unref === 'function') historyOutboxTimer.unref();
+  // Deprecated: DB2 is authoritative; no DB1 outbox is used.
 }
 async function stopTransactionHistoryOutbox() {
-  if (historyOutboxTimer) clearInterval(historyOutboxTimer);
-  historyOutboxTimer = null;
-  if (env.DB_TWO_ENABLED) {
-    try { await flushTransactionHistoryOutbox({ batchSize: 1000 }); } catch (err) { logger.error('Final DB Two history flush failed', err); }
-  }
+  // Deprecated: there is no runtime outbox to flush.
 }
-
-
 
 async function connectMongo() {
   client = new MongoClient(env.MONGO_URI, { maxPoolSize: 20, minPoolSize: 1, retryWrites: true });
@@ -508,7 +234,6 @@ async function connectMongo() {
   }
 
   collections.users = db.collection('users');
-  collections.transactions = db.collection('transactions');
   collections.orders = db.collection('orders');
   collections.config = db.collection('config');
   collections.groups = db.collection('groups');
@@ -526,14 +251,11 @@ async function connectMongo() {
   collections.daily_tournaments = db.collection('daily_tournaments');
 
   await connectTransactionHistory();
+  collections.transactions = historyReady && historyDb ? historyDb.collection(HISTORY_COLLECTION) : null;
 
   await safeCreateIndex(collections.users, { userId: 1 }, { unique: true });
   await safeCreateIndex(collections.users, { username: 1 }, { sparse: true });
   await safeCreateIndex(collections.users, { balance: -1 });
-  await safeCreateIndex(collections.transactions, { _id: 1 }, { name: 'transactions_marker_id' });
-  await safeCreateIndex(collections.transactions, { type: 1, 'meta.idempotencyKey': 1 });
-  await safeCreateIndex(collections.transactions, { userId: 1, createdAt: -1 });
-  await safeCreateIndex(collections.transactions, { type: 1, 'meta.eventId': 1, toUserId: 1 });
   await safeCreateIndex(collections.orders, { status: 1, createdAt: -1 });
   await safeCreateIndex(collections.orders, { userId: 1, createdAt: -1 });
   await safeCreateIndex(collections.orders, { rarity: 1, createdAt: -1 });
@@ -559,25 +281,24 @@ async function connectMongo() {
   await safeCreateIndex(collections.auctions, { channelMessageId: 1 }, { unique: true, sparse: true, name: 'auctions_channel_message_unique' });
   await safeCreateIndex(collections.auction_bids, { auctionId: 1, createdAt: 1 }, { name: 'auction_bids_time' });
   await safeCreateIndex(collections.auction_bids, { auctionId: 1, messageId: 1 }, { unique: true, name: 'auction_bids_message_unique' });
-  // Legacy cleanup timer was removed for this branch to prevent deleting records before migration/verification.
-  startTransactionHistoryOutbox();
   logger.info('Mongo connected');
 }
 
 
 function getDb() { if (!db) throw new Error('DB_NOT_CONNECTED'); return db; }
-function col(name) { if (!collections[name]) throw new Error(`COLLECTION_NOT_READY:${name}`); return collections[name]; }
-function isHistoryReady() { return !env.DB_TWO_ENABLED || historyReady; }
+function col(name) { if (name === 'transactions') { if (!env.DB_TWO_ENABLED || !historyReady || !historyDb) throw new Error('DB_TWO_HISTORY_NOT_READY'); return historyDb.collection(HISTORY_COLLECTION); } if (!collections[name]) throw new Error(`COLLECTION_NOT_READY:${name}`); return collections[name]; }
+function isHistoryReady() { return Boolean(env.DB_TWO_ENABLED && historyReady && historyDb); }
 function isDbOneWriteBlocked() { return dbOneWriteBlocked; }
 function markDbOneWriteBlocked() { dbOneWriteBlocked = true; }
-async function closeMongo() { await stopTransactionHistoryOutbox(); if (client) await client.close(); if (historyClient) await historyClient.close(); }
+async function closeMongo() { if (historyClient && historyClient !== client) await historyClient.close().catch(() => {}); if (client) await client.close().catch(() => {}); }
 function txUnsupported(err) {
   const m = String(err?.message || err);
   return m.includes('Transaction numbers are only allowed') || m.includes('replica set') || m.includes('does not support transactions') || (m.includes('Transaction') && m.includes('not supported'));
 }
 async function withMaybeTx(work) {
+  if (!env.DB_TWO_ENABLED || !historyReady || !historyDb) throw new Error('DB_TWO_HISTORY_NOT_READY');
+  if (!transactionsShareClient) throw new Error('DB_TWO_MUST_SHARE_MONGO_CLIENT_FOR_ATOMIC_TRANSACTIONS');
   if (dbOneWriteBlocked) throw new Error('DB1_STORAGE_QUOTA_BLOCKED');
-  if (env.DB_TWO_ENABLED && !historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
   if (!TX_SUPPORTED) return work(null);
   const session = client.startSession();
   try { return await session.withTransaction(() => work(session)); }
@@ -587,8 +308,9 @@ async function withMaybeTx(work) {
   } finally { try { await session.endSession(); } catch(_) {} }
 }
 async function withRequiredTx(work) {
+  if (!env.DB_TWO_ENABLED || !historyReady || !historyDb) throw new Error('DB_TWO_HISTORY_NOT_READY');
+  if (!transactionsShareClient) throw new Error('DB_TWO_MUST_SHARE_MONGO_CLIENT_FOR_ATOMIC_TRANSACTIONS');
   if (dbOneWriteBlocked) throw new Error('DB1_STORAGE_QUOTA_BLOCKED');
-  if (env.DB_TWO_ENABLED && !historyReady) throw new Error('DB_TWO_HISTORY_NOT_READY');
   if (!TX_SUPPORTED) throw new Error('MONGO_TRANSACTIONS_REQUIRED');
   const session = client.startSession();
   try { return await session.withTransaction(() => work(session)); }
