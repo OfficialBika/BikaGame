@@ -6,10 +6,10 @@
   <meta name="theme-color" content="#080b17">
   <meta name="description" content="BIKA Game Arena Mini App v2 preview">
   <title>BIKA Arena · v2 Preview</title>
-  <link rel="stylesheet" href="/miniapp/v2/v2.css?v=8">
-  <link rel="stylesheet" href="/miniapp/v2/game-ui.css?v=1">
+  <link rel="stylesheet" href="/miniapp/v2/v2.css?v=9">
+  <link rel="stylesheet" href="/miniapp/v2/game-ui.css?v=2">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script defer src="/miniapp/v2/v2.js?v=6"></script>
+  <script defer src="/miniapp/v2/v2.js?v=7"></script>
 </head>
 <body>
   <div class="v2-app" id="bikaV2App">
@@ -22,32 +22,29 @@
     </header>
 
     <main id="mainContent" tabindex="-1">
-      <section class="screen is-active" id="screen-home" data-screen="home" aria-labelledby="homeTitle">
-        <div class="welcome-row">
-          <div><p class="eyebrow">YOUR NEXT ROUND STARTS HERE</p><h1 id="homeTitle">Play beyond<br><span>the ordinary.</span></h1><p class="lede">Your arena. Your games. One seamless experience.</p></div>
-          <div class="orbit-mark" aria-hidden="true"><span>BIKA</span><b>✦</b></div>
+      <section class="screen is-active home-screen" id="screen-home" data-screen="home" aria-labelledby="homeTitle">
+        <div class="lobby-heading-row">
+          <div><p class="eyebrow">BIKA ARCADE</p><h1 id="homeTitle">Game lobby<span>.</span></h1><p class="lobby-subtitle">Pick a game and jump in.</p></div>
+          <div class="lobby-balance" aria-label="Demo balance"><span>◉</span><strong>0.01</strong><small>TON</small></div>
         </div>
-        <article class="balance-card">
-          <div class="balance-heading"><span>AVAILABLE BALANCE</span><span class="preview-chip">DEMO</span></div>
-          <div class="balance-value">— <small>Connect account</small></div>
-          <div class="balance-footer"><span>Secure account data loads in the integrated build.</span><span class="balance-glyph">◈</span></div>
-        </article>
-        <div class="section-heading"><div><p class="eyebrow">PICK UP THE PACE</p><h2>Jump back in</h2></div><button type="button" class="text-button" data-nav="games">All games <span>↗</span></button></div>
-        <button class="featured-game" type="button" data-game="rocket">
-          <div class="featured-top"><span class="live-label"><i></i> ARCADE CLASSIC</span><span class="game-number">01 / LIVE UX</span></div>
-          <div class="rocket-art" aria-hidden="true"><div class="rocket-trail"></div><div class="rocket-ship"><span></span></div><div class="star star-a">✦</div><div class="star star-b">✧</div><div class="planet"></div></div>
-          <div class="featured-copy"><div><p class="eyebrow">REFERENCE GAME</p><h3>Rocket Crash</h3><p>Fast rounds. Clear controls. Mobile-first play.</p></div><span class="round-arrow">↗</span></div>
+        <button class="lobby-feature" type="button" data-game="rocket" aria-label="Open Rocket Crash preview">
+          <div class="lobby-feature-top"><span><i class="lobby-live-dot"></i> FEATURED GAME</span><span class="lobby-demo-pill">DEMO</span></div>
+          <div class="lobby-feature-stage">
+            <div class="lobby-feature-multiplier">1.73<span>x</span></div>
+            <div class="lobby-feature-trail"></div>
+            <img class="lobby-feature-rocket" src="/miniapp/v2/rocket-reference.svg?v=1" alt="">
+            <i class="lobby-star star-one"></i><i class="lobby-star star-two"></i><i class="lobby-star star-three"></i>
+          </div>
+          <div class="lobby-feature-bottom"><div><h2>Rocket Crash</h2><p>Live-style rounds · rising multiplier</p></div><span class="lobby-play">PLAY <b>↗</b></span></div>
         </button>
-        <div class="section-heading"><div><p class="eyebrow">THE ARENA</p><h2>Popular games</h2></div></div>
-        <div class="game-grid">
-          <button class="game-card game-slot" data-game="slot" type="button"><span class="game-icon">✹</span><span class="game-title">Premium Slot</span><span class="game-sub">Reels & rewards</span><span class="card-arrow">↗</span></button>
-          <button class="game-card game-bj" data-game="blackjack" type="button"><span class="game-icon">♠</span><span class="game-title">Blackjack</span><span class="game-sub">Read the table</span><span class="card-arrow">↗</span></button>
-          <button class="game-card game-shan" data-game="shan" type="button"><span class="game-icon">◇</span><span class="game-title">Shan Koe Mee</span><span class="game-sub">Find your hand</span><span class="card-arrow">↗</span></button>
-          <button class="game-card game-mines" data-game="mines" type="button"><span class="game-icon">✳</span><span class="game-title">Mines</span><span class="game-sub">Choose your path</span><span class="card-arrow">↗</span></button>
-          <button class="game-card game-wheel" data-game="wheel" type="button"><span class="game-icon">◉</span><span class="game-title">Lucky Wheel</span><span class="game-sub">Daily rewards</span><span class="card-arrow">↗</span></button>
-          <button class="game-card game-plinko" data-game="plinko" type="button"><span class="game-icon">⦿</span><span class="game-title">Plinko</span><span class="game-sub">Drop into play</span><span class="card-arrow">↗</span></button>
+        <div class="lobby-section-heading"><h2>Choose a game</h2><button type="button" data-nav="games">All games <span>↗</span></button></div>
+        <div class="lobby-game-grid">
+          <button class="lobby-game-tile tile-wheel" type="button" data-game="wheel"><span class="lobby-tile-art wheel-mini-art">✳</span><span class="lobby-tile-title">Lucky Wheel</span><small>Spin preview</small><span class="lobby-tile-arrow">↗</span></button>
+          <button class="lobby-game-tile tile-slot" type="button" data-game="slot"><span class="lobby-tile-art">✹</span><span class="lobby-tile-title">Premium Slot</span><small>Reels & rewards</small><span class="lobby-tile-arrow">↗</span></button>
+          <button class="lobby-game-tile tile-blackjack" type="button" data-game="blackjack"><span class="lobby-tile-art">♠</span><span class="lobby-tile-title">Blackjack</span><small>Table preview</small><span class="lobby-tile-arrow">↗</span></button>
+          <button class="lobby-game-tile tile-mines" type="button" data-game="mines"><span class="lobby-tile-art">✳</span><span class="lobby-tile-title">Mines</span><small>Choose your path</small><span class="lobby-tile-arrow">↗</span></button>
         </div>
-        <p class="preview-note"><span>ⓘ</span> Preview interface only. No real bets or account changes are performed here.</p>
+        <p class="preview-note"><span>ⓘ</span> Visual preview only · no live wagers, rewards, or balance changes.</p>
       </section>
 
       <section class="screen" id="screen-games" data-screen="games" aria-labelledby="gamesTitle" hidden>
@@ -89,16 +86,16 @@
 
       <section class="screen game-screen" id="screen-game" data-screen="game" aria-labelledby="gameTitle" hidden>
         <h1 class="visually-hidden" id="gameTitle">Rocket Crash</h1>
-        <header class="game-top-controls"><button class="game-back" type="button" data-nav="games" aria-label="Back to games"><span class="back-chevron">‹</span><span>Back</span></button><div class="game-provider"><span class="provider-gift">✦</span><span>BIKA <b>ARCADE</b></span></div><div class="game-wallet-chip"><span class="coin-glyph">◉</span><span>0.01</span><button id="gameQuickAdd" type="button" aria-label="Preview balance control">+</button></div></header>
+        <header class="game-top-controls"><button class="game-back" type="button" data-nav="games" aria-label="Back to games"><span class="back-chevron">‹</span><span>Back</span></button><div class="game-provider"><span class="provider-gift">✦</span><span>Epic <b>Gift</b></span></div><div class="game-wallet-chip"><span class="coin-glyph">◉</span><span>0.01</span><button id="gameQuickAdd" type="button" aria-label="Preview balance control">+</button></div></header>
         <div class="game-utility-row"><button type="button" class="utility-pill connection-pill" id="gameConnectionButton" aria-label="Connection status"><span class="status-led"></span><span>◔</span></button><button type="button" class="utility-pill" aria-label="Game settings" id="gameSettingsButton">⚙</button><span class="game-round-label"><span class="status-led"></span><span id="gameModeLabel">DEMO ROUND</span></span><button type="button" class="utility-pill sound-toggle" id="soundToggle" aria-pressed="false" aria-label="Toggle sound preview">♫</button></div>
         <div class="game-stage-wrap"><div class="game-arena" id="gameArena" data-mode="rocket" data-round-state="countdown" aria-label="Rocket Crash game preview">
           <div class="arena-stars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-          <div class="arena-countdown-ring" id="arenaCountdown" aria-live="polite"><div class="ring-copy"><strong id="countdownValue">4</strong><small>NEXT ROUND</small></div></div><div class="arena-multiplier" id="demoMultiplier" hidden aria-live="polite"><strong id="demoMultiplierValue">1.73</strong><span>x</span></div><div class="arena-result" id="arenaResult" hidden><strong>ROUND ENDED</strong><small>PREVIEW ONLY</small></div>
-          <img class="arena-rocket" id="arenaRocket" src="/miniapp/v2/rocket-reference.svg?v=1" alt="" hidden><div class="arena-trail" id="arenaTrail" data-color="red" aria-hidden="true"><span class="trail-dot"></span></div>
+          <div class="arena-countdown-ring" id="arenaCountdown" aria-live="polite"><div class="ring-copy"><strong id="countdownValue">4</strong><small>NEXT ROUND</small></div></div><div class="arena-multiplier" id="demoMultiplier" hidden aria-live="polite"><strong id="demoMultiplierValue">1.73</strong><span>x</span></div><div class="arena-result" id="arenaResult" hidden aria-label="Sample crash result"><div class="arena-crash-burst" id="arenaCrashBurst"></div></div>
+          <img class="arena-rocket" id="arenaRocket" src="/miniapp/v2/rocket-reference.svg?v=1" alt="" hidden><div class="arena-trail" id="arenaTrail" data-color="red" aria-hidden="true" hidden><span class="trail-dot"></span></div>
           <div class="wheel-graphic" id="wheelGraphic" hidden aria-label="Illustrative prize wheel"><div class="wheel-pointer"></div><div class="wheel-rim"><div class="wheel-disc" id="wheelDisc"><span>2×</span><span>5×</span><span>1.5×</span><span>10×</span><span>3×</span><span>JACKPOT</span><span>1.2×</span><span>8×</span></div></div><div class="wheel-hub">B</div></div>
           <div class="arena-live-strip"><span><i></i> DEMO ROUND</span><span id="roundPlayerCount">ROUND #2048</span></div>
         </div></div>
-        <div class="multiplier-history" aria-label="Sample recent round multipliers"><button type="button" class="history-tag is-blue">1.73x</button><button type="button" class="history-tag is-green">3.22x</button><button type="button" class="history-tag is-blue">1.30x</button><button type="button" class="history-tag is-gold">123.0x</button><button type="button" class="history-tag is-gold">16.0x</button><button type="button" class="history-tag is-violet">8.34x</button></div>
+        <div class="multiplier-history" aria-label="Sample recent round multipliers"><button type="button" class="history-tag is-blue">BET</button><button type="button" class="history-tag is-green">3.22x</button><button type="button" class="history-tag is-blue">1.30x</button><button type="button" class="history-tag is-gold">123.0x</button><button type="button" class="history-tag is-gold">16.0x</button><button type="button" class="history-tag is-violet">8.34x</button></div>
         <button class="place-bet-cta" type="button" id="openBetSheet"><span id="openBetLabel">Place bet</span><span class="cta-arrow">↗</span></button>
         <section class="live-players-section" aria-labelledby="livePlayersHeading"><div class="players-title-row"><div><span class="eyebrow">LIVE ARENA</span><h2 id="livePlayersHeading">Players <span id="livePlayersCount">24</span></h2></div><span class="live-badge"><i></i> SAMPLE</span></div>
           <div class="players-table-head" hidden><span>PLAYER</span><span>BET · RESULT</span><span>PAYOUT</span></div>
