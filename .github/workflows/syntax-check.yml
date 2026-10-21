@@ -2,9 +2,9 @@ name: ci
 
 on:
   pull_request:
-    branches: [main, feat/db-two-bot]
+    branches: [main, feat/db-two-bot, feat/miniapp-v2-android]
   push:
-    branches: [main, feat/db-two-bot]
+    branches: [main, feat/db-two-bot, feat/miniapp-v2-android]
 
 jobs:
   javascript:
@@ -30,6 +30,28 @@ jobs:
         run: |
           set -euo pipefail
           find public -type f \( -name '*.js' -o -name '*.cjs' -o -name '*.mjs' \) -print0 | xargs -0 -n1 node --check
+
+      - name: Check Mini App v2 entry, assets, and preview safety
+        run: |
+          node --check public/miniapp/v2/v2.js
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const assert = require('node:assert/strict');
+          const html = fs.readFileSync('public/miniapp/v2/index.html', 'utf8');
+          const js = fs.readFileSync('public/miniapp/v2/v2.js', 'utf8');
+          const css = fs.readFileSync('public/miniapp/v2/v2.css', 'utf8');
+          for (const file of ['v2.css?v=1', 'v2.js?v=1']) assert.ok(html.includes(file), 'missing v2 asset reference: ' + file);
+          for (const screen of ['home', 'games', 'activity', 'wallet', 'profile', 'game']) assert.ok(html.includes('data-screen="' + screen + '"'), 'missing screen: ' + screen);
+          for (const tab of ['home', 'games', 'activity', 'wallet', 'profile']) assert.ok(html.includes('data-nav="' + tab + '"'), 'missing navigation: ' + tab);
+          for (const nodeId of ['v2Toast', 'mainContent', 'gameSearch', 'gameEmpty', 'demoBetAmount', 'demoBetHint', 'activityEmptyTitle', 'activityEmptyText', 'maxDemoBet', 'demoBetButton', 'demoFeedback', 'profileShortcut', 'profileName', 'profileStatus', 'profileAvatar', 'connectionState', 'demoMultiplier', 'crashStage', 'gameTitle', 'gameSubtitle']) {
+            assert.ok(html.includes('id="' + nodeId + '"'), 'missing referenced node: ' + nodeId);
+          }
+          assert.ok(css.includes('prefers-reduced-motion'), 'reduced-motion support missing');
+          assert.ok(css.includes('env(safe-area-inset-bottom)'), 'safe-area support missing');
+          assert.ok(!/fetch\s*\(|XMLHttpRequest|\.telegram\.sendData|placeWebCrashBet|cashoutWebCrash/.test(js), 'preview must not call live API/game mutations');
+          assert.ok(js.includes('No bet was placed'), 'preview must make demo-only result explicit');
+          console.log('Mini App v2 preview smoke checks OK');
+          NODE
 
       - name: Smoke-test pure game engines
         run: |
