@@ -204,8 +204,9 @@ module.exports = (bot) => {
     let sent = null;
 
     try {
-      // Fast visible response first.
-      // Expensive DB operations run after this message already appears.
+      // Send once and perform exactly two animation edits over a 500 ms
+      // total visual window. These edits are presentation-only; no balances,
+      // bets, payouts, or settlement records are mutated here.
       sent = await replyHTML(
         ctx,
         animationText(randomFrame(), `${START_ROLLING_EMOJI} Start Rolling...`),
@@ -215,6 +216,24 @@ module.exports = (bot) => {
       if (!sent?.message_id) {
         throw new Error('SLOT_ANIMATION_MESSAGE_FAILED');
       }
+
+      await sleep(250);
+      await editByIds(
+        bot,
+        chatId,
+        sent.message_id,
+        animationText(randomFrame(), `${START_ROLLING_EMOJI} Rolling...`),
+        {}, userId
+      );
+
+      await sleep(250);
+      await editByIds(
+        bot,
+        chatId,
+        sent.message_id,
+        animationText(randomFrame(), `${START_ROLLING_EMOJI} Almost there...`),
+        {}, userId
+      );
 
       // DB work starts here after user already sees slot response.
       const user = await getUser(userId);
@@ -299,8 +318,8 @@ module.exports = (bot) => {
 
       betTaken = false;
 
-      // Keep a brief visual pause without making every spin feel slow.
-      await sleep(300);
+      // Settlement is complete; show the final result without another
+      // artificial wait. The two animation edits above use 500 ms total.
       return editByIds(
         bot,
         chatId,
