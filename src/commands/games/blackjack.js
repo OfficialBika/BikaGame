@@ -7,7 +7,7 @@ const {
   treasuryPayToUser,
 } = require('../../services/economyService');
 const { checkCooldown } = require('../../services/cooldownService');
-const { getDb } = require('../../config/database');
+const { getTransactionHistoryCollection } = require('../../config/database');
 const { ensureTreasury, isOwner } = require('../../services/treasuryService');
 const { replyHTML } = require('../../utils/telegram');
 const { fmt } = require('../../utils/format');
@@ -455,7 +455,8 @@ async function logSettlementFailure(stage, game, err) {
 }
 
 async function readBlackjackWinLedger(game) {
-  return getDb().collection('transactions').findOne({
+  const transactions = await getTransactionHistoryCollection();
+  return transactions.findOne({
     type: 'blackjack_win',
     'meta.idempotencyKey': `${game.id}:win`,
   });
@@ -467,7 +468,7 @@ async function settleGame(bot, game, result) {
   game.processing = true;
   game.pendingResult = result;
 
-  // DB1 ledger is the source of truth. Reconcile before every retry so a
+  // DB2 ledger is the authoritative source of truth. Reconcile before every retry so a
   // committed payout can never be followed by an automatic refund.
   let winLedger;
   try {
