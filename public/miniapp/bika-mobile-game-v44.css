@@ -63,13 +63,16 @@ html, body.bika-v41 { background: var(--bika-mg-bg); }
 #crash #rocketCanvas {
   position: absolute;
   inset: 0;
-  z-index: 5;
+  z-index: 8;
   width: 100%;
   height: 100%;
   pointer-events: none;
-  opacity: 0;
+  opacity: 1;
 }
 #crash #rocketCanvas .rocket-pixi-canvas { display:block; width:100%; height:100%; }
+#crash #rocketArt { display: none !important; }
+#crash #rocketTrajectory { display: none !important; }
+#crash .rocket-scene::before { z-index: 2; }
 #crash #rocketTrajectory { z-index: 6; }
 #crash #rocketArt {
   z-index: 9;
