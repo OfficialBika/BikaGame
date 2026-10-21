@@ -51,6 +51,14 @@ async function ensureIndexes() {
   // webBetHistoryService also creates this index on first write/read. Creating
   // it here makes retention deterministic immediately after startup.
   const db2 = await getTransactionHistoryDb();
+
+  // DB2 stores user-facing web game history and the financial transaction ledger.
+  // Keep financial transaction rows for seven days as requested; this is separate
+  // from DB1's financial_idempotency keys, which remain permanent to guard retries.
+  await safeCreateIndex(db2.collection('transactions'), { createdAt: 1 }, {
+    expireAfterSeconds: RETENTION_SECONDS,
+    name: 'ttl_transactions_createdAt_7d',
+  });
   await safeCreateIndex(db2.collection('web_game_history'), { createdAt: 1 }, {
     expireAfterSeconds: RETENTION_SECONDS,
     name: 'ttl_createdAt_7d',
@@ -91,8 +99,8 @@ async function cleanupExpiredGameHistory({ now = new Date() } = {}) {
     const sportsIds = oldSports.map((row) => row._id).filter(Boolean);
     if (sportsIds.length) report.deleted.sports_bets = await deleteInBatches(col('sports_bets'), { eventId: { $in: sportsIds } });
 
-    // No transaction ledger collection is touched here. DB2 `transactions` is
-    // the permanent financial audit trail; user-facing game history is separate.
+    // DB2 transactions history expires via the TTL index above. Financial idempotency
+    // keys remain in DB1 and are intentionally not deleted by this cleanup routine.
     return report;
   } finally {
     running = false;
