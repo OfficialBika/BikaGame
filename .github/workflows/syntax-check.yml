@@ -36,7 +36,7 @@ jobs:
           grep -q "api('/api/mini/crash/bet'" public/miniapp/v2/v2.js
           grep -q "api('/api/mini/crash/cashout')" public/miniapp/v2/v2.js
           grep -q "X-Telegram-Init-Data" public/miniapp/v2/v2.js
-          node -e "const fs=require('node:fs'); const r=fs.readFileSync('src/web/miniAppRoutes.js','utf8'); if (!r.includes('/miniapp/v2')) process.exit(1);"
+          node -e "const fs=require('node:fs'); const r=fs.readFileSync('src/web/miniAppRoutes.js','utf8'); if (!r.includes('publicDir, \\\'v2\\\', \\\'index.html\\\'')) process.exit(1);"
 
       - name: Check public JavaScript syntax
         shell: bash
