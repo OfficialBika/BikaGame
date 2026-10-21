@@ -43,13 +43,13 @@ jobs:
           for (const file of ['v2.css?v=4', 'v2.js?v=3']) assert.ok(html.includes(file), 'missing v2 asset reference: ' + file);
           for (const screen of ['home', 'games', 'activity', 'wallet', 'profile', 'game']) assert.ok(html.includes('data-screen="' + screen + '"'), 'missing screen: ' + screen);
           for (const tab of ['home', 'games', 'activity', 'wallet', 'profile']) assert.ok(html.includes('data-nav="' + tab + '"'), 'missing navigation: ' + tab);
-          for (const nodeId of ['v2Toast', 'mainContent', 'gameSearch', 'gameEmpty', 'demoBetAmount', 'demoBetHint', 'activityEmptyTitle', 'activityEmptyText', 'maxDemoBet', 'demoBetButton', 'demoFeedback', 'profileShortcut', 'profileName', 'profileStatus', 'profileAvatar', 'connectionState', 'demoMultiplier', 'crashStage', 'gameTitle', 'gameSubtitle']) {
+          for (const nodeId of ['v2Toast', 'mainContent', 'gameSearch', 'gameEmpty', 'demoBetAmount', 'demoBetHint', 'activityEmptyTitle', 'activityEmptyText', 'maxDemoBet', 'demoBetButton', 'demoFeedback', 'profileShortcut', 'profileName', 'profileStatus', 'profileAvatar', 'connectionState', 'demoMultiplier', 'gameArena', 'gameTitle', 'gameModeLabel']) {
             assert.ok(html.includes('id="' + nodeId + '"'), 'missing referenced node: ' + nodeId);
           }
           assert.ok(css.includes('prefers-reduced-motion'), 'reduced-motion support missing');
           assert.ok(css.includes('env(safe-area-inset-bottom)'), 'safe-area support missing');
           assert.ok(!/fetch\s*\(|XMLHttpRequest|\.telegram\.sendData|placeWebCrashBet|cashoutWebCrash/.test(js), 'preview must not call live API/game mutations');
-          assert.ok(js.includes('No bet was placed'), 'preview must make demo-only result explicit');
+          assert.ok(js.includes('No live bet, spin, or balance change was sent'), 'preview must make demo-only result explicit');
           console.log('Mini App v2 preview smoke checks OK');
           NODE
 
