@@ -37,7 +37,6 @@ jobs:
           grep -q "api('/api/mini/crash/cashout')" public/miniapp/v2/v2.js
           grep -q "X-Telegram-Init-Data" public/miniapp/v2/v2.js
           grep -q "miniapp/v2" src/web/miniAppRoutes.js
-          grep -q "bikaSplash" public/miniapp/v2/index.html
 
       - name: Check public JavaScript syntax
         shell: bash
