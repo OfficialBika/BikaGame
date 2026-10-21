@@ -148,3 +148,44 @@ body.bet-sheet-open{overflow:hidden}
 @media(max-width:380px){.wheel-graphic{width:200px;height:200px}.wheel-face span:nth-child(n){transform-origin:50% 50%;font-size:9px}}
 
 .visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+/* Reference match: dark flat arena, small glossy red/white checkered rocket, twin yellow-orange flames */
+.game-arena{height:clamp(345px,53vh,470px);border:0;border-radius:4px;background:#191919;box-shadow:none}
+.game-arena .arena-stars i{width:5px;height:5px;background:#e9e5eb;box-shadow:none;opacity:.85}
+.game-arena .arena-stars i:nth-child(3n){background:#eab8a3;width:8px;height:8px}
+.game-arena .arena-orbit,.game-arena .arena-planet,.game-arena .arena-horizon{display:none!important}
+.game-arena .arena-live-strip{background:linear-gradient(0deg,rgba(18,18,18,.7),transparent);border:0;height:23px;color:#7e7e7e}
+.game-arena .arena-live-strip span:first-child{color:#777}
+.game-arena .arena-live-strip i{background:#50d6b0;box-shadow:none}
+.game-arena .arena-flight-path{inset:auto auto 35px 12px;width:105px;height:24px;opacity:.9}
+.game-arena .arena-flight-path path{stroke:#159eff;stroke-width:7;stroke-linecap:round;filter:drop-shadow(0 0 8px #159eff);stroke-dasharray:none;stroke-dashoffset:0}
+.game-arena .arena-flares{display:none}
+.game-arena .arena-state{top:15px;left:16px;gap:6px;color:#d7d7d7;font-size:10px;letter-spacing:.04em}
+.game-arena .arena-state strong{font-size:11px;color:#f2f2f2}
+.game-arena .arena-state .state-dot{background:#4ce6b8;box-shadow:none}
+.game-arena .arena-multiplier{top:calc(50% - 43px);left:50%;transform:translate(-50%,-50%);font-size:clamp(35px,10vw,53px);letter-spacing:-.04em;text-shadow:0 3px 14px rgba(0,0,0,.3)}
+.game-arena .arena-rocket{background:none!important;border:0!important;box-shadow:none!important;width:100px;height:47px;left:37%;top:50%;transform:translate(-50%,-50%);border-radius:0;animation:ref-rocket-hover 2s ease-in-out infinite;overflow:visible}
+.game-arena .arena-rocket .rocket-sprite{display:block;width:100%;height:100%;overflow:visible;filter:drop-shadow(0 3px 3px rgba(0,0,0,.24))}
+.game-arena .arena-rocket .rocket-window,.game-arena .arena-rocket .rocket-wing,.game-arena .arena-rocket .rocket-fin,.game-arena .arena-rocket .rocket-fire,.game-arena .arena-rocket .rocket-fire-core{display:none}
+.game-arena .arena-spark-trail{display:none}
+.multiplier-history{margin-top:10px;margin-bottom:8px;gap:6px;grid-template-columns:repeat(6,minmax(0,1fr))}
+.history-tag{height:33px;border-radius:10px;background:#222b35;border:1px solid #516476;color:#c8e2ff;font-size:10px}
+.history-tag:nth-child(2n){background:#18372f;border-color:#308b69;color:#96f5ca}
+.history-tag.is-active{background:#162638;border:2px solid #4b9cff;color:#d5ecff;box-shadow:0 0 12px rgba(26,147,255,.28)}
+.history-tag.history-gold{background:#3b3121;border-color:#9e7a29;color:#ffdf81}
+.place-bet-cta{height:49px;border-radius:10px;background:linear-gradient(100deg,#08a7df,#2864ec);box-shadow:none;font-size:14px;font-weight:800}
+.live-players-section{margin-top:15px;padding:11px 10px 13px;background:#242525;border:1px solid #343636;border-radius:22px}
+.players-title-row{margin-bottom:11px}
+.player-row{min-height:68px;border-radius:17px;background:#213231;border-color:#2d5954;padding:8px 10px}
+.player-avatar{border-radius:10px}
+.player-result{display:flex;flex-direction:row;align-items:center;flex-wrap:wrap;gap:3px}
+.player-result strong,.player-result span{display:inline-block}
+.player-payout{padding:9px 7px;border-radius:14px;background:rgba(31,151,184,.14);color:#69e5ff}
+.sample-data-note{color:#8f9698}
+@keyframes ref-rocket-hover{0%,100%{translate:0 0}50%{translate:0 -6px}}
+/* Wheel receives the same understated, near-black arena treatment. */
+.game-arena[data-mode="wheel"]{background:#191919}
+.game-arena[data-mode="wheel"] .arena-live-strip span:first-child{color:#ffd57c}
+.game-arena .wheel-graphic{width:min(39vw,205px);height:min(39vw,205px)}
+@media(max-width:390px){.game-arena{height:clamp(315px,48vh,420px)}.game-arena .arena-rocket{width:94px;height:43px}.live-players-section{margin-top:12px}.player-row{grid-template-columns:1.45fr 1.1fr .8fr}}
+@media(prefers-reduced-motion:reduce){.game-arena .arena-rocket{animation:none}}
