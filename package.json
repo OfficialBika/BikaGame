@@ -9,7 +9,8 @@
     "check": "node --check index.js && find src -name '*.js' -print0 | xargs -0 -n1 node --check",
     "migrate:transaction-history": "node scripts/migrate-transaction-history.js",
     "cleanup:game-history": "node scripts/cleanup-game-history.js",
-    "clear:db1-transactions": "node scripts/clear-db1-transactions.js"
+    "clear:db1-transactions": "node scripts/clear-db1-transactions.js",
+    "db:storage": "node scripts/db-storage-report.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
