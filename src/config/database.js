@@ -275,22 +275,24 @@ async function findTransactionHistoryByIdempotency(type, key, session) {
   if (!key) return null;
   if (!env.DB_TWO_ENABLED) throw new Error('DB_TWO_DISABLED');
   if (!db) throw new Error('DB_NOT_CONNECTED');
-  // Check idempotency on the same DB1 session as the balance mutation. A DB2
-  // read cannot participate in the DB1 transaction when the clusters differ.
+  // Include a request-specific idempotency key: multiple independent transfers
+  // may legitimately share a type and must not collide.
   const id = String(type) + ':' + String(key);
   const options = session ? { session } : {};
   return db.collection('financial_idempotency').findOne({ _id: id }, options);
 }
 
-async function reserveTransactionIdempotency(type, key, session) {
+async function reserveTransactionIdempotency(type, key, session, options = {}) {
   if (key == null || String(key) === '') return null;
   if (!db) throw new Error('DB_NOT_CONNECTED');
   const id = String(type) + ':' + String(key);
+  const createdAt = new Date();
   return db.collection('financial_idempotency').insertOne({
     _id: id,
     type: String(type),
     key: String(key),
-    createdAt: new Date(),
+    createdAt,
+    ...options,
   }, session ? { session } : {});
 }
 
