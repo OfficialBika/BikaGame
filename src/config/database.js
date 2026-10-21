@@ -400,7 +400,8 @@ async function connectMongo() {
   collections.transactions = historyReady && historyDb ? historyDb.collection(HISTORY_COLLECTION) : null;
 
   await safeCreateIndex(collections.transaction_outbox, { status: 1, createdAt: 1 }, { name: 'transaction_outbox_pending_createdAt' });
-  await safeCreateIndex(collections.financial_idempotency, { createdAt: 1 }, { expireAfterSeconds: 7 * 24 * 60 * 60, name: 'ttl_financial_idempotency_7d' });
+  // Financial idempotency keys can protect legitimate delayed retries. Do not TTL-delete
+  // these records after seven days; game/history markers have separate retention policy.
   await safeCreateIndex(collections.financial_settlements, { createdAt: 1 }, { expireAfterSeconds: 7 * 24 * 60 * 60, name: 'ttl_financial_settlements_7d' });
   await safeCreateIndex(collections.users, { userId: 1 }, { unique: true });
   await safeCreateIndex(collections.users, { username: 1 }, { sparse: true });
