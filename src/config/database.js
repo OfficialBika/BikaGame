@@ -7,8 +7,11 @@ const collections = {};
 let historyClient = null;
 let historyDb = null;
 let historyReady = false;
-let transactionsShareClient = false;
 let dbOneWriteBlocked = false;
+let dbTwoWriteBlocked = false;
+let outboxFlushRunning = false;
+let outboxFlushTimer = null;
+let lastOutboxQuotaLogAt = 0;
 const HISTORY_COLLECTION = 'transactions';
 
 function sameMongoDeployment(left, right) {
@@ -42,11 +45,17 @@ async function safeCreateIndex(col, keys, options = {}) {
     if ([85,86].includes(err?.code) || ['IndexOptionsConflict','IndexKeySpecsConflict'].includes(err?.codeName)) {
       logger.warn(`Skipping conflicting index ${col.collectionName} ${JSON.stringify(keys)}`); return null;
     }
-    // Index creation is optional bootstrap metadata. A quota error blocks financial
-    // writes because either the ledger or the balance store may be unavailable.
+    // Distinguish the balance cluster from the remote ledger cluster. A DB2
+    // quota failure must not falsely mark DB1 writes as blocked; pending DB1
+    // outbox entries remain durable until DB2 storage recovers.
     if (isStorageQuotaError(err)) {
-      dbOneWriteBlocked = true;
-      logger.error(`MongoDB quota blocked index creation for ${col.collectionName}; continuing diagnostic startup without index ${JSON.stringify(keys)}. Financial operations remain blocked until storage writes recover.`);
+      if (col?.s?.db === db) {
+        dbOneWriteBlocked = true;
+        logger.error(`MongoDB quota blocked DB1 index creation for ${col.collectionName}; financial operations remain blocked until DB1 writes recover.`);
+      } else {
+        dbTwoWriteBlocked = true;
+        logger.error(`MongoDB quota blocked DB2 ledger index creation for ${col.collectionName}; ledger outbox records will be retained for retry.`);
+      }
       return null;
     }
     throw err;
@@ -91,49 +100,29 @@ async function connectTransactionHistory() {
     return;
   }
 
-  // The DB1 balance/treasury updates and DB2 ledger rows must participate in the
-  // same MongoDB session. When both URIs identify the same deployment and auth
-  // identity (the database path may differ), reuse the primary client. Never pass
-  // a DB1 session to a different MongoClient.
-  if (sameMongoDeployment(env.MONGO_URI_2, env.MONGO_URI)) {
-    historyClient = client;
-    historyDb = client.db(env.DB_TWO_NAME);
-    try {
-      await historyDb.command({ ping: 1 });
-      historyReady = true;
-      transactionsShareClient = true;
-      logger.info('DB2 transaction ledger connected on shared MongoClient; DB1 transactions collection will not be used.');
-    } catch (err) {
-      historyDb = null;
-      historyReady = false;
-      transactionsShareClient = false;
-      logger.error('DB2 transaction ledger connection failed; financial operations remain blocked.', err);
-      return;
-    }
-  } else {
-    historyClient = new MongoClient(env.MONGO_URI_2, { maxPoolSize: 10, minPoolSize: 0, retryWrites: true });
-    try {
-      await historyClient.connect();
-      historyDb = historyClient.db(env.DB_TWO_NAME);
-      await historyDb.command({ ping: 1 });
-      historyReady = true;
-      transactionsShareClient = false;
-      logger.error('DB2 ledger is reachable, but MONGO_URI_2 differs from MONGO_URI. Financial operations are blocked because cross-client transactions are not atomic.');
-    } catch (err) {
-      try { await historyClient.close(); } catch (_) {}
-      historyClient = null;
-      historyDb = null;
-      historyReady = false;
-      transactionsShareClient = false;
-      logger.error('DB2 transaction ledger connection failed; financial operations remain blocked.', err);
-    }
+  // DB1 and DB2 may be separate MongoDB clusters. MongoDB cannot provide a
+  // single atomic transaction across them, so balances + an outbox entry commit
+  // on DB1; a retryable worker replicates ledger rows to DB2 after that commit.
+  historyClient = new MongoClient(env.MONGO_URI_2, { maxPoolSize: 10, minPoolSize: 0, retryWrites: true });
+  try {
+    await historyClient.connect();
+    historyDb = historyClient.db(env.DB_TWO_NAME);
+    await historyDb.command({ ping: 1 });
+    historyReady = true;
+    dbTwoWriteBlocked = false;
+    logger.info('DB2 ledger connected. DB1 financial changes use a DB1 transaction plus durable outbox; DB2 ledger replication is asynchronous and idempotent.');
+  } catch (err) {
+    try { await historyClient.close(); } catch (_) {}
+    historyClient = null;
+    historyDb = null;
+    historyReady = false;
+    logger.error('DB2 transaction ledger connection failed; financial operations remain blocked until ledger connectivity is restored.', err);
+    return;
   }
 
-  if (historyReady) {
-    await safeCreateIndex(historyDb.collection(HISTORY_COLLECTION), { type: 1, 'meta.idempotencyKey': 1 }, { name: 'tx_type_idempotency' });
-    await safeCreateIndex(historyDb.collection(HISTORY_COLLECTION), { userId: 1, createdAt: -1 }, { name: 'tx_user_createdAt' });
-    await safeCreateIndex(historyDb.collection(HISTORY_COLLECTION), { type: 1, 'meta.eventId': 1, toUserId: 1 }, { name: 'tx_type_event_toUser' });
-  }
+  await safeCreateIndex(historyDb.collection(HISTORY_COLLECTION), { type: 1, 'meta.idempotencyKey': 1 }, { name: 'tx_type_idempotency' });
+  await safeCreateIndex(historyDb.collection(HISTORY_COLLECTION), { userId: 1, createdAt: -1 }, { name: 'tx_user_createdAt' });
+  await safeCreateIndex(historyDb.collection(HISTORY_COLLECTION), { type: 1, 'meta.eventId': 1, toUserId: 1 }, { name: 'tx_type_event_toUser' });
 }
 
 // DB2 is the only transaction ledger. No runtime transaction outbox is written to DB1.
@@ -151,18 +140,105 @@ async function initializeTransactionHistoryStorage() {
   return { ready: true };
 }
 
-async function flushTransactionHistoryOutbox() {
-  return { skipped: true, processed: 0, reason: 'DB2_IS_AUTHORITATIVE_LEDGER' };
+async function flushTransactionHistoryOutbox({ limit = 200 } = {}) {
+  if (!env.DB_TWO_ENABLED) return { skipped: true, reason: 'DB_TWO_DISABLED', processed: 0 };
+  if (!historyReady || !historyDb) return { skipped: true, reason: 'DB2_NOT_READY', processed: 0 };
+  if (outboxFlushRunning) return { skipped: true, reason: 'already_running', processed: 0 };
+
+  outboxFlushRunning = true;
+  const outbox = collections.transaction_outbox || db.collection('transaction_outbox');
+  try {
+    const rows = await outbox.find({ status: 'pending' })
+      .sort({ createdAt: 1, _id: 1 })
+      .limit(Math.max(1, Math.min(1000, Number(limit) || 200)))
+      .toArray();
+    if (!rows.length) {
+      dbTwoWriteBlocked = false;
+      return { processed: 0, pending: 0 };
+    }
+
+    const validRows = [];
+    const malformedIds = [];
+    for (const row of rows) {
+      const payload = row?.payload;
+      const targetId = row?.targetId ?? payload?._id ?? row?.sourceId;
+      if (!payload || typeof payload !== 'object' || targetId == null ||
+          (payload._id != null && String(payload._id) !== String(targetId))) {
+        malformedIds.push(row._id);
+      } else {
+        validRows.push({ row, targetId, payload: { ...payload, _id: targetId } });
+      }
+    }
+
+    if (malformedIds.length) {
+      await outbox.updateMany(
+        { _id: { $in: malformedIds }, status: 'pending' },
+        { $set: { status: 'failed', lastError: 'INVALID_OUTBOX_PAYLOAD', updatedAt: new Date() } },
+      );
+      logger.error('Marked ' + malformedIds.length + ' malformed transaction outbox row(s) as failed; rows were preserved for inspection.');
+    }
+    if (!validRows.length) return { processed: 0, failed: malformedIds.length, pending: await outbox.countDocuments({ status: 'pending' }) };
+
+    // $setOnInsert makes replay safe if DB2 accepted a previous attempt but the
+    // acknowledgement or DB1 outbox deletion was interrupted.
+    await historyDb.collection(HISTORY_COLLECTION).bulkWrite(
+      validRows.map(({ targetId, payload }) => ({
+        updateOne: {
+          filter: { _id: targetId },
+          update: { $setOnInsert: payload },
+          upsert: true,
+        },
+      })),
+      { ordered: true },
+    );
+
+    const removed = await outbox.deleteMany({ _id: { $in: validRows.map(({ row }) => row._id) } });
+    dbTwoWriteBlocked = false;
+    return {
+      processed: validRows.length,
+      removed: Number(removed.deletedCount || 0),
+      failed: malformedIds.length,
+      pending: await outbox.countDocuments({ status: 'pending' }),
+    };
+  } catch (err) {
+    if (isStorageQuotaError(err)) {
+      dbTwoWriteBlocked = true;
+      const now = Date.now();
+      if (now - lastOutboxQuotaLogAt >= 60_000) {
+        lastOutboxQuotaLogAt = now;
+        logger.error('DB2 ledger writes are blocked by its storage quota; DB1 outbox entries remain stored and will be retried after DB2 storage recovers.', err);
+      }
+    }
+    throw err;
+  } finally {
+    outboxFlushRunning = false;
+  }
+}
+
+function startTransactionHistoryOutbox() {
+  if (outboxFlushTimer) return;
+  const run = () => flushTransactionHistoryOutbox().catch((err) => {
+    if (!isStorageQuotaError(err)) logger.error('DB2 transaction outbox flush failed; entries were retained for retry.', err);
+  });
+  run();
+  outboxFlushTimer = setInterval(run, 15_000);
+  outboxFlushTimer.unref?.();
+}
+
+async function stopTransactionHistoryOutbox() {
+  if (outboxFlushTimer) clearInterval(outboxFlushTimer);
+  outboxFlushTimer = null;
 }
 
 async function findTransactionHistoryByIdempotency(type, key, session) {
   if (!key) return null;
-  if (!env.DB_TWO_ENABLED || !historyReady || !historyDb) throw new Error('DB_TWO_HISTORY_NOT_READY');
-  if (session && !transactionsShareClient) throw new Error('DB_TWO_MUST_SHARE_MONGO_CLIENT_FOR_ATOMIC_TRANSACTIONS');
-  return historyDb.collection(HISTORY_COLLECTION).findOne(
-    { type, 'meta.idempotencyKey': key },
-    session ? { session } : {},
-  );
+  if (!env.DB_TWO_ENABLED) throw new Error('DB_TWO_DISABLED');
+  if (!db) throw new Error('DB_NOT_CONNECTED');
+  // Check idempotency on the same DB1 session as the balance mutation. A DB2
+  // read cannot participate in the DB1 transaction when the clusters differ.
+  const id = String(type) + ':' + String(key);
+  const options = session ? { session } : {};
+  return db.collection('financial_idempotency').findOne({ _id: id }, options);
 }
 
 async function recordTransactionMigrationReport() {
@@ -266,10 +342,14 @@ async function connectMongo() {
   collections.auctions = db.collection('auctions');
   collections.auction_bids = db.collection('auction_bids');
   collections.daily_tournaments = db.collection('daily_tournaments');
+  collections.transaction_outbox = db.collection('transaction_outbox');
+  collections.financial_idempotency = db.collection('financial_idempotency');
+  collections.financial_settlements = db.collection('financial_settlements');
 
   await connectTransactionHistory();
   collections.transactions = historyReady && historyDb ? historyDb.collection(HISTORY_COLLECTION) : null;
 
+  await safeCreateIndex(collections.transaction_outbox, { status: 1, createdAt: 1 }, { name: 'transaction_outbox_pending_createdAt' });
   await safeCreateIndex(collections.users, { userId: 1 }, { unique: true });
   await safeCreateIndex(collections.users, { username: 1 }, { sparse: true });
   await safeCreateIndex(collections.users, { balance: -1 });
@@ -314,7 +394,6 @@ function txUnsupported(err) {
 }
 async function withMaybeTx(work) {
   if (!env.DB_TWO_ENABLED || !historyReady || !historyDb) throw new Error('DB_TWO_HISTORY_NOT_READY');
-  if (!transactionsShareClient) throw new Error('DB_TWO_MUST_SHARE_MONGO_CLIENT_FOR_ATOMIC_TRANSACTIONS');
   if (dbOneWriteBlocked) throw new Error('DB1_STORAGE_QUOTA_BLOCKED');
   if (!TX_SUPPORTED) throw new Error('MONGO_TRANSACTIONS_REQUIRED');
   const session = client.startSession();
@@ -332,7 +411,6 @@ async function withMaybeTx(work) {
 }
 async function withRequiredTx(work) {
   if (!env.DB_TWO_ENABLED || !historyReady || !historyDb) throw new Error('DB_TWO_HISTORY_NOT_READY');
-  if (!transactionsShareClient) throw new Error('DB_TWO_MUST_SHARE_MONGO_CLIENT_FOR_ATOMIC_TRANSACTIONS');
   if (dbOneWriteBlocked) throw new Error('DB1_STORAGE_QUOTA_BLOCKED');
   if (!TX_SUPPORTED) throw new Error('MONGO_TRANSACTIONS_REQUIRED');
   const session = client.startSession();
@@ -349,4 +427,4 @@ async function withRequiredTx(work) {
   } finally { try { await session.endSession(); } catch (_) {} }
 }
 async function pingMs(){ const s=Date.now(); try{ await getDb().command({ping:1}); return Date.now()-s; }catch(_){return null;} }
-module.exports = { connectMongo, closeMongo, getDb, col, safeCreateIndex, withMaybeTx, withRequiredTx, pingMs, enqueueTransactionHistory, flushTransactionHistoryOutbox, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryCollection, getTransactionHistoryStats, initializeTransactionHistoryStorage, hasVerifiedInitialMigration, copyVerifiedHistoryDocument, migrateTransactionHistory, verifyRetainedTransactionHistory, isHistoryReady, isDbOneWriteBlocked, markDbOneWriteBlocked };
+module.exports = { startTransactionHistoryOutbox, stopTransactionHistoryOutbox, connectMongo, closeMongo, getDb, col, safeCreateIndex, withMaybeTx, withRequiredTx, pingMs, enqueueTransactionHistory, flushTransactionHistoryOutbox, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryCollection, getTransactionHistoryStats, initializeTransactionHistoryStorage, hasVerifiedInitialMigration, copyVerifiedHistoryDocument, migrateTransactionHistory, verifyRetainedTransactionHistory, isHistoryReady, isDbOneWriteBlocked, markDbOneWriteBlocked };
