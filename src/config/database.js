@@ -332,6 +332,8 @@ async function connectMongo() {
   collections.transaction_outbox = db.collection('transaction_outbox');
   collections.financial_idempotency = db.collection('financial_idempotency');
   collections.financial_settlements = db.collection('financial_settlements');
+  // Telegram payment charge IDs are permanent idempotency keys and must not expire with game-history markers.
+  collections.stars_payment_idempotency = db.collection('stars_payment_idempotency');
 
   await connectTransactionHistory();
   collections.transactions = historyReady && historyDb ? historyDb.collection(HISTORY_COLLECTION) : null;
@@ -407,7 +409,7 @@ async function withRequiredTx(work) {
   catch (e) {
     if (txUnsupported(e)) {
       TX_SUPPORTED = false;
-      logger.error('Mongo transactions are required for this operation; refusing unsafe non-transactional fallback.');
+      logger.error('Mongo transactions are required to atomically commit DB1 balances, settlement markers, and durable outbox entries; refusing unsafe fallback.');
       const err = new Error('MONGO_TRANSACTIONS_REQUIRED');
       err.cause = e;
       throw err;
