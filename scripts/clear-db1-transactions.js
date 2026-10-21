@@ -7,20 +7,18 @@ const path = require('path');
 
 const CONFIRM_FLAG = '--confirm-delete-db1-transactions';
 const BACKUP_FLAG = '--backup-jsonl';
-const ALLOW_PENDING_FLAG = '--allow-pending-outbox';
 const BATCH_SIZE = 200;
 
 function parseArgs(argv) {
-  const args = { confirm: false, backup: false, dryRun: false, allowPendingOutbox: false };
+  const args = { confirm: false, backup: false, dryRun: false };
   for (const arg of argv) {
     if (arg === CONFIRM_FLAG) args.confirm = true;
     else if (arg === BACKUP_FLAG) args.backup = true;
-    else if (arg === ALLOW_PENDING_FLAG) args.allowPendingOutbox = true;
     else if (arg === '--dry-run') args.dryRun = true;
     else if (arg === '--help') {
       console.log('Usage: node scripts/clear-db1-transactions.js --dry-run');
       console.log('       node scripts/clear-db1-transactions.js ' + CONFIRM_FLAG + ' ' + BACKUP_FLAG);
-      console.log('Safety guards require explicit DB1/DB2 settings, a backup, and exact DB2 verification. Pending outbox bypass is explicit and not recommended.');
+      console.log('Safety guards require explicit DB1/DB2 settings, separate backups of DB1 transactions/outbox, and exact DB2 verification of both transactions and outbox payloads.');
       process.exit(0);
     } else throw new Error('Unknown argument: ' + arg);
   }
@@ -77,18 +75,49 @@ async function verifyCopy(source, target, expectedCount) {
   };
 }
 
-async function exportBackup(collection) {
+async function verifyOutboxPayloads(outbox, target) {
+  let scanned = 0;
+  let missing = 0;
+  let mismatched = 0;
+  let batch = [];
+  async function verifyBatch(rows) {
+    for (const row of rows) {
+      const payload = row?.payload;
+      if (!payload || payload._id == null) {
+        missing += 1;
+        continue;
+      }
+      const targetId = row.targetId || payload._id || row.sourceId;
+      const counterpart = await target.findOne({ _id: targetId });
+      if (!counterpart) missing += 1;
+      else if (JSON.stringify(stable(payload)) !== JSON.stringify(stable(counterpart))) mismatched += 1;
+    }
+  }
+  for await (const row of outbox.find({}).sort({ _id: 1 }).batchSize(BATCH_SIZE)) {
+    scanned += 1;
+    batch.push(row);
+    if (batch.length >= BATCH_SIZE) {
+      await verifyBatch(batch);
+      batch = [];
+    }
+  }
+  if (batch.length) await verifyBatch(batch);
+  const countAfter = await outbox.countDocuments({});
+  return { scanned, countAfter, missing, mismatched, verified: scanned === countAfter && missing === 0 && mismatched === 0 };
+}
+
+async function exportBackup(collection, collectionName) {
   const backupDir = path.resolve(process.env.TRANSACTION_BACKUP_DIR || './backups');
   fs.mkdirSync(backupDir, { recursive: true, mode: 0o700 });
   const backupPath = path.join(
     backupDir,
-    'db1-transactions-' + new Date().toISOString().replace(/[:.]/g, '-') + '.jsonl'
+    'db1-' + collectionName.replace(/[^a-z0-9_-]/gi, '_') + '-' +
+      new Date().toISOString().replace(/[:.]/g, '-') + '.jsonl'
   );
   const fd = fs.openSync(backupPath, 'wx', 0o600);
   try {
     for await (const doc of collection.find({}).sort({ _id: 1 })) {
-      // MongoDB Extended JSON preserves ObjectId/Date/Binary types for restoration.
-      fs.writeSync(fd, require('mongodb').EJSON.stringify(doc, { relaxed: false }) + '\n');
+      fs.writeSync(fd, require('mongodb').EJSON.stringify(doc, { relaxed: false }) + '\\n');
     }
     fs.fsyncSync(fd);
   } finally {
@@ -131,9 +160,10 @@ async function main() {
 
     // Avoid Collection.stats(), which uses an aggregation cursor in the Node driver.
     // The cleanup decision needs counts and exact document verification, not storage metrics.
-    const [sourceCount, targetCount, pendingOutbox] = await Promise.all([
+    const [sourceCount, targetCount, outboxCount, pendingOutbox] = await Promise.all([
       source.countDocuments({}),
       target.countDocuments({}),
+      outbox.countDocuments({}),
       outbox.countDocuments({ status: 'pending' }).catch((err) => {
         if (err && (err.codeName === 'NamespaceNotFound' || err.code === 26)) return 0;
         throw err;
@@ -148,21 +178,21 @@ async function main() {
       targetCollection: 'transactions',
       sourceCount,
       targetCount,
+      outboxCount,
       pendingOutbox,
-      deleted: 0,
+      deleted: { transactions: 0, transaction_outbox: 0 },
       backup: null,
     };
 
     if (args.dryRun) {
       const verification = await verifyCopy(source, target, sourceCount);
+      const outboxVerification = await verifyOutboxPayloads(outbox, target);
       report.copyVerification = verification;
+      report.outboxVerification = outboxVerification;
       console.log(JSON.stringify(report, null, 2));
       return;
     }
 
-    if (pendingOutbox > 0 && !args.allowPendingOutbox) {
-      throw new Error('Pending transaction_outbox records exist. Resolve/flush them before deletion, or explicitly pass ' + ALLOW_PENDING_FLAG + ' after understanding the data-loss risk.');
-    }
     if (sourceCount === 0) {
       console.log(JSON.stringify(report, null, 2));
       return;
@@ -170,31 +200,37 @@ async function main() {
 
     // Exact logical copy verification before making a restorable backup.
     const verification = await verifyCopy(source, target, sourceCount);
+    const outboxVerification = await verifyOutboxPayloads(outbox, target);
     report.copyVerification = verification;
+    report.outboxVerification = outboxVerification;
     if (!verification.verified) throw new Error('DB2 transaction history verification failed; no DB1 deletion performed');
+    if (!outboxVerification.verified) throw new Error('DB2 is missing one or more transaction_outbox payloads; no DB1 deletion performed');
 
-    const pendingBeforeDelete = await outbox.countDocuments({ status: 'pending' }).catch((err) => {
-      if (err && (err.codeName === 'NamespaceNotFound' || err.code === 26)) return 0;
-      throw err;
-    });
-    if (pendingBeforeDelete !== 0 && !args.allowPendingOutbox) throw new Error('Pending outbox records found before deletion; no DB1 deletion performed');
-
-    report.backup = await exportBackup(source);
-    // Re-check copy and source counts after backup in case another writer raced this cleanup.
+    report.backup = {
+      transactions: await exportBackup(source, 'transactions'),
+      transaction_outbox: await exportBackup(outbox, 'transaction_outbox'),
+    };
+    // Re-check both legacy sources after backup in case an older bot instance is still writing.
     const postBackupVerify = await verifyCopy(source, target, sourceCount);
-    if (!postBackupVerify.verified) throw new Error('DB1/DB2 changed during backup; no DB1 deletion performed; keep backup at ' + report.backup);
+    const postBackupOutboxVerify = await verifyOutboxPayloads(outbox, target);
+    const sourceCountAfterBackup = await source.countDocuments({});
+    const outboxCountAfterBackup = await outbox.countDocuments({});
+    if (!postBackupVerify.verified || !postBackupOutboxVerify.verified ||
+        sourceCountAfterBackup !== sourceCount || outboxCountAfterBackup !== outboxCount) {
+      throw new Error('DB1/DB2 changed or verification failed during backup; no DB1 deletion performed; backups retained at ' + JSON.stringify(report.backup));
+    }
 
-    const pendingFinal = await outbox.countDocuments({ status: 'pending' }).catch((err) => {
-      if (err && (err.codeName === 'NamespaceNotFound' || err.code === 26)) return 0;
-      throw err;
-    });
-    if (pendingFinal !== 0 && !args.allowPendingOutbox) throw new Error('Pending outbox appeared during final verification; no DB1 deletion performed; keep backup at ' + report.backup);
-
-    // Only the historical transaction collection is deleted. Balances, treasury,
-    // settlement/business data, and DB2 are intentionally untouched.
-    const deletion = await source.deleteMany({});
-    report.deleted = Number(deletion.deletedCount || 0);
-    report.finalVerification = postBackupVerify;
+    // Remove only legacy transaction ledger + outbox after exact DB2 verification
+    // and backups. User balances, treasury, game/event data, and DB2 are untouched.
+    const [transactionsDeletion, outboxDeletion] = await Promise.all([
+      source.deleteMany({}),
+      outbox.deleteMany({}),
+    ]);
+    report.deleted = {
+      transactions: Number(transactionsDeletion.deletedCount || 0),
+      transaction_outbox: Number(outboxDeletion.deletedCount || 0),
+    };
+    report.finalVerification = { transactions: postBackupVerify, outbox: postBackupOutboxVerify };
     console.log(JSON.stringify(report, null, 2));
   } finally {
     await Promise.all([sourceClient.close().catch(() => {}), targetClient.close().catch(() => {})]);
