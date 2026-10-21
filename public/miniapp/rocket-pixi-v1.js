@@ -105,6 +105,8 @@ export async function createBikaRocketScene(container, options = {}) {
 
   function buildGraph() {
     graphLayer.removeChildren();
+    // One restrained neon flight trail, revealed only as the server-backed
+    // round progresses. The path is visual-only and never controls outcomes.
     const glow = new PIXI.Graphics();
     const crisp = new PIXI.Graphics();
     const pts = [];
@@ -112,30 +114,21 @@ export async function createBikaRocketScene(container, options = {}) {
     glow.moveTo(pts[0].x,pts[0].y);
     crisp.moveTo(pts[0].x,pts[0].y);
     pts.slice(1).forEach(p=>{glow.lineTo(p.x,p.y);crisp.lineTo(p.x,p.y);});
-    glow.stroke({color:0xd83cff,width:10,alpha:0.06});
+    glow.stroke({color:0xff42be,width:12,alpha:0.12});
     graphLayer.addChild(glow);
-    glow = new PIXI.Graphics();
-    glow.moveTo(pts[0].x,pts[0].y);
-    pts.slice(1).forEach(p=>glow.lineTo(p.x,p.y));
-    glow.stroke({color:0x3be7ff,width:5,alpha:0.13});
-    graphLayer.addChild(glow);
-    crisp = new PIXI.Graphics();
-    crisp.moveTo(pts[0].x,pts[0].y);
-    pts.slice(1).forEach(p=>crisp.lineTo(p.x,p.y));
-    crisp.stroke({color:0x69e9ff,width:2.2,alpha:0.92});
-    graphLayer.addChild(crisp);
-
+    const cyanGlow = new PIXI.Graphics();
+    cyanGlow.moveTo(pts[0].x,pts[0].y);
+    pts.slice(1).forEach(p=>cyanGlow.lineTo(p.x,p.y));
+    cyanGlow.stroke({color:0x3be7ff,width:7,alpha:0.12});
+    graphLayer.addChild(cyanGlow);
+    const crispTrail = new PIXI.Graphics();
+    crispTrail.moveTo(pts[0].x,pts[0].y);
+    pts.slice(1).forEach(p=>crispTrail.lineTo(p.x,p.y));
+    crispTrail.stroke({color:0x83f1ff,width:2.4,alpha:0.82});
+    graphLayer.addChild(crispTrail);
     const origin = pts[0];
-    const head = new PIXI.Graphics()
-      .circle(origin.x,origin.y,7).fill({color:0x54e8ff,alpha:0.9});
-    graphLayer.addChild(head);
-
-    for(let i=0;i<6;i++){
-      const t=i/6;
-      const p=point(t);
-      const tick=new PIXI.Graphics().moveTo(p.x,p.y-5).lineTo(p.x,p.y+5).stroke({color:0x6adfff,width:1,alpha:0.35});
-      graphLayer.addChild(tick);
-    }
+    graphLayer.addChild(new PIXI.Graphics().circle(origin.x,origin.y,5).fill({color:0x54e8ff,alpha:0.72}));
+    graphLayer.children.forEach((layer)=>{ layer.alpha = 0.10; });
   }
 
   function addFlame() {
