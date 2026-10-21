@@ -10,23 +10,11 @@ async function logTx(doc, opts = {}) {
   const createdAt = doc.createdAt instanceof Date ? doc.createdAt : new Date();
   const ledgerId = doc._id ?? new ObjectId();
   const ledgerDoc = { ...doc, _id: ledgerId, createdAt };
-  const idempotencyKey = ledgerDoc.meta?.idempotencyKey;
 
   try {
     // This write is in the same DB1 transaction as the balance/treasury update.
     // A remote DB2 outage or quota limit cannot erase the intent: a worker retries
     // this durable outbox row until the idempotent DB2 upsert succeeds.
-    if (idempotencyKey != null && String(idempotencyKey) !== '') {
-      const key = String(ledgerDoc.type) + ':' + String(idempotencyKey);
-      await col('financial_idempotency').insertOne({
-        _id: key,
-        type: String(ledgerDoc.type),
-        key: String(idempotencyKey),
-        ledgerId,
-        createdAt,
-      }, opts);
-    }
-
     return await col('transaction_outbox').insertOne({
       targetId: ledgerId,
       sourceId: ledgerId,
