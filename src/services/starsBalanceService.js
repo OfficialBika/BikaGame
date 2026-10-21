@@ -1,8 +1,7 @@
 'use strict';
 
 const userModel = require('../models/userModel');
-const transactionModel = require('../models/transactionModel');
-const { withRequiredTx } = require('../config/database');
+const { withRequiredTx, col } = require('../config/database');
 const { logTx } = require('./transactionService');
 
 const STAR_TO_BAL = 45000;
@@ -58,7 +57,7 @@ async function creditSuccessfulPayment({ userId, stars, bal, chargeId, payload }
 
   return withRequiredTx(async (session) => {
     const opts = { session };
-    const tx = transactionModel.collection();
+    const tx = col('financial_settlements');
     const existing = await tx.findOne({ _id: markerId }, opts);
     if (existing) return { ok: true, duplicate: true, stars, bal: amount };
 
@@ -90,15 +89,18 @@ async function creditSuccessfulPayment({ userId, stars, bal, chargeId, payload }
     // Keep the idempotency marker distinct from the user-facing ledger row.
     // Both writes share the same Mongo transaction, so the balance and marker
     // commit atomically and a duplicate charge cannot credit the user twice.
-    await tx.insertOne({
+    const settlementMarker = {
       _id: markerId,
       type: '__stars_purchase_marker',
       userId: actualUser.userId,
       stars,
       bal: amount,
       telegramPaymentChargeId: String(chargeId),
+      meta: { idempotencyKey: markerId },
       createdAt: new Date(),
-    }, opts);
+    };
+    await tx.insertOne(settlementMarker, opts);
+    await logTx(settlementMarker, opts);
 
     return { ok: true, duplicate: false, stars, bal: amount, user: actualUser };
   });
