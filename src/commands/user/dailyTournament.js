@@ -3,6 +3,7 @@
 const { COIN } = require('../../config/constants');
 const { getDailyTournament, yangonDayKey } = require('../../services/tournamentService');
 const { replyHTML } = require('../../utils/telegram');
+const { localizeForUser } = require('../../services/i18nService');
 const { fmt, formatYangon } = require('../../utils/format');
 const { userDocLabelHtml, isGroupChat } = require('../../utils/helpers');
 
@@ -104,7 +105,7 @@ async function sendRichTournament(ctx, list, updatedAt) {
   const payload = {
     chat_id: ctx.chat.id,
     rich_message: {
-      html: buildRichHtml(list, updatedAt),
+      html: await localizeForUser(ctx.from?.id, buildRichHtml(list, updatedAt)),
       skip_entity_detection: true,
     },
   };
