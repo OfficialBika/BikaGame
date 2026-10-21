@@ -1,0 +1,548 @@
+/* BIKA Mini Web — premium responsive polish v43
+ * Presentation-only layer. Do not change game state, API contracts, or wallet logic here.
+ */
+:root {
+  color-scheme: dark;
+  --bika-polish-line: rgba(139, 151, 255, .22);
+  --bika-polish-surface: rgba(11, 15, 30, .86);
+  --bika-polish-muted: #9aa8c3;
+}
+html {
+  min-width: 320px;
+  scroll-behavior: smooth;
+  scroll-padding-top: 84px;
+  -webkit-text-size-adjust: 100%;
+}
+body.bika-v41 {
+  min-width: 320px;
+  overflow-x: clip;
+  -webkit-tap-highlight-color: transparent;
+}
+button, a, input, select, textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+button, [role="button"] {
+  touch-action: manipulation;
+}
+button:focus-visible, a:focus-visible, input:focus-visible,
+select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid #54eaff !important;
+  outline-offset: 3px !important;
+}
+.app-shell {
+  min-width: 0;
+  margin-inline: auto;
+}
+.sidebar, .content-shell, .home-grid, .hero-card, .widget, .panel,
+.single-game-card, .rocket-workspace, .rocket-main-card, .rocket-side-card {
+  min-width: 0;
+}
+.sidebar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(118, 112, 255, .36) transparent;
+}
+.side-nav {
+  min-width: 0;
+}
+.side-item {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.side-item:focus-visible {
+  outline-offset: -3px !important;
+}
+.content-shell {
+  padding-bottom: max(86px, calc(24px + env(safe-area-inset-bottom)));
+}
+.topbar {
+  position: sticky;
+  top: max(6px, env(safe-area-inset-top));
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  backdrop-filter: blur(20px) saturate(145%);
+  -webkit-backdrop-filter: blur(20px) saturate(145%);
+}
+.search-box {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.search-box input {
+  min-width: 0;
+  width: 100%;
+}
+.top-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-width: 0;
+}
+.player-pill {
+  min-width: 0;
+  max-width: 220px;
+}
+.player-pill > div:last-child {
+  min-width: 0;
+}
+.player-pill b, .player-pill small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wallet-pill b, #balanceText, #stickyBalanceText {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+.deposit-btn, .primary-cta, .ghost-cta, .primary-btn, .mini-action,
+.bnp-action, .daily-btn, #homeDailyBtn {
+  transition: transform .16s ease, filter .16s ease, box-shadow .16s ease;
+}
+.deposit-btn:hover, .primary-cta:hover, .primary-btn:hover,
+.mini-action:hover, .bnp-action:hover, .daily-btn:hover, #homeDailyBtn:hover {
+  filter: brightness(1.09);
+  transform: translateY(-1px);
+}
+button:disabled {
+  cursor: not-allowed !important;
+  filter: saturate(.55);
+  opacity: .62;
+}
+.widget, .hero-card, .game-tile, .single-game-card {
+  backface-visibility: hidden;
+}
+.widget {
+  border-color: var(--bika-polish-line);
+  background-color: var(--bika-polish-surface);
+}
+.hero-card {
+  isolation: isolate;
+}
+.hero-copy, .hero-actions, .hero-tags {
+  position: relative;
+  z-index: 2;
+}
+.hero-copy > p:not(.kicker) {
+  max-width: 54ch;
+}
+.hero-tags {
+  flex-wrap: wrap;
+}
+.game-carousel {
+  min-width: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(117, 110, 255, .42) transparent;
+  overscroll-behavior-inline: contain;
+  scroll-snap-type: x proximity;
+}
+.game-tile {
+  scroll-snap-align: start;
+  border: 1px solid rgba(120, 135, 220, .16);
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+.game-tile:hover {
+  transform: translateY(-3px);
+  border-color: rgba(76, 224, 255, .38);
+  box-shadow: 0 15px 34px rgba(0, 0, 0, .28), 0 0 24px rgba(80, 86, 255, .08);
+}
+.game-art {
+  overflow: hidden;
+}
+.game-art .art-emoji {
+  filter: drop-shadow(0 7px 16px rgba(0, 0, 0, .45));
+}
+.section-head, .widget-head, .game-page-head {
+  min-width: 0;
+}
+.section-head > *, .widget-head > * {
+  min-width: 0;
+}
+input, select, textarea {
+  max-width: 100%;
+}
+input[type="number"] {
+  font-variant-numeric: tabular-nums;
+}
+.history-card, .history-list, .rank-list, .win-list, .player-list,
+#homeActivityList, #homeRecentResults {
+  min-width: 0;
+}
+.history-list, .rank-list {
+  overflow-wrap: anywhere;
+}
+.result, .wallet-status, .notice {
+  overflow-wrap: anywhere;
+}
+#bikaNavPage {
+  padding-top: env(safe-area-inset-top);
+}
+.bnp-shell {
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+.bnp-back, .history-refresh, .wallet-eye {
+  min-width: 42px;
+  min-height: 42px;
+}
+.wallet-input, input, select, textarea {
+  accent-color: #55eaff;
+}
+.nav-tabs {
+  z-index: 1200;
+}
+.nav-tabs .tab {
+  min-width: 0;
+  min-height: 48px;
+  padding-inline: 6px;
+  touch-action: manipulation;
+  white-space: nowrap;
+}
+.sound-dock {
+  z-index: 110;
+}
+#bikaSplash {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+img, svg, canvas, video {
+  max-width: 100%;
+}
+@media (min-width: 1400px) {
+  .app-shell {
+    width: min(1640px, 100%);
+  }
+  .content-shell {
+    padding-inline: 18px;
+  }
+  .home-grid {
+    gap: 16px;
+  }
+}
+@media (max-width: 1180px) {
+  .app-shell {
+    grid-template-columns: 184px minmax(0, 1fr);
+  }
+  .content-shell {
+    padding-inline: 10px;
+  }
+  .topbar {
+    gap: 7px;
+  }
+  .top-actions {
+    gap: 5px;
+  }
+  .player-pill {
+    max-width: 155px;
+  }
+  .deposit-btn {
+    padding-inline: 12px;
+  }
+}
+@media (max-width: 900px) {
+  .app-shell {
+    grid-template-columns: 158px minmax(0, 1fr);
+  }
+  .sidebar {
+    padding-inline: 9px;
+  }
+  .side-item {
+    padding-inline: 8px;
+    gap: 7px;
+  }
+  .topbar {
+    flex-wrap: wrap;
+  }
+  .search-box {
+    flex-basis: 190px;
+  }
+  .top-actions {
+    flex: 1 1 100%;
+    justify-content: space-between;
+  }
+  .home-grid {
+    gap: 11px;
+  }
+}
+@media (max-width: 680px) {
+  html {
+    scroll-padding-top: 12px;
+  }
+  .app-shell {
+    display: block !important;
+    width: 100%;
+    max-width: 100%;
+  }
+  .sidebar {
+    display: none !important;
+  }
+  .content-shell {
+    width: 100%;
+    padding: max(6px, env(safe-area-inset-top)) 8px max(94px, calc(78px + env(safe-area-inset-bottom)));
+  }
+  .topbar {
+    position: relative;
+    top: auto;
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding: 9px;
+    border-radius: 15px;
+  }
+  .search-box {
+    order: 2;
+    flex: 1 1 100%;
+    width: 100%;
+    height: 38px;
+  }
+  .top-actions {
+    order: 1;
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .top-actions .online-pill,
+  .top-actions .icon-btn,
+  .top-actions .telegram-btn {
+    display: none !important;
+  }
+  .player-pill {
+    flex: 1 1 auto;
+    max-width: 42%;
+    padding-inline: 5px;
+  }
+  .player-pill .avatar {
+    flex: 0 0 30px;
+  }
+  .wallet-pill {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .wallet-pill span {
+    font-size: 9px;
+  }
+  .wallet-pill b {
+    font-size: 11px;
+    overflow-wrap: anywhere;
+  }
+  .deposit-btn {
+    flex: 0 0 auto;
+    height: 36px;
+    padding-inline: 10px;
+    font-size: 11px;
+  }
+  .home-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "hero" "side" "games" "rank" "lower";
+    gap: 10px;
+  }
+  .hero-card {
+    min-height: 236px;
+    border-radius: 18px;
+  }
+  .hero-copy {
+    max-width: 100%;
+    padding: 20px 15px;
+  }
+  .hero-copy h1 {
+    max-width: 100%;
+    font-size: clamp(29px, 8.6vw, 40px);
+    overflow-wrap: anywhere;
+  }
+  .hero-copy > p:not(.kicker) {
+    max-width: min(74%, 35ch);
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .hero-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .hero-actions button {
+    min-height: 42px;
+  }
+  .hero-tags {
+    gap: 5px;
+  }
+  .hero-tags span {
+    font-size: 8px;
+  }
+  .hero-orb {
+    pointer-events: none;
+    right: -150px;
+    opacity: .64;
+  }
+  .side-stack {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .game-carousel {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+    overflow: visible;
+  }
+  .game-tile {
+    width: 100%;
+    min-width: 0;
+    padding: 9px;
+  }
+  .game-art {
+    height: clamp(82px, 25vw, 112px);
+  }
+  .game-tile h3 {
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+  .game-tile small {
+    font-size: 10px;
+  }
+  .game-tile strong {
+    font-size: 9px;
+  }
+  .section-head {
+    gap: 8px;
+  }
+  .section-head h2, .section-head h3 {
+    overflow-wrap: anywhere;
+  }
+  .nav-tabs {
+    position: fixed !important;
+    left: max(8px, env(safe-area-inset-left));
+    right: max(8px, env(safe-area-inset-right));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 3px;
+    width: auto;
+    padding: 6px;
+    border: 1px solid rgba(123, 133, 255, .25);
+    border-radius: 17px;
+    background: rgba(7, 10, 22, .94);
+    box-shadow: 0 16px 45px rgba(0, 0, 0, .5), 0 0 30px rgba(87, 67, 255, .12);
+    backdrop-filter: blur(22px) saturate(150%);
+    -webkit-backdrop-filter: blur(22px) saturate(150%);
+  }
+  .nav-tabs .tab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 45px;
+    overflow: hidden;
+    padding: 4px 2px;
+    border-radius: 11px;
+    font-size: clamp(9px, 2.6vw, 11px);
+    line-height: 1.1;
+    text-overflow: ellipsis;
+  }
+  .nav-tabs .tab.active {
+    border: 1px solid rgba(77, 224, 255, .28);
+    background: linear-gradient(135deg, rgba(80, 75, 255, .35), rgba(255, 43, 181, .12));
+    color: #fff;
+  }
+  .sound-dock {
+    right: 8px;
+    bottom: calc(78px + env(safe-area-inset-bottom));
+    max-width: calc(100vw - 16px);
+  }
+  .rocket-workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .rocket-main-card, .rocket-side-card, .single-game-card {
+    width: 100%;
+    max-width: 100%;
+  }
+  .rocket-scene, #rocketScene {
+    max-width: 100%;
+  }
+  .bet-panel, .rocket-bet-row, .wheel-paid-controls {
+    flex-wrap: wrap;
+  }
+  .bet-input {
+    min-width: 0;
+    flex: 1 1 130px;
+  }
+  .bet-input input, .wallet-input, input, select, textarea {
+    font-size: 16px !important;
+  }
+  .quick-bets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .quick-bets button {
+    flex: 1 1 54px;
+    min-height: 38px;
+  }
+  .game-page-head {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .game-page-head h2 {
+    font-size: clamp(21px, 6vw, 29px);
+  }
+  .plinko-board {
+    max-width: 100%;
+    overflow: hidden;
+  }
+  .mines-board {
+    width: 100%;
+  }
+  #bikaNavPage .bnp-shell {
+    padding-inline: 12px;
+  }
+}
+@media (max-width: 390px) {
+  .content-shell {
+    padding-inline: 6px;
+  }
+  .topbar {
+    padding: 7px;
+  }
+  .top-actions {
+    gap: 4px;
+  }
+  .player-pill {
+    max-width: 39%;
+  }
+  .player-pill .avatar {
+    display: none;
+  }
+  .wallet-pill {
+    padding-inline: 6px;
+  }
+  .deposit-btn {
+    padding-inline: 8px;
+  }
+  .hero-copy {
+    padding: 18px 12px;
+  }
+  .hero-copy > p:not(.kicker) {
+    max-width: 77%;
+    font-size: 10px;
+  }
+  .nav-tabs {
+    left: 5px;
+    right: 5px;
+    padding: 5px 3px;
+  }
+  .nav-tabs .tab {
+    font-size: 9px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
