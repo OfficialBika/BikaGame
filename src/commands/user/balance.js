@@ -6,6 +6,7 @@ const { replyHTML } = require('../../utils/telegram');
 const { fmt } = require('../../utils/format');
 const { mentionHtml } = require('../../utils/helpers');
 const { getBalanceRank } = require('../../utils/ranking');
+const { getPreferredLanguage, translateText } = require('../../services/i18nService');
 const { getBotInfo } = require('../../config/bot');
 const { getWallet } = require('../../services/walletService');
 const {
@@ -53,6 +54,8 @@ function isPrivateChat(ctx) {
 
 async function payKeyboard(ctx) {
   const userId = ownerId(ctx);
+  const language = await getPreferredLanguage(userId);
+  const buttonText = (text) => translateText(language, text);
   const username = String(getBotInfo()?.username || process.env.BOT_USERNAME || '').replace(/^@/, '');
   const rows = [];
 
@@ -60,16 +63,16 @@ async function payKeyboard(ctx) {
     const wallet = await getWallet(ctx.from.id);
     if (wallet?.walletId) {
       const deep = 'https://t.me/' + username + '?startapp=' + encodeURIComponent('pay_' + wallet.walletId);
-      rows.push([{ text: '💸 Pay Bal', style: 'primary', url: deep }]);
+      rows.push([{ text: buttonText('💸 Pay Bal'), style: 'primary', url: deep }]);
     }
   }
 
   // In groups, open the bot's private chat and resume the purchase flow there.
   if (isPrivateChat(ctx)) {
-    rows.push([{ text: '⭐ Bal ဝယ်ရန်', style: 'success', callback_data: ownerCallback('bal:buy', userId) }]);
+    rows.push([{ text: buttonText('⭐ Bal ဝယ်ရန်'), style: 'success', callback_data: ownerCallback('bal:buy', userId) }]);
   } else if (username) {
     rows.push([{
-      text: '⭐ Bal ဝယ်ရန်',
+      text: buttonText('⭐ Bal ဝယ်ရန်'),
       style: 'success',
       url: 'https://t.me/' + username + '?start=buybal',
     }]);
