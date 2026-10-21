@@ -58,8 +58,12 @@ async function creditSuccessfulPayment({ userId, stars, bal, chargeId, payload }
   return withRequiredTx(async (session) => {
     const opts = { session };
     const tx = col('financial_settlements');
-    const existing = await tx.findOne({ _id: markerId }, opts);
-    if (existing) return { ok: true, duplicate: true, stars, bal: amount };
+    const paymentMarkers = col('stars_payment_idempotency');
+    const [existing, priorCharge] = await Promise.all([
+      tx.findOne({ _id: markerId }, opts),
+      paymentMarkers.findOne({ _id: String(chargeId) }, opts),
+    ]);
+    if (existing || priorCharge) return { ok: true, duplicate: true, stars, bal: amount };
 
     const userIdText = String(userId);
     const userIds = [userIdText];
@@ -86,9 +90,18 @@ async function creditSuccessfulPayment({ userId, stars, bal, chargeId, payload }
       },
     }, opts);
 
-    // Keep the idempotency marker distinct from the user-facing ledger row.
-    // Both writes share the same Mongo transaction, so the balance and marker
-    // commit atomically and a duplicate charge cannot credit the user twice.
+    // Keep the external Telegram charge ID permanently deduplicated, outside
+    // the seven-day settlement-marker retention window.
+    await paymentMarkers.insertOne({
+      _id: String(chargeId),
+      type: 'telegram_stars_purchase',
+      userId: actualUser.userId,
+      stars,
+      bal: amount,
+      payload: String(payload || ''),
+      createdAt: new Date(),
+    }, opts);
+
     const settlementMarker = {
       _id: markerId,
       type: '__stars_purchase_marker',
