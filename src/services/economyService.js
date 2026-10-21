@@ -186,8 +186,16 @@ async function settleSingleGame({ settlementId, typePrefix, userId, bet = 0, pay
     const opts = { session };
     const tx = col('financial_settlements');
     const markerId = `__settlement:${String(typePrefix)}:${String(settlementId)}`;
+    const idemType = 'settlement';
+    const idemKey = String(markerId);
     const existing = await tx.findOne({ _id: markerId }, opts);
     if (existing) return { ok: true, duplicate: true, payout: Number(existing.payout || 0) };
+    if (await findTransactionHistoryByIdempotency(idemType, idemKey, session)) {
+      return { ok: true, duplicate: true, payout: reward };
+    }
+    await reserveTransactionIdempotency(idemType, idemKey, session, {
+      typePrefix: String(typePrefix), settlementId: String(settlementId), userId: String(userId), bet: amount, payout: reward,
+    });
 
     let actualUserId = userId;
 
