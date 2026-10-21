@@ -7,7 +7,7 @@ const {
   treasuryPayToUser,
 } = require('../../services/economyService');
 const { checkCooldown } = require('../../services/cooldownService');
-const { getTransactionHistoryCollection } = require('../../config/database');
+const { getTransactionHistoryCollection, getDb } = require('../../config/database');
 const { ensureTreasury, isOwner } = require('../../services/treasuryService');
 const { replyHTML } = require('../../utils/telegram');
 const { fmt } = require('../../utils/format');
