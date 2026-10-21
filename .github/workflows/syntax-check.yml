@@ -40,6 +40,7 @@ jobs:
           const html = fs.readFileSync('public/miniapp/v2/index.html', 'utf8');
           const js = fs.readFileSync('public/miniapp/v2/v2.js', 'utf8');
           const css = fs.readFileSync('public/miniapp/v2/v2.css', 'utf8');
+          const gameCss = fs.readFileSync('public/miniapp/v2/game-ui.css', 'utf8');
           for (const file of ['v2.css?v=8', 'game-ui.css?v=1', 'v2.js?v=6', 'rocket-reference.svg?v=1']) assert.ok(html.includes(file), 'missing v2 asset reference: ' + file);
           for (const screen of ['home', 'games', 'activity', 'wallet', 'profile', 'game']) assert.ok(html.includes('data-screen="' + screen + '"'), 'missing screen: ' + screen);
           for (const tab of ['home', 'games', 'activity', 'wallet', 'profile']) assert.ok(html.includes('data-nav="' + tab + '"'), 'missing navigation: ' + tab);
@@ -51,7 +52,7 @@ jobs:
           assert.ok(!/fetch\s*\(|XMLHttpRequest|\.telegram\.sendData|placeWebCrashBet|cashoutWebCrash/.test(js), 'preview must not call live API/game mutations');
           assert.ok(js.includes('No live bet, spin, or balance change was sent'), 'preview must make demo-only result explicit');
           assert.ok(html.includes('rocket-reference.svg?v=1'), 'reference rocket sprite missing');
-          assert.ok(css.includes('.arena-countdown-ring'), 'reference-style arena UI missing');
+          assert.ok(gameCss.includes('.arena-countdown-ring'), 'reference-style arena UI missing');
           console.log('Mini App v2 preview smoke checks OK');
           NODE
 
