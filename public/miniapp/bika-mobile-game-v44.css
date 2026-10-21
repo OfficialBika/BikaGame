@@ -229,3 +229,49 @@ html, body.bika-v41 { background: var(--bika-mg-bg); }
   #crash .rocket-main-flame, #crash .rocket-window-core, #crash .rocket-fin,
   #crash .rocket-ground-glow, #crash .rocket-scene::before { animation: none !important; }
 }
+
+/* v45 functional/mobile layout corrections — Mini App only */
+@media (max-width: 680px) {
+  .content-shell { padding: max(5px, env(safe-area-inset-top)) 7px calc(78px + env(safe-area-inset-bottom)); }
+  .topbar { display:grid; grid-template-columns:minmax(0,1fr); gap:6px; padding:7px; margin-bottom:8px; }
+  .topbar .mobile-menu, .search-box { display:none !important; }
+  .top-actions { width:100%; display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:7px; }
+  .player-pill { max-width:none; min-width:0; }
+  .player-pill .avatar { display:grid !important; }
+  .wallet-pill { min-width:80px; padding:7px 9px; border:1px solid rgba(83,223,255,.22); border-radius:11px; background:rgba(14,27,50,.85); }
+  .wallet-pill b { white-space:nowrap; overflow-wrap:normal; font-size:12px; }
+  .deposit-btn { height:35px; padding-inline:11px; }
+  .home-grid { display:grid; grid-template-columns:minmax(0,1fr); grid-template-areas:"hero" "games"; gap:10px; }
+  .hero-card { min-height:156px !important; border-radius:15px; overflow:hidden; }
+  .hero-copy { padding:14px 12px !important; }
+  .hero-copy .kicker { margin:0 0 7px; font-size:8px; }
+  .hero-copy h1 { max-width:74%; font-size:clamp(23px,7vw,30px) !important; line-height:.98; }
+  .hero-copy > p:not(.kicker) { max-width:70%; font-size:9px; line-height:1.3; margin:7px 0 9px; }
+  .hero-actions { display:flex; flex-wrap:nowrap; gap:7px; }
+  .hero-actions button { min-height:32px !important; padding:0 10px; font-size:9px; white-space:nowrap; }
+  .hero-tags, .hero-orb, .side-stack, .ranking-widget, .lower-grid { display:none !important; }
+  .games-section { min-width:0; }
+  .section-head { margin:0 1px 7px; }
+  .section-head > button { font-size:10px; }
+  .section-head h2 { font-size:15px !important; }
+  .game-carousel { display:grid !important; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; overflow:visible !important; }
+  .game-tile { display:block; width:100% !important; min-width:0 !important; padding:7px !important; border-radius:12px; text-align:left; }
+  .game-art { height:clamp(60px,18vw,76px) !important; border-radius:9px !important; }
+  .game-tile h3 { margin:5px 0 1px; font-size:11px !important; line-height:1.2; }
+  .game-tile small { display:block; font-size:9px !important; line-height:1.2; min-height:12px; }
+  .game-tile strong { margin-top:4px; font-size:8px !important; }
+  .nav-tabs { z-index:1200; }
+}
+@media (max-width:390px) {
+  .top-actions { grid-template-columns:minmax(0,1fr) auto auto; gap:5px; }
+  .player-pill { gap:5px; padding:3px; }
+  .player-pill .avatar { flex-basis:27px !important; width:27px; height:27px; }
+  .wallet-pill { min-width:72px; padding-inline:6px; }
+  .wallet-pill b { font-size:10px; }
+  .deposit-btn { padding-inline:8px; font-size:10px; }
+  .hero-card { min-height:148px !important; }
+  .hero-copy h1 { font-size:23px !important; }
+  .game-art { height:60px !important; }
+}
+#bikaNavPage { z-index:1600 !important; }
+.bnp-shell { overscroll-behavior:contain; }
