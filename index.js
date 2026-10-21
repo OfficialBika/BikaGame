@@ -3,7 +3,7 @@ require('dotenv').config();
 const path = require('path');
 const express = require('express');
 const { bot, initBotInfo, getBotInfo } = require('./src/config/bot');
-const { connectMongo, closeMongo, isHistoryReady, isDbOneWriteBlocked } = require('./src/config/database');
+const { connectMongo, closeMongo, isHistoryReady, isDbOneWriteBlocked, startTransactionHistoryOutbox, stopTransactionHistoryOutbox } = require('./src/config/database');
 const { env, USE_WEBHOOK } = require('./src/config/env');
 const { ensureTreasury } = require('./src/services/treasuryService');
 const gameHistoryRetention = require('./src/services/gameHistoryRetentionService');
@@ -34,6 +34,7 @@ async function startTelegramBot(app){const webhookPath=env.WEBHOOK_SECRET?`/tele
 function listen(app){return new Promise((resolve,reject)=>{server=app.listen(env.PORT,()=>{logger.info(`Web server listening on ${env.PORT}`);resolve();});server.once('error',reject);});}
 async function main(){
   await connectMongo();
+  if (isHistoryReady()) startTransactionHistoryOutbox();
   if (isDbOneWriteBlocked()) {
     logger.error('RECOVERY MODE: DB1 is write-blocked by Atlas quota. Bot may start for diagnosis, but transactional writes are blocked.');
   } else {
@@ -66,5 +67,5 @@ async function main(){
   logger.info(`Bot username: @${getBotInfo()?.username||'unknown'}`);
   logger.info(`Owner ID: ${env.OWNER_ID}`);
 }
-async function shutdown(signal){logger.info(`Shutdown: ${signal}`);isReady=false;if(historyRetentionTimer)clearInterval(historyRetentionTimer);try{if(server)await new Promise((resolve)=>server.close(resolve));}catch(err){logger.warn(`HTTP server close warning: ${err?.message||err}`);}try{await bot.stop(signal);}catch(err){logger.warn(`Bot stop warning: ${err?.message||err}`);}try{await closeMongo();}catch(err){logger.warn(`Mongo close warning: ${err?.message||err}`);}process.exit(0);}
+async function shutdown(signal){logger.info(`Shutdown: ${signal}`);isReady=false;if(historyRetentionTimer)clearInterval(historyRetentionTimer);try{await stopTransactionHistoryOutbox();}catch(err){logger.warn(`Transaction outbox shutdown warning: ${err?.message||err}`);}try{if(server)await new Promise((resolve)=>server.close(resolve));}catch(err){logger.warn(`HTTP server close warning: ${err?.message||err}`);}try{await bot.stop(signal);}catch(err){logger.warn(`Bot stop warning: ${err?.message||err}`);}try{await closeMongo();}catch(err){logger.warn(`Mongo close warning: ${err?.message||err}`);}process.exit(0);}
 process.once('SIGINT',()=>shutdown('SIGINT'));process.once('SIGTERM',()=>shutdown('SIGTERM'));process.on('unhandledRejection',(reason)=>logger.error('UnhandledRejection',reason));process.on('uncaughtException',(err)=>logger.error('UncaughtException',err));main().catch((err)=>{logger.error('BOOT ERROR',err);process.exit(1);});
