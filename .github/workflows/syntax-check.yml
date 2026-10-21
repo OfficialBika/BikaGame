@@ -41,7 +41,7 @@ jobs:
           const js = fs.readFileSync('public/miniapp/v2/v2.js', 'utf8');
           const css = fs.readFileSync('public/miniapp/v2/v2.css', 'utf8');
           const gameCss = fs.readFileSync('public/miniapp/v2/game-ui.css', 'utf8');
-          for (const file of ['v2.css?v=10', 'game-ui.css?v=3', 'v2.js?v=8', 'rocket-reference.svg?v=1']) assert.ok(html.includes(file), 'missing v2 asset reference: ' + file);
+          for (const file of ['v2.css?v=11', 'game-ui.css?v=4', 'v2.js?v=9', 'rocket-reference.svg?v=1']) assert.ok(html.includes(file), 'missing v2 asset reference: ' + file);
           for (const screen of ['home', 'games', 'activity', 'wallet', 'profile', 'game']) assert.ok(html.includes('data-screen="' + screen + '"'), 'missing screen: ' + screen);
           for (const tab of ['home', 'games', 'activity', 'wallet', 'profile']) assert.ok(html.includes('data-nav="' + tab + '"'), 'missing navigation: ' + tab);
           for (const nodeId of ['v2Toast', 'mainContent', 'gameSearch', 'gameEmpty', 'demoBetAmount', 'demoBetHint', 'activityEmptyTitle', 'activityEmptyText', 'maxDemoBet', 'demoBetButton', 'demoFeedback', 'profileShortcut', 'profileName', 'profileStatus', 'profileAvatar', 'connectionState', 'bikaSplash', 'bikaSplashStatus', 'lobbyMultiplier', 'lobbyBalance', 'gameBalance', 'sheetBalance', 'gameConnectionLabel', 'countdownLabel', 'multiplierHistory', 'crashPointLabel', 'liveBadge', 'previewConnectionNote', 'demoMultiplier', 'demoMultiplierValue', 'gameArena', 'gameTitle', 'gameModeLabel', 'arenaCountdown', 'countdownValue', 'arenaRocket', 'arenaTrail', 'arenaResult', 'arenaCrashBurst', 'wheelGraphic', 'wheelDisc', 'openBetSheet', 'betSheet', 'closeBetSheet', 'betSheetBackdrop', 'gameQuickAdd', 'gameConnectionButton', 'gameSettingsButton']) {
@@ -49,7 +49,10 @@ jobs:
           }
           assert.ok(css.includes('prefers-reduced-motion'), 'reduced-motion support missing');
           assert.ok(css.includes('env(safe-area-inset-bottom)'), 'safe-area support missing');
-          assert.ok(!/fetch\s*\(|XMLHttpRequest|\.telegram\.sendData|placeWebCrashBet|cashoutWebCrash/.test(js), 'preview must not call live API/game mutations');
+          assert.ok(js.includes("api('/api/mini/crash/status')"), 'live status API integration missing');
+          assert.ok(js.includes("api('/api/mini/crash/bet'"), 'live bet API integration missing');
+          assert.ok(js.includes("api('/api/mini/crash/cashout')"), 'live cashout API integration missing');
+          assert.ok(js.includes('X-Telegram-Init-Data'), 'Telegram auth header missing');
           assert.ok(js.includes("api('/api/mini/crash/status')"), 'live crash status integration missing');
           assert.ok(js.includes("api('/api/mini/crash/bet'"), 'live crash bet integration missing');
           assert.ok(js.includes("api('/api/mini/crash/cashout')"), 'live crash cashout integration missing');
