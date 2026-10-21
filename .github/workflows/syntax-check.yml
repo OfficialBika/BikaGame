@@ -49,7 +49,7 @@ jobs:
           assert.ok(css.includes('prefers-reduced-motion'), 'reduced-motion support missing');
           assert.ok(css.includes('env(safe-area-inset-bottom)'), 'safe-area support missing');
           assert.ok(!/fetch\s*\(|XMLHttpRequest|\.telegram\.sendData|placeWebCrashBet|cashoutWebCrash/.test(js), 'preview must not call live API/game mutations');
-          assert.ok(js.includes('No live bet,') && js.includes('balance change was sent'), 'preview must make demo-only result explicit');
+          assert.ok(js.includes('No live bet or balance change was sent'), 'preview must make demo-only result explicit');
           console.log('Mini App v2 preview smoke checks OK');
           NODE
 
