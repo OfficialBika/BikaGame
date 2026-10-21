@@ -253,7 +253,7 @@ function resultLabel(result, userId) {
   if (result === 'WIN') return label('✅ WIN');
   if (result === 'LOSE') return label('❌ LOSE');
   if (result === 'PUSH') return label('🤝 TIE');
-  return result;
+  return label(String(result ?? ''));
 }
 
 function decideResult(game) {
