@@ -89,3 +89,24 @@ body.in-game{background:var(--ref-bg)!important;color:var(--ref-text)}.v2-app.in
 @media(max-width:360px){.v2-app{padding-left:9px;padding-right:9px}.topbar{height:48px}.lobby-heading-row h1{font-size:22px}.lobby-feature-stage{height:94px}.game-top-controls{grid-template-columns:59px minmax(0,1fr) 83px;gap:2px}.game-back{font-size:9px}.game-wallet-chip{min-width:80px;font-size:8px}.game-provider{font-size:8px;padding:4px 5px}.game-arena{height:clamp(215px,31svh,270px)}.arena-countdown-ring{width:70px;height:70px}.ring-copy strong{font-size:29px}.arena-rocket{width:74px;height:38px}.player-row{grid-template-columns:30px minmax(0,1fr) auto;padding:4px 5px;gap:5px}.player-avatar{width:27px;height:27px;flex-basis:27px}.player-name{font-size:8px}.player-bet-info{font-size:6px}.player-payout{min-width:42px;padding:6px 4px;font-size:8px}}
 @media(min-width:650px){.v2-app{max-width:480px}.game-screen{max-width:460px;margin:0 auto}.game-arena{height:290px}.bet-sheet{bottom:12px;border-bottom:1px solid #424747;border-radius:16px;max-height:76svh}}
 @media(prefers-reduced-motion:reduce){.screen,.arena-stars i,.arena-rocket,.arena-crash-burst{animation:none!important}.wheel-disc{transition:none!important}}
+
+
+/* BIKA V2 startup experience */
+.bika-splash{position:fixed;inset:0;z-index:200;display:grid;place-items:center;overflow:hidden;background:#111313;color:#f4f6f6;transition:opacity .32s ease,visibility .32s ease}
+.bika-splash.is-leaving{opacity:0;visibility:hidden;pointer-events:none}
+.bika-splash-grid{position:absolute;inset:0;opacity:.17;background-image:linear-gradient(rgba(162,191,190,.11) 1px,transparent 1px),linear-gradient(90deg,rgba(162,191,190,.11) 1px,transparent 1px);background-size:36px 36px;mask-image:radial-gradient(ellipse at center,#000 8%,transparent 76%)}
+.bika-splash-orbit{position:absolute;border:1px solid rgba(64,214,190,.24);border-radius:50%;width:min(76vw,310px);aspect-ratio:1;animation:splash-orbit 9s linear infinite}
+.bika-splash-orbit.orbit-b{width:min(92vw,380px);border-color:rgba(61,160,225,.13);animation-direction:reverse;animation-duration:15s}
+.bika-splash-content{position:relative;z-index:1;display:flex;align-items:center;flex-direction:column;width:min(84vw,300px);text-align:center}
+.bika-splash-logo{display:grid;place-items:center;width:65px;height:65px;border-radius:18px;background:linear-gradient(140deg,#59dec5,#279bce);color:#102020;font-size:34px;font-weight:1000;box-shadow:0 0 38px rgba(54,195,175,.15);animation:splash-pulse 1.5s ease-in-out infinite alternate}
+.bika-splash-logo span{transform:translateY(-1px)}
+.bika-splash-wordmark{margin-top:15px;font-size:23px;line-height:1;font-weight:950;letter-spacing:.24em;padding-left:.24em}
+.bika-splash-caption{margin-top:8px;color:#8b9999;font-size:9px;font-weight:850;letter-spacing:.24em;padding-left:.24em}
+.bika-splash-progress{width:145px;height:3px;overflow:hidden;margin-top:29px;border-radius:4px;background:#303737}
+.bika-splash-progress i{display:block;width:38%;height:100%;border-radius:4px;background:linear-gradient(90deg,#29bca9,#54c6f4);animation:splash-progress 1.3s ease-in-out infinite}
+.bika-splash-status{margin-top:11px;min-height:13px;color:#92a09f;font-size:7px;font-weight:800;letter-spacing:.15em}
+body.v2-loading{overflow:hidden}body.v2-loading .v2-app{opacity:0;visibility:hidden}body.v2-ready .v2-app{opacity:1;visibility:visible;transition:opacity .2s ease}
+@keyframes splash-progress{0%{transform:translateX(-130%)}100%{transform:translateX(360%)}}
+@keyframes splash-orbit{from{transform:rotate(0deg) scaleX(.75)}to{transform:rotate(360deg) scaleX(.75)}}
+@keyframes splash-pulse{from{transform:scale(.97);filter:brightness(.96)}to{transform:scale(1.03);filter:brightness(1.06)}}
+@media(prefers-reduced-motion:reduce){.bika-splash-orbit,.bika-splash-logo,.bika-splash-progress i{animation:none!important}}
