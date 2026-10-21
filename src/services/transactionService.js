@@ -17,7 +17,7 @@ async function logTx(doc, opts = {}) {
     // Block financial operations if DB2 cannot accept a transaction ledger write.
     if (err?.code === 8000 || err?.codeName === 'AtlasError' || /over your space quota|writes are blocked on your cluster/i.test(String(err?.message || err))) {
       markDbOneWriteBlocked();
-      throw new Error('DB1_STORAGE_QUOTA_BLOCKED');
+      throw new Error('TRANSACTION_STORAGE_QUOTA_BLOCKED');
     }
     throw err;
   }
