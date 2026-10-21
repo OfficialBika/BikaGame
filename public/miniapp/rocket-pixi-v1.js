@@ -83,34 +83,26 @@ export async function createBikaRocketScene(container, options = {}) {
       bg.addChild(new PIXI.Graphics().circle(width*n.x,height*n.y,Math.max(28,width*n.r)).fill({color:n.c,alpha:n.a}));
     });
 
-    const grid = new PIXI.Graphics();
-    const stepX = Math.max(38,width/15);
-    const stepY = Math.max(34,height/9);
-    for(let x=0;x<=width;x+=stepX) grid.moveTo(x,height*0.48).lineTo(x,height);
-    for(let y=height*0.52;y<=height;y+=stepY) grid.moveTo(0,y).lineTo(width,y);
-    grid.stroke({color:0x2a65d7,width:1,alpha:0.16});
-    bg.addChild(grid);
-
-    const horizon = new PIXI.Graphics()
-      .moveTo(0,height*0.82).lineTo(width,height*0.82)
-      .stroke({color:0x2bd7ff,width:1,alpha:0.18});
-    bg.addChild(horizon);
-
+    // Sparse starfield and soft nebula gradients keep the flight scene close to
+    // the mobile reference video instead of reading like a graphing dashboard.
+    const starField = new PIXI.Graphics();
+    const total = Math.round(clamp(width*height/3600, 48, 130));
     stars.length = 0;
     const starLayer = new PIXI.Container();
-    bg.addChild(starLayer);
-    const total = Math.round(clamp(width*height/4800, 42, 110));
+    bg.addChild(starField, starLayer);
     for(let i=0;i<total;i++){
-      const s = new PIXI.Graphics().circle(0,0,Math.random()*1.6+0.45).fill({
-        color:[0x6fefff,0xffffff,0xb78bff,0xff6fd2][i%4],
-        alpha:0.18+Math.random()*0.62
+      const radius = Math.random()*1.45+0.35;
+      const s = new PIXI.Graphics().circle(0,0,radius).fill({
+        color:[0x9defff,0xffffff,0xb78bff,0xff9ddb][i%4],
+        alpha:0.22+Math.random()*0.65
       });
       s.x=Math.random()*width;
-      s.y=Math.random()*height*0.9;
+      s.y=Math.random()*height*0.95;
       s.userData={phase:Math.random()*Math.PI*2,speed:0.5+Math.random()*1.7};
       starLayer.addChild(s);
       stars.push(s);
     }
+
   }
 
   function buildGraph() {
