@@ -35,3 +35,8 @@ main{padding-top:14px}.screen{animation:screen-in .18s ease-out}.page-intro{padd
 @media(min-width:650px){.v2-app{max-width:760px;padding-inline:24px}.crash-stage{height:360px}.game-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.bottom-nav{position:static;margin:28px auto 0;max-width:540px}}
 @media(prefers-reduced-motion:reduce){.stage-flame{animation:none}}
 
+
+/* Final viewport balance: keep the crash arena cinematic without pushing controls too far below the fold. */
+.crash-stage{height:236px}
+@media(max-width:380px){.crash-stage{height:220px}}
+@media(min-width:650px){.crash-stage{height:330px}}
