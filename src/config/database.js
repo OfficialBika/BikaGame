@@ -156,7 +156,7 @@ async function flushTransactionHistoryOutbox({ limit = 200 } = {}) {
     const malformedIds = [];
     for (const row of rows) {
       const payload = row?.payload;
-      const targetId = payload?._id ?? row?.targetId ?? row?.sourceId;
+      const targetId = row?.targetId ?? payload?._id ?? row?.sourceId;
       if (!payload || typeof payload !== 'object' || targetId == null ||
           (payload._id != null && String(payload._id) !== String(targetId))) {
         malformedIds.push(row._id);
@@ -194,19 +194,37 @@ async function flushTransactionHistoryOutbox({ limit = 200 } = {}) {
     const targetIds = validRows.map(({ targetId }) => targetId);
     const storedRows = await ledger.find({ _id: { $in: targetIds } }).toArray();
     const storedById = new Map(storedRows.map((doc) => [String(doc._id), doc]));
+    const verifiedRows = [];
+    const mismatchedRows = [];
     for (const entry of validRows) {
       const stored = storedById.get(String(entry.targetId));
-      if (!stored || JSON.stringify(stableOutboxValue(stored)) !== JSON.stringify(stableOutboxValue(entry.payload))) {
-        throw new Error('DB2_OUTBOX_TARGET_VERIFICATION_FAILED');
+      if (!stored) throw new Error('DB2_OUTBOX_TARGET_MISSING_AFTER_UPSERT');
+      if (JSON.stringify(stableOutboxValue(stored)) !== JSON.stringify(stableOutboxValue(entry.payload))) {
+        mismatchedRows.push(entry);
+      } else {
+        verifiedRows.push(entry);
       }
     }
 
-    const removed = await outbox.deleteMany({ _id: { $in: validRows.map(({ row }) => row._id) } });
+    // A legacy row whose _id already exists with different contents must never
+    // block every later queue item. Quarantine its source payload for inspection,
+    // while keeping it in DB1 instead of overwriting or deleting it.
+    if (mismatchedRows.length) {
+      await outbox.updateMany(
+        { _id: { $in: mismatchedRows.map(({ row }) => row._id) }, status: 'pending' },
+        { $set: { status: 'failed', lastError: 'DB2_OUTBOX_TARGET_MISMATCH', failedAt: new Date(), updatedAt: new Date() } },
+      );
+      logger.error('Quarantined ' + mismatchedRows.length + ' transaction outbox row(s) because DB2 already contains a different document with the same _id; source payloads were preserved.');
+    }
+
+    const removed = verifiedRows.length
+      ? await outbox.deleteMany({ _id: { $in: verifiedRows.map(({ row }) => row._id) } })
+      : { deletedCount: 0 };
     dbTwoWriteBlocked = false;
     return {
-      processed: validRows.length,
+      processed: verifiedRows.length,
       removed: Number(removed.deletedCount || 0),
-      failed: malformedIds.length,
+      failed: malformedIds.length + mismatchedRows.length,
       pending: await outbox.countDocuments({ status: 'pending' }),
     };
   } catch (err) {
