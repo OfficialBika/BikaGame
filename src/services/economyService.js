@@ -181,7 +181,7 @@ async function settleSingleGame({ settlementId, typePrefix, userId, bet = 0, pay
 
   return withRequiredTx(async (session) => {
     const opts = { session };
-    const tx = col('transactions');
+    const tx = col('financial_settlements');
     const markerId = `__settlement:${String(typePrefix)}:${String(settlementId)}`;
     const existing = await tx.findOne({ _id: markerId }, opts);
     if (existing) return { ok: true, duplicate: true, payout: Number(existing.payout || 0) };
@@ -238,7 +238,7 @@ async function settleSingleGame({ settlementId, typePrefix, userId, bet = 0, pay
       }, opts);
     }
 
-    await tx.insertOne({
+    const settlementMarker = {
       _id: markerId,
       type: `${String(typePrefix)}_settlement`,
       settlementId: String(settlementId),
@@ -247,7 +247,11 @@ async function settleSingleGame({ settlementId, typePrefix, userId, bet = 0, pay
       payout: reward,
       meta: { ...meta, idempotencyKey: markerId },
       createdAt: new Date(),
-    }, opts);
+    };
+    await tx.insertOne(settlementMarker, opts);
+    // Keep the settlement marker local for atomic duplicate protection, and enqueue
+    // the same record for eventual DB2 history replication.
+    await logTx(settlementMarker, opts);
 
     return { ok: true, duplicate: false, payout: reward };
   });
@@ -259,7 +263,7 @@ async function settleMultiPayouts({ settlementId, typePrefix, payouts = [], meta
 
   return withRequiredTx(async (session) => {
     const opts = { session };
-    const tx = col('transactions');
+    const tx = col('financial_settlements');
     const markerId = `__settlement:${String(typePrefix)}:${String(settlementId)}`;
     const existing = await tx.findOne({ _id: markerId }, opts);
     if (existing) return { ok: true, duplicate: true, paid: existing.payouts || [] };
@@ -292,7 +296,7 @@ async function settleMultiPayouts({ settlementId, typePrefix, payouts = [], meta
       }, opts);
     }
 
-    await tx.insertOne({
+    const settlementMarker = {
       _id: markerId,
       type: `${String(typePrefix)}_settlement`,
       settlementId: String(settlementId),
@@ -300,7 +304,11 @@ async function settleMultiPayouts({ settlementId, typePrefix, payouts = [], meta
       payout: total,
       meta: { ...meta, idempotencyKey: markerId },
       createdAt: new Date(),
-    }, opts);
+    };
+    await tx.insertOne(settlementMarker, opts);
+    // Keep the settlement marker local for atomic duplicate protection, and enqueue
+    // the same record for eventual DB2 history replication.
+    await logTx(settlementMarker, opts);
 
     return { ok: true, duplicate: false, paid };
   });
@@ -315,7 +323,7 @@ async function settleDuel({ duelId, typePrefix, challengerId, targetUserId, winn
 
   return withRequiredTx(async (session) => {
     const opts = { session };
-    const tx = col('transactions');
+    const tx = col('financial_settlements');
     const markerId = `__settlement:${String(typePrefix)}:${String(duelId)}`;
     const existing = await tx.findOne({ _id: markerId }, opts);
     if (existing) return { ok: true, duplicate: true, result: existing.result || null, winnerUserId: existing.winnerUserId || null };
@@ -377,7 +385,7 @@ async function settleDuel({ duelId, typePrefix, challengerId, targetUserId, winn
       }
     }
 
-    await tx.insertOne({
+    const settlementMarker = {
       _id: markerId,
       type: `${String(typePrefix)}_settlement`,
       duelId: String(duelId),
@@ -386,7 +394,11 @@ async function settleDuel({ duelId, typePrefix, challengerId, targetUserId, winn
       winnerUserId: actualWinnerId,
       meta: { ...meta, idempotencyKey: markerId },
       createdAt: new Date(),
-    }, opts);
+    };
+    await tx.insertOne(settlementMarker, opts);
+    // Keep the settlement marker local for atomic duplicate protection, and enqueue
+    // the same record for eventual DB2 history replication.
+    await logTx(settlementMarker, opts);
 
     await logTx({
       type: `${String(typePrefix)}_bet`,
