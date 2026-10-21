@@ -964,6 +964,9 @@ function bindEvents() {
   $('minesBoard')?.addEventListener('click', (e) => { const btn = e.target.closest('[data-mine-index]'); if (btn && !btn.disabled) openMine(Number(btn.dataset.mineIndex)); });
 }
 
+// Expose the panel controller for the Mini App's overlay navigation.
+window.openPanel = openPanel;
+
 async function init() {
   tg?.ready?.(); tg?.expand?.();
   if (!initData) $('notTelegram')?.classList.remove('hidden');
