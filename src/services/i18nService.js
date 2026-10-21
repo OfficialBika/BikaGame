@@ -346,6 +346,7 @@ const PHRASES = {
   '(Yangon Time)': { my:"(ရန်ကုန်စံတော်ချိန်)", en:"(Yangon Time)", cn:"（仰光时间）", jp:"（ヤンゴン時間）", kr:"(양곤 시간)", fr:"(heure de Yangon)", ru:"(время Янгона)", hi:"(यांगून समय)", ar:"(توقيت يانغون)" },
   '📊 Top10 မရှိသေးပါ။': { my:"📊 Top10 မရှိသေးပါ။", en:"📊 No Top 10 players yet.", cn:"📊 暂无前十玩家。", jp:"📊 トップ10プレイヤーはまだいません。", kr:"📊 아직 상위 10명 플레이어가 없습니다.", fr:"📊 Aucun joueur dans le Top 10 pour le moment.", ru:"📊 В топ-10 пока нет игроков.", hi:"📊 अभी शीर्ष 10 में कोई खिलाड़ी नहीं है।", ar:"📊 لا يوجد لاعبون في أفضل 10 حتى الآن." },
   '📊 BIKA • Top 10 Players': { my:"📊 BIKA • ထိပ်တန်းကစားသမား ၁၀ ဦး", en:"📊 BIKA • Top 10 Players", cn:"📊 BIKA • 排名前十玩家", jp:"📊 BIKA • トップ10プレイヤー", kr:"📊 BIKA • 상위 10명 플레이어", fr:"📊 BIKA • Top 10 des joueurs", ru:"📊 BIKA • Топ-10 игроков", hi:"📊 BIKA • शीर्ष 10 खिलाड़ी", ar:"📊 BIKA • أفضل 10 لاعبين" },
+  'ℹ️ <code>.top10</code> ကို group ထဲမှာပဲ သုံးနိုင်ပါတယ်။': { my:"ℹ️ <code>.top10</code> ကို group ထဲမှာပဲ သုံးနိုင်ပါတယ်။", en:"ℹ️ <code>.top10</code> is only available in groups.", cn:"ℹ️ <code>.top10</code> 仅可在群组中使用。", jp:"ℹ️ <code>.top10</code> はグループでのみ使用できます。", kr:"ℹ️ <code>.top10</code> 은 그룹에서만 사용할 수 있습니다.", fr:"ℹ️ <code>.top10</code> est disponible uniquement dans les groupes.", ru:"ℹ️ <code>.top10</code> доступна только в группах.", hi:"ℹ️ <code>.top10</code> केवल समूहों में उपलब्ध है।", ar:"ℹ️ <code>.top10</code> متاح في المجموعات فقط." },
 };
 function translateText(language, text) {
   const lang = normalizeLanguage(language) || DEFAULT_LANGUAGE;
