@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#191a1a">
+  <meta name="description" content="BIKA Game Arena Mini App">
+  <title>BIKA Game Arena</title>
+  <link rel="stylesheet" href="/miniapp/v2/v2.css?v=12">
+  <link rel="stylesheet" href="/miniapp/v2/game-ui.css?v=5">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script defer src="/miniapp/v2/v2.js?v=11"></script>
+</head>
+<body>
+  <div id="bikaSplash" class="bika-splash" role="status" aria-live="polite" aria-label="Loading BIKA Game Arena">
+    <div class="bika-splash-grid"></div><div class="bika-splash-orbit orbit-a"></div><div class="bika-splash-orbit orbit-b"></div>
+    <div class="bika-splash-content"><div class="bika-splash-logo"><span>B</span></div><div class="bika-splash-wordmark">BIKA</div><div class="bika-splash-caption">GAME ARENA</div><div class="bika-splash-progress"><i></i></div><div class="bika-splash-status" id="bikaSplashStatus">INITIALIZING GAME SERVICES</div></div>
+  </div>
+
+  <div class="v2-app" id="bikaV2App" aria-busy="true">
+    <header class="topbar">
+      <a class="brand" href="#home" aria-label="BIKA home"><span class="brand-mark">B</span><span><strong>BIKA</strong><small>GAME ARENA <i>V2 PREVIEW</i></small></span></a>
+      <div class="top-actions">
+        <span class="connection" id="connectionState"><i></i><span>Preview mode</span></span>
+        <button class="avatar" id="profileShortcut" type="button" aria-label="Open profile">B</button>
+      </div>
+    </header>
+
+    <main id="mainContent" tabindex="-1">
+      <section class="screen is-active home-screen" id="screen-home" data-screen="home" aria-labelledby="homeTitle">
+        <div class="lobby-heading-row">
+          <div><p class="eyebrow">BIKA ARCADE</p><h1 id="homeTitle">Game lobby<span>.</span></h1><p class="lobby-subtitle">Pick a game and jump in.</p></div>
+          <div class="lobby-balance" aria-label="Account balance"><span>◉</span><strong id="lobbyBalance">—</strong><small id="lobbyCoin">BALANCE</small></div>
+        </div>
+        <button class="lobby-feature" type="button" data-game="rocket" aria-label="Open Rocket Crash preview">
+          <div class="lobby-feature-top"><span><i class="lobby-live-dot"></i> FEATURED GAME</span><span class="lobby-demo-pill" id="lobbyConnectionPill">CONNECTING</span></div>
+          <div class="lobby-feature-stage">
+            <div class="lobby-feature-multiplier" id="lobbyMultiplier">x1.00</div>
+            <div class="lobby-feature-trail"></div>
+            <img class="lobby-feature-rocket" src="/miniapp/v2/rocket-reference.svg?v=1" alt="">
+            <i class="lobby-star star-one"></i><i class="lobby-star star-two"></i><i class="lobby-star star-three"></i>
+          </div>
+          <div class="lobby-feature-bottom"><div><h2>Rocket Crash</h2><p id="lobbyRoundState">Waiting for live game connection…</p></div><span class="lobby-play">PLAY <b>↗</b></span></div>
+        </button>
+        <div class="lobby-section-heading"><h2>Choose a game</h2><button type="button" data-nav="games">All games <span>↗</span></button></div>
+        <div class="lobby-game-grid">
+          <button class="lobby-game-tile tile-wheel" type="button" data-game="wheel"><span class="lobby-tile-art wheel-mini-art">✳</span><span class="lobby-tile-title">Lucky Wheel</span><small>Spin preview</small><span class="lobby-tile-arrow">↗</span></button>
+          <button class="lobby-game-tile tile-slot" type="button" data-game="slot"><span class="lobby-tile-art">✹</span><span class="lobby-tile-title">Premium Slot</span><small>Reels & rewards</small><span class="lobby-tile-arrow">↗</span></button>
+          <button class="lobby-game-tile tile-blackjack" type="button" data-game="blackjack"><span class="lobby-tile-art">♠</span><span class="lobby-tile-title">Blackjack</span><small>Table preview</small><span class="lobby-tile-arrow">↗</span></button>
+          <button class="lobby-game-tile tile-mines" type="button" data-game="mines"><span class="lobby-tile-art">✳</span><span class="lobby-tile-title">Mines</span><small>Choose your path</small><span class="lobby-tile-arrow">↗</span></button>
+        </div>
+        <p class="preview-note" id="previewConnectionNote"><span>ⓘ</span> Open this Mini App from Telegram to connect your verified account and live game service.</p>
+      </section>
+
+      <section class="screen" id="screen-games" data-screen="games" aria-labelledby="gamesTitle" hidden>
+        <div class="page-intro"><p class="eyebrow">FIND YOUR NEXT GAME</p><h1 id="gamesTitle">The arena<span>.</span></h1><p>Every game, one tap away.</p></div>
+        <label class="search-field"><span>⌕</span><input id="gameSearch" type="search" placeholder="Search games…" autocomplete="off"><kbd>⌕</kbd></label>
+        <div class="filter-row" role="group" aria-label="Filter games"><button class="filter-chip is-selected" data-filter="all" type="button">All games</button><button class="filter-chip" data-filter="arcade" type="button">Arcade</button><button class="filter-chip" data-filter="table" type="button">Table</button><button class="filter-chip" data-filter="daily" type="button">Daily</button></div>
+        <div class="game-grid game-grid-large" id="allGames">
+          <button class="game-card game-rocket" data-game="rocket" data-category="arcade" type="button"><span class="game-icon">↗</span><span class="game-title">Rocket Crash</span><span class="game-sub">Live multiplier</span><span class="card-arrow">↗</span></button>
+          <button class="game-card game-slot" data-game="slot" data-category="arcade" type="button"><span class="game-icon">✹</span><span class="game-title">Premium Slot</span><span class="game-sub">Reels & rewards</span><span class="card-arrow">↗</span></button>
+          <button class="game-card game-bj" data-game="blackjack" data-category="table" type="button"><span class="game-icon">♠</span><span class="game-title">Blackjack</span><span class="game-sub">Table game</span><span class="card-arrow">↗</span></button>
+          <button class="game-card game-shan" data-game="shan" data-category="table" type="button"><span class="game-icon">◇</span><span class="game-title">Shan Koe Mee</span><span class="game-sub">Card game</span><span class="card-arrow">↗</span></button>
+          <button class="game-card game-mines" data-game="mines" data-category="arcade" type="button"><span class="game-icon">✳</span><span class="game-title">Mines</span><span class="game-sub">Risk & reward</span><span class="card-arrow">↗</span></button>
+          <button class="game-card game-wheel" data-game="wheel" data-category="daily" type="button"><span class="game-icon">◉</span><span class="game-title">Lucky Wheel</span><span class="game-sub">Daily rewards</span><span class="card-arrow">↗</span></button>
+          <button class="game-card game-plinko" data-game="plinko" data-category="arcade" type="button"><span class="game-icon">⦿</span><span class="game-title">Plinko</span><span class="game-sub">Drop game</span><span class="card-arrow">↗</span></button>
+        </div>
+        <p class="empty-state" id="gameEmpty" hidden>No games match that search.</p>
+      </section>
+
+      <section class="screen" id="screen-activity" data-screen="activity" aria-labelledby="activityTitle" hidden>
+        <div class="page-intro"><p class="eyebrow">YOUR JOURNEY</p><h1 id="activityTitle">Activity<span>.</span></h1><p>Your rounds and account activity, together.</p></div>
+        <div class="segmented" role="group" aria-label="Activity type"><button class="is-selected" data-activity="games" type="button">Game history</button><button data-activity="transactions" type="button">Transactions</button></div>
+        <div class="empty-panel"><span class="empty-icon">◷</span><h2 id="activityEmptyTitle">History appears here</h2><p id="activityEmptyText">Connect your Telegram account in the integrated build to load verified game history.</p><span class="preview-chip">PREVIEW</span></div>
+      </section>
+
+      <section class="screen" id="screen-wallet" data-screen="wallet" aria-labelledby="walletTitle" hidden>
+        <div class="page-intro"><p class="eyebrow">YOUR ACCOUNT</p><h1 id="walletTitle">Wallet<span>.</span></h1><p>Clear balances. Clear records.</p></div>
+        <article class="balance-card wallet-balance"><div class="balance-heading"><span>AVAILABLE BALANCE</span><span class="preview-chip">DEMO</span></div><div class="balance-value">— <small>Not connected</small></div><div class="balance-footer"><span>Balance will be read from the server.</span><span class="balance-glyph">◈</span></div></article>
+        <div class="security-row"><span class="security-icon">♧</span><div><strong>Server-verified account</strong><p>Wallet actions will be enabled only after authenticated API integration.</p></div></div>
+        <div class="empty-panel compact-empty"><span class="empty-icon">↔</span><h2>Transactions</h2><p>Verified transaction history will appear here after integration.</p></div>
+        <p class="preview-note"><span>ⓘ</span> Deposit and transfer actions are intentionally disabled in this preview.</p>
+      </section>
+
+      <section class="screen" id="screen-profile" data-screen="profile" aria-labelledby="profileTitle" hidden>
+        <div class="page-intro"><p class="eyebrow">YOUR SPACE</p><h1 id="profileTitle">Profile<span>.</span></h1><p>A more personal arena.</p></div>
+        <div class="profile-card"><div class="profile-avatar" id="profileAvatar">B</div><div><strong id="profileName">Telegram account</strong><p id="profileStatus">Not connected in preview</p></div><span class="preview-chip">V2</span></div>
+        <div class="settings-list"><div class="settings-item"><div><strong>Language</strong><small>English default · Burmese support retained</small></div><span>EN / MY</span></div><div class="settings-item"><div><strong>Appearance</strong><small>Premium Neon Arena</small></div><span>✦</span></div><div class="settings-item"><div><strong>Motion</strong><small>Respects device reduced-motion setting</small></div><span>↗</span></div></div>
+        <p class="preview-note"><span>ⓘ</span> Profile and language preferences will connect to existing supported settings in a later phase.</p>
+      </section>
+
+      <section class="screen game-screen" id="screen-game" data-screen="game" aria-labelledby="gameTitle" hidden>
+        <h1 class="visually-hidden" id="gameTitle">Rocket Crash</h1>
+        <header class="game-top-controls"><button class="game-back" type="button" data-nav="games" aria-label="Back to games"><span class="back-chevron">‹</span><span>Back</span></button><div class="game-provider"><span class="provider-gift">✦</span><span>Epic <b>Gift</b></span></div><div class="game-wallet-chip"><span class="coin-glyph">◉</span><span id="gameBalance">—</span><button id="gameQuickAdd" type="button" aria-label="Open wallet" data-nav="wallet">+</button></div></header>
+        <div class="game-utility-row"><button type="button" class="utility-pill connection-pill" id="gameConnectionButton" aria-label="Connection status"><span class="status-led"></span><span id="gameConnectionLabel">CONNECTING</span></button><button type="button" class="utility-pill" aria-label="Game settings" id="gameSettingsButton">⚙</button><span class="game-round-label"><span class="status-led"></span><span id="gameModeLabel">WAITING</span></span><button type="button" class="utility-pill sound-toggle" id="soundToggle" aria-pressed="false" aria-label="Toggle sound preview">♫</button></div>
+        <div class="game-stage-wrap"><div class="game-arena" id="gameArena" data-mode="rocket" data-round-state="countdown" aria-label="Rocket Crash game preview">
+          <div class="arena-stars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="arena-countdown-ring" id="arenaCountdown" aria-live="polite"><div class="ring-copy"><strong id="countdownValue">—</strong><small id="countdownLabel">CONNECTING</small></div></div><div class="arena-multiplier" id="demoMultiplier" hidden aria-live="polite"><strong id="demoMultiplierValue">1.73</strong><span>x</span></div><div class="arena-result" id="arenaResult" hidden aria-label="Crash result"><div class="arena-crash-burst" id="arenaCrashBurst"></div><strong id="crashPointLabel">CRASHED</strong></div>
+          <img class="arena-rocket" id="arenaRocket" src="/miniapp/v2/rocket-reference.svg?v=1" alt="" hidden><div class="arena-trail" id="arenaTrail" data-color="red" aria-hidden="true" hidden><span class="trail-dot"></span></div>
+          <div class="wheel-graphic" id="wheelGraphic" hidden aria-label="Illustrative prize wheel"><div class="wheel-pointer"></div><div class="wheel-rim"><div class="wheel-disc" id="wheelDisc"><span>2×</span><span>5×</span><span>1.5×</span><span>10×</span><span>3×</span><span>JACKPOT</span><span>1.2×</span><span>8×</span></div></div><div class="wheel-hub">B</div></div>
+          <div class="arena-live-strip"><span><i></i> DEMO ROUND</span><span id="roundPlayerCount">ROUND #2048</span></div>
+        </div></div>
+        <div class="multiplier-history" id="multiplierHistory" aria-label="Recent verified crash results"></div>
+        <button class="place-bet-cta" type="button" id="openBetSheet"><span id="openBetLabel">Place bet</span><span class="cta-arrow">↗</span></button>
+        <section class="live-players-section" aria-labelledby="livePlayersHeading"><div class="players-title-row"><div><span class="eyebrow" id="playerPanelKicker">LIVE ARENA</span><h2 id="livePlayersHeading">Players <span id="livePlayersCount">—</span></h2></div><span class="live-badge" id="liveBadge"><i></i> CONNECTING</span></div>
+          <div class="players-table-head" hidden><span>PLAYER</span><span>BET · RESULT</span><span>PAYOUT</span></div>
+          <div class="live-player-list" id="livePlayerList"><p class="live-loading-state">Waiting for verified round data…</p></div><p class="sample-data-note" id="sampleDataNote"><span>ⓘ</span> Live round data appears after Telegram account verification.</p>
+        </section>
+        <div class="bet-sheet-backdrop" id="betSheetBackdrop" hidden></div>
+        <section class="bet-sheet" id="betSheet" role="dialog" aria-modal="true" aria-labelledby="betSheetTitle" hidden><div class="sheet-handle"></div><div class="sheet-title-row"><h2 id="betSheetTitle">Place bet</h2><button type="button" class="sheet-close" id="closeBetSheet" aria-label="Close bet panel">×</button></div>
+          <div class="asset-tabs" role="group" aria-label="Demo currency"><button type="button" class="is-active" data-asset="gifts">Gifts</button><button type="button" data-asset="ton">TON</button></div><div class="sheet-balance-row"><span>Available Balance</span><strong id="sheetBalance">— <small>CONNECTING</small></strong></div>
+          <label class="sheet-amount-label" for="demoBetAmount">Bet Amount <span id="betAmountMode">Real balance · Telegram verified</span></label><div class="sheet-input-row"><input id="demoBetAmount" inputmode="decimal" type="number" min="1" max="1000000000" step="1" value="50000" aria-describedby="demoBetHint"><span class="input-currency" id="inputCurrency">Gifts</span><button class="sheet-max" id="maxDemoBet" type="button">MAX</button></div><p class="sheet-helper" id="demoBetHint">Minimum and maximum will load from the server.</p>
+          <div class="quick-amounts" role="group" aria-label="Bet amount presets"><button type="button" data-live-bet="50">50</button><button type="button" data-live-bet="100">100</button><button type="button" data-live-bet="500">500</button><button type="button" data-live-bet="1000">1K</button></div>
+          <label class="auto-cashout-row" id="autoCashoutRow" hidden><span class="auto-cashout-copy"><strong>Auto cash-out</strong><small>Use manual cash out for this integration.</small></span><span class="auto-cashout-value"><span>MANUAL</span></span></label><button class="sheet-primary-action" id="demoBetButton" type="button" disabled>Connect Telegram</button><p class="sheet-feedback" id="demoFeedback" role="status" aria-live="polite">Awaiting authenticated game service.</p>
+        </section><p class="game-disclaimer" id="gameDisclaimer"><span>ⓘ</span> LIVE SERVER RESULT · CASH OUT IS SERVER-VERIFIED</p>
+      </section>
+
+    </main>
+
+    <nav class="bottom-nav" aria-label="Primary navigation">
+      <button class="nav-item is-current" data-nav="home" type="button" aria-current="page"><span class="nav-icon">⌂</span><span>Home</span></button>
+      <button class="nav-item" data-nav="games" type="button"><span class="nav-icon">▦</span><span>Games</span></button>
+      <button class="nav-item" data-nav="activity" type="button"><span class="nav-icon">◷</span><span>Activity</span></button>
+      <button class="nav-item" data-nav="wallet" type="button"><span class="nav-icon">◈</span><span>Wallet</span></button>
+      <button class="nav-item" data-nav="profile" type="button"><span class="nav-icon">♙</span><span>Profile</span></button>
+    </nav>
+    <div class="toast" id="v2Toast" role="status" aria-live="polite" hidden></div>
+  </div>
+</body>
+</html>
