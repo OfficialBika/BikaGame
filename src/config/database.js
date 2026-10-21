@@ -18,18 +18,22 @@ const HISTORY_COLLECTION = 'transactions';
 function stableOutboxValue(value) {
   if (value instanceof Date) return { __date: value.toISOString() };
   if (Buffer.isBuffer(value)) return { __buffer: value.toString('base64') };
-  // Keep BSON scalar instances typed and compare their stable rendered form
-  // without relying on the driver's optional EJSON export.
   if (value && typeof value === 'object' && value._bsontype) {
     if (value._bsontype === 'ObjectId') return { __bsonType: 'ObjectId', value: value.toHexString() };
     if (value._bsontype === 'Long') return { __bsonType: 'Long', value: value.toString() };
     if (value._bsontype === 'Decimal128') return { __bsonType: 'Decimal128', value: value.toString() };
-    if (value._bsontype === 'Binary') return { __bsonType: 'Binary', value: value.toString('base64'), subType: value.sub_type };
+    if (value._bsontype === 'Binary') return { __bsonType: 'Binary', value: value.buffer.toString('base64'), subType: value.sub_type };
+    if (value._bsontype === 'Timestamp') return { __bsonType: 'Timestamp', value: value.toString() };
     return { __bsonType: value._bsontype, value: String(value) };
   }
   if (Array.isArray(value)) return value.map(stableOutboxValue);
   if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stableOutboxValue(value[key])]));
+    // Normalize ordinary objects to plain JavaScript objects before recursively
+    // comparing them. MongoDB BSON documents expose toJSON/toExtendedJSON hooks
+    // which may contain nested BSON scalar values.
+    const plain = Object.create(null);
+    for (const key of Object.keys(value).sort()) plain[key] = value[key];
+    return Object.fromEntries(Object.keys(plain).map((key) => [key, stableOutboxValue(plain[key])]));
   }
   return value;
 }
