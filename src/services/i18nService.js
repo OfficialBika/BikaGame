@@ -364,7 +364,7 @@ async function getPreferredLanguage(userId) {
   try {
     const { col } = require('../config/database');
     const ids = [key];
-    if (/^\\d+$/.test(key) && Number.isSafeInteger(Number(key))) ids.push(Number(key));
+    if (/^\d+$/.test(key) && Number.isSafeInteger(Number(key))) ids.push(Number(key));
     const user = await col('users').findOne({ userId: { $in: ids } }, { projection: { language: 1 } });
     const language = getLanguage(user);
     rememberLanguage(key, language);
