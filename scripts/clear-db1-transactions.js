@@ -81,16 +81,17 @@ async function verifyOutboxPayloads(outbox, target) {
   let mismatched = 0;
   let batch = [];
   async function verifyBatch(rows) {
-    for (const row of rows) {
-      const payload = row?.payload;
-      if (!payload || payload._id == null) {
-        missing += 1;
-        continue;
-      }
-      const targetId = row.targetId || payload._id || row.sourceId;
-      const counterpart = await target.findOne({ _id: targetId });
+    const valid = rows.filter((row) => row?.payload && row.payload._id != null);
+    missing += rows.length - valid.length;
+    if (!valid.length) return;
+    const ids = valid.map((row) => row.targetId || row.payload._id || row.sourceId);
+    const counterparts = await target.find({ _id: { $in: ids } }).toArray();
+    const byId = new Map(counterparts.map((doc) => [String(doc._id), doc]));
+    for (const row of valid) {
+      const targetId = row.targetId || row.payload._id || row.sourceId;
+      const counterpart = byId.get(String(targetId));
       if (!counterpart) missing += 1;
-      else if (JSON.stringify(stable(payload)) !== JSON.stringify(stable(counterpart))) mismatched += 1;
+      else if (JSON.stringify(stable(row.payload)) !== JSON.stringify(stable(counterpart))) mismatched += 1;
     }
   }
   for await (const row of outbox.find({}).sort({ _id: 1 }).batchSize(BATCH_SIZE)) {
@@ -193,7 +194,7 @@ async function main() {
       return;
     }
 
-    if (sourceCount === 0) {
+    if (sourceCount === 0 && outboxCount === 0) {
       console.log(JSON.stringify(report, null, 2));
       return;
     }
