@@ -83,31 +83,20 @@ export async function createBikaRocketScene(container, options = {}) {
       bg.addChild(new PIXI.Graphics().circle(width*n.x,height*n.y,Math.max(28,width*n.r)).fill({color:n.c,alpha:n.a}));
     });
 
-    const grid = new PIXI.Graphics();
-    const stepX = Math.max(38,width/15);
-    const stepY = Math.max(34,height/9);
-    for(let x=0;x<=width;x+=stepX) grid.moveTo(x,height*0.48).lineTo(x,height);
-    for(let y=height*0.52;y<=height;y+=stepY) grid.moveTo(0,y).lineTo(width,y);
-    grid.stroke({color:0x2a65d7,width:1,alpha:0.16});
-    bg.addChild(grid);
-
-    const horizon = new PIXI.Graphics()
-      .moveTo(0,height*0.82).lineTo(width,height*0.82)
-      .stroke({color:0x2bd7ff,width:1,alpha:0.18});
-    bg.addChild(horizon);
-
-    stars.length = 0;
+    // Cinematic space backdrop: scattered particles instead of graph-paper grid.
     const starLayer = new PIXI.Container();
     bg.addChild(starLayer);
-    const total = Math.round(clamp(width*height/4800, 42, 110));
+    const total = Math.round(clamp(width*height/3600, 48, 130));
+    stars.length = 0;
     for(let i=0;i<total;i++){
-      const s = new PIXI.Graphics().circle(0,0,Math.random()*1.6+0.45).fill({
-        color:[0x6fefff,0xffffff,0xb78bff,0xff6fd2][i%4],
-        alpha:0.18+Math.random()*0.62
+      const radius = Math.random()*1.45+0.35;
+      const s = new PIXI.Graphics().circle(0,0,radius).fill({
+        color:[0x9defff,0xffffff,0xb78bff,0xff9ddb][i%4],
+        alpha:0.22+Math.random()*0.65
       });
       s.x=Math.random()*width;
-      s.y=Math.random()*height*0.9;
-      s.userData={phase:Math.random()*Math.PI*2,s.speed:0.5+Math.random()*1.7};
+      s.y=Math.random()*height*0.95;
+      s.userData={phase:Math.random()*Math.PI*2,speed:0.5+Math.random()*1.7};
       starLayer.addChild(s);
       stars.push(s);
     }
@@ -115,37 +104,27 @@ export async function createBikaRocketScene(container, options = {}) {
 
   function buildGraph() {
     graphLayer.removeChildren();
+    // Restrained neon trail; its opacity is driven by the live server round.
     const glow = new PIXI.Graphics();
-    const crisp = new PIXI.Graphics();
     const pts = [];
     for(let i=0;i<=60;i++) pts.push(point(i/60));
     glow.moveTo(pts[0].x,pts[0].y);
-    crisp.moveTo(pts[0].x,pts[0].y);
-    pts.slice(1).forEach(p=>{glow.lineTo(p.x,p.y);crisp.lineTo(p.x,p.y);});
-    glow.stroke({color:0xd83cff,width:10,alpha:0.06});
-    graphLayer.addChild(glow);
-    glow = new PIXI.Graphics();
-    glow.moveTo(pts[0].x,pts[0].y);
     pts.slice(1).forEach(p=>glow.lineTo(p.x,p.y));
-    glow.stroke({color:0x3be7ff,width:5,alpha:0.13});
+    glow.stroke({color:0xff42be,width:12,alpha:0.12});
     graphLayer.addChild(glow);
-    crisp = new PIXI.Graphics();
+    const cyanGlow = new PIXI.Graphics();
+    cyanGlow.moveTo(pts[0].x,pts[0].y);
+    pts.slice(1).forEach(p=>cyanGlow.lineTo(p.x,p.y));
+    cyanGlow.stroke({color:0x3be7ff,width:7,alpha:0.12});
+    graphLayer.addChild(cyanGlow);
+    const crisp = new PIXI.Graphics();
     crisp.moveTo(pts[0].x,pts[0].y);
     pts.slice(1).forEach(p=>crisp.lineTo(p.x,p.y));
-    crisp.stroke({color:0x69e9ff,width:2.2,alpha:0.92});
+    crisp.stroke({color:0x83f1ff,width:2.4,alpha:0.82});
     graphLayer.addChild(crisp);
-
     const origin = pts[0];
-    const head = new PIXI.Graphics()
-      .circle(origin.x,origin.y,7).fill({color:0x54e8ff,alpha:0.9});
-    graphLayer.addChild(head);
-
-    for(let i=0;i<6;i++){
-      const t=i/6;
-      const p=point(t);
-      const tick=new PIXI.Graphics().moveTo(p.x,p.y-5).lineTo(p.x,p.y+5).stroke({color:0x6adfff,width:1,alpha:0.35});
-      graphLayer.addChild(tick);
-    }
+    graphLayer.addChild(new PIXI.Graphics().circle(origin.x,origin.y,5).fill({color:0x54e8ff,alpha:0.72}));
+    graphLayer.children.forEach((layer)=>{ layer.alpha = progress; });
   }
 
   function addFlame() {
@@ -307,7 +286,14 @@ export async function createBikaRocketScene(container, options = {}) {
     const next=String(nextState||state);
     if(next!==state && next==='crashed') spawnCrashBurst();
     state=next;
-    updateRocket();
+    const trailAlpha = state === 'running' ? 0.12 + progress * 0.62 : state === 'crashed' ? 0.38 : 0.08;
+    graphLayer.children.forEach((layer) => { layer.alpha = trailAlpha; });
+    if (state === 'betting') {
+      rocket.position.set(width * 0.075, height * 0.86);
+      rocket.scale.set(clamp(width / 500, 0.90, 1.45));
+    } else {
+      updateRocket();
+    }
   }
 
   app.ticker.add(()=>{
