@@ -59,11 +59,10 @@ async function creditSuccessfulPayment({ userId, stars, bal, chargeId, payload }
     const opts = { session };
     const tx = col('financial_settlements');
     const paymentMarkers = col('stars_payment_idempotency');
-    const [existing, priorCharge] = await Promise.all([
-      tx.findOne({ _id: markerId }, opts),
-      paymentMarkers.findOne({ _id: String(chargeId) }, opts),
-    ]);
-    if (existing || priorCharge) return { ok: true, duplicate: true, stars, bal: amount };
+    const existing = await tx.findOne({ _id: markerId }, opts);
+    if (existing) return { ok: true, duplicate: true, stars, bal: amount };
+    const priorCharge = await paymentMarkers.findOne({ _id: String(chargeId) }, opts);
+    if (priorCharge) return { ok: true, duplicate: true, stars, bal: amount };
 
     const userIdText = String(userId);
     const userIds = [userIdText];
