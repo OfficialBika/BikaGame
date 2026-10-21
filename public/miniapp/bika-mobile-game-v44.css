@@ -1,0 +1,231 @@
+/* BIKA Mobile Game UI v44
+ * Presentation-only layer for the existing Mini App.
+ * Keeps API, wallet, betting, cashout and game outcome logic unchanged.
+ */
+:root {
+  --bika-mg-bg: #050914;
+  --bika-mg-panel: rgba(10, 18, 36, .92);
+  --bika-mg-line: rgba(105, 151, 225, .18);
+  --bika-mg-cyan: #55e7ff;
+  --bika-mg-violet: #9f75ff;
+}
+html, body.bika-v41 { background: var(--bika-mg-bg); }
+.app-shell { max-width: 1600px; }
+.content-shell { min-width: 0; }
+.home-grid { align-items: start; }
+.hero-card {
+  min-height: 228px;
+  border: 1px solid rgba(76, 188, 255, .24);
+  background:
+    radial-gradient(ellipse at 82% 30%, rgba(86, 71, 255, .25), transparent 38%),
+    radial-gradient(ellipse at 16% 100%, rgba(25, 198, 255, .12), transparent 46%),
+    linear-gradient(130deg, #0b1831 0%, #0a1024 54%, #130c28 100%);
+  box-shadow: inset 0 1px rgba(255,255,255,.035), 0 18px 48px rgba(0,0,0,.24);
+}
+.hero-copy h1 { letter-spacing: -.055em; line-height: .98; }
+.hero-copy h1 span {
+  color: #79eaff;
+  text-shadow: 0 0 24px rgba(56, 202, 255, .23);
+}
+.hero-actions .primary-cta {
+  box-shadow: 0 8px 24px rgba(43, 128, 255, .22);
+}
+.widget, .game-tile, .single-game-card {
+  border-color: var(--bika-mg-line);
+  box-shadow: inset 0 1px rgba(255,255,255,.025), 0 10px 30px rgba(0,0,0,.18);
+}
+.game-tile { background: linear-gradient(155deg, rgba(18,28,52,.96), rgba(7,12,25,.98)); }
+.game-art { border-radius: 13px; }
+.game-tile strong { letter-spacing: .075em; }
+.nav-tabs .tab { font-weight: 800; }
+#crash .rocket-scene {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid rgba(77, 155, 255, .24);
+  background:
+    radial-gradient(ellipse at 80% 18%, rgba(98, 31, 191, .18), transparent 40%),
+    radial-gradient(ellipse at 17% 80%, rgba(0, 190, 255, .15), transparent 43%),
+    linear-gradient(160deg, #030817, #07142b 58%, #060a18);
+}
+#crash .rocket-scene::before {
+  background:
+    radial-gradient(circle at 12% 20%, rgba(255,255,255,.8) 0 1px, transparent 2px),
+    radial-gradient(circle at 32% 35%, rgba(91,225,255,.78) 0 1px, transparent 2px),
+    radial-gradient(circle at 58% 12%, rgba(199,134,255,.88) 0 1px, transparent 2px),
+    radial-gradient(circle at 80% 38%, rgba(255,105,206,.7) 0 1px, transparent 2px),
+    radial-gradient(circle at 73% 72%, rgba(112,211,255,.75) 0 1px, transparent 2px),
+    radial-gradient(circle at 23% 62%, rgba(161,169,255,.7) 0 1px, transparent 2px),
+    radial-gradient(circle at 90% 84%, rgba(255,255,255,.8) 0 1px, transparent 2px),
+    radial-gradient(ellipse at 50% 75%, rgba(34,101,255,.12), transparent 64%);
+  animation: bikaMgStarPulse 4.5s ease-in-out infinite alternate;
+}
+#crash #rocketCanvas {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+}
+#crash .rocket-scene.pixi-ready #rocketCanvas { opacity: 1; }
+#crash #rocketCanvas .rocket-pixi-canvas { display:block; width:100%; height:100%; }
+#crash .rocket-scene.pixi-ready #rocketArt { display: none !important; }
+#crash .rocket-scene.pixi-ready #rocketTrajectory { display: none !important; }
+#crash .rocket-scene::before { z-index: 2; }
+#crash #rocketTrajectory { z-index: 6; }
+#crash #rocketArt {
+  z-index: 9;
+  transform-origin: 50% 50%;
+  filter: drop-shadow(0 0 8px rgba(99,235,255,.62))
+          drop-shadow(0 0 21px rgba(255,64,184,.25))
+          drop-shadow(0 13px 19px rgba(0,0,0,.58));
+  will-change: transform, opacity;
+}
+#crash .rocket-scene.running #rocketArt {
+  filter: drop-shadow(0 0 10px rgba(105,241,255,.82))
+          drop-shadow(0 0 22px rgba(255,64,184,.35))
+          drop-shadow(0 15px 20px rgba(0,0,0,.6));
+}
+#crash .rocket-main-flame {
+  transform-box: fill-box;
+  transform-origin: right center;
+  animation: bikaMgFlame .11s ease-in-out infinite alternate;
+}
+#crash .rocket-window-core {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: bikaMgWindow 1.25s ease-in-out infinite;
+}
+#crash .rocket-fin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: bikaMgFin .8s ease-in-out infinite alternate;
+}
+#crash .rocket-ground-glow {
+  animation: bikaMgGlow .7s ease-in-out infinite alternate;
+}
+#crash .rocket-scene.crashed #rocketArt {
+  filter: grayscale(.18) drop-shadow(0 0 10px rgba(255,79,111,.42));
+}
+#crash .rocket-multiplier {
+  text-shadow: 0 0 26px currentColor, 0 5px 24px rgba(0,0,0,.6);
+  font-variant-numeric: tabular-nums;
+}
+#crash .rocket-bet-zone {
+  border: 1px solid rgba(97,144,234,.14);
+  border-radius: 16px;
+  background: linear-gradient(150deg, rgba(11,24,47,.93), rgba(5,11,23,.96));
+  padding: 12px;
+}
+#crash .rocket-bet-now, #crash .rocket-cashout {
+  min-height: 48px;
+  border-radius: 12px;
+  font-weight: 900;
+}
+#crash .rocket-quick-bets button {
+  border-radius: 10px;
+  border-color: rgba(102,155,246,.25);
+  background: rgba(19,35,65,.9);
+}
+@keyframes bikaMgStarPulse { from { opacity:.58; } to { opacity:.92; } }
+@keyframes bikaMgFlame { from { transform:scaleX(.76) scaleY(.82); opacity:.72; } to { transform:scaleX(1.16) scaleY(1.18); opacity:1; } }
+@keyframes bikaMgWindow { 0%,100% { transform:scale(.96); filter:brightness(.94); } 50% { transform:scale(1.05); filter:brightness(1.2); } }
+@keyframes bikaMgFin { from { filter:brightness(.91); } to { filter:brightness(1.16) drop-shadow(0 0 7px rgba(255,72,170,.35)); } }
+@keyframes bikaMgGlow { from { opacity:.08; } to { opacity:.23; } }
+@media (min-width: 681px) {
+  .home-grid {
+    grid-template-columns: minmax(0, 1.65fr) minmax(285px, .85fr);
+    grid-template-areas:
+      "hero hero"
+      "side side"
+      "games games"
+      "rank lower";
+    gap: 14px;
+  }
+  .hero-card { min-height: 250px; }
+  .side-stack { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .game-carousel {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0,1fr));
+    gap: 12px;
+    overflow: visible;
+  }
+  .game-tile { width: 100%; min-width: 0; }
+}
+@media (max-width: 680px) {
+  .content-shell {
+    padding-left: 7px;
+    padding-right: 7px;
+    padding-bottom: calc(90px + env(safe-area-inset-bottom));
+  }
+  .topbar { margin-bottom: 7px; }
+  .home-grid {
+    grid-template-columns: minmax(0,1fr);
+    grid-template-areas: "hero" "games" "side" "rank" "lower";
+    gap: 9px;
+  }
+  .hero-card {
+    min-height: 184px;
+    border-radius: 16px;
+  }
+  .hero-copy { padding: 17px 13px; }
+  .hero-copy .kicker { font-size: 8px; margin-bottom: 8px; }
+  .hero-copy h1 { max-width: 68%; font-size: clamp(25px, 7.4vw, 34px); }
+  .hero-copy > p:not(.kicker) { max-width: 65%; font-size: 10px; line-height: 1.42; margin-block: 8px; }
+  .hero-actions { gap: 6px; }
+  .hero-actions button { min-height: 35px; padding: 0 11px; font-size: 9px; }
+  .hero-tags { display: none; }
+  .hero-orb { right: -90px; opacity: .48; transform: scale(.78); }
+  .games-section { min-width: 0; }
+  .section-head { margin-bottom: 7px; }
+  .section-head h2 { font-size: 17px; }
+  .game-carousel {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0,1fr));
+    gap: 7px;
+    overflow: visible;
+  }
+  .game-tile { padding: 7px; border-radius: 14px; }
+  .game-art { height: clamp(66px, 20vw, 84px); }
+  .game-tile h3 { margin: 6px 0 2px; font-size: 11px; }
+  .game-tile small { font-size: 9px; min-height: 13px; }
+  .game-tile strong { margin-top: 5px; font-size: 8px; }
+  .tile-badge { font-size: 7px; padding: 3px 5px; }
+  .side-stack { grid-template-columns: minmax(0,1fr); gap: 8px; }
+  .widget { border-radius: 15px; padding: 11px; }
+  .live-widget .win-list > div { padding-block: 6px; }
+  .event-art { min-height: 68px; }
+  .timer-row { gap: 6px; }
+  .timer-row button { min-height: 34px; }
+  .ranking-widget { padding: 11px; }
+  .rank-list > div { padding-block: 7px; }
+  .lower-grid { gap: 8px; }
+  .activity-widget, .wallet-widget { padding: 11px; }
+  #crash .rocket-scene {
+    height: clamp(265px, 78vw, 330px) !important;
+    min-height: clamp(265px, 78vw, 330px) !important;
+    border-radius: 15px !important;
+  }
+  #crash .rocket-inline-art { width: clamp(142px, 43vw, 178px) !important; }
+  #crash .rocket-multiplier { font-size: clamp(42px, 13vw, 60px) !important; }
+  #crash .rocket-stage-top { gap: 6px; }
+  #crash .rocket-stage-status { max-width: 45%; overflow: hidden; text-overflow: ellipsis; }
+  #crash .rocket-history-list { grid-template-columns: repeat(10, 58px) !important; }
+  #crash .rocket-bet-zone { padding: 9px; }
+  #crash .rocket-bet-row { gap: 7px; }
+  #crash .rocket-bet-input { flex: 1 1 100%; }
+  #crash .rocket-bet-now, #crash .rocket-cashout { flex: 1 1 44%; }
+}
+@media (max-width: 390px) {
+  .hero-copy h1 { max-width: 72%; font-size: 26px; }
+  .hero-copy > p:not(.kicker) { max-width: 70%; font-size: 9px; }
+  .hero-copy { padding: 15px 11px; }
+  .game-art { height: 66px; }
+  #crash .rocket-stage-status { font-size: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #crash .rocket-main-flame, #crash .rocket-window-core, #crash .rocket-fin,
+  #crash .rocket-ground-glow, #crash .rocket-scene::before { animation: none !important; }
+}
