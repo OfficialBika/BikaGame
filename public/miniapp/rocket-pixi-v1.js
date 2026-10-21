@@ -83,13 +83,11 @@ export async function createBikaRocketScene(container, options = {}) {
       bg.addChild(new PIXI.Graphics().circle(width*n.x,height*n.y,Math.max(28,width*n.r)).fill({color:n.c,alpha:n.a}));
     });
 
-    // Sparse starfield and soft nebula gradients keep the flight scene close to
-    // the mobile reference video instead of reading like a graphing dashboard.
-    const starField = new PIXI.Graphics();
+    // Sparse space field with drifting stars; no chart grid in the reference-style scene.
+    const starLayer = new PIXI.Container();
+    bg.addChild(starLayer);
     const total = Math.round(clamp(width*height/3600, 48, 130));
     stars.length = 0;
-    const starLayer = new PIXI.Container();
-    bg.addChild(starField, starLayer);
     for(let i=0;i<total;i++){
       const radius = Math.random()*1.45+0.35;
       const s = new PIXI.Graphics().circle(0,0,radius).fill({
