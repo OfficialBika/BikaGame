@@ -6,9 +6,9 @@
   <meta name="theme-color" content="#080b17">
   <meta name="description" content="BIKA Game Arena Mini App v2 preview">
   <title>BIKA Arena · v2 Preview</title>
-  <link rel="stylesheet" href="/miniapp/v2/v2.css?v=3">
+  <link rel="stylesheet" href="/miniapp/v2/v2.css?v=4">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script defer src="/miniapp/v2/v2.js?v=2"></script>
+  <script defer src="/miniapp/v2/v2.js?v=3"></script>
 </head>
 <body>
   <div class="v2-app" id="bikaV2App">
@@ -86,26 +86,65 @@
         <p class="preview-note"><span>ⓘ</span> Profile and language preferences will connect to existing supported settings in a later phase.</p>
       </section>
 
-      <section class="screen" id="screen-game" data-screen="game" aria-labelledby="gameTitle" hidden>
-        <button class="back-link" type="button" data-nav="games">← <span>Back to games</span></button>
-        <div class="game-page-title"><p class="eyebrow">BIKA GAME ARENA / PREVIEW</p><h1 id="gameTitle">Rocket Crash<span>.</span></h1><p id="gameSubtitle">Design reference for upcoming game integrations.</p></div>
-        <div class="crash-stage" id="crashStage">
-          <div class="stage-grid"></div><div class="stage-stars">✦　·　✧　　 ✦　·</div><div class="stage-planet"></div>
-          <div class="stage-multiplier" id="demoMultiplier">x1.00</div>
-          <div class="stage-rocket"><span class="stage-flame"></span></div>
-          <div class="stage-status" id="demoRoundStatus" aria-live="polite">VISUAL PREVIEW</div>
-          <svg viewBox="0 0 320 140" preserveAspectRatio="none" aria-hidden="true" class="stage-curve"><path d="M4 130 C70 125,96 100,148 82 S235 38,316 8"/></svg>
+      <section class="screen game-screen" id="screen-game" data-screen="game" aria-labelledby="gameTitle" hidden>
+        <header class="game-top-controls">
+          <button class="game-back" type="button" data-nav="games" aria-label="Back to games">‹ <span>Back</span></button>
+          <div class="game-provider"><span class="provider-gift">✦</span><span>BIKA <b>ARCADE</b></span></div>
+          <div class="game-wallet-chip"><span class="coin-glyph">◉</span><span>—</span><button id="gameQuickAdd" type="button" aria-label="Preview balance control">+</button></div>
+        </header>
+        <div class="game-utility-row"><button type="button" class="utility-pill" aria-label="Connection status"><span class="status-led"></span></button><button type="button" class="utility-pill" aria-label="Game settings" id="gameSettingsButton">⚙</button><span class="game-round-label"><span class="status-led"></span><span id="gameModeLabel">DEMO ROUND</span></span><button type="button" class="utility-pill sound-toggle" id="soundToggle" aria-pressed="false" aria-label="Toggle sound preview">♫</button></div>
+
+        <div class="game-stage-wrap">
+          <div class="game-arena" id="gameArena" data-mode="rocket">
+            <div class="arena-stars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="arena-orbit orbit-one" aria-hidden="true"></div><div class="arena-orbit orbit-two" aria-hidden="true"></div>
+            <div class="arena-planet" aria-hidden="true"><span></span><i></i><b></b></div>
+            <div class="arena-horizon" aria-hidden="true"></div>
+            <svg class="arena-flight-path" viewBox="0 0 360 250" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="flightGlow" x1="0" y1="1" x2="1" y2="0"><stop offset="0%" stop-color="#00d7ff" stop-opacity=".15"/><stop offset="55%" stop-color="#44f3ff"/><stop offset="100%" stop-color="#a98bff"/></linearGradient></defs><path d="M-8 235 C70 228 111 205 162 169 S260 101 368 52" /></svg>
+            <div class="arena-flares" aria-hidden="true"><span></span><span></span><span></span></div>
+            <div class="arena-multiplier" id="demoMultiplier">1.00<span>x</span></div>
+            <div class="arena-state"><span class="state-dot"></span><span id="demoRoundStatus">NEXT ROUND IN</span><strong id="roundCountdown">3.2s</strong></div>
+            <div class="arena-rocket" id="arenaRocket" aria-hidden="true"><span class="rocket-window"></span><span class="rocket-wing"></span><span class="rocket-fin"></span><span class="rocket-fire"></span><span class="rocket-fire-core"></span></div>
+            <div class="arena-spark-trail" aria-hidden="true"></div>
+            <div class="arena-live-strip"><span><i></i> DEMO MODE</span><span id="roundPlayerCount">1,248 PLAYERS</span></div>
+          </div>
         </div>
-        <div class="demo-warning"><span>ⓘ</span><div><strong>Demo interaction only</strong><p>This prototype does not connect to the live game API and cannot place bets or cash out.</p></div></div>
-        <div class="bet-panel">
-          <div class="bet-label-row"><label for="demoBetAmount">Bet amount <small>demo only</small></label><span id="demoBetHint">Choose a sample amount</span></div>
-          <div class="bet-input-row"><span>◈</span><input id="demoBetAmount" inputmode="numeric" type="number" min="1" max="1000000000" step="1" value="50000" aria-describedby="demoBetHint"><button class="ghost-button" id="maxDemoBet" type="button">MAX</button></div>
+
+        <div class="multiplier-history" aria-label="Sample recent round multipliers">
+          <button type="button" class="history-tag is-active">1.73x</button><button type="button" class="history-tag">3.22x</button><button type="button" class="history-tag">1.30x</button><button type="button" class="history-tag history-gold">12.3x</button><button type="button" class="history-tag history-gold">16.0x</button><button type="button" class="history-tag history-violet">8.34x</button>
+        </div>
+
+        <button class="place-bet-cta" type="button" id="openBetSheet"><span>Place bet</span><span class="cta-arrow">↗</span></button>
+
+        <section class="live-players-section" aria-labelledby="livePlayersHeading">
+          <div class="players-title-row"><div><span class="eyebrow">LIVE ARENA</span><h2 id="livePlayersHeading">Players <span id="livePlayersCount">24</span></h2></div><span class="live-badge"><i></i> LIVE DEMO</span></div>
+          <div class="players-table-head"><span>PLAYER</span><span>BET <small>·</small> RESULT</span><span>PAYOUT</span></div>
+          <div class="live-player-list" id="livePlayerList">
+            <article class="player-row"><div class="player-main"><span class="player-avatar avatar-cyan">K</span><span class="player-name">Kairo<span>Round #2048</span></span></div><div class="player-result"><strong>5,000</strong><span>× 1.73</span></div><strong class="player-payout">8,650</strong></article>
+            <article class="player-row"><div class="player-main"><span class="player-avatar avatar-violet">M</span><span class="player-name">Mika<span>Round #2048</span></span></div><div class="player-result"><strong>10,000</strong><span>× 2.08</span></div><strong class="player-payout">20,800</strong></article>
+            <article class="player-row"><div class="player-main"><span class="player-avatar avatar-pink">J</span><span class="player-name">Jae<span>Round #2048</span></span></div><div class="player-result"><strong>2,500</strong><span>× 1.42</span></div><strong class="player-payout">3,550</strong></article>
+            <article class="player-row"><div class="player-main"><span class="player-avatar avatar-amber">N</span><span class="player-name">Nori<span>Round #2048</span></span></div><div class="player-result"><strong>15,000</strong><span>× 1.16</span></div><strong class="player-payout">17,400</strong></article>
+          </div>
+          <p class="sample-data-note"><span>ⓘ</span> Sample players and payouts are illustrative only. This screen does not submit real wagers.</p>
+        </section>
+
+        <div class="bet-sheet-backdrop" id="betSheetBackdrop" hidden></div>
+        <section class="bet-sheet" id="betSheet" role="dialog" aria-modal="true" aria-labelledby="betSheetTitle" hidden>
+          <div class="sheet-handle"></div>
+          <div class="sheet-title-row"><h2 id="betSheetTitle">Place bet</h2><button type="button" class="sheet-close" id="closeBetSheet" aria-label="Close bet panel">×</button></div>
+          <div class="asset-tabs" role="group" aria-label="Demo currency"><button type="button" class="is-active" data-asset="gifts">Gifts</button><button type="button" data-asset="ton">TON</button></div>
+          <div class="sheet-balance-row"><span>Available balance</span><strong>— <small>demo</small></strong></div>
+          <label class="sheet-amount-label" for="demoBetAmount">Bet amount <span>Sample only</span></label>
+          <div class="sheet-input-row"><input id="demoBetAmount" inputmode="decimal" type="number" min="1" max="1000000000" step="1" value="50000" aria-describedby="demoBetHint"><span class="input-currency" id="inputCurrency">Gifts</span><button class="sheet-max" id="maxDemoBet" type="button">MAX</button></div>
+          <p class="sheet-helper" id="demoBetHint">Choose an amount for the visual preview</p>
           <div class="quick-amounts" role="group" aria-label="Sample bet amount"><button type="button" data-demo-bet="10000">10K</button><button type="button" data-demo-bet="50000" class="is-selected">50K</button><button type="button" data-demo-bet="100000">100K</button><button type="button" data-demo-bet="500000">500K</button></div>
-          <button class="primary-action" id="demoBetButton" type="button">Preview bet flow <span>↗</span></button>
-          <p class="action-feedback" id="demoFeedback" role="status" aria-live="polite">No action has been submitted.</p>
-        </div>
-        <details class="how-it-works"><summary>Integration checklist</summary><ul><li>Use existing server-authoritative round state.</li><li>Verify Telegram init data on the server.</li><li>Disable duplicate requests while pending.</li><li>Test timeout and reconnect behavior.</li><li>Keep wallet and payout logic unchanged.</li></ul></details>
+          <label class="auto-cashout-row"><span><strong>Auto cash-out</strong><small>Demo control only</small></span><input type="checkbox" id="autoCashoutToggle"><span class="switch-track" aria-hidden="true"></span><span class="auto-cashout-value"><input id="autoCashoutValue" type="number" min="1.01" max="10000" step=".01" value="2.00" aria-label="Auto cash-out multiplier">×</span></label>
+          <button class="sheet-primary-action" id="demoBetButton" type="button">Place demo bet <span>↗</span></button>
+          <p class="sheet-feedback" id="demoFeedback" role="status" aria-live="polite">Preview only. No balance changes or bets are made.</p>
+        </section>
+        <p class="game-disclaimer"><span>ⓘ</span> GAME PREVIEW · NOT CONNECTED TO LIVE WAGERS OR PAYOUTS</p>
       </section>
+
     </main>
 
     <nav class="bottom-nav" aria-label="Primary navigation">
