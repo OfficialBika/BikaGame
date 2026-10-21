@@ -118,7 +118,7 @@ async function exportBackup(collection, collectionName) {
   const fd = fs.openSync(backupPath, 'wx', 0o600);
   try {
     for await (const doc of collection.find({}).sort({ _id: 1 })) {
-      fs.writeSync(fd, require('mongodb').EJSON.stringify(doc, { relaxed: false }) + '\\n');
+      fs.writeSync(fd, require('mongodb').EJSON.stringify(doc, { relaxed: false }) + '\n');
     }
     fs.fsyncSync(fd);
   } finally {
