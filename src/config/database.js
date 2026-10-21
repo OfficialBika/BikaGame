@@ -1,4 +1,4 @@
-const { MongoClient } = require('mongodb');
+const { MongoClient, EJSON } = require('mongodb');
 const { env } = require('./env');
 const logger = require('../utils/logger');
 let client, db;
@@ -13,6 +13,19 @@ let outboxFlushRunning = false;
 let outboxFlushTimer = null;
 let lastOutboxQuotaLogAt = 0;
 const HISTORY_COLLECTION = 'transactions';
+
+function stableOutboxValue(value) {
+  if (value instanceof Date) return { __date: value.toISOString() };
+  if (Buffer.isBuffer(value)) return { __buffer: value.toString('base64') };
+  if (value && typeof value === 'object' && value._bsontype) {
+    return { __bsonType: value._bsontype, value: EJSON.stringify(value, { relaxed: false }) };
+  }
+  if (Array.isArray(value)) return value.map(stableOutboxValue);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, stableOutboxValue(value[key])]));
+  }
+  return value;
+}
 
 function isStorageQuotaError(err) {
   return err?.code === 8000 ||
@@ -163,7 +176,8 @@ async function flushTransactionHistoryOutbox({ limit = 200 } = {}) {
 
     // $setOnInsert makes replay safe if DB2 accepted a previous attempt but the
     // acknowledgement or DB1 outbox deletion was interrupted.
-    await historyDb.collection(HISTORY_COLLECTION).bulkWrite(
+    const ledger = historyDb.collection(HISTORY_COLLECTION);
+    await ledger.bulkWrite(
       validRows.map(({ targetId, payload }) => ({
         updateOne: {
           filter: { _id: targetId },
@@ -173,6 +187,19 @@ async function flushTransactionHistoryOutbox({ limit = 200 } = {}) {
       })),
       { ordered: true },
     );
+
+    // Verify the persisted DB2 documents before acknowledging/removing any outbox
+    // rows. In particular, never silently discard a payload if DB2 already has
+    // the same _id but different values from an earlier partial migration.
+    const targetIds = validRows.map(({ targetId }) => targetId);
+    const storedRows = await ledger.find({ _id: { $in: targetIds } }).toArray();
+    const storedById = new Map(storedRows.map((doc) => [String(doc._id), doc]));
+    for (const entry of validRows) {
+      const stored = storedById.get(String(entry.targetId));
+      if (!stored || JSON.stringify(stableOutboxValue(stored)) !== JSON.stringify(stableOutboxValue(entry.payload))) {
+        throw new Error('DB2_OUTBOX_TARGET_VERIFICATION_FAILED');
+      }
+    }
 
     const removed = await outbox.deleteMany({ _id: { $in: validRows.map(({ row }) => row._id) } });
     dbTwoWriteBlocked = false;
