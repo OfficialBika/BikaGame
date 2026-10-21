@@ -428,7 +428,7 @@ function clearGame(gameId) {
 
 async function expireGame(bot, gameId) {
   const game = activeGames.get(gameId);
-  if (!game || game.settled || game.processing) return;
+  if (!game || game.settled || game.processing || game.settlementFailed) return;
   game.processing = true;
   try {
     await treasuryPayToUser(game.userId, game.bet, {
@@ -458,59 +458,62 @@ async function settleGame(bot, game, result) {
   if (!game || game.settled) return;
   const payout = payoutFor(result, game.bet);
   game.processing = true;
+  game.pendingResult = result;
 
-  // Keep financial settlement and Telegram UI editing in separate try blocks.
-  // A message-edit/network error after a committed payout must never trigger a
-  // refund, because that would credit the player twice.
+  // Retry the exact same idempotent payout. If a previous attempt committed but
+  // its response was lost, treasuryPayToUser will find the ledger key and return
+  // duplicate instead of crediting the balance twice.
+  let payoutError = null;
   if (payout > 0) {
-    try {
-      await treasuryPayToUser(game.userId, payout, {
-        type: 'blackjack_win',
-        idempotencyKey: `${game.id}:win`,
-        bet: game.bet,
-        payout,
-        result,
-        bjRtpWinRate: game.bjRtpWinRate,
-        fairResult: game.fairResult || result,
-        rtpTargetResult: game.rtpTargetResult || result,
-      });
-    } catch (payoutErr) {
-      await logSettlementFailure('payout', game, payoutErr);
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
-        await treasuryPayToUser(game.userId, game.bet, {
-          type: 'blackjack_refund',
-          idempotencyKey: `${game.id}:refund`,
+        await treasuryPayToUser(game.userId, payout, {
+          type: 'blackjack_win',
+          idempotencyKey: `${game.id}:win`,
           bet: game.bet,
-          reason: 'blackjack_payout_failed',
+          payout,
+          result,
+          bjRtpWinRate: game.bjRtpWinRate,
+          fairResult: game.fairResult || result,
+          rtpTargetResult: game.rtpTargetResult || result,
         });
-        game.settled = true;
-        clearGame(game.id);
-        try {
-          await editGameMessage(bot, game, `⚠️ <b>Blackjack Payout Error</b>\\n━━━━━━━━━━━━\\nPayout failed; bet refunded.`, undefined);
-        } catch (editErr) {
-          await logSettlementFailure('refund_notice_edit', game, editErr);
-        }
-        return;
-      } catch (refundErr) {
-        await logSettlementFailure('refund', game, refundErr);
-        game.processing = false;
-        game.settlementFailed = true;
-        try {
-          await editGameMessage(bot, game, `⚠️ <b>Blackjack Payout Error</b>\\n━━━━━━━━━━━━\\nPayout/refund still pending. Please retry.`, undefined);
-        } catch (editErr) {
-          await logSettlementFailure('pending_notice_edit', game, editErr);
-        }
-        return;
+        payoutError = null;
+        break;
+      } catch (err) {
+        payoutError = err;
+        await logSettlementFailure(`payout_attempt_${attempt}`, game, err);
+        if (attempt < 3) await sleep(350 * attempt);
       }
     }
   }
 
+  if (payoutError) {
+    // A database/network exception does not prove the transaction rolled back.
+    // Never refund automatically here: doing so can double-credit after an
+    // uncertain commit. Keep the same game and idempotency key for safe retry.
+    game.processing = false;
+    game.settlementFailed = true;
+    if (game.timeoutHandle) clearTimeout(game.timeoutHandle);
+    try {
+      await editGameMessage(
+        bot,
+        game,
+        `⚠️ <b>Blackjack Payout Error</b>\\n━━━━━━━━━━━━\\nPayout is pending. Press Hit/Stand once to safely retry.`,
+        actionKeyboard(game.id, game.userId),
+      );
+    } catch (editErr) {
+      await logSettlementFailure('pending_notice_edit', game, editErr);
+    }
+    return;
+  }
+
+  // Payout (or zero-payout loss) is now settled. Telegram edits are display-only;
+  // an edit error must not roll back or refund a committed financial transaction.
   game.settled = true;
   clearGame(game.id);
   try {
     await editGameMessage(bot, game, blackjackResultText(game, result, payout), undefined);
   } catch (editErr) {
-    // The payout has already committed. Log a UI-only failure and never refund.
     await logSettlementFailure('result_notice_edit_after_settlement', game, editErr);
   }
 }
@@ -732,6 +735,12 @@ module.exports = (bot) => {
 
     if (game.processing) {
       await ctx.answerCbQuery(await localizeForUser(ctx.from?.id, 'Processing... ခဏစောင့်ပါ။')).catch(() => {});
+      return;
+    }
+
+    if (game.settlementFailed && game.pendingResult) {
+      await ctx.answerCbQuery(await localizeForUser(ctx.from?.id, 'Retrying settlement safely...')).catch(() => {});
+      await settleGame(bot, game, game.pendingResult);
       return;
     }
 
