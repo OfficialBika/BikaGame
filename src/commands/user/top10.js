@@ -3,6 +3,7 @@
 const { COIN } = require('../../config/constants');
 const { getTopUsers } = require('../../services/rankingService');
 const { replyHTML } = require('../../utils/telegram');
+const { localizeForUser } = require('../../services/i18nService');
 const { fmt, formatYangon } = require('../../utils/format');
 const { userDocLabelHtml, isGroupChat } = require('../../utils/helpers');
 const { topBadge, getBalanceRank } = require('../../utils/ranking');
@@ -114,7 +115,7 @@ async function sendRichTop10(ctx, list, updatedAt) {
   const payload = {
     chat_id: ctx.chat.id,
     rich_message: {
-      html: buildRichTop10Html(list, updatedAt),
+      html: await localizeForUser(ctx.from?.id, buildRichTop10Html(list, updatedAt)),
       skip_entity_detection: true,
     },
   };
