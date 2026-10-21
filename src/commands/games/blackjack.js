@@ -498,7 +498,7 @@ async function settleGame(bot, game, result) {
       await editGameMessage(
         bot,
         game,
-        `⚠️ <b>Blackjack Payout Error</b>\n━━━━━━━━━━━━\nPayout is pending. Press Hit/Stand once to safely retry.`,
+        require('../../services/i18nService').translateCachedText(game.userId, 'Payout/refund still pending. Please retry.'),
         actionKeyboard(game.id, game.userId),
       );
     } catch (editErr) {
