@@ -443,31 +443,87 @@ async function expireGame(bot, gameId) {
   try { await editGameMessage(bot, game, expiredText(game), undefined); } catch (_) {}
 }
 
+async function logSettlementFailure(stage, game, err) {
+  console.error('[BLACKJACK_SETTLEMENT_FAILURE]', JSON.stringify({
+    stage,
+    gameId: game?.id || null,
+    userId: game?.userId == null ? null : String(game.userId),
+    bet: Number(game?.bet || 0),
+    chatId: game?.chatId == null ? null : String(game.chatId),
+    error: String(err?.stack || err?.message || err).slice(0, 3000),
+  }));
+}
+
 async function settleGame(bot, game, result) {
-  const payout = payoutFor(result, game.bet);
   if (!game || game.settled) return;
+  const payout = payoutFor(result, game.bet);
   game.processing = true;
+
   try {
     if (payout > 0) {
       await treasuryPayToUser(game.userId, payout, {
-        type:'blackjack_win', idempotencyKey:`${game.id}:win`, bet:game.bet, payout, result,
-        bjRtpWinRate:game.bjRtpWinRate, fairResult:game.fairResult || result, rtpTargetResult:game.rtpTargetResult || result
+        type: 'blackjack_win',
+        idempotencyKey: `${game.id}:win`,
+        bet: game.bet,
+        payout,
+        result,
+        bjRtpWinRate: game.bjRtpWinRate,
+        fairResult: game.fairResult || result,
+        rtpTargetResult: game.rtpTargetResult || result,
       });
     }
+
     game.settled = true;
     clearGame(game.id);
-    return editGameMessage(bot, game, blackjackResultText(game, result, payout), undefined);
-  } catch (err) {
+    await editGameMessage(bot, game, blackjackResultText(game, result, payout), undefined);
+    return;
+  } catch (payoutErr) {
+    await logSettlementFailure('payout', game, payoutErr);
+
+    // A refund is safe only when its own idempotent ledger write commits. Never
+    // hide the refund exception; keep the round locked so a duplicate action
+    // cannot start another settlement while the operator can inspect the logs.
     if (payout > 0) {
       try {
-        await treasuryPayToUser(game.userId, game.bet, { type:'blackjack_refund', idempotencyKey:`${game.id}:refund`, bet:game.bet, reason:'blackjack_payout_failed' });
-        game.settled=true;
+        await treasuryPayToUser(game.userId, game.bet, {
+          type: 'blackjack_refund',
+          idempotencyKey: `${game.id}:refund`,
+          bet: game.bet,
+          reason: 'blackjack_payout_failed',
+        });
+        game.settled = true;
         clearGame(game.id);
-        return editGameMessage(bot, game, `⚠️ <b>Blackjack Payout Error</b>\n━━━━━━━━━━━━\nPayout failed; bet refund ပြန်ပေးထားပါတယ်။`, undefined);
-      } catch (_) {}
+        await editGameMessage(
+          bot,
+          game,
+          `⚠️ <b>Blackjack Payout Error</b>\\n━━━━━━━━━━━━\\nPayout failed; bet refunded.`,
+          undefined,
+        );
+        return;
+      } catch (refundErr) {
+        await logSettlementFailure('refund', game, refundErr);
+        game.processing = false;
+        game.settlementFailed = true;
+        // Do not silently mark settled or issue a second credit. Keep the same
+        // game/idempotency keys for a controlled operator retry after DB recovery.
+        await editGameMessage(
+          bot,
+          game,
+          `⚠️ <b>Blackjack Payout Error</b>\\n━━━━━━━━━━━━\\nPayout/refund still pending. Please retry.`,
+          undefined,
+        );
+        return;
+      }
     }
-    game.processing=false;
-    return editGameMessage(bot, game, `⚠️ <b>Blackjack Payout Error</b>\n━━━━━━━━━━━━\nPayout/refund မပြီးသေးပါ။ ထပ်ကြိုးစားနိုင်ပါတယ်။`, undefined);
+
+    game.processing = false;
+    game.settlementFailed = true;
+    await editGameMessage(
+      bot,
+      game,
+      `⚠️ <b>Blackjack Settlement Error</b>\\n━━━━━━━━━━━━\\nSettlement is pending. Please retry.`,
+      undefined,
+    );
   }
 }
 async function dealerPlayAndSettle(bot, game) {
