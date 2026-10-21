@@ -107,7 +107,7 @@ export async function createBikaRocketScene(container, options = {}) {
       });
       s.x=Math.random()*width;
       s.y=Math.random()*height*0.9;
-      s.userData={phase:Math.random()*Math.PI*2,s.speed:0.5+Math.random()*1.7};
+      s.userData={phase:Math.random()*Math.PI*2,speed:0.5+Math.random()*1.7};
       starLayer.addChild(s);
       stars.push(s);
     }
