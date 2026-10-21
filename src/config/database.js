@@ -9,8 +9,6 @@ let historyDb = null;
 let historyReady = false;
 let transactionsShareClient = false;
 let dbOneWriteBlocked = false;
-const OUTBOX_COLLECTION = 'transaction_outbox';
-const LEGACY_CLEANUP_DISABLED = true;
 const HISTORY_COLLECTION = 'transactions';
 
 function isStorageQuotaError(err) {
@@ -25,11 +23,11 @@ async function safeCreateIndex(col, keys, options = {}) {
     if ([85,86].includes(err?.code) || ['IndexOptionsConflict','IndexKeySpecsConflict'].includes(err?.codeName)) {
       logger.warn(`Skipping conflicting index ${col.collectionName} ${JSON.stringify(keys)}`); return null;
     }
-    // Index creation is optional bootstrap metadata, but a quota error proves DB1
-    // cannot currently accept writes. Keep startup possible for diagnostics only.
+    // Index creation is optional bootstrap metadata. A quota error blocks financial
+    // writes because either the ledger or the balance store may be unavailable.
     if (isStorageQuotaError(err)) {
       dbOneWriteBlocked = true;
-      logger.error(`MongoDB quota blocked index creation for ${col.collectionName}; continuing diagnostic startup without index ${JSON.stringify(keys)}. Money operations remain blocked until DB1 writes recover.`);
+      logger.error(`MongoDB quota blocked index creation for ${col.collectionName}; continuing diagnostic startup without index ${JSON.stringify(keys)}. Financial operations remain blocked until storage writes recover.`);
       return null;
     }
     throw err;
@@ -205,9 +203,8 @@ async function connectMongo() {
   try {
     await client.connect();
     db = client.db(env.DB_NAME);
-    // Non-mutating capability check: createIndex can fail even if simple writes
-    // still work. If Atlas reports the specific storage-quota lock, skip the
-    // redundant index probe below and mark money transactions read-only.
+    // Check whether DB1 can still accept writes (balances/treasury live here).
+    // A quota error puts financial operations into recovery-only mode.
     try {
       await db.collection('__bika_db1_write_probe').insertOne(
         { _id: 'probe', createdAt: new Date() },
@@ -299,11 +296,17 @@ async function withMaybeTx(work) {
   if (!env.DB_TWO_ENABLED || !historyReady || !historyDb) throw new Error('DB_TWO_HISTORY_NOT_READY');
   if (!transactionsShareClient) throw new Error('DB_TWO_MUST_SHARE_MONGO_CLIENT_FOR_ATOMIC_TRANSACTIONS');
   if (dbOneWriteBlocked) throw new Error('DB1_STORAGE_QUOTA_BLOCKED');
-  if (!TX_SUPPORTED) return work(null);
+  if (!TX_SUPPORTED) throw new Error('MONGO_TRANSACTIONS_REQUIRED');
   const session = client.startSession();
   try { return await session.withTransaction(() => work(session)); }
   catch (e) {
-    if (txUnsupported(e)) { TX_SUPPORTED = false; logger.warn('Mongo transactions unsupported; fallback mode enabled'); return work(null); }
+    if (txUnsupported(e)) {
+      TX_SUPPORTED = false;
+      logger.error('Mongo transactions are required for DB1 balance + DB2 ledger atomicity; unsafe fallback is disabled.');
+      const err = new Error('MONGO_TRANSACTIONS_REQUIRED');
+      err.cause = e;
+      throw err;
+    }
     throw e;
   } finally { try { await session.endSession(); } catch(_) {} }
 }
