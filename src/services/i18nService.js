@@ -139,6 +139,22 @@ function languagePickerText() {
 const LANGUAGE_CACHE_TTL_MS = 300000;
 const languageCache = new Map();
 const PHRASES = {
+  'ဖင်ပြောင်ငမွဲ': { my:'ဖင်ပြောင်ငမွဲ', en:'Broke', cn:'身无分文', jp:'一文無し', kr:'빈털터리', fr:'Fauché', ru:'Без гроша', hi:'कंगाल', ar:'مفلس' },
+  'အိမ်ခြေမဲ့ ဆင်းရဲသား': { my:'အိမ်ခြေမဲ့ ဆင်းရဲသား', en:'Homeless Poor', cn:'无家可归的穷人', jp:'ホームレスの貧困者', kr:'집 없는 빈곤층', fr:'Pauvre sans-abri', ru:'Бездомный бедняк', hi:'बेघर गरीब', ar:'فقير بلا مأوى' },
+  'အိမ်ပိုင်ဝန်းပိုင် ဆင်းရဲသား': { my:'အိမ်ပိုင်ဝန်းပိုင် ဆင်းရဲသား', en:'Struggling Homeowner', cn:'拮据的房主', jp:'苦しい持ち家所有者', kr:'형편이 어려운 주택 소유자', fr:'Propriétaire en difficulté', ru:'Нуждающийся домовладелец', hi:'संघर्षरत मकान मालिक', ar:'مالك منزل يعاني ماليًا' },
+  'လူလတ်တန်းစား': { my:'လူလတ်တန်းစား', en:'Middle Class', cn:'中产阶级', jp:'中流階級', kr:'중산층', fr:'Classe moyenne', ru:'Средний класс', hi:'मध्यम वर्ग', ar:'الطبقة المتوسطة' },
+  'သူဌေးပေါက်စ': { my:'သူဌေးပေါက်စ', en:'Rising Tycoon', cn:'新晋富豪', jp:'新進の富豪', kr:'신흥 부자', fr:'Nouveau riche', ru:'Начинающий богач', hi:'उभरता अमीर', ar:'ثري صاعد' },
+  'သိန်းကြွယ်သူဌေး': { my:'သိန်းကြွယ်သူဌေး', en:'Wealthy', cn:'富裕人士', jp:'裕福な人', kr:'부유층', fr:'Fortuné', ru:'Состоятельный человек', hi:'धनवान व्यक्ति', ar:'ثري' },
+  'သန်းကြွယ်သူဌေး': { my:'သန်းကြွယ်သူဌေး', en:'Millionaire', cn:'百万富翁', jp:'百万長者', kr:'백만장자', fr:'Millionnaire', ru:'Миллионер', hi:'करोड़पति', ar:'مليونير' },
+  'ကုဋေ၈၀ သူဌေးကြီး': { my:'ကုဋေ၈၀ သူဌေးကြီး', en:'Ultra-Rich Tycoon', cn:'超级富豪', jp:'超富裕の大富豪', kr:'초고액 자산가', fr:'Magnat ultra-riche', ru:'Сверхбогатый магнат', hi:'अति धनी उद्योगपति', ar:'قطب فاحش الثراء' },
+  'ကမ္ဘာ့အချမ်းသာဆုံး လူသား': { my:'ကမ္ဘာ့အချမ်းသာဆုံး လူသား', en:'World’s Richest Person', cn:'世界首富', jp:'世界一の富豪', kr:'세계 최고 부자', fr:'Personne la plus riche du monde', ru:'Богатейший человек мира', hi:'दुनिया का सबसे अमीर व्यक्ति', ar:'أغنى شخص في العالم' },
+  '💸 Pay Bal': { my:'💸 Bal ပေးချေရန်', en:'💸 Pay Bal', cn:'💸 支付 Bal', jp:'💸 Bal を支払う', kr:'💸 Bal 결제', fr:'💸 Payer en Bal', ru:'💸 Оплатить Bal', hi:'💸 Bal से भुगतान', ar:'💸 ادفع بـ Bal' },
+  '⭐ Bal ဝယ်ရန်': { my:'⭐ Bal ဝယ်ရန်', en:'⭐ Buy Bal', cn:'⭐ 购买 Bal', jp:'⭐ Bal を購入', kr:'⭐ Bal 구매', fr:'⭐ Acheter des Bal', ru:'⭐ Купить Bal', hi:'⭐ Bal खरीदें', ar:'⭐ شراء Bal' },
+  '🏷️ Rank:': { my:'🏷️ အဆင့်:', en:'🏷️ Rank:', cn:'🏷️ 等级：', jp:'🏷️ ランク：', kr:'🏷️ 등급:', fr:'🏷️ Rang :', ru:'🏷️ Ранг:', hi:'🏷️ रैंक:', ar:'🏷️ الرتبة:' },
+  '💰 Balance:': { my:'💰 လက်ကျန်ငွေ:', en:'💰 Balance:', cn:'💰 余额：', jp:'💰 残高：', kr:'💰 잔액:', fr:'💰 Solde :', ru:'💰 Баланс:', hi:'💰 बैलेंस:', ar:'💰 الرصيد:' },
+  '🏆 Total Won:': { my:'🏆 စုစုပေါင်းအနိုင်ရ:', en:'🏆 Total Won:', cn:'🏆 总赢额：', jp:'🏆 累計獲得：', kr:'🏆 총 승리 금액:', fr:'🏆 Total gagné :', ru:'🏆 Всего выиграно:', hi:'🏆 कुल जीता:', ar:'🏆 إجمالي الأرباح:' },
+  '💸 Total Lost:': { my:'💸 စုစုပေါင်းရှုံး:', en:'💸 Total Lost:', cn:'💸 总输额：', jp:'💸 累計損失：', kr:'💸 총 손실 금액:', fr:'💸 Total perdu :', ru:'💸 Всего проиграно:', hi:'💸 कुल हारा:', ar:'💸 إجمالي الخسائر:' },
+  'BIKA Wallet': { my:'BIKA Wallet', en:'BIKA Wallet', cn:'BIKA 钱包', jp:'BIKA ウォレット', kr:'BIKA 지갑', fr:'Portefeuille BIKA', ru:'Кошелёк BIKA', hi:'BIKA वॉलेट', ar:'محفظة BIKA' },
   'Bet amount မမှန်ပါ။': { my:'လောင်းကြေးပမာဏ မမှန်ပါ။', en:'Invalid bet amount.', cn:'下注金额无效。', jp:'ベット額が無効です。', kr:'베팅 금액이 올바르지 않습니다.', fr:'Montant de mise invalide.', ru:'Неверная сумма ставки.', hi:'बेट राशि अमान्य है।', ar:'مبلغ الرهان غير صالح.' },
   'Balance မလုံလောက်ပါ။': { my:'လက်ကျန်ငွေ မလုံလောက်ပါ။', en:'Insufficient balance.', cn:'余额不足。', jp:'残高が不足しています。', kr:'잔액이 부족합니다.', fr:'Solde insuffisant.', ru:'Недостаточно средств.', hi:'बैलेंस अपर्याप्त है।', ar:'الرصيد غير كافٍ.' },
   'Please wait, your slot spin is currently running.': { my:'ခဏစောင့်ပါ။ Slot လှည့်နေဆဲပါ။', en:'Please wait, your slot spin is in progress.', cn:'请稍候，老虎机正在旋转。', jp:'スロットが進行中です。お待ちください。', kr:'슬롯이 진행 중입니다. 잠시 기다려 주세요.', fr:'Veuillez patienter, le tour de slot est en cours.', ru:'Подождите, вращение слота ещё идёт.', hi:'कृपया प्रतीक्षा करें, स्लॉट चल रहा है।', ar:'يرجى الانتظار، لعبة السلوت قيد التشغيل.' },
