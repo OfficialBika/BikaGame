@@ -1,10 +1,10 @@
 'use strict';
 
 const { ObjectId } = require('mongodb');
-const { col, isHistoryReady, isDbOneWriteBlocked, markDbOneWriteBlocked } = require('../config/database');
+const { col, isHistoryConfigured, isDbOneWriteBlocked, markDbOneWriteBlocked } = require('../config/database');
 
 async function logTx(doc, opts = {}) {
-  if (!isHistoryReady()) throw new Error('DB_TWO_HISTORY_NOT_READY');
+  if (!isHistoryConfigured()) throw new Error('DB_TWO_HISTORY_NOT_CONFIGURED');
   if (isDbOneWriteBlocked()) throw new Error('DB1_TRANSACTION_OUTBOX_STORAGE_QUOTA_BLOCKED');
 
   const createdAt = doc.createdAt instanceof Date ? doc.createdAt : new Date();
