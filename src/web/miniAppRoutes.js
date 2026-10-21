@@ -119,6 +119,14 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
   startWebCrashLoop();
   const publicDir = options.publicDir || path.join(process.cwd(), 'public', 'miniapp');
 
+  // Serve v2 assets through the authenticated backend web service. Keep v1 route untouched.
+  app.get(['/miniapp/v2', '/miniapp/v2/'], (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    return res.sendFile(path.join(publicDir, 'v2', 'index.html'));
+  });
+
   app.get(['/miniapp', '/miniapp/'], (req, res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
