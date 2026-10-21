@@ -247,12 +247,12 @@ function gameTableText(game, revealDealer, note) {
   );
 }
 
-function resultLabel(result) {
-  const { translateCachedText } = require('../../services/i18nService');
-  if (result === 'BLACKJACK') return '🏆 ' + translateCachedText(game.userId, 'BLACKJACK');
-  if (result === 'WIN') return translateCachedText(game.userId, '✅ WIN');
-  if (result === 'LOSE') return translateCachedText(game.userId, '❌ LOSE');
-  if (result === 'PUSH') return translateCachedText(game.userId, '🤝 TIE');
+function resultLabel(result, userId) {
+  const label = (text) => translateCachedText(userId, text);
+  if (result === 'BLACKJACK') return '🏆 ' + label('BLACKJACK');
+  if (result === 'WIN') return label('✅ WIN');
+  if (result === 'LOSE') return label('❌ LOSE');
+  if (result === 'PUSH') return label('🤝 TIE');
   return result;
 }
 
@@ -286,7 +286,7 @@ function blackjackResultText(game, result, payout) {
     `User: <b>${renderCards(game.player)}</b> (${handValue(game.player)})\n` +
     `Dealer: <b>${renderCards(game.dealer)}</b> (${handValue(game.dealer)})\n` +
     `━━━━━━━━━━━━\n` +
-    `Result: <b>${resultLabel(result)}</b>\n` +
+    `Result: <b>${resultLabel(result, game.userId)}</b>\n` +
     `Bet: <b>${fmt(game.bet)}</b> ${COIN}\n` +
     `Payout: <b>${fmt(payout)}</b> ${COIN}\n` +
     `Net: <b>${fmt(payout - game.bet)}</b> ${COIN}`
