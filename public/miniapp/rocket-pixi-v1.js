@@ -290,6 +290,9 @@ export async function createBikaRocketScene(container, options = {}) {
     const next=String(nextState||state);
     if(next!==state && next==='crashed') spawnCrashBurst();
     state=next;
+    // Keep the neon trail faint while betting, then bring it forward in flight.
+    const trailAlpha = state === 'running' ? 0.12 + progress * 0.62 : state === 'crashed' ? 0.38 : 0.08;
+    graphLayer.children.forEach((layer) => { layer.alpha = trailAlpha; });
     updateRocket();
   }
 
