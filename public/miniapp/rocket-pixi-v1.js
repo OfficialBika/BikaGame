@@ -293,7 +293,13 @@ export async function createBikaRocketScene(container, options = {}) {
     // Keep the neon trail faint while betting, then bring it forward in flight.
     const trailAlpha = state === 'running' ? 0.12 + progress * 0.62 : state === 'crashed' ? 0.38 : 0.08;
     graphLayer.children.forEach((layer) => { layer.alpha = trailAlpha; });
-    updateRocket();
+    // Avoid an upward-right jump at the start of a new round.
+    if (state === 'betting') {
+      rocket.position.set(width * 0.075, height * 0.86);
+      rocket.scale.set(clamp(width / 500, 0.90, 1.45));
+    } else {
+      updateRocket();
+    }
   }
 
   app.ticker.add(()=>{
