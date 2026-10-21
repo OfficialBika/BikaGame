@@ -467,9 +467,8 @@ async function settleGame(bot, game, result) {
   game.processing = true;
   game.pendingResult = result;
 
-  // Always reconcile any previously uncertain result before issuing a refund.
-  // The DB1 ledger is the financial source of truth; Telegram message edits are
-  // never part of the balance settlement decision.
+  // DB1 ledger is the source of truth. Reconcile before every retry so a
+  // committed payout can never be followed by an automatic refund.
   let winLedger;
   try {
     winLedger = await readBlackjackWinLedger(game);
@@ -482,7 +481,7 @@ async function settleGame(bot, game, result) {
       await editGameMessage(
         bot,
         game,
-        require('../../services/i18nService').translateCachedText(game.userId, 'Blackjack settlement status is being checked. Please retry shortly.'),
+        await localizeForUser(game.userId, 'Blackjack settlement status is being checked. Please retry shortly.'),
         actionKeyboard(game.id, game.userId),
       );
     } catch (editErr) {
@@ -491,8 +490,9 @@ async function settleGame(bot, game, result) {
     return;
   }
 
-  if (payout > 0 && !winLedger) {
-    let payoutError = null;
+  let payoutConfirmed = Boolean(winLedger) || payout === 0;
+  let payoutError = null;
+  if (payout > 0 && !payoutConfirmed) {
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
         await treasuryPayToUser(game.userId, payout, {
@@ -505,98 +505,106 @@ async function settleGame(bot, game, result) {
           fairResult: game.fairResult || result,
           rtpTargetResult: game.rtpTargetResult || result,
         });
+        payoutConfirmed = true;
         payoutError = null;
         break;
       } catch (err) {
         payoutError = err;
         await logSettlementFailure(`payout_attempt_${attempt}`, game, err);
-        if (attempt < 3) await sleep(350 * attempt);
-        // A commit can be ambiguous if the DB connection is lost at the edge of
-        // commit. Check the idempotency ledger before deciding whether a refund
-        // is safe. If the check itself fails, fail closed and do not credit again.
+        // Check the transaction ledger after every exception. A commit may have
+        // succeeded even if the client lost the acknowledgement.
         try {
           winLedger = await readBlackjackWinLedger(game);
           if (winLedger) {
+            payoutConfirmed = true;
             payoutError = null;
             break;
           }
         } catch (reconcileErr) {
           await logSettlementFailure('payout_attempt_reconcile', game, reconcileErr);
+          // The outcome is ambiguous: do not issue a refund.
           payoutError = reconcileErr;
-        }
-      }
-    }
-
-    if (payoutError && !winLedger) {
-      // No win ledger means payout did not commit. Only now is a refund safe.
-      let refundError = null;
-      for (let attempt = 1; attempt <= 3; attempt += 1) {
-        try {
-          await treasuryPayToUser(game.userId, game.bet, {
-            type: 'blackjack_refund',
-            idempotencyKey: `${game.id}:refund`,
-            bet: game.bet,
-            reason: 'blackjack_payout_failed',
-          });
-          refundError = null;
           break;
-        } catch (err) {
-          refundError = err;
-          await logSettlementFailure(`refund_attempt_${attempt}`, game, err);
-          if (attempt < 3) await sleep(350 * attempt);
-          try {
-            winLedger = await readBlackjackWinLedger(game);
-            if (winLedger) {
-              // A payout was committed after an uncertain response; do not
-              // continue refund attempts. Preserve the payout as the outcome.
-              refundError = null;
-              payoutError = null;
-              break;
-            }
-          } catch (reconcileErr) {
-            await logSettlementFailure('refund_attempt_reconcile', game, reconcileErr);
-            refundError = reconcileErr;
-          }
         }
-      }
-
-      if (winLedger || !payoutError) {
-        // Payout was verified by its ledger key; proceed to the normal result.
-      } else if (!refundError) {
-        game.settled = true;
-        clearGame(game.id);
-        try {
-          await editGameMessage(
-            bot,
-            game,
-            await localizeForUser(game.userId, `⚠️ <b>Blackjack Payout Error</b>\\n━━━━━━━━━━━━\\nPayout failed; bet refunded.`),
-            undefined,
-          );
-        } catch (editErr) {
-          await logSettlementFailure('refund_notice_edit', game, editErr);
-        }
-        return;
-      } else {
-        game.processing = false;
-        game.settlementFailed = true;
-        if (game.timeoutHandle) clearTimeout(game.timeoutHandle);
-        try {
-          await editGameMessage(
-            bot,
-            game,
-            await localizeForUser(game.userId, `⚠️ <b>Blackjack Payout Error</b>\\n━━━━━━━━━━━━\\nPayout/refund still pending. Please retry.`),
-            actionKeyboard(game.id, game.userId),
-          );
-        } catch (editErr) {
-          await logSettlementFailure('pending_notice_edit', game, editErr);
-        }
-        return;
+        if (attempt < 3) await sleep(350 * attempt);
       }
     }
   }
 
-  // If payout was already verified in the ledger, or this was a losing result
-  // with zero payout, settlement is complete. Do not refund because an edit fails.
+  if (!payoutConfirmed && payoutError) {
+    // Refund is only safe after a successful ledger read proves that the win
+    // credit was not committed. Retry the same idempotency key up to three times.
+    let refundError = null;
+    let refundConfirmed = false;
+    let reconciliationFailed = false;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        winLedger = await readBlackjackWinLedger(game);
+        if (winLedger) {
+          payoutConfirmed = true;
+          break;
+        }
+      } catch (reconcileErr) {
+        await logSettlementFailure('refund_safety_reconcile', game, reconcileErr);
+        reconciliationFailed = true;
+        refundError = reconcileErr;
+        break;
+      }
+
+      try {
+        await treasuryPayToUser(game.userId, game.bet, {
+          type: 'blackjack_refund',
+          idempotencyKey: `${game.id}:refund`,
+          bet: game.bet,
+          reason: 'blackjack_payout_failed',
+        });
+        refundConfirmed = true;
+        refundError = null;
+        break;
+      } catch (err) {
+        refundError = err;
+        await logSettlementFailure(`refund_attempt_${attempt}`, game, err);
+        if (attempt < 3) await sleep(350 * attempt);
+      }
+    }
+
+    if (!payoutConfirmed && (reconciliationFailed || !refundConfirmed)) {
+      game.processing = false;
+      game.settlementFailed = true;
+      if (game.timeoutHandle) clearTimeout(game.timeoutHandle);
+      try {
+        await editGameMessage(
+          bot,
+          game,
+          await localizeForUser(game.userId, 'Payout/refund still pending. Please retry.'),
+          actionKeyboard(game.id, game.userId),
+        );
+      } catch (editErr) {
+        await logSettlementFailure('pending_notice_edit', game, editErr);
+      }
+      if (refundError) await logSettlementFailure('refund_pending', game, refundError);
+      return;
+    }
+
+    if (!payoutConfirmed && refundConfirmed) {
+      game.settled = true;
+      clearGame(game.id);
+      try {
+        await editGameMessage(
+          bot,
+          game,
+          await localizeForUser(game.userId, `⚠️ <b>Blackjack Payout Error</b>\\n━━━━━━━━━━━━\\nPayout failed; bet refunded.`),
+          undefined,
+        );
+      } catch (editErr) {
+        await logSettlementFailure('refund_notice_edit', game, editErr);
+      }
+      return;
+    }
+  }
+
+  // Financial settlement is confirmed. A Telegram edit failure must never
+  // trigger another payout/refund.
   game.settled = true;
   clearGame(game.id);
   try {
