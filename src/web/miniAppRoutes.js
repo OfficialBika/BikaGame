@@ -53,17 +53,44 @@ function sendError(res, err) {
     INVALID_TILE: [400, 'Tile မမှန်ပါ။'],
     TILE_OPENED: [400, 'ဒီ tile ကိုဖွင့်ပြီးသားပါ။'],
     MINES_CASHOUT_LOCKED: [400, 'Safe tile မလုံလောက်သေးပါ။'],
-    WHEEL_DAILY_USED: [400, 'ဒီနေ့ Daily Wheel ကို အသုံးပြုပြီးပါပြီ။'],
-    WHEEL_DAILY_COOLDOWN: [429, 'Daily Wheel ခဏစောင့်ပါ။'],
+    WHEEL_DAILY_USED: [400, 'Daily Free Spin ကို ဒီနေ့ claim လုပ်ပြီးသားပါ။ မနက်ဖြန် ပြန်လာပါ။'],
+    BJ_ROOM_NOT_FOUND: [404, 'Blackjack table မတွေ့ပါ။ Group ထဲမှာ .wbj ပြန်ပို့ပြီး table အသစ်ဖွင့်ပါ။'],
+    BJ_ROOM_EXPIRED: [400, 'Blackjack table expired ဖြစ်သွားပါပြီ။'],
+    BJ_ALREADY_STARTED: [400, 'Blackjack round စပြီးသွားပါပြီ။ နောက် table ကိုစောင့်ပါ။'],
+    BJ_TABLE_FULL: [400, 'Blackjack table player ပြည့်သွားပါပြီ။'],
+    BJ_NOT_JOINED: [400, 'ဒီ Blackjack table ထဲ မဝင်ထားပါ။'],
+    BJ_NOT_PLAYING: [400, 'အခု action time မဟုတ်ပါ။'],
+    BJ_ACTION_DONE: [400, 'ဒီ hand အတွက် action လုပ်ပြီးသားပါ။'],
+    SHAN_DEAL_RUNNING: [429, 'Shan deal လက်ရှိ run နေပါတယ်။'],
+    SHAN_ROOM_NOT_FOUND: [404, 'Shan Koe Mee table မတွေ့ပါ။ Group ထဲမှာ .wshan ပြန်ပို့ပါ သို့မဟုတ် Web ထဲက Create Table နှိပ်ပါ။'],
+    SHAN_ROOM_EXPIRED: [400, 'Shan Koe Mee table expired ဖြစ်သွားပါပြီ။ Table အသစ်ထောင်ပါ။'],
+    SHAN_ALREADY_STARTED: [400, 'ဒီ Shan table round စပြီးသွားပါပြီ။ Table အသစ်ကိုစောင့်ပါ။'],
+    SHAN_TABLE_FULL: [400, 'Shan table player ပြည့်သွားပါပြီ။'],
+    SHAN_NOT_JOINED: [400, 'ဒီ Shan table ထဲ မဝင်ထားပါ။'],
+    SHAN_NOT_PLAYING: [400, 'အခု Shan action time မဟုတ်ပါ။'],
+    SHAN_ACTION_DONE: [400, 'ဒီ hand အတွက် Draw/Stay လုပ်ပြီးသားပါ။'],
+    SHAN_MAX_CARDS: [400, 'Shan မှာ card 3 ချပ်ထက်ပိုမဆွဲနိုင်ပါ။'],
+    SHAN_TABLE_NOT_FOUND: [404, 'Shan Koe Mee table မတွေ့ပါ။ Group ထဲမှာ .wshan ပြန်ပို့ပါ သို့မဟုတ် Web ထဲက Create Table နှိပ်ပါ။'],
+    SHAN_TABLE_EXPIRED: [400, 'Shan Koe Mee table expired ဖြစ်သွားပါပြီ။ Table အသစ်ထောင်ပါ။'],
+    SHAN_TABLE_ALREADY_STARTED: [400, 'ဒီ Shan table round စပြီးသွားပါပြီ။ Table အသစ်ကိုစောင့်ပါ။'],
+    BANKER_INSUFFICIENT_RESERVE: [400, 'ဒိုင် reserve မတည်ငွေ မလုံလောက်ပါ။ Banker stake ကိုလျှော့ပြီးပြန်ထောင်ပါ။'],
+    SHAN_BANKER_LIMIT_REACHED: [400, 'ဒိုင် limit ပြည့်သွားပါပြီ။ Table အသစ်ထောင်ပါ။'],
+    SHAN_NOT_YOUR_TURN: [400, 'အခု သင့်အလှည့်မဟုတ်သေးပါ။'],
   };
-  const mapped = map[code];
-  const status = mapped ? mapped[0] : 400;
-  const message = mapped ? mapped[1] : code;
-  logger.error('Mini App route error', err);
-  return res.status(status).json({ ok: false, error: code, message });
-}
+  const [status, message] = map[code] || [500, 'Server error ဖြစ်နေပါတယ်။'];
 
-function loggerFallback() {}
+  return res.status(status).json({
+    ok: false,
+    error: code,
+    message,
+    minBet: err?.minBet,
+    maxBet: err?.maxBet,
+    cooldownLeft: err?.cooldownLeft,
+    minMultiplier: err?.minMultiplier,
+    minSafe: err?.minSafe,
+    nextAtMs: err?.nextAtMs,
+  });
+}
 
 function authMiddleware(req, res, next) {
   try {
@@ -99,6 +126,7 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
     return res.sendFile(path.join(publicDir, 'index.html'));
   });
 
+  // Isolated v2 UI preview. Existing API routes and handlers remain untouched.
   app.get(['/miniapp/v2', '/miniapp/v2/'], (req, res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
@@ -124,3 +152,340 @@ module.exports = function registerMiniAppRoutes(app, options = {}) {
       slot: {
         minBet: Number(SLOT.minBet || 50),
         maxBet: Number(SLOT.maxBet || 7000),
+      },
+      crash: {
+        minBet: Number(CRASH.minBet || 50),
+        maxBet: Number(CRASH.maxBet || 10000),
+        minCashoutMultiplier: Number(CRASH.minCashoutMultiplier || 1.10),
+        maxPayoutMultiplier: Number(CRASH.maxPayoutMultiplier || 4),
+        maxMultiplier: Number(CRASH.maxMultiplier || 6),
+        betSeconds: Number(process.env.WEB_CRASH_BET_SECONDS || CRASH.betSeconds || 15),
+        multiplayer: true,
+        roundMax: 100,
+      },
+      blackjack: {
+        minBet: BJ_MIN_BET,
+        maxBet: BJ_MAX_BET,
+        maxPlayers: BJ_MAX_PLAYERS,
+        joinSeconds: BJ_JOIN_SECONDS,
+        actionSeconds: BJ_ACTION_SECONDS,
+      },
+      shan: {
+        minBet: SHAN_MIN_BET,
+        maxBet: SHAN_MAX_BET,
+        maxPlayers: SHAN_MAX_PLAYERS,
+        joinSeconds: SHAN_JOIN_SECONDS,
+        actionSeconds: SHAN_ACTION_SECONDS,
+        minBankerStake: SHAN_MIN_BANKER_STAKE,
+        maxBankerStake: SHAN_MAX_BANKER_STAKE,
+        bankerLimitMultiplier: Number(process.env.WEB_SHAN_BANKER_BET_LIMIT_MULTIPLIER || 3),
+        mode: 'human_banker_table',
+        rules: { initialCards: 2, optionalThirdCard: true, pointModulo: 10, facePoint: 0, acePoint: 1 },
+      },
+      plinko: {
+        minBet: PLINKO_MIN_BET,
+        maxBet: PLINKO_MAX_BET,
+        buckets: PLINKO_BUCKETS,
+      },
+      wheel: {
+        minBet: WHEEL_MIN_BET,
+        maxBet: WHEEL_MAX_BET,
+        dailyBaseReward: WHEEL_DAILY_BASE_REWARD,
+        segmentDegrees: 36,
+        segments: WHEEL_SEGMENTS,
+      },
+      mines: {
+        minBet: MINES_MIN_BET,
+        maxBet: MINES_MAX_BET,
+        boardSize: 5,
+        mines: DEFAULT_MINES,
+        minCashoutSafe: MIN_CASHOUT_SAFE,
+      },
+    });
+  });
+
+  app.post('/api/mini/me', authMiddleware, async (req, res) => {
+    try {
+      const tgUser = normalizeTelegramUser(req.telegramUser);
+      const doc = await ensureUser(tgUser);
+      return res.json({
+        ok: true,
+        coin: COIN,
+        user: {
+          userId: doc.userId,
+          username: doc.username || tgUser.username || null,
+          firstName: doc.firstName || tgUser.first_name || null,
+          lastName: doc.lastName || tgUser.last_name || null,
+          balance: Number(doc.balance || 0),
+          totalWon: Number(doc.totalWon || 0),
+          totalLost: Number(doc.totalLost || 0),
+          isVip: !!doc.isVip,
+          language: doc.language || 'en',
+        },
+      });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+
+  app.post('/api/mini/language', authMiddleware, async (req, res) => {
+    try {
+      const languageService = require('../services/i18nService');
+      const language = languageService.normalizeLanguage(req.body?.language);
+      if (!language) return res.status(400).json({ ok: false, message: 'Invalid language.' });
+      const tgUser = normalizeTelegramUser(req.telegramUser);
+      const doc = await ensureUser(tgUser);
+      await require('../models/userModel').collection().updateOne(
+        { _id: doc._id },
+        { $set: { language, updatedAt: new Date() } },
+      );
+      languageService.rememberLanguage(tgUser.id, language);
+      return res.json({ ok: true, language });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/history', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const items = await getWebGameHistory(req.telegramUser.id, req.body?.game || 'all', req.body?.limit || 20);
+      return res.json({ ok: true, items });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/slot/spin', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await spinWebSlot({ userId: req.telegramUser.id, bet: req.body?.bet });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/crash/start', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await placeWebCrashBet({ userId: req.telegramUser.id, user: req.telegramUser, bet: req.body?.bet });
+      return res.json({ ok: true, ...result });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/crash/bet', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await placeWebCrashBet({ userId: req.telegramUser.id, user: req.telegramUser, bet: req.body?.bet });
+      return res.json({ ok: true, ...result });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/crash/status', authMiddleware, async (req, res) => {
+    try {
+      const result = await getWebCrashStatus(req.telegramUser.id);
+      const user = await getUser(req.telegramUser.id);
+      return res.json({ ok: true, ...result, balance: Number(user?.balance || 0) });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/crash/cashout', authMiddleware, async (req, res) => {
+    try {
+      const result = await cashoutWebCrash({ userId: req.telegramUser.id });
+      return res.json({ ok: true, ...result });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/blackjack/status', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await getWebBlackjackStatus({ roomId: req.body?.roomId, userId: req.telegramUser.id });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/blackjack/join', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await joinWebBlackjack({ roomId: req.body?.roomId, userId: req.telegramUser.id, user: req.telegramUser, bet: req.body?.bet });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/blackjack/hit', authMiddleware, async (req, res) => {
+    try {
+      const result = await hitWebBlackjack({ roomId: req.body?.roomId, userId: req.telegramUser.id });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/blackjack/stand', authMiddleware, async (req, res) => {
+    try {
+      const result = await standWebBlackjack({ roomId: req.body?.roomId, userId: req.telegramUser.id });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+
+
+  app.post('/api/mini/shan/create', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await createWebShanRoom({
+        title: req.body?.title || 'Bika Shan Koe Mee Pro Table',
+        createdBy: req.telegramUser.id,
+        user: req.telegramUser,
+        bankerStake: req.body?.bankerStake,
+      });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/shan/status', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await getWebShanStatus({ roomId: req.body?.roomId, userId: req.telegramUser.id });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/shan/join', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await joinWebShan({ roomId: req.body?.roomId, userId: req.telegramUser.id, user: req.telegramUser, bet: req.body?.bet });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/shan/draw', authMiddleware, async (req, res) => {
+    try {
+      const result = await drawWebShan({ roomId: req.body?.roomId, userId: req.telegramUser.id });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/shan/stay', authMiddleware, async (req, res) => {
+    try {
+      const result = await stayWebShan({ roomId: req.body?.roomId, userId: req.telegramUser.id });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/shan/deal', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await playWebShan({ userId: req.telegramUser.id, bet: req.body?.bet });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/plinko/drop', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await playWebPlinko({ userId: req.telegramUser.id, bet: req.body?.bet });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+
+  app.post('/api/mini/wheel/daily-status', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const status = await getDailyWheelStatus(req.telegramUser.id);
+      return res.json(status);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/wheel/daily-spin', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await spinDailyWebWheel({ userId: req.telegramUser.id });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/wheel/spin', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await spinWebWheel({ userId: req.telegramUser.id, bet: req.body?.bet });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/mines/start', authMiddleware, async (req, res) => {
+    try {
+      await ensureUser(normalizeTelegramUser(req.telegramUser));
+      const result = await startWebMines({ userId: req.telegramUser.id, bet: req.body?.bet });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/mines/status', authMiddleware, async (req, res) => {
+    try {
+      const result = await getWebMinesStatus(req.telegramUser.id);
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/mines/open', authMiddleware, async (req, res) => {
+    try {
+      const result = await openWebMinesTile({ userId: req.telegramUser.id, index: req.body?.index });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/mini/mines/cashout', authMiddleware, async (req, res) => {
+    try {
+      const result = await cashoutWebMines({ userId: req.telegramUser.id });
+      return res.json(result);
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+};
+
+module.exports.publicMiniAppUrl = publicMiniAppUrl;
