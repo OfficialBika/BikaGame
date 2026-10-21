@@ -419,7 +419,16 @@ async function pollCrash() {
 }
 
 function startRocketRaf() { if (rafTimer) cancelAnimationFrame(rafTimer); const tick = () => { updateRocketFrame(); rafTimer = requestAnimationFrame(tick); }; tick(); }
-function startPolling() { if (pollTimer) clearInterval(pollTimer); pollCrash(); pollTimer = setInterval(pollCrash, 850); startRocketRaf(); }
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollCrash();
+  pollTimer = setInterval(pollCrash, 850);
+  startRocketRaf();
+  // The Pixi layer is progressive enhancement; the existing SVG remains the fallback.
+  ensureRocketVisual().then((instance) => {
+    if (instance && liveRound) syncRocketVisual(liveRound);
+  }).catch(() => null);
+}
 
 async function placeCrashBet() { const btn = $('crashStartBtn'); setBusy(btn, true, 'Joining...'); try { renderRocket(await api('/api/mini/crash/bet', { bet: $('crashBet')?.value })); AudioFX.sfx('bet'); refreshAllVisibleHistory(); tg?.HapticFeedback?.notificationOccurred?.('success'); } catch (err) { setHTML('crashResult', `<span class="lose">${escapeHtml(err.message)}</span>`); AudioFX.sfx('error'); tg?.HapticFeedback?.notificationOccurred?.('error'); } finally { setBusy(btn, false); } }
 async function cashoutCrash() { const btn = $('cashoutBtn'); setBusy(btn, true, 'Cash Out...'); try { const data = await api('/api/mini/crash/cashout'); setBalance(data.balance); renderRocket(data); setHTML('crashResult', `🎉 Cash Out: <b>${fmt(data.payout)} ${coin()}</b> at <b>x${Number(data.effectiveMultiplier || 0).toFixed(2)}</b>`); AudioFX.sfx('cashout'); refreshAllVisibleHistory(); tg?.HapticFeedback?.notificationOccurred?.('success'); } catch (err) { setHTML('crashResult', `<span class="lose">${escapeHtml(err.message)}</span>`); tg?.HapticFeedback?.notificationOccurred?.('error'); } finally { setBusy(btn, false); } }
