@@ -168,7 +168,12 @@ function setText(id, value) { const el = $(id); if (el) el.textContent = window.
 function setHTML(id, value) { const el = $(id); if (el) el.innerHTML = window.bikaTranslateText ? window.bikaTranslateText(value) : value; return el; }
 function setClass(id, value) { const el = $(id); if (el) el.className = value; return el; }
 function setBusy(btn, busy, label) { if (!btn) return; if (busy) { btn.dataset.oldText = btn.textContent; btn.textContent = label || 'Loading...'; btn.disabled = true; } else { btn.textContent = btn.dataset.oldText || btn.textContent; btn.disabled = false; } }
-function setBalance(value) { const text = `${fmt(value)} ${coin()}`; setText('balanceText', text); setText('stickyBalanceText', text); }
+function setBalance(value) {
+  if (value == null || !Number.isFinite(Number(value))) return;
+  const text = `${fmt(Number(value))} ${coin()}`;
+  setText('balanceText', text);
+  setText('stickyBalanceText', text);
+}
 function displayName(user = {}) { return [user.firstName || user.first_name, user.lastName || user.last_name].filter(Boolean).join(' ').trim() || user.username || 'Bika Player'; }
 function setPlayer(user = {}) { const name = displayName(user); setText('playerNameText', name); setText('avatarText', name.slice(0, 2).toUpperCase()); }
 function escapeHtml(v) { return String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'); }
@@ -183,7 +188,11 @@ async function api(path, body = {}) {
 
 async function loadConfig() {
   const res = await fetch('/api/mini/config', { cache: 'no-store' });
-  config = await res.json();
+  if (!res.ok) throw new Error(`Game setup failed (HTTP ${res.status})`);
+  config = await res.json().catch(() => null);
+  if (!config?.slot || !config?.crash || !config?.plinko || !config?.wheel || !config?.mines) {
+    throw new Error('Game setup returned incomplete configuration');
+  }
   setText('slotRange', `${fmt(config.slot.minBet)} - ${fmt(config.slot.maxBet)} ${coin()}`);
   [['crashBet', config.crash.minBet], ['slotBet', config.slot.minBet], ['bjBet', config.blackjack?.minBet || 50], ['shanBet', config.shan?.minBet || 50], ['shanBankerStakeInput', config.shan?.minBankerStake || 1000], ['plinkoBet', config.plinko.minBet], ['wheelBet', config.wheel.minBet], ['minesBet', config.mines.minBet]].forEach(([id, value]) => { const el = $(id); if (el) el.value = value; });
   renderPlinkoPins();
@@ -194,7 +203,7 @@ async function loadConfig() {
 async function loadMe() {
   const data = await api('/api/mini/me');
   setPlayer(data.user || {});
-  setBalance(data.user?.balance || 0);
+  setBalance(data.user?.balance);
 }
 
 function openPanel(id) {
@@ -358,7 +367,7 @@ function renderRocket(status) {
   if (!round) return;
   liveRound = { ...round, serverNowMs: status.serverNowMs, receivedAtMs: Date.now() };
   setText('onlineCountText', status.onlineCount ?? '—');
-  setBalance(status.balance ?? 0);
+  setBalance(status.balance);
   setText('roundTitle', `#${round.no || '—'} / 100`);
   setText('phaseChip', String(round.state || 'idle').toUpperCase());
   setText('playerCount', fmt(round.playerCount || 0));
@@ -415,7 +424,18 @@ function updateRocketFrame() {
 }
 
 async function pollCrash() {
-  try { renderRocket(await api('/api/mini/crash/status')); } catch (err) { if (!initData) $('notTelegram')?.classList.remove('hidden'); }
+  try {
+    renderRocket(await api('/api/mini/crash/status'));
+    if (initData) $('notTelegram')?.classList.add('hidden');
+  } catch (err) {
+    const notice = $('notTelegram');
+    if (notice && (!initData || !liveRound)) {
+      setText('notTelegram', !initData
+        ? 'Telegram Mini App ထဲကနေဖွင့်မှ account verify လုပ်နိုင်ပါမယ်။'
+        : `Game connection failed: ${err.message || 'Please try again.'}`);
+      notice.classList.remove('hidden');
+    }
+  }
 }
 
 function startRocketRaf() { if (rafTimer) cancelAnimationFrame(rafTimer); const tick = () => { updateRocketFrame(); rafTimer = requestAnimationFrame(tick); }; tick(); }
@@ -974,7 +994,13 @@ async function init() {
   bindEvents();
   await loadConfig();
   buildWheel();
-  try { await loadMe(); } catch (_) {}
+  try {
+    await loadMe();
+  } catch (err) {
+    setText('balanceText', 'Unavailable');
+    setText('stickyBalanceText', 'Unavailable');
+    console.warn('BIKA Mini App balance request failed', err);
+  }
   try { await loadWheelDailyStatus(); } catch (_) {}
   try { const status = await api('/api/mini/mines/status'); renderMines(status.game, status.balance); } catch (_) {}
   startPolling();
