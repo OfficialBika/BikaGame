@@ -128,7 +128,7 @@ export async function createBikaRocketScene(container, options = {}) {
     graphLayer.addChild(crispTrail);
     const origin = pts[0];
     graphLayer.addChild(new PIXI.Graphics().circle(origin.x,origin.y,5).fill({color:0x54e8ff,alpha:0.72}));
-    graphLayer.children.forEach((layer)=>{ layer.alpha = 0.10; });
+    graphLayer.children.forEach((layer)=>{ layer.alpha = progress; });
   }
 
   function addFlame() {
