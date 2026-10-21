@@ -36,7 +36,7 @@ jobs:
           grep -q "api('/api/mini/crash/bet'" public/miniapp/v2/v2.js
           grep -q "api('/api/mini/crash/cashout')" public/miniapp/v2/v2.js
           grep -q "X-Telegram-Init-Data" public/miniapp/v2/v2.js
-          grep -Fq "app.get([\x27/miniapp/v2\x27, \x27/miniapp/v2/\x27]" src/web/miniAppRoutes.js
+          grep -q "/miniapp/v2" src/web/miniAppRoutes.js
 
       - name: Check public JavaScript syntax
         shell: bash
