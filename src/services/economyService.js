@@ -83,7 +83,7 @@ async function treasuryPayToUser(toUserId, amount, meta = {}) {
   return withRequiredTx(async (session) => {
     const opts = { session };
     if (idem && await findTransactionHistoryByIdempotency(type, idem, session)) return { ok: true, duplicate: true };
-    if (idem) await reserveTransactionIdempotency(type, idem, session);
+    if (idem) await reserveTransactionIdempotency(type, idem, session, { toUserId: String(toUserId), amount: amt });
 
     const t = extract(await treasuryModel.collection().findOneAndUpdate(
       { key: 'treasury', ownerBalance: { $gte: amt } },
@@ -117,7 +117,7 @@ async function userPayToTreasury(fromUserId, amount, meta = {}) {
   return withRequiredTx(async (session) => {
     const opts = { session };
     if (idem && await findTransactionHistoryByIdempotency(type, idem, session)) return { ok: true, duplicate: true };
-    if (idem) await reserveTransactionIdempotency(type, idem, session);
+    if (idem) await reserveTransactionIdempotency(type, idem, session, { fromUserId: String(fromUserId), amount: amt });
 
     const u = extract(await userModel.collection().findOneAndUpdate(
       { userId: { $in: idVariants(fromUserId) }, balance: { $gte: amt } },
@@ -147,7 +147,7 @@ async function transferBalance(fromUserId, toUserId, amount, meta = {}) {
   return withRequiredTx(async (session) => {
     const opts = { session };
     if (idem && await findTransactionHistoryByIdempotency(type, idem, session)) return { ok: true, duplicate: true };
-    if (idem) await reserveTransactionIdempotency(type, idem, session);
+    if (idem) await reserveTransactionIdempotency(type, idem, session, { fromUserId: String(fromUserId), toUserId: String(toUserId), amount: amt });
 
     const sender = extract(await userModel.collection().findOneAndUpdate(
       { userId: { $in: idVariants(fromUserId) }, balance: { $gte: amt } },
