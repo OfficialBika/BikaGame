@@ -63,10 +63,10 @@ function randomFrame() {
 
 function animationText(reels, note) {
   return (
-    `${SLOT_EMOJI} <b>BIKA Pro Slot</b>\n` +
-    `━━━━━━━━━━━\n` +
-    `<pre>${engine.art(reels)}</pre>\n` +
-    `━━━━━━━━━━━\n` +
+    `${SLOT_EMOJI} <b>BIKA Pro Slot</b>\\n` +
+    `━━━━━━━━━━━\\n` +
+    `<pre>${engine.art(reels)}</pre>\\n` +
+    `━━━━━━━━━━━\\n` +
     `${note}`
   );
 }
@@ -135,19 +135,19 @@ function resultText(reels, bet, payout, userId) {
       : translateCachedText(userId, '❌ LOSE');
 
   return (
-    `${SLOT_EMOJI} <b>BIKA Pro Slot</b>\n` +
-    `━━━━━━━━━━━\n` +
-    `<pre>${engine.art(reels)}</pre>\n` +
-    `━━━━━━━━━━━\n` +
-    `<b>${headline}</b>\n` +
-    `${translateCachedText(userId, 'Bet:')} <b>${fmt(bet)}</b> ${COIN}\n` +
-    `${translateCachedText(userId, 'Payout:')} <b>${fmt(payout)}</b> ${COIN}\n` +
+    `${SLOT_EMOJI} <b>BIKA Pro Slot</b>\\n` +
+    `━━━━━━━━━━━\\n` +
+    `<pre>${engine.art(reels)}</pre>\\n` +
+    `━━━━━━━━━━━\\n` +
+    `<b>${headline}</b>\\n` +
+    `${translateCachedText(userId, 'Bet:')} <b>${fmt(bet)}</b> ${COIN}\\n` +
+    `${translateCachedText(userId, 'Payout:')} <b>${fmt(payout)}</b> ${COIN}\\n` +
     `${translateCachedText(userId, 'Net:')} <b>${fmt(net)}</b> ${COIN}`
   );
 }
 
 module.exports = (bot) => {
-  bot.hears(/^\.(slot)\s+(\d+)\s*$/i, async (ctx) => {
+  bot.hears(/^\\.(slot)\\s+(\\d+)\\s*$/i, async (ctx) => {
     const options = replyOptions(ctx);
 
     // Slot is supported in both private DM and group chats.
@@ -169,10 +169,10 @@ module.exports = (bot) => {
     if (bet < SLOT.minBet || bet > SLOT.maxBet) {
       return replyHTML(
         ctx,
-        `${SLOT_EMOJI} <b>BIKA Pro Slot</b>\n` +
-          `━━━━━━━━━━━\n` +
-          `Usage: <code>.slot 1000</code>\n` +
-          `Min: <b>${fmt(SLOT.minBet)}</b> ${COIN}\n` +
+        `${SLOT_EMOJI} <b>BIKA Pro Slot</b>\\n` +
+          `━━━━━━━━━━━\\n` +
+          `Usage: <code>.slot 1000</code>\\n` +
+          `Min: <b>${fmt(SLOT.minBet)}</b> ${COIN}\\n` +
           `Max: <b>${fmt(SLOT.maxBet)}</b> ${COIN}`,
         options
       );
@@ -204,9 +204,8 @@ module.exports = (bot) => {
     let sent = null;
 
     try {
-      // Send once and perform exactly two animation edits over a 500 ms
-      // total visual window. These edits are presentation-only; no balances,
-      // bets, payouts, or settlement records are mutated here.
+      // Preserve one initial message, then perform one animation edit after 300ms.
+      // Presentation-only timing; settlement and balance logic remain unchanged.
       sent = await replyHTML(
         ctx,
         animationText(randomFrame(), `${START_ROLLING_EMOJI} Start Rolling...`),
@@ -217,21 +216,13 @@ module.exports = (bot) => {
         throw new Error('SLOT_ANIMATION_MESSAGE_FAILED');
       }
 
-      await sleep(250);
+      await sleep(300);
+
       await editByIds(
         bot,
         chatId,
         sent.message_id,
         animationText(randomFrame(), `${START_ROLLING_EMOJI} Rolling...`),
-        {}, userId
-      );
-
-      await sleep(250);
-      await editByIds(
-        bot,
-        chatId,
-        sent.message_id,
-        animationText(randomFrame(), `${START_ROLLING_EMOJI} Almost there...`),
         {}, userId
       );
 
@@ -307,10 +298,10 @@ module.exports = (bot) => {
           bot,
           chatId,
           sent.message_id,
-          `${SLOT_EMOJI} <b>BIKA Pro Slot</b>\n` +
-            `━━━━━━━━━━━\n` +
-            `<pre>${engine.art(finalReels)}</pre>\n` +
-            `━━━━━━━━━━━\n` +
+          `${SLOT_EMOJI} <b>BIKA Pro Slot</b>\\n` +
+            `━━━━━━━━━━━\\n` +
+            `<pre>${engine.art(finalReels)}</pre>\\n` +
+            `━━━━━━━━━━━\\n` +
             `⚠️ Settlement မအောင်မြင်လို့ ငွေစာရင်းကို atomic rollback လုပ်ထားပါတယ်။`,
           {}, userId
         );
@@ -318,8 +309,7 @@ module.exports = (bot) => {
 
       betTaken = false;
 
-      // Settlement is complete; show the final result without another
-      // artificial wait. The two animation edits above use 500 ms total.
+      // Settlement is complete; show the final result without any extra wait.
       return editByIds(
         bot,
         chatId,
@@ -336,14 +326,14 @@ module.exports = (bot) => {
           bot,
           chatId,
           sent.message_id,
-          '⚠️ <b>Slot Error</b>\n━━━━━━━━━━━\nSettlement မအောင်မြင်ပါ။ ငွေစာရင်းကို atomic rollback လုပ်ထားပါတယ်။',
+          '⚠️ <b>Slot Error</b>\\n━━━━━━━━━━━\\nSettlement မအောင်မြင်ပါ။ ငွေစာရင်းကို atomic rollback လုပ်ထားပါတယ်။',
           {}, userId
         );
       }
 
       return replyHTML(
         ctx,
-        '⚠️ <b>Slot Error</b>\n━━━━━━━━━━━\nError ဖြစ်လို့ bet refund ပြန်ပေးထားပါတယ်။',
+        '⚠️ <b>Slot Error</b>\\n━━━━━━━━━━━\\nError ဖြစ်လို့ bet refund ပြန်ပေးထားပါတယ်။',
         options
       );
     } finally {
