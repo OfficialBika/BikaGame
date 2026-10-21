@@ -1,6 +1,7 @@
 'use strict';
 
 const { getDb, col, withRequiredTx } = require('../config/database');
+const { logTx } = require('./transactionService');
 const {
   getBotConfig,
   getRarityConfig,
@@ -248,9 +249,7 @@ async function approveOrder(orderId, ownerId) {
 
   try {
     const result=await withRequiredTx(async(session)=>{
-      const opts={session}; const tx=col('transactions'); const markerId=`__settlement:sell:${String(orderId)}`;
-      const existingApproval=await tx.findOne({type:'sell_card_approved',orderId:String(orderId)},opts);
-      if(existingApproval){ return {duplicate:true}; }
+      const opts={session}; const tx=col('financial_settlements'); const markerId=`__settlement:sell:${String(orderId)}`;
       const marker=await tx.findOne({_id:markerId},opts);
       if(marker) return {duplicate:true};
       await tx.insertOne({_id:markerId,type:'sell_card_settlement',orderId:String(orderId),status:'PROCESSING',createdAt:new Date()},opts);
@@ -260,9 +259,21 @@ async function approveOrder(orderId, ownerId) {
         {session,returnDocument:'after'}
       );
       if(!seller) throw new Error('SELLER_USER_NOT_FOUND');
-      await tx.insertOne({
-        userId:seller.userId, amount:Number(claim.price), type:'sell_card_approved', direction:'credit', orderId:String(claim.orderId),
-        receipt:claim.receipt, botKey:claim.botKey, botName:claim.botName, rarityKey:claim.rarityKey, rarityName:claim.rarityName, giftLink:claim.giftLink, approvedBy:Number(ownerId), createdAt:new Date(),
+      await logTx({
+        userId:seller.userId,
+        amount:Number(claim.price),
+        type:'sell_card_approved',
+        direction:'credit',
+        orderId:String(claim.orderId),
+        receipt:claim.receipt,
+        botKey:claim.botKey,
+        botName:claim.botName,
+        rarityKey:claim.rarityKey,
+        rarityName:claim.rarityName,
+        giftLink:claim.giftLink,
+        approvedBy:Number(ownerId),
+        meta:{idempotencyKey:'sell_card_approved:'+String(orderId)},
+        createdAt:new Date(),
       },opts);
       await tx.updateOne({_id:markerId},{ $set:{status:'COMMITTED',userId:seller.userId,amount:Number(claim.price),updatedAt:new Date()} },opts);
       return {duplicate:false};

@@ -103,7 +103,7 @@ async function dailyClaim(ctx) {
       await ensureDailyUserDocument(userId, now);
       const result = await withRequiredTx(async (session) => {
         const opts = { session };
-        const tx = col('transactions');
+        const tx = col('financial_settlements');
         const markerId = `__settlement:${settlementId}`;
         const existing = await tx.findOne({ _id: markerId }, opts);
         // A settlement marker proves today's payout already committed. Never report it as a new success.
@@ -134,7 +134,9 @@ async function dailyClaim(ctx) {
         if (!userAfter) throw new Error('USER_CREDIT_FAILED');
 
         await logTx({ type:'daily_claim', fromUserId:'TREASURY', toUserId:userAfter.userId, amount, meta:{ idempotencyKey:markerId, claimDate:today.toISOString() }, balanceAfter:Number(userAfter.balance||0) }, opts);
-        await tx.insertOne({ _id:markerId, type:'daily_claim_settlement', userId:userAfter.userId, amount, balanceAfter:Number(userAfter.balance||0), createdAt:now }, opts);
+        const settlementMarker = { _id:markerId, type:'daily_claim_settlement', userId:userAfter.userId, amount, balanceAfter:Number(userAfter.balance||0), meta:{idempotencyKey:markerId}, createdAt:now };
+        await tx.insertOne(settlementMarker, opts);
+        await logTx(settlementMarker, opts);
         return { amount, balance:Number(userAfter.balance||0) };
       });
 

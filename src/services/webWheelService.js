@@ -1,9 +1,8 @@
 'use strict';
 
 const { COIN } = require('../config/constants');
-const { getDb, withRequiredTx } = require('../config/database');
+const { getDb, withRequiredTx, col } = require('../config/database');
 const userModel = require('../models/userModel');
-const transactionModel = require('../models/transactionModel');
 const treasuryModel = require('../models/treasuryModel');
 const { logTx } = require('./transactionService');
 const { getUser, settleSingleGame } = require('./economyService');
@@ -206,7 +205,7 @@ async function spinDailyWebWheel({ userId }) {
     result = await withRequiredTx(async (session) => {
       const opts = { session };
       const daily = dailyCollection();
-      const tx = transactionModel.collection();
+      const tx = col('financial_settlements');
       const treasury = treasuryModel.collection();
 
       const existingClaim = await daily.findOne(
@@ -304,7 +303,7 @@ async function spinDailyWebWheel({ userId }) {
         balanceAfter: Number(userAfter.balance || 0),
       }, opts);
 
-      await tx.insertOne({
+      const settlementMarker = {
         _id: markerId,
         type: 'web_wheel_daily_settlement',
         settlementId,
@@ -314,7 +313,9 @@ async function spinDailyWebWheel({ userId }) {
         balanceAfter: Number(userAfter.balance || 0),
         meta: { dateKey, segment: segment.index, rtp, idempotencyKey: markerId },
         createdAt: now,
-      }, opts);
+      };
+      await tx.insertOne(settlementMarker, opts);
+      await logTx(settlementMarker, opts);
 
       return {
         duplicate: false,

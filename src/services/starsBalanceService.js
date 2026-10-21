@@ -1,8 +1,7 @@
 'use strict';
 
 const userModel = require('../models/userModel');
-const transactionModel = require('../models/transactionModel');
-const { withRequiredTx } = require('../config/database');
+const { withRequiredTx, col } = require('../config/database');
 const { logTx } = require('./transactionService');
 
 const STAR_TO_BAL = 45000;
@@ -58,9 +57,12 @@ async function creditSuccessfulPayment({ userId, stars, bal, chargeId, payload }
 
   return withRequiredTx(async (session) => {
     const opts = { session };
-    const tx = transactionModel.collection();
+    const tx = col('financial_settlements');
+    const paymentMarkers = col('stars_payment_idempotency');
     const existing = await tx.findOne({ _id: markerId }, opts);
     if (existing) return { ok: true, duplicate: true, stars, bal: amount };
+    const priorCharge = await paymentMarkers.findOne({ _id: String(chargeId) }, opts);
+    if (priorCharge) return { ok: true, duplicate: true, stars, bal: amount };
 
     const userIdText = String(userId);
     const userIds = [userIdText];
@@ -87,18 +89,30 @@ async function creditSuccessfulPayment({ userId, stars, bal, chargeId, payload }
       },
     }, opts);
 
-    // Keep the idempotency marker distinct from the user-facing ledger row.
-    // Both writes share the same Mongo transaction, so the balance and marker
-    // commit atomically and a duplicate charge cannot credit the user twice.
-    await tx.insertOne({
+    // Keep the external Telegram charge ID permanently deduplicated, outside
+    // the seven-day settlement-marker retention window.
+    await paymentMarkers.insertOne({
+      _id: String(chargeId),
+      type: 'telegram_stars_purchase',
+      userId: actualUser.userId,
+      stars,
+      bal: amount,
+      payload: String(payload || ''),
+      createdAt: new Date(),
+    }, opts);
+
+    const settlementMarker = {
       _id: markerId,
       type: '__stars_purchase_marker',
       userId: actualUser.userId,
       stars,
       bal: amount,
       telegramPaymentChargeId: String(chargeId),
+      meta: { idempotencyKey: markerId },
       createdAt: new Date(),
-    }, opts);
+    };
+    await tx.insertOne(settlementMarker, opts);
+    await logTx(settlementMarker, opts);
 
     return { ok: true, duplicate: false, stars, bal: amount, user: actualUser };
   });

@@ -468,8 +468,9 @@ async function settleGame(bot, game, result) {
   game.processing = true;
   game.pendingResult = result;
 
-  // DB2 ledger is the authoritative source of truth. Reconcile before every retry so a
-  // committed payout can never be followed by an automatic refund.
+  // DB2's ledger is asynchronously replicated from the durable DB1 outbox, so it can lag.
+  // This read is a reconciliation hint; DB1 idempotency reservation is the safety fence
+  // against paying twice while the corresponding DB2 ledger row is still pending.
   let winLedger;
   try {
     winLedger = await readBlackjackWinLedger(game);
@@ -512,8 +513,8 @@ async function settleGame(bot, game, result) {
       } catch (err) {
         payoutError = err;
         await logSettlementFailure(`payout_attempt_${attempt}`, game, err);
-        // Check the transaction ledger after every exception. A commit may have
-        // succeeded even if the client lost the acknowledgement.
+        // Check the replicated ledger after every exception. A DB1 commit may have
+        // succeeded even if its acknowledgement was lost; DB1 idempotency protects retries.
         try {
           winLedger = await readBlackjackWinLedger(game);
           if (winLedger) {
@@ -533,8 +534,8 @@ async function settleGame(bot, game, result) {
   }
 
   if (!payoutConfirmed && payoutError) {
-    // Refund is only safe after a successful ledger read proves that the win
-    // credit was not committed. Retry the same idempotency key up to three times.
+    // A refund is only attempted after a readable reconciliation check. DB1's
+    // idempotency reservation prevents a duplicate win credit; use a separate refund key.
     let refundError = null;
     let refundConfirmed = false;
     let reconciliationFailed = false;

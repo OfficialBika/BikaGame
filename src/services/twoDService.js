@@ -537,7 +537,7 @@ async function addBet(ctx, e, parsed) {
   const markerId = `__settlement:2d-bet:${String(e.eventId)}:${sourceChatId}:${sourceMessageId}`;
   const out = await withRequiredTx(async function (session) {
     const opt = { session, returnDocument: 'after' };
-    const tx = col('transactions');
+    const tx = col('financial_settlements');
     const existingMarker = await tx.findOne({ _id: markerId }, { session });
     if (existingMarker) return { duplicate: true, lines: parsed.lines, total: parsed.total, balance: null };
 
@@ -574,7 +574,9 @@ async function addBet(ctx, e, parsed) {
     if (!bank) throw new Error('TREASURY_NOT_READY');
 
     await logTx({ type:'2d_bet', fromUserId:userId, toUserId:'TREASURY', amount:parsed.total, meta:{eventId:e.eventId,lines:parsed.lines,idempotencyKey:`${markerId}:bet`} }, {session});
-    await tx.insertOne({ _id:markerId,type:'2d_bet_settlement',eventId:e.eventId,userId,amount:parsed.total,meta:{idempotencyKey:markerId},createdAt:now }, {session});
+    const settlementMarker = { _id:markerId,type:'2d_bet_settlement',eventId:e.eventId,userId,amount:parsed.total,meta:{idempotencyKey:markerId},createdAt:now };
+    await tx.insertOne(settlementMarker, {session});
+    await logTx(settlementMarker, {session});
     return { duplicate:false, lines:parsed.lines, display:parsed.display, total:parsed.total, balance:Number(u.balance) };
   });
   return out;
@@ -713,7 +715,7 @@ async function settle(e, number) {
 
   await withRequiredTx(async function(session){
     const opt={session};
-    const tx=col('transactions');
+    const tx=col('financial_settlements');
     const marker=await tx.findOne({_id:markerId},opt);
     if(marker) return;
 
@@ -741,8 +743,13 @@ async function settle(e, number) {
       if(credited){
         await logTx({type:'2d_win',fromUserId:'TREASURY',toUserId:credited.userId,amount:x.payout,meta:{eventId:lockedEvent.eventId,winningNumber:number,idempotencyKey:`${markerId}:win:${String(x.userId)}`}},opt);
       } else {
-        const existingTx=await tx.findOne({type:'2d_win','meta.eventId':lockedEvent.eventId,'meta.winningNumber':number,toUserId:x.userId},opt);
-        if(!existingTx) throw new Error('USER_SETTLEMENT_STATE_CONFLICT');
+        const winFilter={type:'2d_win','meta.eventId':lockedEvent.eventId,'meta.winningNumber':number,toUserId:x.userId};
+        const ledger=await getTransactionHistoryCollection();
+        const [existingTx,pendingOutbox]=await Promise.all([
+          ledger.findOne(winFilter),
+          col('transaction_outbox').findOne({status:'pending','payload.type':'2d_win','payload.meta.eventId':lockedEvent.eventId,'payload.meta.winningNumber':number,'payload.toUserId':x.userId}),
+        ]);
+        if(!existingTx&&!pendingOutbox) throw new Error('USER_SETTLEMENT_STATE_CONFLICT');
       }
     }
 
@@ -753,7 +760,9 @@ async function settle(e, number) {
     );
     if(finished.matchedCount!==1) throw new Error('RESULT_STATE_CONFLICT');
 
-    await tx.insertOne({_id:markerId,type:'2d_settlement',eventId:lockedEvent.eventId,winningNumber:number,totalPayout:total,meta:{idempotencyKey:markerId},createdAt:now},opt);
+    const settlementMarker={_id:markerId,type:'2d_settlement',eventId:lockedEvent.eventId,winningNumber:number,totalPayout:total,meta:{idempotencyKey:markerId},createdAt:now};
+    await tx.insertOne(settlementMarker,opt);
+    await logTx(settlementMarker,opt);
   });
   return {rows,total,resultAt:now};
 }
@@ -762,12 +771,24 @@ async function verifyDailySettlement(event) {
   const winnerCount = Number(event.winnerCount || 0);
   const totalPayout = Number(event.totalPayout || 0);
   const historyCollection = await getTransactionHistoryCollection();
-  const txAgg = await historyCollection.aggregate([
-    { $match: { type: '2d_win', 'meta.eventId': event.eventId } },
-    { $group: { _id: null, count: { $sum: 1 }, total: { $sum: '$amount' } } }
-  ]).toArray();
-  const tx = txAgg[0] || { count: 0, total: 0 };
-  return Number(tx.count) === winnerCount && Number(tx.total) === totalPayout;
+  // DB2 may lag while durable outbox rows are waiting for its quota to recover.
+  // Merge by ledger _id so an already-written DB2 row is not counted twice.
+  const [ledgerRows, outboxRows] = await Promise.all([
+    historyCollection.find({ type: '2d_win', 'meta.eventId': event.eventId }, { projection: { _id: 1, amount: 1 } }).toArray(),
+    col('transaction_outbox').find(
+      { status: 'pending', 'payload.type': '2d_win', 'payload.meta.eventId': event.eventId },
+      { projection: { targetId: 1, payload: 1 } },
+    ).toArray(),
+  ]);
+  const unique = new Map();
+  for (const row of ledgerRows) unique.set(String(row._id), Number(row.amount || 0));
+  for (const row of outboxRows) {
+    const payload = row.payload;
+    const id = payload?._id ?? row.targetId;
+    if (id != null && !unique.has(String(id))) unique.set(String(id), Number(payload?.amount || 0));
+  }
+  const total = [...unique.values()].reduce((sum, amount) => sum + amount, 0);
+  return unique.size === winnerCount && total === totalPayout;
 }
 
 async function cleanupDay(key) {

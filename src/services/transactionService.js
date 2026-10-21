@@ -1,23 +1,35 @@
 'use strict';
 
-const { col, isHistoryReady, isDbOneWriteBlocked, markDbOneWriteBlocked } = require('../config/database');
+const { ObjectId } = require('mongodb');
+const { col, isHistoryConfigured, isDbOneWriteBlocked, markDbOneWriteBlocked } = require('../config/database');
 
 async function logTx(doc, opts = {}) {
-  if (!isHistoryReady()) throw new Error('DB_TWO_HISTORY_NOT_READY');
-  if (isDbOneWriteBlocked()) throw new Error('TRANSACTION_STORAGE_QUOTA_BLOCKED');
+  if (!isHistoryConfigured()) throw new Error('DB_TWO_HISTORY_NOT_CONFIGURED');
+  if (isDbOneWriteBlocked()) throw new Error('DB1_TRANSACTION_OUTBOX_STORAGE_QUOTA_BLOCKED');
 
   const createdAt = doc.createdAt instanceof Date ? doc.createdAt : new Date();
-  const ledgerDoc = { ...doc, createdAt };
+  const ledgerId = doc._id ?? new ObjectId();
+  const ledgerDoc = { ...doc, _id: ledgerId, createdAt };
+
   try {
-    // `col('transactions')` is routed exclusively to DB2. With the shared
-    // MongoClient, opts.session makes this ledger write atomic with DB1 balance
-    // and treasury updates without reading or writing DB1.transactions.
-    return await col('transactions').insertOne(ledgerDoc, opts);
+    // This write is in the same DB1 transaction as the balance/treasury update.
+    // A remote DB2 outage or quota limit cannot erase the intent: a worker retries
+    // this durable outbox row until the idempotent DB2 upsert succeeds.
+    return await col('transaction_outbox').insertOne({
+      targetId: ledgerId,
+      sourceId: ledgerId,
+      status: 'pending',
+      payload: ledgerDoc,
+      attempts: 0,
+      createdAt,
+      updatedAt: createdAt,
+    }, opts);
   } catch (err) {
-    // Block financial operations if DB2 cannot accept a transaction ledger write.
+    // An outbox insert is a DB1 write. If DB1 is quota-blocked the containing
+    // transaction must abort, so no balance mutation can commit without intent.
     if (err?.code === 8000 || err?.codeName === 'AtlasError' || /over your space quota|writes are blocked on your cluster/i.test(String(err?.message || err))) {
       markDbOneWriteBlocked();
-      throw new Error('TRANSACTION_STORAGE_QUOTA_BLOCKED');
+      throw new Error('DB1_TRANSACTION_OUTBOX_STORAGE_QUOTA_BLOCKED', { cause: err });
     }
     throw err;
   }

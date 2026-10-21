@@ -1257,7 +1257,7 @@ module.exports = (bot) => {
           const markerId = `__settlement:shop-refund:${String(order._id)}`;
           await withRequiredTx(async (session) => {
             const opts = { session };
-            const tx = col('transactions');
+            const tx = col('financial_settlements');
             const existing = await tx.findOne({ _id: markerId }, opts);
             if (existing) return;
 
@@ -1289,7 +1289,9 @@ module.exports = (bot) => {
             );
             if (changed.matchedCount!==1) throw new Error('ORDER_CANCEL_STATE_CONFLICT');
             await logTx({ type:'shop_order_refund', fromUserId:'TREASURY', toUserId:credited.userId, amount:Number(order.price||0), meta:{ orderId:String(order._id), cardId:order.cardId, reason:'owner_cancel', idempotencyKey:markerId } }, opts);
-            await tx.insertOne({ _id:markerId, type:'shop_refund_settlement', orderId:String(order._id), payout:Number(order.price||0), meta:{idempotencyKey:markerId}, createdAt:new Date() }, opts);
+            const settlementMarker = { _id:markerId, type:'shop_refund_settlement', orderId:String(order._id), payout:Number(order.price||0), meta:{idempotencyKey:markerId}, createdAt:new Date() };
+            await tx.insertOne(settlementMarker, opts);
+            await logTx(settlementMarker, opts);
           });
         } catch (err) {
           try { await ctx.answerCbQuery('Refund မအောင်မြင်သေးပါ — order ကို မပယ်ဖျက်သေးပါ။', { show_alert:true }); } catch (_) {}
@@ -1411,7 +1413,7 @@ module.exports = (bot) => {
       const markerId = `__settlement:shop:${String(id)}`;
       const purchase = await withRequiredTx(async (session) => {
         const opts = { session };
-        const tx = col('transactions');
+        const tx = col('financial_settlements');
         const existing = await tx.findOne({ _id: markerId }, opts);
         if (existing?.orderId) {
           const existingOrder = await orderModel.collection().findOne({ _id: new ObjectId(existing.orderId) }, opts);
@@ -1452,7 +1454,9 @@ module.exports = (bot) => {
           price:pending.price, receiptCode:receipt, status:'PENDING', ownerNotified:false, cardObjectId:latestCard._id, createdAt:now, updatedAt:now
         }, opts);
         await logTx({ type:'shop_card_exchange', fromUserId:user.userId, toUserId:'TREASURY', amount:pending.price, meta:{ cardId:latestCard.cardId, rarity:latestCard.rarity, botKey:pending.botKey || cardBotKey(latestCard), idempotencyKey:markerId, orderId:String(inserted.insertedId) } }, opts);
-        await tx.insertOne({ _id:markerId, type:'shop_card_settlement', orderId:String(inserted.insertedId), cardId:latestCard.cardId, userId:user.userId, amount:pending.price, meta:{idempotencyKey:markerId}, createdAt:now }, opts);
+        const settlementMarker = { _id:markerId, type:'shop_card_settlement', orderId:String(inserted.insertedId), cardId:latestCard.cardId, userId:user.userId, amount:pending.price, meta:{idempotencyKey:markerId}, createdAt:now };
+        await tx.insertOne(settlementMarker, opts);
+        await logTx(settlementMarker, opts);
         return { duplicate:false, orderId:inserted.insertedId, card:latestCard, receiptCode:receipt };
       });
       const latestCard = purchase.card || pending.card;
