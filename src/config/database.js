@@ -11,6 +11,25 @@ let transactionsShareClient = false;
 let dbOneWriteBlocked = false;
 const HISTORY_COLLECTION = 'transactions';
 
+function sameMongoDeployment(left, right) {
+  try {
+    const a = new URL(left);
+    const b = new URL(right);
+    const authA = [decodeURIComponent(a.username), decodeURIComponent(a.password)];
+    const authB = [decodeURIComponent(b.username), decodeURIComponent(b.password)];
+    const optionA = (key) => a.searchParams.get(key) || '';
+    const optionB = (key) => b.searchParams.get(key) || '';
+    return a.protocol === b.protocol &&
+      a.host.toLowerCase() === b.host.toLowerCase() &&
+      authA[0] === authB[0] &&
+      authA[1] === authB[1] &&
+      optionA('authSource') === optionB('authSource') &&
+      optionA('replicaSet') === optionB('replicaSet');
+  } catch (_) {
+    return left === right;
+  }
+}
+
 function isStorageQuotaError(err) {
   return err?.code === 8000 ||
     err?.codeName === 'AtlasError' ||
@@ -73,9 +92,10 @@ async function connectTransactionHistory() {
   }
 
   // The DB1 balance/treasury updates and DB2 ledger rows must participate in the
-  // same MongoDB session. Reuse the primary client when both env vars identify
-  // the same deployment; never pass a DB1 session to a different MongoClient.
-  if (env.MONGO_URI_2 === env.MONGO_URI) {
+  // same MongoDB session. When both URIs identify the same deployment and auth
+  // identity (the database path may differ), reuse the primary client. Never pass
+  // a DB1 session to a different MongoClient.
+  if (sameMongoDeployment(env.MONGO_URI_2, env.MONGO_URI)) {
     historyClient = client;
     historyDb = client.db(env.DB_TWO_NAME);
     try {
