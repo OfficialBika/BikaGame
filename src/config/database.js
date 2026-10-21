@@ -14,25 +14,6 @@ let outboxFlushTimer = null;
 let lastOutboxQuotaLogAt = 0;
 const HISTORY_COLLECTION = 'transactions';
 
-function sameMongoDeployment(left, right) {
-  try {
-    const a = new URL(left);
-    const b = new URL(right);
-    const authA = [decodeURIComponent(a.username), decodeURIComponent(a.password)];
-    const authB = [decodeURIComponent(b.username), decodeURIComponent(b.password)];
-    const optionA = (key) => a.searchParams.get(key) || '';
-    const optionB = (key) => b.searchParams.get(key) || '';
-    return a.protocol === b.protocol &&
-      a.host.toLowerCase() === b.host.toLowerCase() &&
-      authA[0] === authB[0] &&
-      authA[1] === authB[1] &&
-      optionA('authSource') === optionB('authSource') &&
-      optionA('replicaSet') === optionB('replicaSet');
-  } catch (_) {
-    return left === right;
-  }
-}
-
 function isStorageQuotaError(err) {
   return err?.code === 8000 ||
     err?.codeName === 'AtlasError' ||
@@ -125,7 +106,7 @@ async function connectTransactionHistory() {
   await safeCreateIndex(historyDb.collection(HISTORY_COLLECTION), { type: 1, 'meta.eventId': 1, toUserId: 1 }, { name: 'tx_type_event_toUser' });
 }
 
-// DB2 is the only transaction ledger. No runtime transaction outbox is written to DB1.
+// DB2 remains the ledger/history store; financial mutations write a durable DB1 outbox in the same DB1 transaction.
 async function enqueueTransactionHistory() {
   return null;
 }
@@ -143,6 +124,7 @@ async function initializeTransactionHistoryStorage() {
 async function flushTransactionHistoryOutbox({ limit = 200 } = {}) {
   if (!env.DB_TWO_ENABLED) return { skipped: true, reason: 'DB_TWO_DISABLED', processed: 0 };
   if (!historyReady || !historyDb) return { skipped: true, reason: 'DB2_NOT_READY', processed: 0 };
+  if (dbOneWriteBlocked) return { skipped: true, reason: 'DB1_WRITE_BLOCKED', processed: 0 };
   if (outboxFlushRunning) return { skipped: true, reason: 'already_running', processed: 0 };
 
   outboxFlushRunning = true;
@@ -161,7 +143,7 @@ async function flushTransactionHistoryOutbox({ limit = 200 } = {}) {
     const malformedIds = [];
     for (const row of rows) {
       const payload = row?.payload;
-      const targetId = row?.targetId ?? payload?._id ?? row?.sourceId;
+      const targetId = payload?._id ?? row?.targetId ?? row?.sourceId;
       if (!payload || typeof payload !== 'object' || targetId == null ||
           (payload._id != null && String(payload._id) !== String(targetId))) {
         malformedIds.push(row._id);
@@ -265,7 +247,7 @@ async function getTransactionHistoryStats() {
     transactions.stats().catch(() => null),
   ]);
   return {
-    mode: 'db2-authoritative',
+    mode: 'db1-transactional-outbox-db2-ledger',
     legacyDb1TransactionsRead: false,
     source: null,
     target: { count, storageSize: stats?.storageSize ?? null, totalIndexSize: stats?.totalIndexSize ?? null },
@@ -408,7 +390,7 @@ async function withMaybeTx(work) {
   catch (e) {
     if (txUnsupported(e)) {
       TX_SUPPORTED = false;
-      logger.error('Mongo transactions are required for DB1 balance + DB2 ledger atomicity; unsafe fallback is disabled.');
+      logger.error('Mongo transactions are required to atomically commit DB1 balances, settlement markers, and the durable ledger outbox; unsafe fallback is disabled.');
       const err = new Error('MONGO_TRANSACTIONS_REQUIRED');
       err.cause = e;
       throw err;
