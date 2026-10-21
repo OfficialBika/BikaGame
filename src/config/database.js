@@ -12,6 +12,7 @@ let dbTwoWriteBlocked = false;
 let outboxFlushRunning = false;
 let outboxFlushTimer = null;
 let lastOutboxQuotaLogAt = 0;
+let lastHistoryReconnectAttemptAt = 0;
 const HISTORY_COLLECTION = 'transactions';
 
 function stableOutboxValue(value) {
@@ -85,6 +86,7 @@ async function safeCreateShopCardsUniqueIndex() {
 
 
 async function connectTransactionHistory() {
+  lastHistoryReconnectAttemptAt = Date.now();
   if (!env.DB_TWO_ENABLED) {
     logger.error('DB_TWO_ENABLED must be true. Runtime transaction ledger fallback to DB1 is disabled.');
     return;
@@ -97,7 +99,7 @@ async function connectTransactionHistory() {
   // DB1 and DB2 may be separate MongoDB clusters. MongoDB cannot provide a
   // single atomic transaction across them, so balances + an outbox entry commit
   // on DB1; a retryable worker replicates ledger rows to DB2 after that commit.
-  historyClient = new MongoClient(env.MONGO_URI_2, { maxPoolSize: 10, minPoolSize: 0, retryWrites: true });
+  historyClient = new MongoClient(env.MONGO_URI_2, { maxPoolSize: 10, minPoolSize: 0, retryWrites: true, readPreference: 'primary' });
   try {
     await historyClient.connect();
     historyDb = historyClient.db(env.DB_TWO_NAME);
@@ -136,13 +138,25 @@ async function initializeTransactionHistoryStorage() {
 
 async function flushTransactionHistoryOutbox({ limit = 200 } = {}) {
   if (!env.DB_TWO_ENABLED) return { skipped: true, reason: 'DB_TWO_DISABLED', processed: 0 };
-  if (!historyReady || !historyDb) return { skipped: true, reason: 'DB2_NOT_READY', processed: 0 };
+  if (!env.MONGO_URI_2 || !env.DB_TWO_NAME) return { skipped: true, reason: 'DB2_NOT_CONFIGURED', processed: 0 };
   if (dbOneWriteBlocked) return { skipped: true, reason: 'DB1_WRITE_BLOCKED', processed: 0 };
   if (outboxFlushRunning) return { skipped: true, reason: 'already_running', processed: 0 };
 
   outboxFlushRunning = true;
   const outbox = collections.transaction_outbox || db.collection('transaction_outbox');
   try {
+    if (!historyReady || !historyDb) {
+      // Retry a failed startup/connection at a bounded cadence. DB1 financial
+      // commits remain safe while the ledger cluster is temporarily unavailable.
+      if (Date.now() - lastHistoryReconnectAttemptAt < 30_000) {
+        return { skipped: true, reason: 'DB2_RECONNECT_BACKOFF', processed: 0 };
+      }
+      await connectTransactionHistory();
+      if (!historyReady || !historyDb) {
+        return { skipped: true, reason: 'DB2_NOT_READY', processed: 0 };
+      }
+    }
+
     const rows = await outbox.find({ status: 'pending' })
       .sort({ createdAt: 1, _id: 1 })
       .limit(Math.max(1, Math.min(1000, Number(limit) || 200)))
@@ -420,7 +434,8 @@ async function connectMongo() {
 
 function getDb() { if (!db) throw new Error('DB_NOT_CONNECTED'); return db; }
 function col(name) { if (name === 'transactions') { if (!env.DB_TWO_ENABLED || !historyReady || !historyDb) throw new Error('DB_TWO_HISTORY_NOT_READY'); return historyDb.collection(HISTORY_COLLECTION); } if (!collections[name]) throw new Error(`COLLECTION_NOT_READY:${name}`); return collections[name]; }
-function isHistoryReady() { return Boolean(env.DB_TWO_ENABLED && historyReady && historyDb); }
+function isHistoryConfigured() { return Boolean(env.DB_TWO_ENABLED && env.MONGO_URI_2 && env.DB_TWO_NAME); }
+function isHistoryReady() { return Boolean(isHistoryConfigured() && historyReady && historyDb); }
 function isDbOneWriteBlocked() { return dbOneWriteBlocked; }
 function markDbOneWriteBlocked() { dbOneWriteBlocked = true; }
 async function closeMongo() { if (historyClient && historyClient !== client) await historyClient.close().catch(() => {}); if (client) await client.close().catch(() => {}); }
@@ -429,7 +444,7 @@ function txUnsupported(err) {
   return m.includes('Transaction numbers are only allowed') || m.includes('replica set') || m.includes('does not support transactions') || (m.includes('Transaction') && m.includes('not supported'));
 }
 async function withMaybeTx(work) {
-  if (!env.DB_TWO_ENABLED || !historyReady || !historyDb) throw new Error('DB_TWO_HISTORY_NOT_READY');
+  if (!isHistoryConfigured()) throw new Error('DB_TWO_HISTORY_NOT_CONFIGURED');
   if (dbOneWriteBlocked) throw new Error('DB1_STORAGE_QUOTA_BLOCKED');
   if (!TX_SUPPORTED) throw new Error('MONGO_TRANSACTIONS_REQUIRED');
   const session = client.startSession();
@@ -446,7 +461,7 @@ async function withMaybeTx(work) {
   } finally { try { await session.endSession(); } catch(_) {} }
 }
 async function withRequiredTx(work) {
-  if (!env.DB_TWO_ENABLED || !historyReady || !historyDb) throw new Error('DB_TWO_HISTORY_NOT_READY');
+  if (!isHistoryConfigured()) throw new Error('DB_TWO_HISTORY_NOT_CONFIGURED');
   if (dbOneWriteBlocked) throw new Error('DB1_STORAGE_QUOTA_BLOCKED');
   if (!TX_SUPPORTED) throw new Error('MONGO_TRANSACTIONS_REQUIRED');
   const session = client.startSession();
@@ -463,4 +478,4 @@ async function withRequiredTx(work) {
   } finally { try { await session.endSession(); } catch (_) {} }
 }
 async function pingMs(){ const s=Date.now(); try{ await getDb().command({ping:1}); return Date.now()-s; }catch(_){return null;} }
-module.exports = { startTransactionHistoryOutbox, stopTransactionHistoryOutbox, reserveTransactionIdempotency, connectMongo, closeMongo, getDb, col, safeCreateIndex, withMaybeTx, withRequiredTx, pingMs, enqueueTransactionHistory, flushTransactionHistoryOutbox, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryCollection, getTransactionHistoryStats, initializeTransactionHistoryStorage, hasVerifiedInitialMigration, copyVerifiedHistoryDocument, migrateTransactionHistory, verifyRetainedTransactionHistory, isHistoryReady, isDbOneWriteBlocked, markDbOneWriteBlocked };
+module.exports = { startTransactionHistoryOutbox, stopTransactionHistoryOutbox, reserveTransactionIdempotency, isHistoryConfigured, connectMongo, closeMongo, getDb, col, safeCreateIndex, withMaybeTx, withRequiredTx, pingMs, enqueueTransactionHistory, flushTransactionHistoryOutbox, findTransactionHistoryByIdempotency, getTransactionHistoryDb, getTransactionHistoryCollection, getTransactionHistoryStats, initializeTransactionHistoryStorage, hasVerifiedInitialMigration, copyVerifiedHistoryDocument, migrateTransactionHistory, verifyRetainedTransactionHistory, isHistoryReady, isDbOneWriteBlocked, markDbOneWriteBlocked };
