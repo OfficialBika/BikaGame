@@ -16,7 +16,7 @@ function setRoundState(state){
  $('#arenaResult').hidden=state!=='crashed';
  $('#arenaTrail').hidden=!['flight','crashed','multiplier','high'].includes(state);
  $('#arenaTrail').dataset.color=state==='flight'?'blue':'red';
- const lead=$('.history-tag')[0];
+ const lead=$('.history-tag');
  if(lead){lead.textContent=state==='countdown'?'BET':state==='flight'?'1.16x':currentRoundMultiplier.toFixed(2)+'x';lead.classList.toggle('is-blue',state==='flight');lead.classList.toggle('is-green',state==='high'||(state!=='countdown'&&currentRoundMultiplier>=2));}
  $('#roundPlayerCount').textContent=state==='flight'?'ROCKET IN FLIGHT':state==='crashed'?'ROUND COMPLETE':'ROUND #2048';
 }
