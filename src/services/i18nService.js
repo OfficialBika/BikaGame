@@ -139,7 +139,7 @@ function languagePickerText() {
 const LANGUAGE_CACHE_TTL_MS = 300000;
 const languageCache = new Map();
 const PHRASES = {
-  'ဖင်ပြောင်ငမွဲ': { my:'ဖင်ပြောင်ငမွဲ', en:'Broke', cn:'身无分文', jp:'一文無し', kr:'빈털터리', fr:'Fauché', ru:'Без гроша', hi:'कंगाल', ar:'مفلس' },
+  'ဖင်ပြောင်ငမွဲ': { my:'ဖင်ပြောင်ငမွဲ', en:'Bare-assed pauper', cn:'身无分文', jp:'一文無し', kr:'빈털터리', fr:'Fauché', ru:'Без гроша', hi:'कंगाल', ar:'مفلس' },
   'အိမ်ခြေမဲ့ ဆင်းရဲသား': { my:'အိမ်ခြေမဲ့ ဆင်းရဲသား', en:'Homeless Poor', cn:'无家可归的穷人', jp:'ホームレスの貧困者', kr:'집 없는 빈곤층', fr:'Pauvre sans-abri', ru:'Бездомный бедняк', hi:'बेघर गरीब', ar:'فقير بلا مأوى' },
   'အိမ်ပိုင်ဝန်းပိုင် ဆင်းရဲသား': { my:'အိမ်ပိုင်ဝန်းပိုင် ဆင်းရဲသား', en:'Struggling Homeowner', cn:'拮据的房主', jp:'苦しい持ち家所有者', kr:'형편이 어려운 주택 소유자', fr:'Propriétaire en difficulté', ru:'Нуждающийся домовладелец', hi:'संघर्षरत मकान मालिक', ar:'مالك منزل يعاني ماليًا' },
   'လူလတ်တန်းစား': { my:'လူလတ်တန်းစား', en:'Middle Class', cn:'中产阶级', jp:'中流階級', kr:'중산층', fr:'Classe moyenne', ru:'Средний класс', hi:'मध्यम वर्ग', ar:'الطبقة المتوسطة' },
