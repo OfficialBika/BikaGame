@@ -3,7 +3,7 @@ import { eq } from 'sdk/db';
 import { paymentEvents, users } from '../schema.js';
 import { ensureEconomy, ensureUser, creditExternalPurchase } from './economy.js';
 
-export const STAR_TO_BAL = 45000;
+export const STAR_TO_BAL = 60000;
 export const STAR_PACKAGES = Object.freeze([10, 20, 30, 40, 50, 100]);
 
 export function packageBalance(stars) {
