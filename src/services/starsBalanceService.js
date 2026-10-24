@@ -4,7 +4,7 @@ const userModel = require('../models/userModel');
 const { withRequiredTx, col } = require('../config/database');
 const { logTx } = require('./transactionService');
 
-const STAR_TO_BAL = 45000;
+const STAR_TO_BAL = 60000;
 const PACKAGES = Object.freeze([10, 20, 30, 40, 50, 100]);
 
 function packageBal(stars) {
