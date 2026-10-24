@@ -108,7 +108,7 @@ export default async function (message) {
       }
       return send(
         chatId,
-        '⭐ **BIKA Stars → Bal**\\nRate: 1 Star = 45,000 Bal\\n\\nPackage တစ်ခုရွေးပါ။ Payment အောင်မြင်ပြီးမှ Bal ထည့်ပေးပါမယ်။',
+        '⭐ **BIKA Stars → Bal**\\nRate: 1 Star = 60,000 Bal\\n\\nPackage တစ်ခုရွေးပါ။ Payment အောင်မြင်ပြီးမှ Bal ထည့်ပေးပါမယ်။',
         message.message_id,
         keyboard(rows),
       );
