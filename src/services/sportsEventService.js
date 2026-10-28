@@ -1,6 +1,7 @@
 'use strict';
 
 const { col, withRequiredTx } = require('../config/database');
+const treasuryModel = require('../models/treasuryModel');
 const { ensureUser, treasuryPayToUser } = require('./economyService');
 const { logTx } = require('./transactionService');
 const { env } = require('../config/env');
@@ -74,7 +75,7 @@ async function placeBet(event, ctx, alias, amount) {
     );
     if (!user) throw new Error('USER_INSUFFICIENT');
 
-    const treasuryUpdate = await col('treasury').findOneAndUpdate(
+    const treasuryUpdate = await treasuryModel.collection().findOneAndUpdate(
       { key: 'treasury' },
       { $inc: { ownerBalance: amount }, $set: { updatedAt: now } },
       { session, returnDocument: 'after' }
@@ -120,7 +121,7 @@ async function settleEvent(event, winnerAlias, payoutFn) {
     const missing = winners.filter((bet) => bet.status !== 'won');
     const missingTotal = missing.reduce((sum, bet) => sum + Number(bet.potentialWin || 0), 0);
     if (missingTotal > 0) {
-      const treasury = await col('treasury').findOneAndUpdate(
+      const treasury = await treasuryModel.collection().findOneAndUpdate(
         { key: 'treasury', ownerBalance: { $gte: missingTotal } },
         { $inc: { ownerBalance: -missingTotal }, $set: { updatedAt: new Date() } },
         { session, returnDocument: 'after' }
