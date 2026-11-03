@@ -31,6 +31,9 @@ jobs:
       - name: Run sports event parser tests
         run: node --test src/services/sportsEventService.test.js
 
+      - name: Run sports bet cutoff and draw tests
+        run: node --test src/services/sportsEventBetGuard.test.js
+
       - name: Check Mini App v2 entry and authenticated integration
         run: |
           test -f public/miniapp/v2/index.html
