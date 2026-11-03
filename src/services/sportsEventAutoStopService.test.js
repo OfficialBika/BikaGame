@@ -43,7 +43,7 @@ function loadScheduler({ dueResults = [], notifyResults = [] } = {}) {
 }
 
 test('scheduler stops every due event with MongoDB server time and recovers on startup', async () => {
-  const fixture = loadScheduler({ dueResults: [{ _id: 'event-1', status: 'stopped' }, null] });
+  const fixture = loadScheduler({ dueResults: [{ _id: 'event-1', status: 'stopped' }] });
   const originalSetInterval = global.setInterval;
   global.setInterval = (fn, ms) => fixture.setInterval(fn, ms);
   try {
@@ -63,7 +63,7 @@ test('scheduler stops every due event with MongoDB server time and recovers on s
 });
 
 test('scheduler does not stop events before their kickoff', async () => {
-  const fixture = loadScheduler({ dueResults: [null] });
+  const fixture = loadScheduler();
   await fixture.scheduler.startSportsEventAutoStop({ telegram: { async sendMessage() {} } });
   const stopCalls = fixture.calls.filter(call => call[0] === 'findOneAndUpdate' && call[1].status === 'open');
   assert.equal(stopCalls.length, 1);
