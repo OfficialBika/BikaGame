@@ -72,6 +72,7 @@ async function notifyPending(bot) {
     const event = result?.value ?? result;
     if (!event) break;
     try {
+      if (!event.commentChatId || !event.threadRootMessageId) throw new Error('EVENT_THREAD_TARGET_MISSING');
       await bot.telegram.sendMessage(
         String(event.commentChatId),
         message(event),
