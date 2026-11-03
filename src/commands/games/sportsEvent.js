@@ -53,7 +53,7 @@ function eventCard(e) {
     '🟢 <b>BETTING OPEN</b>'
   ].join('\n');
 }
-function getUsage(){ return '❌ <b>Set Event Format မမှန်ပါ။</b>\n━━━━━━━━━━━━━━━━\n<code>/setevent Team A Vs Team B\n2× | 1.5×\nvan | pan</code>'; }
+function getUsage(){ return '❌ <b>Set Event Format မမှန်ပါ။</b>\n━━━━━━━━━━━━━━━━\n<code>/setevent Team A Vs Team B\n1.5× | 3× | 2.5×\nars | draw | liv\nDD/MM/YYYY hh:mm AM/PM</code>\n\n<i>Draw မပါသော ၂-way ပွဲအတွက်လည်း odds/alias နှစ်ခုနဲ့ သုံးနိုင်ပါတယ်။</i>'; }
 async function eventFromComment(ctx) {
   const root = getReplyRoot(ctx.message);
   if (!root?.message_id) return null;
