@@ -36,15 +36,20 @@ function isBotTaggedPost(root) {
   return hasBotMention || isChannelPost;
 }
 function eventCard(e) {
+  const outcomes = e.teams.map((team) =>
+    '<b>' + Number(team.odd).toFixed(2) + '×</b> <code>' + escHtml(team.alias) + '</code>'
+  ).join('   |   ');
+  const teams = e.teams.map((team) => '<b>' + escHtml(team.name) + '</b>').join('   |   ');
+  const examples = e.teams.map((team) => '<code>.bet ' + escHtml(team.alias) + ' 20000</code>');
   return [
     '🎯 <b>NEW EVENT START</b>','━━━━━━━━━━━━━━━━',
     '🏆 <b>' + escHtml(e.title) + '</b>','',
-    '📊 <b>' + Number(e.teams[0].odd).toFixed(2) + '×</b>   |   <b>' + Number(e.teams[1].odd).toFixed(2) + '×</b>',
-    '▫️ <b>' + escHtml(e.teams[0].name) + '</b> <code>' + escHtml(e.teams[0].alias) + '</code>   |   <b>' + escHtml(e.teams[1].name) + '</b> <code>' + escHtml(e.teams[1].alias) + '</code>','',
+    '📊 ' + outcomes,
+    '▫️ ' + teams,'',
+    '⏰ <b>ပွဲစချိန် - ' + formatDate(e.kickoffAt) + '</b>',
     '💰 <b>လောင်းကြေးထိုးနိုင်ပါပြီ</b>','',
     '📌 <b>လောင်းနည်း</b>',
-    '<code>.bet ' + escHtml(e.teams[0].alias) + ' 20000</code>',
-    '<code>.bet ' + escHtml(e.teams[1].alias) + ' 20000</code>','',
+    ...examples,'',
     '🟢 <b>BETTING OPEN</b>'
   ].join('\n');
 }
@@ -119,7 +124,7 @@ module.exports = (bot) => {
     const text=String(ctx.message?.text||'').trim();
     const parsed=parseBet(text);
     if(!parsed){ await removeIncoming(ctx); return; }
-    if(event.status!=='open'){ await removeIncoming(ctx); return replyHTML(ctx,'🔒 <b>BETTING ပိတ်ပြီးပါပြီ။</b>\nဒီထိုးကြေးကို လက်မခံတော့ပါ။',replyOpts(ctx)); }
+    if(event.status!=='open' || (event.kickoffAt && new Date(event.kickoffAt).getTime() <= Date.now())){ await removeIncoming(ctx); return replyHTML(ctx,'🔒 <b>BETTING ပိတ်ပြီးပါပြီ။</b>\nဒီထိုးကြေးကို လက်မခံတော့ပါ။',replyOpts(ctx)); }
     try {
       const existing=await bets().findOne({eventId:event._id,userId:Number(ctx.from.id)});
       if(existing){ await removeIncoming(ctx); return replyHTML(ctx,'⚠️ <b>သင် ထိုးကြေးတင်ပြီးပါပြီ။</b>\nပွဲပြီးအောင် စောင့်ပေးပါ။',replyOpts(ctx)); }
