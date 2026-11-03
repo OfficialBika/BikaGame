@@ -109,7 +109,7 @@ async function settleEvent(event, winnerAlias, payoutFn) {
   const losers = allBets.filter((bet) => bet.alias !== winnerAlias);
   const totalWinBal = winners.reduce((sum, bet) => sum + Number(bet.potentialWin || 0), 0);
   const tx = col('financial_settlements');
-  const markerId = \`__settlement:sports:\${String(event._id)}\`;
+  const markerId = `__settlement:sports:${String(event._id)}`;
 
   return withRequiredTx(async (session) => {
     const opts = { session };
@@ -139,7 +139,7 @@ async function settleEvent(event, winnerAlias, payoutFn) {
           fromUserId: 'TREASURY',
           toUserId: user.userId,
           amount: Number(bet.potentialWin),
-          meta: { eventId: String(event._id), betId: String(bet._id), odd: bet.odd, idempotencyKey: \`\${markerId}:win:\${String(bet._id)}\` },
+          meta: { eventId: String(event._id), betId: String(bet._id), odd: bet.odd, idempotencyKey: `${markerId}:win:${String(bet._id)}` },
         }, opts);
       }
     }
