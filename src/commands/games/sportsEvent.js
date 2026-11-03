@@ -45,15 +45,15 @@ function eventCard(e) {
     '🎯 <b>NEW EVENT START</b>','━━━━━━━━━━━━━━━━',
     '🏆 <b>' + escHtml(e.title) + '</b>','',
     '📊 ' + outcomes,
-    '▫️ ' + teams,'',
-    '⏰ <b>ပွဲစချိန် - ' + formatDate(e.kickoffAt) + '</b>',
+    '▫️ ' + teams,
+    ...(e.kickoffAt ? ['', '⏰ <b>ပွဲစချိန် - ' + formatDate(e.kickoffAt) + '</b>'] : []),
     '💰 <b>လောင်းကြေးထိုးနိုင်ပါပြီ</b>','',
     '📌 <b>လောင်းနည်း</b>',
     ...examples,'',
     '🟢 <b>BETTING OPEN</b>'
   ].join('\n');
 }
-function getUsage(){ return '❌ <b>Set Event Format မမှန်ပါ။</b>\n━━━━━━━━━━━━━━━━\n<code>/setevent Team A Vs Team B\n1.5× | 3× | 2.5×\nars | draw | liv\nDD/MM/YYYY hh:mm AM/PM</code>\n\n<i>Draw မပါသော ၂-way ပွဲအတွက်လည်း odds/alias နှစ်ခုနဲ့ သုံးနိုင်ပါတယ်။</i>'; }
+function getUsage(){ return '❌ <b>Set Event Format မမှန်ပါ။</b>\n━━━━━━━━━━━━━━━━\n<code>/setevent Team A Vs Team B\n1.5× | 3× | 2.5×\nars | draw | liv\nDD/MM/YYYY hh:mm AM/PM</code>\n\n<i>Draw နဲ့ Auto StopBet အတွက် ပုံစံ ၄ ကြောင်းလုံး ထည့်ပါ။ ယခင် ၂-way ပုံစံ ၃ ကြောင်းကိုလည်း manual StopBet နဲ့ ဆက်သုံးနိုင်ပါတယ်။</i>'; }
 async function eventFromComment(ctx) {
   const root = getReplyRoot(ctx.message);
   if (!root?.message_id) return null;
@@ -105,7 +105,8 @@ module.exports = (bot) => {
     const event=await eventFromComment(ctx); if(!event) return;
     if(event.status!=='open') return replyHTML(ctx,'ℹ️ <b>Betting ပိတ်ထားပြီးသားပါ။</b>',replyOpts(ctx));
     await stopEvent(event);
-    return replyHTML(ctx,'🔒 <b>BETTING CLOSED</b>\n━━━━━━━━━━━━━━━━\n🏆 '+escHtml(event.title)+'\n\nလောင်းကြေးအသစ်များကို လက်မခံတော့ပါ။\n\n⏳ <b>Owner က .betwin van (သို့) .betwin draw (သို့) .betwin pan နဲ့ အနိုင်ရလဒ် သတ်မှတ်နိုင်ပါပြီ။</b>',replyOpts(ctx));
+    const winnerCommands = event.teams.map(team => '<code>.betwin ' + escHtml(team.alias) + '</code>').join(' / ');
+    return replyHTML(ctx,'🔒 <b>BETTING CLOSED</b>\n━━━━━━━━━━━━━━━━\n🏆 '+escHtml(event.title)+'\n\nလောင်းကြေးအသစ်များကို လက်မခံတော့ပါ။\n\n⏳ <b>Owner က '+winnerCommands+' နဲ့ အနိုင်ရလဒ် သတ်မှတ်နိုင်ပါပြီ။</b>',replyOpts(ctx));
   });
 
   bot.hears(/^\.betwin\s+([a-z0-9_-]+)\s*$/i, async ctx => {
@@ -137,6 +138,7 @@ module.exports = (bot) => {
       if(m==='USER_INSUFFICIENT') return replyHTML(ctx,'❌ <b>Balance မလုံလောက်ပါ။</b>\nလက်ကျန်ငွေကို စစ်ပြီး ထပ်မံကြိုးစားပါ။',replyOpts(ctx));
       if(m==='INVALID_TEAM') return replyHTML(ctx,'❌ <b>အသင်း alias မမှန်ပါ။</b>\n'+event.teams.map(t=>'<code>'+escHtml(t.alias)+'</code> = '+escHtml(t.name)).join('\n'),replyOpts(ctx));
       if(m==='INVALID_AMOUNT') return replyHTML(ctx,'❌ <b>ထိုးကြေးပမာဏ မမှန်ပါ။</b>',replyOpts(ctx));
+      if(m==='BET_CLOSED') return replyHTML(ctx,'🔒 <b>Betting ပိတ်ပြီးပါပြီ။</b>\nဒီထိုးကြေးကို လက်မခံတော့ပါ။',replyOpts(ctx));
       return replyHTML(ctx,'⚠️ <b>Bet failed</b>\n<code>'+escHtml(m)+'</code>',replyOpts(ctx));
     }
   });
