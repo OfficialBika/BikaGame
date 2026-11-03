@@ -41,25 +41,54 @@ function parseKickoffAt(value) {
   return result.getTime() > Date.now() ? result : null;
 }
 
+function parseKickoffAt(value) {
+  const match = String(value || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return null;
+  const day = Number(match[1]), month = Number(match[2]), year = Number(match[3]);
+  const hour12 = Number(match[4]), minute = Number(match[5]), period = match[6].toUpperCase();
+  if (hour12 < 1 || hour12 > 12 || minute > 59) return null;
+  const hour = (hour12 % 12) + (period === 'PM' ? 12 : 0);
+  const wanted = Date.UTC(year, month - 1, day, hour, minute);
+  const check = new Date(wanted);
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) return null;
+  const zone = env.TZ || 'Asia/Yangon';
+  let formatter;
+  try { formatter = new Intl.DateTimeFormat('en-GB', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }); }
+  catch (_) { return null; }
+  let guess = wanted;
+  for (let i = 0; i < 5; i += 1) {
+    const parts = Object.fromEntries(formatter.formatToParts(new Date(guess)).map((part) => [part.type, part.value]));
+    const represented = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute), Number(parts.second));
+    const next = guess + wanted - represented;
+    if (next === guess) break;
+    guess = next;
+  }
+  const parts = Object.fromEntries(formatter.formatToParts(new Date(guess)).map((part) => [part.type, part.value]));
+  if (Number(parts.year) !== year || Number(parts.month) !== month || Number(parts.day) !== day || Number(parts.hour) !== hour || Number(parts.minute) !== minute) return null;
+  const result = new Date(guess);
+  return result.getTime() > Date.now() ? result : null;
+}
+
 function parseSetEvent(text) {
-  const lines = String(text || '').replace(/\r/g, '').trim().split('\n').map(s => s.trim()).filter(Boolean);
+  const lines = String(text || '').replace(/\r/g, '').trim().split('\n').map((line) => line.trim()).filter(Boolean);
   if (!/^\/setevent(?:@[\w_]+)?\s+/i.test(lines[0] || '') || lines.length !== 4) return null;
   const title = lines[0].replace(/^\/setevent(?:@[\w_]+)?\s+/i, '').trim();
-  const odds = lines[1].split('|').map(s => Number(String(s).replace(/[×xX]/g, '').trim()));
+  const odds = lines[1].split('|').map((value) => Number(String(value).replace(/[×xX]/g, '').trim()));
   const aliases = lines[2].split('|').map(normalizeAlias);
-  const teams = title.split(/\s+(?:vs\.?|v\.?|versus)\s+/i).map(s => s.trim());
+  const teamNames = title.split(/\s+(?:vs\.?|v\.?|versus)\s+/i).map((value) => value.trim());
   const kickoffAt = parseKickoffAt(lines[3]);
-  if (!kickoffAt || teams.length !== 2 || teams.some(t => !t)) return null;
-  if (![2, 3].includes(odds.length) || aliases.length !== odds.length || odds.some(n => !Number.isFinite(n) || n <= 1)) return null;
-  if (aliases.some(a => !a) || new Set(aliases).size !== aliases.length) return null;
-  let outcomes;
+  if (!kickoffAt || teamNames.length !== 2 || teamNames.some((name) => !name)) return null;
+  if (![2, 3].includes(odds.length) || aliases.length !== odds.length) return null;
+  if (odds.some((odd) => !Number.isFinite(odd) || odd <= 1)) return null;
+  if (aliases.some((alias) => !alias) || new Set(aliases).size !== aliases.length) return null;
+  let teams;
   if (odds.length === 2) {
-    outcomes = [{ name: teams[0], alias: aliases[0], odd: odds[0] }, { name: teams[1], alias: aliases[1], odd: odds[1] }];
+    teams = [{ name: teamNames[0], alias: aliases[0], odd: odds[0] }, { name: teamNames[1], alias: aliases[1], odd: odds[1] }];
   } else {
     if (aliases[1] !== 'draw') return null;
-    outcomes = [{ name: teams[0], alias: aliases[0], odd: odds[0] }, { name: 'သရေ', alias: 'draw', odd: odds[1] }, { name: teams[1], alias: aliases[2], odd: odds[2] }];
+    teams = [{ name: teamNames[0], alias: aliases[0], odd: odds[0] }, { name: 'သရေ', alias: 'draw', odd: odds[1] }, { name: teamNames[1], alias: aliases[2], odd: odds[2] }];
   }
-  return { title, teams: outcomes, kickoffAt };
+  return { title, teams, kickoffAt };
 }
 
 function parseBet(text) {
@@ -103,6 +132,16 @@ async function placeBet(event, ctx, alias, amount) {
     const opts = { session };
     const existing = await bets().findOne({ eventId: event._id, userId }, opts);
     if (existing) throw new Error('DUPLICATE_BET');
+
+    const eventUpdate = await events().updateOne({
+      _id: event._id,
+      status: 'open',
+      $expr: { $gt: ['$kickoffAt', '$NOW'] }
+    }, {
+      $inc: { totalBet: 1, totalBetBal: amount },
+      $set: { updatedAt: now }
+    }, opts);
+    if (eventUpdate.matchedCount !== 1) throw new Error('BET_CLOSED');
 
     const eventUpdate = await events().updateOne({
       _id: event._id,
