@@ -49,15 +49,18 @@ function parseKickoffAt(value) {
 
 function parseSetEvent(text) {
   const lines = String(text || '').replace(/\r/g, '').trim().split('\n').map((line) => line.trim()).filter(Boolean);
-  if (!/^\/setevent(?:@[\w_]+)?\s+/i.test(lines[0] || '') || lines.length !== 4) return null;
+  if (!/^\/setevent(?:@[\w_]+)?\s+/i.test(lines[0] || '') || ![3, 4].includes(lines.length)) return null;
+
   const title = lines[0].replace(/^\/setevent(?:@[\w_]+)?\s+/i, '').trim();
   const odds = lines[1].split('|').map((value) => Number(String(value).replace(/[×xX]/g, '').trim()));
   const aliases = lines[2].split('|').map(normalizeAlias);
   const teamNames = title.split(/\s+(?:vs\.?|v\.?|versus)\s+/i).map((value) => value.trim());
-  const kickoffAt = parseKickoffAt(lines[3]);
+  const kickoffAt = lines.length === 4 ? parseKickoffAt(lines[3]) : null;
 
-  if (!kickoffAt || teamNames.length !== 2 || teamNames.some((name) => !name)) return null;
+  if (lines.length === 4 && !kickoffAt) return null;
+  if (teamNames.length !== 2 || teamNames.some((name) => !name)) return null;
   if (![2, 3].includes(odds.length) || aliases.length !== odds.length) return null;
+  if (lines.length === 3 && odds.length !== 2) return null;
   if (odds.some((odd) => !Number.isFinite(odd) || odd <= 1)) return null;
   if (aliases.some((alias) => !alias) || new Set(aliases).size !== aliases.length) return null;
 
@@ -77,7 +80,6 @@ function parseSetEvent(text) {
   }
   return { title, teams, kickoffAt };
 }
-
 function parseBet(text) {
   const m = String(text || '').trim().match(/^\.bet(?:@[\w_]+)?\s+([a-z0-9_-]+)\s+([\d,]+(?:\.\d+)?)\s*$/i);
   if (!m) return null;
@@ -100,7 +102,19 @@ async function findActiveEventByThread(chatId, rootMessageId) {
 
 async function createEvent(data) {
   const now = new Date();
-  const doc = { ...data, kickoffAt: new Date(data.kickoffAt), threadMessageIds: [Number(data.threadRootMessageId)], status: 'open', totalBet: 0, totalBetBal: 0, totalWinBal: 0, createdAt: now, updatedAt: now, createdBy: Number(env.OWNER_ID) };
+  const { kickoffAt, ...eventData } = data;
+  const doc = {
+    ...eventData,
+    ...(kickoffAt ? { kickoffAt: new Date(kickoffAt) } : {}),
+    threadMessageIds: [Number(data.threadRootMessageId)],
+    status: 'open',
+    totalBet: 0,
+    totalBetBal: 0,
+    totalWinBal: 0,
+    createdAt: now,
+    updatedAt: now,
+    createdBy: Number(env.OWNER_ID)
+  };
   const result = await events().insertOne(doc);
   return { ...doc, _id: result.insertedId };
 }
@@ -121,7 +135,14 @@ async function placeBet(event, ctx, alias, amount) {
     if (existing) throw new Error('DUPLICATE_BET');
 
     const eventUpdate = await events().updateOne(
-      { _id: event._id, status: 'open', $expr: { $gt: ['$kickoffAt', '$$NOW'] } },
+      {
+        _id: event._id,
+        status: 'open',
+        $or: [
+          { kickoffAt: { $exists: false } },
+          { $expr: { $gt: ['$kickoffAt', '$NOW'] } }
+        ]
+      },
       { $inc: { totalBet: 1, totalBetBal: amount }, $set: { updatedAt: now } },
       opts
     );
