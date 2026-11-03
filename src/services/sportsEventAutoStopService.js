@@ -1,7 +1,7 @@
 'use strict';
 
 const { events } = require('./sportsEventService');
-const { logger } = require('../utils/logger');
+const logger = require('../utils/logger');
 
 const POLL_INTERVAL_MS = 1000;
 const LEASE_MS = 60000;
