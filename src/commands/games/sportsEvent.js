@@ -89,7 +89,7 @@ module.exports = (bot) => {
     const parsed=parseSetEvent(ctx.message.text);
     if(!parsed) return replyHTML(ctx,getUsage(),replyOpts(ctx));
     if(await findActiveEventByThread(ctx.chat.id,root.message_id)) return replyHTML(ctx,'⚠️ <b>ဒီ Post မှာ Event တစ်ခု ရှိပြီးသားပါ။</b>',replyOpts(ctx));
-    const event=await createEvent({postChatId:String(root.chat?.id||ctx.chat.id),postMessageId:Number(root.message_id),commentChatId:String(ctx.chat.id),threadRootMessageId:Number(root.message_id),sourcePostText:String(root.text||root.caption||'').slice(0,4000),title:parsed.title,teams:parsed.teams});
+    const event=await createEvent({postChatId:String(root.chat?.id||ctx.chat.id),postMessageId:Number(root.message_id),commentChatId:String(ctx.chat.id),threadRootMessageId:Number(root.message_id),sourcePostText:String(root.text||root.caption||'').slice(0,4000),title:parsed.title,teams:parsed.teams,kickoffAt:parsed.kickoffAt});
     const sent=await replyHTML(ctx,eventCard(event),replyOpts(ctx));
     if(sent?.message_id) await events().updateOne({_id:event._id},{$set:{announcementMessageId:Number(sent.message_id),updatedAt:new Date()}});
     return sent;
@@ -100,7 +100,7 @@ module.exports = (bot) => {
     const event=await eventFromComment(ctx); if(!event) return;
     if(event.status!=='open') return replyHTML(ctx,'ℹ️ <b>Betting ပိတ်ထားပြီးသားပါ။</b>',replyOpts(ctx));
     await stopEvent(event);
-    return replyHTML(ctx,'🔒 <b>BETTING CLOSED</b>\n━━━━━━━━━━━━━━━━\n🏆 '+escHtml(event.title)+'\n\nလောင်းကြေးအသစ်များကို လက်မခံတော့ပါ။\n\n⏳ <b>Owner က .betwin van (or) pan နဲ့ အနိုင်အသင်း သတ်မှတ်နိုင်ပါပြီ။</b>',replyOpts(ctx));
+    return replyHTML(ctx,'🔒 <b>BETTING CLOSED</b>\n━━━━━━━━━━━━━━━━\n🏆 '+escHtml(event.title)+'\n\nလောင်းကြေးအသစ်များကို လက်မခံတော့ပါ။\n\n⏳ <b>Owner က .betwin alias နဲ့ အနိုင်ရလဒ် သတ်မှတ်နိုင်ပါပြီ။</b>',replyOpts(ctx));
   });
 
   bot.hears(/^\.betwin\s+([a-z0-9_-]+)\s*$/i, async ctx => {
