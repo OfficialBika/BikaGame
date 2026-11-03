@@ -13,17 +13,53 @@ function normalizeAlias(value) {
   return String(value || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
 }
 
+function parseKickoffAt(value) {
+  const match = String(value || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return null;
+  const day = Number(match[1]), month = Number(match[2]), year = Number(match[3]);
+  const hour12 = Number(match[4]), minute = Number(match[5]), period = match[6].toUpperCase();
+  if (hour12 < 1 || hour12 > 12 || minute > 59) return null;
+  const hour = (hour12 % 12) + (period === 'PM' ? 12 : 0);
+  const wanted = Date.UTC(year, month - 1, day, hour, minute);
+  const check = new Date(wanted);
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) return null;
+  const zone = env.TZ || 'Asia/Yangon';
+  let formatter;
+  try { formatter = new Intl.DateTimeFormat('en-GB', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }); }
+  catch (_) { return null; }
+  let guess = wanted;
+  for (let i = 0; i < 5; i += 1) {
+    const parts = Object.fromEntries(formatter.formatToParts(new Date(guess)).map(p => [p.type, p.value]));
+    const represented = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute), Number(parts.second));
+    const next = guess + wanted - represented;
+    if (next === guess) break;
+    guess = next;
+  }
+  const parts = Object.fromEntries(formatter.formatToParts(new Date(guess)).map(p => [p.type, p.value]));
+  if (Number(parts.year) !== year || Number(parts.month) !== month || Number(parts.day) !== day || Number(parts.hour) !== hour || Number(parts.minute) !== minute) return null;
+  const result = new Date(guess);
+  return result.getTime() > Date.now() ? result : null;
+}
+
 function parseSetEvent(text) {
   const lines = String(text || '').replace(/\r/g, '').trim().split('\n').map(s => s.trim()).filter(Boolean);
-  if (!/^\/setevent(?:@[\w_]+)?\s+/i.test(lines[0] || '') || lines.length < 3) return null;
+  if (!/^\/setevent(?:@[\w_]+)?\s+/i.test(lines[0] || '') || lines.length !== 4) return null;
   const title = lines[0].replace(/^\/setevent(?:@[\w_]+)?\s+/i, '').trim();
   const odds = lines[1].split('|').map(s => Number(String(s).replace(/[×xX]/g, '').trim()));
   const aliases = lines[2].split('|').map(normalizeAlias);
   const teams = title.split(/\s+(?:vs\.?|v\.?|versus)\s+/i).map(s => s.trim());
-  if (teams.length !== 2 || teams.some(t => !t)) return null;
-  if (odds.length !== 2 || aliases.length !== 2 || odds.some(n => !Number.isFinite(n) || n <= 1)) return null;
-  if (!aliases[0] || !aliases[1] || aliases[0] === aliases[1]) return null;
-  return { title, teams: [{ name: teams[0], alias: aliases[0], odd: odds[0] }, { name: teams[1], alias: aliases[1], odd: odds[1] }] };
+  const kickoffAt = parseKickoffAt(lines[3]);
+  if (!kickoffAt || teams.length !== 2 || teams.some(t => !t)) return null;
+  if (![2, 3].includes(odds.length) || aliases.length !== odds.length || odds.some(n => !Number.isFinite(n) || n <= 1)) return null;
+  if (aliases.some(a => !a) || new Set(aliases).size !== aliases.length) return null;
+  let outcomes;
+  if (odds.length === 2) {
+    outcomes = [{ name: teams[0], alias: aliases[0], odd: odds[0] }, { name: teams[1], alias: aliases[1], odd: odds[1] }];
+  } else {
+    if (aliases[1] !== 'draw') return null;
+    outcomes = [{ name: teams[0], alias: aliases[0], odd: odds[0] }, { name: 'သရေ', alias: 'draw', odd: odds[1] }, { name: teams[1], alias: aliases[2], odd: odds[2] }];
+  }
+  return { title, teams: outcomes, kickoffAt };
 }
 
 function parseBet(text) {
@@ -48,7 +84,7 @@ async function findActiveEventByThread(chatId, rootMessageId) {
 
 async function createEvent(data) {
   const now = new Date();
-  const doc = { ...data, threadMessageIds: [Number(data.threadRootMessageId)], status: 'open', totalBet: 0, totalBetBal: 0, totalWinBal: 0, createdAt: now, updatedAt: now, createdBy: Number(env.OWNER_ID) };
+  const doc = { ...data, kickoffAt: new Date(data.kickoffAt), threadMessageIds: [Number(data.threadRootMessageId)], status: 'open', totalBet: 0, totalBetBal: 0, totalWinBal: 0, createdAt: now, updatedAt: now, createdBy: Number(env.OWNER_ID) };
   const result = await events().insertOne(doc);
   return { ...doc, _id: result.insertedId };
 }
@@ -67,6 +103,16 @@ async function placeBet(event, ctx, alias, amount) {
     const opts = { session };
     const existing = await bets().findOne({ eventId: event._id, userId }, opts);
     if (existing) throw new Error('DUPLICATE_BET');
+
+    const eventUpdate = await events().updateOne({
+      _id: event._id,
+      status: 'open',
+      $expr: { $gt: ['$kickoffAt', '$NOW'] }
+    }, {
+      $inc: { totalBet: 1, totalBetBal: amount },
+      $set: { updatedAt: now }
+    }, opts);
+    if (eventUpdate.matchedCount !== 1) throw new Error('BET_CLOSED');
 
     const user = await col('users').findOneAndUpdate(
       { userId: { $in: [String(userId), userId] }, balance: { $gte: amount } },
@@ -90,7 +136,6 @@ async function placeBet(event, ctx, alias, amount) {
       potentialWin: Math.floor(amount * team.odd), status: 'active', createdAt: now
     };
     await bets().insertOne(betDoc, opts);
-    await events().updateOne({ _id: event._id, status: 'open' }, { $inc: { totalBet: 1, totalBetBal: amount }, $set: { updatedAt: now } }, opts);
     await logTx({ type: 'sports_bet', fromUserId: userId, toUserId: 'TREASURY', amount, meta: { eventId: String(event._id), alias, odd: team.odd } }, opts);
     return betDoc;
   });
@@ -159,4 +204,4 @@ async function settleEvent(event, winnerAlias, payoutFn) {
 }
 async function rememberThreadMessage(eventId, messageId) { if (!eventId || !messageId) return; await events().updateOne({ _id: eventId }, { $addToSet: { threadMessageIds: Number(messageId) }, $set: { updatedAt: new Date() } }); }
 
-module.exports = { events, bets, rememberThreadMessage, normalizeAlias, parseSetEvent, parseBet, formatDate, fmt, getReplyRoot, findActiveEventByThread, createEvent, placeBet, stopEvent, settleEvent };
+module.exports = { events, bets, rememberThreadMessage, normalizeAlias, parseKickoffAt, parseSetEvent, parseBet, formatDate, fmt, getReplyRoot, findActiveEventByThread, createEvent, placeBet, stopEvent, settleEvent };
