@@ -21,26 +21,62 @@ function parseKickoffAt(value) {
   if (hour12 < 1 || hour12 > 12 || minute > 59) return null;
   const hour = (hour12 % 12) + (period === 'PM' ? 12 : 0);
   const wanted = Date.UTC(year, month - 1, day, hour, minute);
-  const check = new Date(wanted);
-  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) return null;
+  const calendar = new Date(wanted);
+  if (calendar.getUTCFullYear() !== year || calendar.getUTCMonth() !== month - 1 || calendar.getUTCDate() !== day) return null;
+
   const zone = env.TZ || 'Asia/Yangon';
   let formatter;
-  try { formatter = new Intl.DateTimeFormat('en-GB', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }); }
-  catch (_) { return null; }
+  try {
+    formatter = new Intl.DateTimeFormat('en-GB', {
+      timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
+    });
+  } catch (_) { return null; }
+
   let guess = wanted;
   for (let i = 0; i < 5; i += 1) {
-    const parts = Object.fromEntries(formatter.formatToParts(new Date(guess)).map(p => [p.type, p.value]));
+    const parts = Object.fromEntries(formatter.formatToParts(new Date(guess)).map((part) => [part.type, part.value]));
     const represented = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute), Number(parts.second));
     const next = guess + wanted - represented;
     if (next === guess) break;
     guess = next;
   }
-  const parts = Object.fromEntries(formatter.formatToParts(new Date(guess)).map(p => [p.type, p.value]));
+  const parts = Object.fromEntries(formatter.formatToParts(new Date(guess)).map((part) => [part.type, part.value]));
   if (Number(parts.year) !== year || Number(parts.month) !== month || Number(parts.day) !== day || Number(parts.hour) !== hour || Number(parts.minute) !== minute) return null;
   const result = new Date(guess);
   return result.getTime() > Date.now() ? result : null;
 }
 
+function parseSetEvent(text) {
+  const lines = String(text || '').replace(/\r/g, '').trim().split('\n').map((line) => line.trim()).filter(Boolean);
+  if (!/^\/setevent(?:@[\w_]+)?\s+/i.test(lines[0] || '') || lines.length !== 4) return null;
+  const title = lines[0].replace(/^\/setevent(?:@[\w_]+)?\s+/i, '').trim();
+  const odds = lines[1].split('|').map((value) => Number(String(value).replace(/[×xX]/g, '').trim()));
+  const aliases = lines[2].split('|').map(normalizeAlias);
+  const teamNames = title.split(/\s+(?:vs\.?|v\.?|versus)\s+/i).map((value) => value.trim());
+  const kickoffAt = parseKickoffAt(lines[3]);
+
+  if (!kickoffAt || teamNames.length !== 2 || teamNames.some((name) => !name)) return null;
+  if (![2, 3].includes(odds.length) || aliases.length !== odds.length) return null;
+  if (odds.some((odd) => !Number.isFinite(odd) || odd <= 1)) return null;
+  if (aliases.some((alias) => !alias) || new Set(aliases).size !== aliases.length) return null;
+
+  let teams;
+  if (odds.length === 2) {
+    teams = [
+      { name: teamNames[0], alias: aliases[0], odd: odds[0] },
+      { name: teamNames[1], alias: aliases[1], odd: odds[1] }
+    ];
+  } else {
+    if (aliases[1] !== 'draw') return null;
+    teams = [
+      { name: teamNames[0], alias: aliases[0], odd: odds[0] },
+      { name: 'သရေ', alias: 'draw', odd: odds[1] },
+      { name: teamNames[1], alias: aliases[2], odd: odds[2] }
+    ];
+  }
+  return { title, teams, kickoffAt };
+}
 
 function parseBet(text) {
   const m = String(text || '').trim().match(/^\.bet(?:@[\w_]+)?\s+([a-z0-9_-]+)\s+([\d,]+(?:\.\d+)?)\s*$/i);
