@@ -25,6 +25,9 @@ jobs:
       - name: Run project syntax check
         run: npm run check
 
+      - name: Run sports auto-stop scheduler tests
+        run: node --test src/services/sportsEventAutoStopService.test.js
+
       - name: Check Mini App v2 entry and authenticated integration
         run: |
           test -f public/miniapp/v2/index.html
