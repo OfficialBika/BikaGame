@@ -17,8 +17,8 @@ function loadScheduler({ dueResults = [], notifyResults = [] } = {}) {
     async createIndex(...args) { createIndexCalls += 1; calls.push(['createIndex', ...args]); },
     async findOneAndUpdate(filter, update, options) {
       calls.push(['findOneAndUpdate', filter, update, options]);
-      if (filter.status === 'open') return { value: dueResults.shift() || null };
-      return { value: notifyResults.shift() || null };
+      if (filter.status === 'open') return { value: dueResults.length ? dueResults.shift() : null };
+      return { value: notifyResults.length ? notifyResults.shift() : null };
     },
     async updateOne(...args) { calls.push(['updateOne', ...args]); return { matchedCount: 1 }; }
   };
