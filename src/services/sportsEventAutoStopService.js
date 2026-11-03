@@ -26,7 +26,7 @@ function message(event) {
     '⏰ ပွဲစချိန်ရောက်ရှိပါပြီ။ လောင်းကြေးအသစ်များကို ပိတ်လိုက်ပါပြီ။',
     '',
     '⏳ Owner သည် .betwin alias (' + aliases + ') ဖြင့် အနိုင်ရလဒ် သတ်မှတ်နိုင်ပါပြီ။'
-  ].join('\\n');
+  ].join('\n');
 }
 
 async function stopDueEvents() {
@@ -113,7 +113,11 @@ async function tick(bot) {
 
 async function startSportsEventAutoStop(bot) {
   if (timer) return;
-  await events().createIndex({ status: 1, kickoffAt: 1 }, { name: 'sports_events_auto_stop_due' });
+  try {
+    await events().createIndex({ status: 1, kickoffAt: 1 }, { name: 'sports_events_auto_stop_due' });
+  } catch (err) {
+    logger.warn('Sports auto-stop index creation failed; scheduler will continue with MongoDB query filtering.', err);
+  }
   await tick(bot);
   timer = setInterval(() => tick(bot), POLL_INTERVAL_MS);
   timer.unref?.();
