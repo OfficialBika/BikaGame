@@ -140,7 +140,7 @@ async function placeBet(event, ctx, alias, amount) {
         status: 'open',
         $or: [
           { kickoffAt: { $exists: false } },
-          { $expr: { $gt: ['$kickoffAt', '$NOW'] } }
+          { $expr: { $gt: ['$kickoffAt', '$$NOW'] } }
         ]
       },
       { $inc: { totalBet: 1, totalBetBal: amount }, $set: { updatedAt: now } },
