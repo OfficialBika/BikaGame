@@ -8,6 +8,11 @@ const LEASE_MS = 60000;
 let timer = null;
 let running = false;
 
+function unwrapFindOneAndUpdateResult(result) {
+  if (result && typeof result === 'object' && Object.prototype.hasOwnProperty.call(result, 'value')) return result.value;
+  return result;
+}
+
 function html(value) {
   return String(value || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
@@ -43,7 +48,7 @@ async function stopDueEvents() {
       }],
       { sort: { kickoffAt: 1 }, returnDocument: 'after' }
     );
-    const event = result?.value ?? result;
+    const event = unwrapFindOneAndUpdateResult(result);
     if (!event) break;
   }
 }
@@ -69,7 +74,7 @@ async function notifyPending(bot) {
       },
       { sort: { stoppedAt: 1 }, returnDocument: 'after' }
     );
-    const event = result?.value ?? result;
+    const event = unwrapFindOneAndUpdateResult(result);
     if (!event) break;
     try {
       if (!event.commentChatId || !event.threadRootMessageId) throw new Error('EVENT_THREAD_TARGET_MISSING');
