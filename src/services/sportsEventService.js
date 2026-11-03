@@ -120,6 +120,13 @@ async function placeBet(event, ctx, alias, amount) {
     const existing = await bets().findOne({ eventId: event._id, userId }, opts);
     if (existing) throw new Error('DUPLICATE_BET');
 
+    const eventUpdate = await events().updateOne(
+      { _id: event._id, status: 'open', $expr: { $gt: ['$kickoffAt', '$$NOW'] } },
+      { $inc: { totalBet: 1, totalBetBal: amount }, $set: { updatedAt: now } },
+      opts
+    );
+    if (eventUpdate.matchedCount !== 1) throw new Error('BET_CLOSED');
+
     const user = await col('users').findOneAndUpdate(
       { userId: { $in: [String(userId), userId] }, balance: { $gte: amount } },
       { $inc: { balance: -amount, totalLost: amount }, $set: { updatedAt: now } },
