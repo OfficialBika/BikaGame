@@ -23,7 +23,7 @@ function loadScheduler({ dueResults = [], notifyResults = [] } = {}) {
     async updateOne(...args) { calls.push(['updateOne', ...args]); return { matchedCount: 1 }; }
   };
 
-  const fakeLogger = { logger: { info() {}, warn() {}, error() {} } };
+  const fakeLogger = { info() {}, warn() {}, error() {} };
   const originalLoad = Module._load;
   Module._load = function(request, parent, isMain) {
     if (parent && parent.filename === schedulerPath && request === './sportsEventService') return { events: () => events };
