@@ -105,7 +105,7 @@ module.exports = (bot) => {
     const event=await eventFromComment(ctx); if(!event) return;
     if(event.status!=='open') return replyHTML(ctx,'ℹ️ <b>Betting ပိတ်ထားပြီးသားပါ။</b>',replyOpts(ctx));
     await stopEvent(event);
-    return replyHTML(ctx,'🔒 <b>BETTING CLOSED</b>\n━━━━━━━━━━━━━━━━\n🏆 '+escHtml(event.title)+'\n\nလောင်းကြေးအသစ်များကို လက်မခံတော့ပါ။\n\n⏳ <b>Owner က .betwin alias နဲ့ အနိုင်ရလဒ် သတ်မှတ်နိုင်ပါပြီ။</b>',replyOpts(ctx));
+    return replyHTML(ctx,'🔒 <b>BETTING CLOSED</b>\n━━━━━━━━━━━━━━━━\n🏆 '+escHtml(event.title)+'\n\nလောင်းကြေးအသစ်များကို လက်မခံတော့ပါ။\n\n⏳ <b>Owner က .betwin van (သို့) .betwin draw (သို့) .betwin pan နဲ့ အနိုင်ရလဒ် သတ်မှတ်နိုင်ပါပြီ။</b>',replyOpts(ctx));
   });
 
   bot.hears(/^\.betwin\s+([a-z0-9_-]+)\s*$/i, async ctx => {
