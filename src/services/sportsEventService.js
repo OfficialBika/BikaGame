@@ -158,7 +158,11 @@ async function placeBet(event, ctx, alias, amount) {
 }
 
 async function stopEvent(event) {
-  await events().updateOne({ _id: event._id, status: 'open' }, { $set: { status: 'stopped', stoppedAt: new Date(), updatedAt: new Date() } });
+  const now = new Date();
+  await events().updateOne(
+    { _id: event._id, status: 'open' },
+    { $set: { status: 'stopped', stopReason: 'manual', stoppedAt: now, updatedAt: now } }
+  );
 }
 
 async function settleEvent(event, winnerAlias, payoutFn) {
