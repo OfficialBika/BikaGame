@@ -205,10 +205,10 @@ async function updateChannelPost(bot, a, finalState) {
 async function sendAuctionMessage(bot, a) {
   const opts = { parse_mode: 'HTML', disable_web_page_preview: true };
   if (a.mediaType === 'photo' && a.fileId) {
-    return bot.telegram.sendPhoto(env.AUCTION_CHANNEL_ID, a.fileId, { caption: postText(a, false), ...opts });
+    return bot.telegram.sendPhoto(env.AUCTION_CHANNEL_ID, a.fileId, { caption: postText(a, false), has_spoiler: true, ...opts });
   }
   if (a.mediaType === 'video' && a.fileId) {
-    return bot.telegram.sendVideo(env.AUCTION_CHANNEL_ID, a.fileId, { caption: postText(a, false), ...opts });
+    return bot.telegram.sendVideo(env.AUCTION_CHANNEL_ID, a.fileId, { caption: postText(a, false), has_spoiler: true, ...opts });
   }
   return bot.telegram.sendMessage(env.AUCTION_CHANNEL_ID, postText(a, false), opts);
 }
