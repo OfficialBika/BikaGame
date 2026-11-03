@@ -2,7 +2,7 @@
 
 const { col, withRequiredTx } = require('../config/database');
 const treasuryModel = require('../models/treasuryModel');
-const { ensureUser, treasuryPayToUser } = require('./economyService');
+const { ensureUser } = require('./economyService');
 const { logTx } = require('./transactionService');
 const { env } = require('../config/env');
 
@@ -13,17 +13,91 @@ function normalizeAlias(value) {
   return String(value || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
 }
 
+function parseKickoffAt(value) {
+  const match = String(value || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return null;
+
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const hour12 = Number(match[4]);
+  const minute = Number(match[5]);
+  const meridiem = match[6].toUpperCase();
+  if (hour12 < 1 || hour12 > 12 || minute < 0 || minute > 59) return null;
+
+  const hour = (hour12 % 12) + (meridiem === 'PM' ? 12 : 0);
+  const targetUtc = Date.UTC(year, month - 1, day, hour, minute, 0, 0);
+  const check = new Date(targetUtc);
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) return null;
+
+  const timeZone = env.TZ || 'Asia/Yangon';
+  let formatter;
+  try {
+    formatter = new Intl.DateTimeFormat('en-GB', {
+      timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
+    });
+  } catch (_) {
+    return null;
+  }
+
+  let guess = targetUtc;
+  for (let i = 0; i < 5; i += 1) {
+    const parts = Object.fromEntries(formatter.formatToParts(new Date(guess)).map((part) => [part.type, part.value]));
+    const representedUtc = Date.UTC(
+      Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+      Number(parts.hour), Number(parts.minute), Number(parts.second)
+    );
+    const next = guess + (targetUtc - representedUtc);
+    if (next === guess) break;
+    guess = next;
+  }
+
+  const finalParts = Object.fromEntries(formatter.formatToParts(new Date(guess)).map((part) => [part.type, part.value]));
+  if (
+    Number(finalParts.year) !== year ||
+    Number(finalParts.month) !== month ||
+    Number(finalParts.day) !== day ||
+    Number(finalParts.hour) !== hour ||
+    Number(finalParts.minute) !== minute
+  ) return null;
+
+  const kickoffAt = new Date(guess);
+  if (!Number.isFinite(kickoffAt.getTime()) || kickoffAt.getTime() <= Date.now()) return null;
+  return kickoffAt;
+}
+
 function parseSetEvent(text) {
-  const lines = String(text || '').replace(/\r/g, '').trim().split('\n').map(s => s.trim()).filter(Boolean);
-  if (!/^\/setevent(?:@[\w_]+)?\s+/i.test(lines[0] || '') || lines.length < 3) return null;
+  const lines = String(text || '').replace(/\r/g, '').trim().split('\n').map((s) => s.trim()).filter(Boolean);
+  if (!/^\/setevent(?:@[\w_]+)?\s+/i.test(lines[0] || '') || lines.length !== 4) return null;
+
   const title = lines[0].replace(/^\/setevent(?:@[\w_]+)?\s+/i, '').trim();
-  const odds = lines[1].split('|').map(s => Number(String(s).replace(/[×xX]/g, '').trim()));
+  const odds = lines[1].split('|').map((s) => Number(String(s).replace(/[×xX]/g, '').trim()));
   const aliases = lines[2].split('|').map(normalizeAlias);
-  const teams = title.split(/\s+(?:vs\.?|v\.?|versus)\s+/i).map(s => s.trim());
-  if (teams.length !== 2 || teams.some(t => !t)) return null;
-  if (odds.length !== 2 || aliases.length !== 2 || odds.some(n => !Number.isFinite(n) || n <= 1)) return null;
-  if (!aliases[0] || !aliases[1] || aliases[0] === aliases[1]) return null;
-  return { title, teams: [{ name: teams[0], alias: aliases[0], odd: odds[0] }, { name: teams[1], alias: aliases[1], odd: odds[1] }] };
+  const kickoffAt = parseKickoffAt(lines[3]);
+  const teamNames = title.split(/\s+(?:vs\.?|v\.?|versus)\s+/i).map((s) => s.trim());
+
+  if (!kickoffAt || teamNames.length !== 2 || teamNames.some((name) => !name)) return null;
+  if (![2, 3].includes(odds.length) || aliases.length !== odds.length) return null;
+  if (odds.some((odd) => !Number.isFinite(odd) || odd <= 1)) return null;
+  if (aliases.some((alias) => !alias) || new Set(aliases).size !== aliases.length) return null;
+
+  let teams;
+  if (odds.length === 2) {
+    teams = [
+      { name: teamNames[0], alias: aliases[0], odd: odds[0] },
+      { name: teamNames[1], alias: aliases[1], odd: odds[1] },
+    ];
+  } else {
+    if (aliases[1] !== 'draw') return null;
+    teams = [
+      { name: teamNames[0], alias: aliases[0], odd: odds[0] },
+      { name: 'သရေ', alias: 'draw', odd: odds[1] },
+      { name: teamNames[1], alias: aliases[2], odd: odds[2] },
+    ];
+  }
+
+  return { title, teams, kickoffAt };
 }
 
 function parseBet(text) {
@@ -33,22 +107,43 @@ function parseBet(text) {
 }
 
 function formatDate(date = new Date()) {
-  return new Intl.DateTimeFormat('en-GB', { timeZone: env.TZ || 'Asia/Yangon', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }).format(date).replace(',', '');
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: env.TZ || 'Asia/Yangon', day: '2-digit', month: '2-digit',
+    year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true
+  }).format(date).replace(',', '');
 }
 function fmt(n) { return Number(n || 0).toLocaleString('en-US'); }
 
 function getReplyRoot(message) {
-  const r = message?.reply_to_message;
-  return r || null;
+  return message?.reply_to_message || null;
 }
 
 async function findActiveEventByThread(chatId, rootMessageId) {
-  return events().findOne({ commentChatId: String(chatId), $or: [{ threadRootMessageId: Number(rootMessageId) }, { announcementMessageId: Number(rootMessageId) }, { threadMessageIds: Number(rootMessageId) }], status: { $in: ['open', 'stopped'] } });
+  return events().findOne({
+    commentChatId: String(chatId),
+    $or: [
+      { threadRootMessageId: Number(rootMessageId) },
+      { announcementMessageId: Number(rootMessageId) },
+      { threadMessageIds: Number(rootMessageId) }
+    ],
+    status: { $in: ['open', 'stopped'] }
+  });
 }
 
 async function createEvent(data) {
   const now = new Date();
-  const doc = { ...data, threadMessageIds: [Number(data.threadRootMessageId)], status: 'open', totalBet: 0, totalBetBal: 0, totalWinBal: 0, createdAt: now, updatedAt: now, createdBy: Number(env.OWNER_ID) };
+  const doc = {
+    ...data,
+    kickoffAt: new Date(data.kickoffAt),
+    threadMessageIds: [Number(data.threadRootMessageId)],
+    status: 'open',
+    totalBet: 0,
+    totalBetBal: 0,
+    totalWinBal: 0,
+    createdAt: now,
+    updatedAt: now,
+    createdBy: Number(env.OWNER_ID)
+  };
   const result = await events().insertOne(doc);
   return { ...doc, _id: result.insertedId };
 }
@@ -56,7 +151,7 @@ async function createEvent(data) {
 async function placeBet(event, ctx, alias, amount) {
   if (event.status !== 'open') throw new Error('BET_CLOSED');
   if (!Number.isFinite(amount) || amount <= 0) throw new Error('INVALID_AMOUNT');
-  const team = event.teams.find(t => t.alias === alias);
+  const team = event.teams.find((t) => t.alias === alias);
   if (!team) throw new Error('INVALID_TEAM');
 
   await ensureUser(ctx.from);
@@ -67,6 +162,22 @@ async function placeBet(event, ctx, alias, amount) {
     const opts = { session };
     const existing = await bets().findOne({ eventId: event._id, userId }, opts);
     if (existing) throw new Error('DUPLICATE_BET');
+
+    // MongoDB evaluates $$NOW on the server. This conditional event write is
+    // in the same transaction as the balance/treasury changes, so a closed or
+    // expired event cannot debit a user's balance.
+    const eventUpdate = await events().updateOne({
+      _id: event._id,
+      status: 'open',
+      $or: [
+        { kickoffAt: { $exists: false } }, // Legacy events remain manually stoppable.
+        { $expr: { $gt: ['$kickoffAt', '$$NOW'] } }
+      ]
+    }, {
+      $inc: { totalBet: 1, totalBetBal: amount },
+      $set: { updatedAt: now }
+    }, opts);
+    if (eventUpdate.matchedCount !== 1) throw new Error('BET_CLOSED');
 
     const user = await col('users').findOneAndUpdate(
       { userId: { $in: [String(userId), userId] }, balance: { $gte: amount } },
@@ -90,14 +201,20 @@ async function placeBet(event, ctx, alias, amount) {
       potentialWin: Math.floor(amount * team.odd), status: 'active', createdAt: now
     };
     await bets().insertOne(betDoc, opts);
-    await events().updateOne({ _id: event._id, status: 'open' }, { $inc: { totalBet: 1, totalBetBal: amount }, $set: { updatedAt: now } }, opts);
-    await logTx({ type: 'sports_bet', fromUserId: userId, toUserId: 'TREASURY', amount, meta: { eventId: String(event._id), alias, odd: team.odd } }, opts);
+    await logTx({
+      type: 'sports_bet', fromUserId: userId, toUserId: 'TREASURY',
+      amount, meta: { eventId: String(event._id), alias, odd: team.odd }
+    }, opts);
     return betDoc;
   });
 }
 
 async function stopEvent(event) {
-  await events().updateOne({ _id: event._id, status: 'open' }, { $set: { status: 'stopped', stoppedAt: new Date(), updatedAt: new Date() } });
+  const now = new Date();
+  await events().updateOne(
+    { _id: event._id, status: 'open' },
+    { $set: { status: 'stopped', stopReason: 'manual', stoppedAt: now, updatedAt: now } }
+  );
 }
 
 async function settleEvent(event, winnerAlias, payoutFn) {
@@ -109,7 +226,7 @@ async function settleEvent(event, winnerAlias, payoutFn) {
   const losers = allBets.filter((bet) => bet.alias !== winnerAlias);
   const totalWinBal = winners.reduce((sum, bet) => sum + Number(bet.potentialWin || 0), 0);
   const tx = col('financial_settlements');
-  const markerId = `__settlement:sports:${String(event._id)}`;
+  const markerId = \`__settlement:sports:\${String(event._id)}\`;
 
   return withRequiredTx(async (session) => {
     const opts = { session };
@@ -139,24 +256,46 @@ async function settleEvent(event, winnerAlias, payoutFn) {
           fromUserId: 'TREASURY',
           toUserId: user.userId,
           amount: Number(bet.potentialWin),
-          meta: { eventId: String(event._id), betId: String(bet._id), odd: bet.odd, idempotencyKey: `${markerId}:win:${String(bet._id)}` },
+          meta: { eventId: String(event._id), betId: String(bet._id), odd: bet.odd, idempotencyKey: \`\${markerId}:win:\${String(bet._id)}\` },
         }, opts);
       }
     }
-    if (losers.length) await bets().updateMany({ _id: { $in: losers.map((bet) => bet._id) } }, { $set: { status: 'lost', settledAt: new Date(), payout: 0 } }, opts);
-    for (const bet of winners) await bets().updateOne({ _id: bet._id }, { $set: { status: 'won', settledAt: new Date(), payout: Number(bet.potentialWin) } }, opts);
+    if (losers.length) await bets().updateMany(
+      { _id: { $in: losers.map((bet) => bet._id) } },
+      { $set: { status: 'lost', settledAt: new Date(), payout: 0 } },
+      opts
+    );
+    for (const bet of winners) await bets().updateOne(
+      { _id: bet._id },
+      { $set: { status: 'won', settledAt: new Date(), payout: Number(bet.potentialWin) } },
+      opts
+    );
     const updated = await events().updateOne(
       { _id: event._id, status: 'stopped' },
       { $set: { status: 'settled', winnerAlias, winnerTeam: winner.name, settledAt: new Date(), totalWinBal, updatedAt: new Date() } },
       opts
     );
     if (updated.matchedCount !== 1) throw new Error('EVENT_SETTLE_STATE_CONFLICT');
-    const settlementMarker = { _id: markerId, type: 'sports_settlement', eventId: String(event._id), winnerAlias, payout: totalWinBal, meta: { idempotencyKey: markerId }, createdAt: new Date() };
+    const settlementMarker = {
+      _id: markerId, type: 'sports_settlement', eventId: String(event._id),
+      winnerAlias, payout: totalWinBal, meta: { idempotencyKey: markerId }, createdAt: new Date()
+    };
     await tx.insertOne(settlementMarker, opts);
     await logTx(settlementMarker, opts);
     return { winner, winners, losers, allBets, duplicate: false };
   });
 }
-async function rememberThreadMessage(eventId, messageId) { if (!eventId || !messageId) return; await events().updateOne({ _id: eventId }, { $addToSet: { threadMessageIds: Number(messageId) }, $set: { updatedAt: new Date() } }); }
 
-module.exports = { events, bets, rememberThreadMessage, normalizeAlias, parseSetEvent, parseBet, formatDate, fmt, getReplyRoot, findActiveEventByThread, createEvent, placeBet, stopEvent, settleEvent };
+async function rememberThreadMessage(eventId, messageId) {
+  if (!eventId || !messageId) return;
+  await events().updateOne(
+    { _id: eventId },
+    { $addToSet: { threadMessageIds: Number(messageId) }, $set: { updatedAt: new Date() } }
+  );
+}
+
+module.exports = {
+  events, bets, rememberThreadMessage, normalizeAlias, parseKickoffAt,
+  parseSetEvent, parseBet, formatDate, fmt, getReplyRoot,
+  findActiveEventByThread, createEvent, placeBet, stopEvent, settleEvent
+};
