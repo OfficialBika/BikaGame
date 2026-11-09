@@ -7,7 +7,7 @@ const {
   settleDuel,
 } = require('../services/economyService');
 const { getTreasury } = require('../services/treasuryService');
-const { HOUSE_CUT_PERCENT, COIN } = require('../config/constants');
+const { HOUSE_CUT_PERCENT, COIN, RPS } = require('../config/constants');
 const dice = require('../games/diceEngine');
 const shan = require('../games/shanEngine');
 const rps = require('../games/rpsEngine');
@@ -381,7 +381,7 @@ module.exports = (bot) => {
         }
         game.delRps(id);
         await answerLocalized(ctx, 'Cancelled');
-        return editRpsChallengeHTML(bot, challenge, '❌ <b>RPS Duel Cancelled</b>\\nNo Bal was deducted.');
+        return editRpsChallengeHTML(bot, challenge, '❌ <b>RPS Duel Cancelled</b>\nNo Bal was deducted.');
       });
 
       if (action === 'ACCEPT') return withLock(`rps:state:${id}`, async () => {
@@ -394,7 +394,7 @@ module.exports = (bot) => {
         if (Date.now() >= challenge.expiresAt) {
           game.delRps(id);
           await answerLocalized(ctx, 'Challenge expired', { show_alert: true });
-          return editRpsChallengeHTML(bot, challenge, '⌛ <b>RPS Challenge Expired</b>\\nNo Bal was deducted.');
+          return editRpsChallengeHTML(bot, challenge, '⌛ <b>RPS Challenge Expired</b>\nNo Bal was deducted.');
         }
 
         await answerLocalized(ctx, 'Challenge accepted. Choose your move.');
@@ -409,7 +409,7 @@ module.exports = (bot) => {
           return editRpsChallengeHTML(
             bot,
             challenge,
-            '⚠️ <b>RPS Challenge Failed</b>\\nA player does not have enough Bal. No Bal was deducted.'
+            '⚠️ <b>RPS Challenge Failed</b>\nA player does not have enough Bal. No Bal was deducted.'
           );
         }
 
