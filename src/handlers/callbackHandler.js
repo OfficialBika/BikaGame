@@ -272,7 +272,7 @@ function rpsResultText(challenge, result) {
 }
 
 async function settleRpsChallenge(bot, challenge) {
-  if (!challenge || !challenge.moves?.A || !challenge.moves?.B) return;
+  if (!challenge || game.getRps(challenge.id) !== challenge || !challenge.moves?.A || !challenge.moves?.B) return;
   if (!['PLAYING', 'SETTLING'].includes(challenge.status)) return;
 
   const result = rps.compare(challenge.moves.A, challenge.moves.B);

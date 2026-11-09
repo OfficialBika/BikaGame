@@ -95,6 +95,17 @@ module.exports = (bot) => {
 
     game.setRps(id, challenge);
 
+    challenge.timeoutHandle = setTimeout(async () => {
+      const active = game.getRps(id);
+      if (!active || active.status !== 'OPEN') return;
+
+      game.delRps(id);
+      try {
+        await editByIds(bot, active.chatId, active.msgId, expiredText(active), { reply_markup: { inline_keyboard: [] } }, active.challengerId);
+      } catch (_) {}
+    }, Math.max(0, challenge.expiresAt - Date.now()));
+    challenge.timeoutHandle.unref?.();
+
     try {
       await ctx.telegram.editMessageReplyMarkup(ctx.chat.id, sent.message_id, undefined, {
         inline_keyboard: [
@@ -122,16 +133,6 @@ module.exports = (bot) => {
       );
       return;
     }
-
-    challenge.timeoutHandle = setTimeout(async () => {
-      const active = game.getRps(id);
-      if (!active || active.status !== 'OPEN') return;
-
-      game.delRps(id);
-      try {
-        await editByIds(bot, active.chatId, active.msgId, expiredText(active), {}, active.challengerId);
-      } catch (_) {}
-    }, Math.max(0, challenge.expiresAt - Date.now()));
-    challenge.timeoutHandle.unref?.();
+ 
   });
 };
