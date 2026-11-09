@@ -23,7 +23,7 @@ const BOT_DOT_COMMANDS = new Set([
 ]);
 
 function commandToken(text='') {
-  const token = String(text || '').trim().split(/\\s+/)[0] || '';
+  const token = String(text || '').trim().split(/\s+/)[0] || '';
   return token.replace(/^[/\.]/, '').split('@')[0].toLowerCase();
 }
 

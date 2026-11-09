@@ -208,7 +208,7 @@ function shanResultText(challenge, round, payout) {
 }
 
 
-function editRpsChallengeHTML(bot, challenge, html, extra = {}) {
+function editRpsChallengeHTML(bot, challenge, html, extra = { reply_markup: { inline_keyboard: [] } }) {
   return editByIds(bot, challenge.chatId, challenge.msgId, html, extra, challenge.challengerId);
 }
 
@@ -411,6 +411,11 @@ module.exports = (bot) => {
             challenge,
             '⚠️ <b>RPS Challenge Failed</b>\nA player does not have enough Bal. No Bal was deducted.'
           );
+        }
+
+        if (game.getRps(id) !== challenge || challenge.status !== 'OPEN' || Date.now() >= challenge.expiresAt) {
+          if (game.getRps(id) === challenge) await expireRpsChallenge(bot, id);
+          return answerLocalized(ctx, 'Challenge expired', { show_alert: true });
         }
 
         challenge.status = 'PLAYING';

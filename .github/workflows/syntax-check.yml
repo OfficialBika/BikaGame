@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main, feat/db-two-bot]
   push:
-    branches: [main, feat/db-two-bot]
+    branches: [main, feat/db-two-bot, feat/rps-reply-duel]
 
 jobs:
   javascript:
@@ -61,6 +61,9 @@ jobs:
 
       - name: Run Rock Paper Scissors engine tests
         run: node --test src/games/rpsEngine.test.js
+
+      - name: Run command recognition tests
+        run: node --test src/utils/helpers.test.js
 
       - name: Verify critical middleware/modules load
         run: |
