@@ -57,7 +57,10 @@ jobs:
 
       - name: Smoke-test pure game engines
         run: |
-          node -e "require('./src/games/slotEngine'); require('./src/games/blackjackEngine'); require('./src/games/diceEngine'); require('./src/games/shanEngine'); console.log('game engines OK')"
+          node -e "require('./src/games/slotEngine'); require('./src/games/blackjackEngine'); require('./src/games/diceEngine'); require('./src/games/shanEngine'); require('./src/games/rpsEngine'); console.log('game engines OK')"
+
+      - name: Run Rock Paper Scissors engine tests
+        run: node --test src/games/rpsEngine.test.js
 
       - name: Verify critical middleware/modules load
         run: |

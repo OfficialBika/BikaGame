@@ -10,6 +10,7 @@ const { getTreasury } = require('../services/treasuryService');
 const { HOUSE_CUT_PERCENT, COIN } = require('../config/constants');
 const dice = require('../games/diceEngine');
 const shan = require('../games/shanEngine');
+const rps = require('../games/rpsEngine');
 const { editHTML, editByIds } = require('../utils/telegram');
 const { localizeForUser } = require('../services/i18nService');
 const { fmt } = require('../utils/format');
@@ -206,9 +207,280 @@ function shanResultText(challenge, round, payout) {
   );
 }
 
+
+function editRpsChallengeHTML(bot, challenge, html, extra = {}) {
+  return editByIds(bot, challenge.chatId, challenge.msgId, html, extra, challenge.challengerId);
+}
+
+async function rpsMoveKeyboard(id, localeUserId) {
+  const labels = await Promise.all([
+    localizeForUser(localeUserId, '🪨 Rock'),
+    localizeForUser(localeUserId, '📄 Paper'),
+    localizeForUser(localeUserId, '✂️ Scissors'),
+  ]);
+  return {
+    inline_keyboard: [[
+      { text: labels[0], callback_data: `RPS:MOVE:${id}:ROCK` },
+      { text: labels[1], callback_data: `RPS:MOVE:${id}:PAPER` },
+      { text: labels[2], callback_data: `RPS:MOVE:${id}:SCISSORS` },
+    ]],
+  };
+}
+
+function rpsSelectionText(challenge) {
+  return (
+    `🪨 <b>Rock Paper Scissors</b>\n` +
+    `━━━━━━━━━━━━\n` +
+    `${mentionHtml(challenge.challenger)} <b>VS</b> ${mentionHtml(challenge.target)}\n` +
+    `Bet: <b>${fmt(challenge.bet)}</b> ${COIN} each\n` +
+    `Prize: <b>${fmt(challenge.bet * 2)}</b> ${COIN}\n` +
+    `━━━━━━━━━━━━\n` +
+    `Each player must choose one move.\n` +
+    `🔒 Choices stay hidden until both players have selected.\n` +
+    `⏳ Time limit: <b>60s</b>`
+  );
+}
+
+function rpsResultText(challenge, result) {
+  const moveA = rps.MOVES[result.moveA];
+  const moveB = rps.MOVES[result.moveB];
+  const lines =
+    `${mentionHtml(challenge.challenger)}: ${moveA.emoji} <b>${moveA.label}</b>\n` +
+    `${mentionHtml(challenge.target)}: ${moveB.emoji} <b>${moveB.label}</b>\n` +
+    `━━━━━━━━━━━━\n`;
+
+  if (result.winner === 'TIE') {
+    return (
+      `🤝 <b>RPS RESULT — DRAW</b>\n` +
+      `━━━━━━━━━━━━\n` +
+      lines +
+      `Both selected the same move.\n` +
+      `✅ Both players received their full <b>${fmt(challenge.bet)}</b> ${COIN} refund.\n` +
+      `No commission was deducted.`
+    );
+  }
+
+  const winner = result.winner === 'A' ? challenge.challenger : challenge.target;
+  return (
+    `🏆 <b>ROCK PAPER SCISSORS — WINNER</b>\n` +
+    `━━━━━━━━━━━━\n` +
+    lines +
+    `Winner: ${mentionHtml(winner)}\n` +
+    `✅ Full prize: <b>${fmt(challenge.bet * 2)}</b> ${COIN}\n` +
+    `No commission was deducted.`
+  );
+}
+
+async function settleRpsChallenge(bot, challenge) {
+  if (!challenge || !challenge.moves?.A || !challenge.moves?.B) return;
+  if (!['PLAYING', 'SETTLING'].includes(challenge.status)) return;
+
+  const result = rps.compare(challenge.moves.A, challenge.moves.B);
+  const winnerUserId = result.winner === 'A'
+    ? challenge.challengerId
+    : result.winner === 'B'
+      ? challenge.targetUserId
+      : null;
+  const pot = challenge.bet * 2;
+
+  challenge.status = 'SETTLING';
+  if (challenge.timeoutHandle) {
+    clearTimeout(challenge.timeoutHandle);
+    challenge.timeoutHandle = null;
+  }
+
+  try {
+    await settleDuel({
+      duelId: challenge.id,
+      typePrefix: 'rps',
+      challengerId: challenge.challengerId,
+      targetUserId: challenge.targetUserId,
+      winnerUserId,
+      bet: challenge.bet,
+      payout: winnerUserId ? pot : 0,
+      meta: {
+        chatId: String(challenge.chatId),
+        messageId: challenge.msgId,
+        pot,
+        moveA: result.moveA,
+        moveB: result.moveB,
+        commissionPercent: 0,
+      },
+    });
+
+    game.delRps(challenge.id);
+    return editRpsChallengeHTML(bot, challenge, rpsResultText(challenge, result));
+  } catch (err) {
+    const code = String(err?.message || err);
+    if (code === 'CHALLENGER_INSUFFICIENT' || code === 'TARGET_INSUFFICIENT') {
+      game.delRps(challenge.id);
+      return editRpsChallengeHTML(
+        bot,
+        challenge,
+        '⚠️ <b>RPS Duel Cancelled</b>\n━━━━━━━━━━━━\nA player no longer has enough Bal. The transaction was rolled back, so no Bal was deducted.'
+      );
+    }
+
+    // Keep the immutable choices and same settlement ID so retrying is safe
+    // even when MongoDB reports an uncertain commit acknowledgement.
+    challenge.status = 'SETTLING';
+    return editRpsChallengeHTML(
+      bot,
+      challenge,
+      '⚠️ <b>RPS Settlement Pending</b>\n━━━━━━━━━━━━\nThe result is locked, but the settlement could not be confirmed. Do not start another duel for this match. Either player can retry safely.',
+      {
+        reply_markup: {
+          inline_keyboard: [[{
+            text: '🔄 Retry Settlement',
+            callback_data: `RPS:RETRY:${challenge.id}`,
+          }]],
+        },
+      }
+    );
+  }
+}
+
+async function expireRpsChallenge(bot, id) {
+  const active = game.getRps(id);
+  if (!active || !['OPEN', 'PLAYING'].includes(active.status)) return;
+
+  game.delRps(id);
+  const selectedA = Boolean(active.moves?.A);
+  const selectedB = Boolean(active.moves?.B);
+  const status = active.status === 'OPEN'
+    ? 'The challenge was not accepted in time.'
+    : `Selection timed out. Player A: ${selectedA ? '✅' : '⌛'} | Player B: ${selectedB ? '✅' : '⌛'}`;
+
+  try {
+    await editRpsChallengeHTML(
+      bot,
+      active,
+      `⌛ <b>RPS Duel Expired</b>\n━━━━━━━━━━━━\n${status}\nNo Bal was deducted.`
+    );
+  } catch (_) {}
+}
+
 module.exports = (bot) => {
   bot.on('callback_query', async (ctx, next) => {
     const data = ctx.callbackQuery?.data || '';
+
+    if (data.startsWith('RPS:')) {
+      const [, action, ...rest] = data.split(':');
+      const moveValue = action === 'MOVE' ? rest.pop() : null;
+      const id = rest.join(':');
+      const challenge = game.getRps(id);
+
+      if (!challenge) return answerLocalized(ctx, 'Challenge expired', { show_alert: true });
+
+      if (action === 'CANCEL') return withLock(`rps:state:${id}`, async () => {
+        if (String(ctx.from.id) !== String(challenge.challengerId)) {
+          return answerLocalized(ctx, 'Only the challenger can cancel this duel.', { show_alert: true });
+        }
+        if (challenge.status !== 'OPEN') {
+          return answerLocalized(ctx, 'This duel can no longer be cancelled.', { show_alert: true });
+        }
+        game.delRps(id);
+        await answerLocalized(ctx, 'Cancelled');
+        return editRpsChallengeHTML(bot, challenge, '❌ <b>RPS Duel Cancelled</b>\\nNo Bal was deducted.');
+      });
+
+      if (action === 'ACCEPT') return withLock(`rps:state:${id}`, async () => {
+        if (String(ctx.from.id) !== String(challenge.targetUserId)) {
+          return answerLocalized(ctx, 'Only the challenged player can accept this duel.', { show_alert: true });
+        }
+        if (challenge.status !== 'OPEN') {
+          return answerLocalized(ctx, 'This challenge is no longer available.', { show_alert: true });
+        }
+        if (Date.now() >= challenge.expiresAt) {
+          game.delRps(id);
+          await answerLocalized(ctx, 'Challenge expired', { show_alert: true });
+          return editRpsChallengeHTML(bot, challenge, '⌛ <b>RPS Challenge Expired</b>\\nNo Bal was deducted.');
+        }
+
+        await answerLocalized(ctx, 'Challenge accepted. Choose your move.');
+        const [challenger, target] = await Promise.all([
+          getUser(challenge.challengerId),
+          getUser(challenge.targetUserId),
+        ]);
+        if (!challenger || !target ||
+            Number(challenger.balance || 0) < challenge.bet ||
+            Number(target.balance || 0) < challenge.bet) {
+          game.delRps(id);
+          return editRpsChallengeHTML(
+            bot,
+            challenge,
+            '⚠️ <b>RPS Challenge Failed</b>\\nA player does not have enough Bal. No Bal was deducted.'
+          );
+        }
+
+        challenge.status = 'PLAYING';
+        challenge.moves = { A: null, B: null };
+        challenge.expiresAt = Date.now() + RPS.timeoutMs;
+        if (challenge.timeoutHandle) clearTimeout(challenge.timeoutHandle);
+        challenge.timeoutHandle = setTimeout(() => expireRpsChallenge(bot, id), RPS.timeoutMs);
+        challenge.timeoutHandle.unref?.();
+
+        return editRpsChallengeHTML(
+          bot,
+          challenge,
+          rpsSelectionText(challenge),
+          { reply_markup: await rpsMoveKeyboard(id, challenge.challengerId) }
+        );
+      });
+
+      if (action === 'MOVE') return withLock(`rps:move:${id}:${ctx.from.id}`, async () => {
+        if (game.getRps(id) !== challenge || challenge.status !== 'PLAYING') {
+          return answerLocalized(ctx, 'This RPS selection is no longer active.', { show_alert: true });
+        }
+        if (Date.now() >= challenge.expiresAt) {
+          await expireRpsChallenge(bot, id);
+          return answerLocalized(ctx, 'Selection time expired', { show_alert: true });
+        }
+
+        const side = String(ctx.from.id) === String(challenge.challengerId)
+          ? 'A'
+          : String(ctx.from.id) === String(challenge.targetUserId)
+            ? 'B'
+            : null;
+        if (!side) return answerLocalized(ctx, 'You are not a player in this duel.', { show_alert: true });
+
+        let move;
+        try {
+          move = rps.normalizeMove(moveValue);
+        } catch (_) {
+          return answerLocalized(ctx, 'Invalid move.', { show_alert: true });
+        }
+
+        if (challenge.moves?.[side]) {
+          return answerLocalized(ctx, 'You have already selected your move.', { show_alert: true });
+        }
+
+        challenge.moves[side] = move;
+        await answerLocalized(ctx, 'Your move is locked. Waiting for the opponent.');
+
+        if (challenge.moves.A && challenge.moves.B) {
+          return withLock(`rps:settle:${id}`, () => settleRpsChallenge(bot, challenge));
+        }
+        return;
+      });
+
+      if (action === 'RETRY') return withLock(`rps:settle:${id}`, async () => {
+        if (
+          String(ctx.from.id) !== String(challenge.challengerId) &&
+          String(ctx.from.id) !== String(challenge.targetUserId)
+        ) {
+          return answerLocalized(ctx, 'You are not a player in this duel.', { show_alert: true });
+        }
+        if (challenge.status !== 'SETTLING') {
+          return answerLocalized(ctx, 'There is no pending settlement to retry.', { show_alert: true });
+        }
+        await answerLocalized(ctx, 'Retrying the same settlement safely...');
+        return settleRpsChallenge(bot, challenge);
+      });
+
+      return answerLocalized(ctx, 'Unknown RPS action.', { show_alert: true });
+    }
+
 
     if (data.startsWith('BUY:') && bot._bikaHandleBuy) {
       // BUY:R:divine -> R:divine

@@ -19,7 +19,7 @@ const BOT_SLASH_COMMANDS = new Set([
 ]);
 
 const BOT_DOT_COMMANDS = new Set([
-  'slot','blackjack','bj','mines','crash','dice','shan','2d','twod','sports'
+  'slot','blackjack','bj','mines','crash','dice','shan','rps','2d','twod','sports'
 ]);
 
 function commandToken(text='') {

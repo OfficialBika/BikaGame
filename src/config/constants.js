@@ -7,6 +7,7 @@ module.exports = {
   SLOT: { minBet: 50, maxBet: 15000, cooldownMs: 700, capPercent: 0.30, maxActive: 10 },
   DICE: { minBet: 10, maxBet: 99990000, timeoutMs: 60000, maxActive: 5 },
   SHAN: { minBet: 10, maxBet: 99900000, timeoutMs: 60000, maxActive: 5 },
+  RPS: { minBet: 10, maxBet: 500000, timeoutMs: 60000, maxActive: 5 },
   BLACKJACK: { minBet: 50, maxBet: 300000, cooldownMs: 1500 },
   MINES: {
     minBet: Number(process.env.MINES_MIN_BET || 50),
