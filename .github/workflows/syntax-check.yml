@@ -65,6 +65,9 @@ jobs:
       - name: Run command recognition tests
         run: node --test src/utils/helpers.test.js
 
+      - name: Run RPS session cleanup tests
+        run: node --test src/services/gameService.test.js
+
       - name: Verify critical middleware/modules load
         run: |
           BOT_TOKEN=ci-test MONGO_URI=mongodb://127.0.0.1:27017/bika_ci OWNER_ID=1 node -e "require('./src/utils/helpers'); require('./src/middlewares/maintenance'); require('./src/middlewares/groupApproval'); require('./src/services/broadcastService'); require('./src/commands/admin/broadcast'); require('./src/handlers/callbackHandler'); require('./src/commands/games/rps'); console.log('middleware/game modules OK')"
