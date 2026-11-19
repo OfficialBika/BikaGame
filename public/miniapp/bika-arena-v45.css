@@ -57,8 +57,8 @@ body.bika-v41{background:radial-gradient(900px 480px at 12% -10%,rgba(52,102,255
 .art-caption{display:block;padding:3px 7px;border:1px solid rgba(170,213,255,.16);border-radius:999px;background:rgba(4,10,23,.48);color:rgba(224,243,255,.8);font-size:7px;font-weight:850;letter-spacing:.16em;text-align:center}
 .rocket-art{background:radial-gradient(ellipse at 50% 10%,rgba(57,194,255,.22),transparent 54%),linear-gradient(145deg,#0a2343,#0c102a 70%,#140e2c)}
 .slot-art{background:radial-gradient(ellipse at 50% 20%,rgba(255,207,99,.22),transparent 55%),linear-gradient(145deg,#332014,#1b1230 70%,#130b21)}
-.blackjack-art{background:radial-gradient(ellipse at 50% 18%,rgba(255,93,159,.2),transparent 58%),linear-gradient(145deg,#2b1028,#15122c 72%,#0b1124)}
-.shan-art{background:radial-gradient(ellipse at 52% 16%,rgba(169,133,255,.23),transparent 55%),linear-gradient(145deg,#22154c,#11172d 70%,#081a2b)}
+
+
 .plinko-art{background:radial-gradient(ellipse at 50% 12%,rgba(79,229,196,.2),transparent 55%),linear-gradient(145deg,#092b32,#111a33 70%,#0c1021)}
 .wheel-art{background:radial-gradient(ellipse at 50% 16%,rgba(255,203,91,.2),transparent 55%),linear-gradient(145deg,#3a2510,#21142e 72%,#111026)}
 .mines-art{background:radial-gradient(ellipse at 50% 16%,rgba(101,153,255,.22),transparent 55%),linear-gradient(145deg,#102849,#15132e 70%,#090d1c)}
@@ -86,8 +86,8 @@ body.bika-v41{background:radial-gradient(900px 480px at 12% -10%,rgba(52,102,255
 .games-page-card button:active{transform:scale(.98)}
 .game-card-crash{background:radial-gradient(ellipse at 80% 0,rgba(63,196,255,.16),transparent 52%),linear-gradient(150deg,rgba(16,38,68,.96),rgba(7,13,27,.98))}
 .game-card-slot{background:radial-gradient(ellipse at 80% 0,rgba(255,207,99,.15),transparent 52%),linear-gradient(150deg,rgba(52,32,23,.96),rgba(12,13,30,.98))}
-.game-card-blackjack{background:radial-gradient(ellipse at 80% 0,rgba(255,93,159,.14),transparent 52%),linear-gradient(150deg,rgba(46,18,44,.96),rgba(10,14,30,.98))}
-.game-card-shan{background:radial-gradient(ellipse at 80% 0,rgba(169,133,255,.16),transparent 52%),linear-gradient(150deg,rgba(37,26,74,.96),rgba(8,17,32,.98))}
+
+
 .game-card-plinko{background:radial-gradient(ellipse at 80% 0,rgba(79,229,196,.13),transparent 52%),linear-gradient(150deg,rgba(12,46,49,.96),rgba(8,17,32,.98))}
 .game-card-wheel{background:radial-gradient(ellipse at 80% 0,rgba(255,203,91,.14),transparent 52%),linear-gradient(150deg,rgba(57,40,20,.96),rgba(12,14,31,.98))}
 .game-card-mines{background:radial-gradient(ellipse at 80% 0,rgba(101,153,255,.15),transparent 52%),linear-gradient(150deg,rgba(17,40,70,.96),rgba(8,15,31,.98))}
@@ -109,9 +109,9 @@ body.bika-v41{background:radial-gradient(900px 480px at 12% -10%,rgba(52,102,255
 .single-game-card .history-list{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
 #slot .slot-machine{border:1px solid rgba(255,201,106,.22);border-radius:18px;background:radial-gradient(ellipse at 50% 0,rgba(255,205,110,.12),transparent 58%),linear-gradient(150deg,#27182a,#0c1228)}
 #slot .reel-window{border-color:rgba(255,211,120,.3);background:linear-gradient(180deg,#090f1f,#1a1830);box-shadow:inset 0 0 24px rgba(0,0,0,.45)}
-#blackjack .blackjack-table,#shan .shan-table{border:1px solid rgba(93,220,190,.2);box-shadow:inset 0 0 55px rgba(0,0,0,.28),0 18px 42px rgba(0,0,0,.2)}
-#blackjack .blackjack-table{background:radial-gradient(ellipse at center,rgba(31,123,105,.35),transparent 68%),linear-gradient(145deg,#0d4c43,#092a30)}
-#shan .shan-table{background:radial-gradient(ellipse at 50% 45%,rgba(91,66,161,.28),transparent 65%),linear-gradient(145deg,#102f42,#17132c)}
+#blackjack .blackjack-table,
+
+
 #plinko .plinko-board{border:1px solid rgba(103,233,255,.16);border-radius:16px;background:radial-gradient(ellipse at 50% 0,rgba(103,233,255,.09),transparent 58%),rgba(3,9,21,.75)}
 #wheel .wheel-premium-card{border:1px solid rgba(255,210,117,.2);background:radial-gradient(ellipse at 50% 25%,rgba(255,190,73,.11),transparent 55%),linear-gradient(155deg,#1d1730,#091225)}
 #wheel .wheel-wrap{filter:drop-shadow(0 12px 25px rgba(0,0,0,.42))}
@@ -128,8 +128,8 @@ body.bika-v41{background:radial-gradient(900px 480px at 12% -10%,rgba(52,102,255
  .single-game-card .bet-panel{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
  .single-game-card .bet-input{grid-column:1/-1;width:100%}
  .single-game-card .bet-panel .primary-btn,.single-game-card .bet-panel .secondary-btn,.single-game-card .bet-panel .cashout-btn{width:100%;min-width:0}
- #shan .bet-panel.dual{grid-template-columns:repeat(2,minmax(0,1fr))}
- #shan .bet-panel.dual .bet-input{grid-column:1/-1}
+ 
+ 
  #plinko .plinko-board{min-height:260px}
  #wheel .wheel-stage-grid{grid-template-columns:minmax(0,1fr)}
  #wheel .wheel-info{width:100%}
