@@ -66,3 +66,12 @@ body.bika-v41{background:radial-gradient(900px 480px at 12% -10%,rgba(52,102,255
 .game-tile:focus-visible{outline:2px solid var(--a-cyan);outline-offset:3px}
 .game-tile .tile-badge{z-index:2}
 @media(max-width:680px){.art-symbol{font-size:clamp(35px,11vw,48px)}.art-caption{font-size:6px;letter-spacing:.12em}}
+
+/* Tile art refinements — restrained 3D lighting and depth */
+.game-art{isolation:isolate;box-shadow:inset 0 1px rgba(255,255,255,.09),inset 0 -22px 34px rgba(0,0,0,.2)}
+.game-art:before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;background:linear-gradient(115deg,rgba(255,255,255,.08),transparent 29%,transparent 73%,rgba(255,255,255,.035))}
+.art-symbol{position:relative;text-shadow:0 5px 0 rgba(0,0,0,.12);transition:transform .2s ease,filter .2s ease}
+.game-tile:hover .art-symbol{transform:translateY(-3px) scale(1.045);filter:drop-shadow(0 10px 18px rgba(0,0,0,.55))}
+.game-art .tile-badge{box-shadow:0 4px 16px rgba(0,0,0,.24)}
+.game-tile small{color:rgba(194,210,236,.72)}
+.game-tile h3{color:#f3f7ff}
