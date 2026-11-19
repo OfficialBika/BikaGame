@@ -96,6 +96,8 @@ async function refreshHomeDashboard(){
 }
 function settings(){openPage(miniTranslate('Settings'),'<div class="bnp-kicker">BIKA PREFERENCES</div><h2 class="bnp-heading">Language</h2><section class="bnp-card wallet-card"><label class="wallet-label" for="miniLanguage">DISPLAY LANGUAGE</label><select id="miniLanguage" class="wallet-input"><option value="my">🇲🇲 မြန်မာ</option><option value="en">🇬🇧 English</option><option value="cn">🇨🇳 中文</option><option value="jp">🇯🇵 日本語</option><option value="kr">🇰🇷 한국어</option><option value="fr">🇫🇷 Français</option><option value="ru">🇷🇺 Русский</option><option value="hi">🇮🇳 हिन्दी</option><option value="ar">🇸🇦 العربية</option></select><div id="miniLanguageStatus" class="wallet-status"></div></section>');const select=document.getElementById('miniLanguage'),status=document.getElementById('miniLanguageStatus');select.value=currentLocale;select.onchange=async()=>{select.disabled=true;status.textContent='Saving…';try{await api('/api/mini/language',{language:select.value});currentLocale=select.value;window.bikaSetLocale(currentLocale);status.textContent=miniTranslate('Language saved',currentLocale);toast(status.textContent)}catch(e){status.textContent=e.message}finally{select.disabled=false}}}
 function bindSidebar(){
+  const globalSearch=document.getElementById('globalGameSearch');
+  if(globalSearch){globalSearch.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();games(globalSearch.value)}});globalSearch.addEventListener('search',()=>{if(!globalSearch.value.trim()){closePage();window.openPanel?.('home')}})}
   document.querySelectorAll('.side-item[data-nav]').forEach(function(btn){
     btn.addEventListener('click',function(){
       const t=btn.dataset.nav;
