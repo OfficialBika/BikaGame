@@ -611,20 +611,34 @@ function wheelFallbackBuild(segments) {
   const list = Array.isArray(segments) ? segments : [];
   const palette = ['#ff3f73','#ff5d3b','#ffd158','#58e64f','#15cfc7','#229be8','#5363ff','#9347ff','#d83bc6','#f24970'];
   const colors = list.map((s, i) => /^#[0-9a-f]{3,8}$/i.test(String(s.color || '')) ? s.color : palette[i % palette.length]);
+  const count = Math.max(1, colors.length);
+  const step = 360 / count;
   disk.classList.remove('wheel-3d-host');
   disk.classList.add('wheel-2d-fallback');
-  disk.style.setProperty('--fallback-count', String(Math.max(1, colors.length)));
-  disk.style.background = `conic-gradient(from -90deg,${colors.map((color, i) => `${color} ${i * (360 / colors.length)}deg ${(i + 1) * (360 / colors.length)}deg`).join(',')})`;
-  disk.innerHTML = '';
-  if (legend) legend.innerHTML = list.map((s) => `<span>${escapeHtml(s.label || '')}</span>`).join('');
+  disk.style.setProperty('--fallback-count', String(count));
+  disk.style.background = `conic-gradient(from -90deg,${colors.map((color, i) => `${color} ${i * step}deg ${(i + 1) * step}deg`).join(',')})`;
+  disk.innerHTML = list.map((segment, i) => {
+    const angle = i * step + step / 2;
+    return `<span class="wheel-mark" style="--a:${angle}deg"><i>${escapeHtml(segment.label || '')}</i></span>`;
+  }).join('');
+  if (legend) legend.innerHTML = list.map((segment, i) => `<span class="legend-${i}" style="--c:${escapeHtml(colors[i])}">${escapeHtml(segment.label || '')}</span>`).join('');
 }
 
 async function loadWheel3D() {
   if (wheel3D) return wheel3D;
   if (wheel3DReady) return wheel3DReady;
-  wheel3DReady = import('/miniapp/wheel-three-v1.js?v=20261007-v53')
+  // Telegram Android WebViews vary widely in WebGL support. Use the fully
+  // rendered CSS wheel on phones so a failed/black WebGL canvas can never
+  // replace the usable wheel with an empty disk.
+  if (window.matchMedia?.('(max-width: 680px)').matches || window.innerWidth <= 680) {
+    wheelFallbackBuild(config?.wheel?.segments || []);
+    wheel3DReady = Promise.resolve(null);
+    return wheel3DReady;
+  }
+  wheel3DReady = import('/miniapp/wheel-three-v1.js?v=20261119-v54')
     .then((mod) => mod.createBikaWheel3D($('wheelDisk'), config?.wheel?.segments || []))
     .then((instance) => {
+      if (!instance) throw new Error('Three.js wheel did not initialize');
       wheel3D = instance;
       $('wheelDisk')?.classList.remove('wheel-2d-fallback');
       wheel3D.refresh(config?.wheel?.segments || []);
@@ -632,7 +646,7 @@ async function loadWheel3D() {
     })
     .catch((err) => {
       wheel3DReady = null;
-      console.warn('BIKA Three.js wheel unavailable; keeping visual fallback.', err);
+      console.warn('BIKA Three.js wheel unavailable; using CSS wheel.', err);
       wheelFallbackBuild(config?.wheel?.segments || []);
       return null;
     });
