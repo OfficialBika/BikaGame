@@ -171,3 +171,140 @@ body.bika-v41{background:radial-gradient(900px 480px at 12% -10%,rgba(52,102,255
  .game-art{min-height:74px}.game-tile>strong{font-size:8px;padding:7px 4px}
  .game-tile small{font-size:9px}.hero-tags{gap:5px;flex-wrap:wrap}.hero-tags span{font-size:8px}
 }
+
+
+/* v54 — functional mobile Plinko board and readable CSS wheel fallback */
+#plinko .plinko-board{
+  position:relative;
+  width:100%;
+  height:clamp(330px,72vw,470px);
+  min-height:330px;
+  overflow:hidden;
+  isolation:isolate;
+  contain:layout paint;
+  background:
+    radial-gradient(ellipse at 50% 42%,rgba(36,119,151,.13),transparent 58%),
+    linear-gradient(180deg,rgba(5,17,34,.98),rgba(3,9,21,.98));
+}
+#plinko .plinko-head{
+  position:absolute;
+  z-index:2;
+  top:15px;
+  left:0;
+  right:0;
+  color:#9ab8ff;
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:.22em;
+  text-align:center;
+  pointer-events:none;
+}
+#plinko .plinko-lane{
+  position:absolute;
+  inset:42px 5% 18px;
+  border-inline:1px solid rgba(95,205,226,.08);
+  background:linear-gradient(90deg,transparent 49.8%,rgba(101,225,238,.045) 50%,transparent 50.2%);
+  pointer-events:none;
+}
+#plinko .plinko-pin{
+  position:absolute;
+  z-index:1;
+  display:block;
+  width:clamp(4px,1.15vw,7px);
+  height:clamp(4px,1.15vw,7px);
+  border-radius:50%;
+  transform:translate(-50%,-50%);
+  background:radial-gradient(circle at 32% 28%,#efffff 0 12%,#78e9ff 34%,#3286bd 72%,#17365e 100%);
+  border:1px solid rgba(200,250,255,.58);
+  box-shadow:0 0 5px rgba(71,221,255,.45),0 0 11px rgba(53,157,255,.22);
+  pointer-events:none;
+}
+#plinko .plinko-ball{
+  position:absolute;
+  z-index:4;
+  width:clamp(13px,3.5vw,19px);
+  height:clamp(13px,3.5vw,19px);
+  border-radius:50%;
+  background:radial-gradient(circle at 30% 25%,#fff8c6 0 10%,#ffe35b 28%,#ff9b27 72%,#bd4c13 100%);
+  border:1px solid rgba(255,246,184,.9);
+  box-shadow:0 0 9px rgba(255,202,72,.85),0 0 22px rgba(255,157,41,.45);
+  will-change:left,top,transform;
+  transition:left .23s cubic-bezier(.2,.75,.25,1),top .23s cubic-bezier(.2,.75,.25,1),transform .23s ease;
+  pointer-events:none;
+}
+#plinko .plinko-ball.settled{filter:drop-shadow(0 0 9px rgba(255,206,77,.9))}
+#plinko .bucket-row{
+  display:flex;
+  width:100%;
+  gap:3px;
+  margin:8px 0 14px;
+  padding:0 2px;
+  overflow:hidden;
+}
+#plinko .bucket{
+  display:flex;
+  flex:1 1 0;
+  min-width:0;
+  min-height:34px;
+  align-items:center;
+  justify-content:center;
+  padding:4px 2px;
+  border:1px solid rgba(112,166,224,.2);
+  border-radius:7px;
+  background:linear-gradient(180deg,rgba(24,42,72,.95),rgba(8,18,36,.98));
+  color:#c8d9ff;
+  font-size:clamp(8px,2.15vw,11px);
+  font-weight:850;
+  line-height:1.1;
+  text-align:center;
+  overflow-wrap:anywhere;
+}
+#plinko .bucket.hit{
+  border-color:rgba(255,213,94,.85);
+  color:#fff4bd;
+  background:linear-gradient(180deg,rgba(154,103,30,.9),rgba(76,42,18,.98));
+  box-shadow:0 0 12px rgba(255,191,69,.24),inset 0 0 10px rgba(255,221,112,.13);
+}
+#wheel .wheel-disk.wheel-2d-fallback{
+  border:12px solid #11182b!important;
+  background-clip:padding-box;
+  overflow:visible;
+}
+#wheel .wheel-disk.wheel-2d-fallback .wheel-mark{
+  position:absolute;
+  left:50%;
+  top:50%;
+  width:0;
+  height:0;
+  transform:rotate(var(--a)) translateY(calc(-1 * min(205px,27vw)));
+  transform-origin:0 0;
+  z-index:3;
+  pointer-events:none;
+}
+#wheel .wheel-disk.wheel-2d-fallback .wheel-mark i{
+  display:block;
+  min-width:0!important;
+  max-width:68px;
+  padding:3px 2px!important;
+  transform:rotate(calc(-1 * var(--a))) translate(-50%,-50%);
+  color:#fff!important;
+  font-size:clamp(9px,2.2vw,13px)!important;
+  line-height:1.05;
+  font-style:normal;
+  font-weight:1000;
+  text-align:center;
+  text-shadow:0 2px 5px rgba(0,0,0,.95),0 0 8px rgba(0,0,0,.75);
+  white-space:nowrap;
+}
+@media(max-width:680px){
+  #plinko .plinko-board{height:clamp(300px,88vw,390px);min-height:300px}
+  #plinko .plinko-head{top:12px;font-size:9px}
+  #plinko .plinko-lane{inset:36px 4% 12px}
+  #plinko .bucket-row{gap:2px;margin-top:7px}
+  #plinko .bucket{min-height:30px;border-radius:6px;padding:3px 1px}
+  #wheel .wheel-wrap{width:min(88vw,390px)!important;height:min(88vw,390px)!important}
+  #wheel .wheel-disk.wheel-2d-fallback .wheel-mark{transform:rotate(var(--a)) translateY(calc(-1 * min(151px,27vw)))}
+  #wheel .wheel-disk.wheel-2d-fallback .wheel-mark i{font-size:clamp(8px,2.25vw,11px)!important;max-width:52px}
+  .nav-tabs .tab{min-width:0;overflow:hidden}
+  .nav-tabs .tab span{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
