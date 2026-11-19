@@ -539,7 +539,8 @@ async function animatePlinkoPath(data) {
   if (board) board.classList.remove('dropping');
   await sleep(250);
 }
-async function dropPlinko() { const btn = $('plinkoBtn'); setBusy(btn, true, 'DROPPING...'); setClass('plinkoResult','result muted'); setText('plinkoResult','🟡 Ball တစ်ချက်ချင်းလှိမ့်ကျနေပါတယ်...'); renderPlinkoBuckets(); try { const data = await api('/api/mini/plinko/drop', { bet: $('plinkoBet')?.value }); await animatePlinkoPath(data); renderPlinkoBuckets(data.bucket.index); setBalance(data.balance); const won = Number(data.payout || 0) > Number(data.bet || 0); setClass('plinkoResult', `result ${won ? 'win' : Number(data.payout) > 0 ? '' : 'lose'}`); setHTML('plinkoResult', `Bucket: <b>${escapeHtml(data.bucket.label)}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`); AudioFX.sfx(won ? 'win' : Number(data.payout) > 0 ? 'cashout' : 'lose'); refreshAllVisibleHistory(); } catch (err) { setClass('plinkoResult','result lose'); setText('plinkoResult', err.message); AudioFX.sfx('error'); } finally { setBusy(btn, false); } }
+let plinkoActionBusy = false;
+async function dropPlinko() { if (plinkoActionBusy) return; plinkoActionBusy = true; const btn = $('plinkoBtn'); setBusy(btn, true, 'DROPPING...'); setClass('plinkoResult','result muted'); setText('plinkoResult','🟡 Ball တစ်ချက်ချင်းလှိမ့်ကျနေပါတယ်...'); renderPlinkoBuckets(); try { const data = await api('/api/mini/plinko/drop', { bet: $('plinkoBet')?.value }); await animatePlinkoPath(data); renderPlinkoBuckets(data.bucket.index); setBalance(data.balance); const won = Number(data.payout || 0) > Number(data.bet || 0); setClass('plinkoResult', `result ${won ? 'win' : Number(data.payout) > 0 ? '' : 'lose'}`); setHTML('plinkoResult', `Bucket: <b>${escapeHtml(data.bucket.label)}</b> • Payout: <b>${fmt(data.payout)} ${coin()}</b> • Net: <b>${fmt(data.net)} ${coin()}</b>`); AudioFX.sfx(won ? 'win' : Number(data.payout) > 0 ? 'cashout' : 'lose'); refreshAllVisibleHistory(); } catch (err) { setClass('plinkoResult','result lose'); setText('plinkoResult', err.message); AudioFX.sfx('error'); } finally { plinkoActionBusy = false; setBusy(btn, false); } }
 
 
 function renderMinesBoard(game) { const board = $('minesBoard'); if (!board) return; const tiles = game?.tiles || Array.from({length:25}, (_, i) => ({ index:i, label:'hidden' })); board.innerHTML = tiles.map((t) => { const cls = t.exploded ? 'boom' : t.label === 'mine' ? 'mine' : t.opened ? 'safe' : ''; const icon = t.exploded ? '💥' : t.label === 'mine' ? '💣' : t.opened ? '💎' : '?'; return `<button class="mine-tile ${cls}" data-mine-index="${t.index}" ${game?.state !== 'playing' || t.opened ? 'disabled' : ''}>${icon}</button>`; }).join(''); }
@@ -663,7 +664,10 @@ function buildWheel() {
   loadWheel3D().catch(() => null);
 }
 
+let wheelActionBusy = false;
 async function spinWheel() {
+  if (wheelActionBusy) return;
+  wheelActionBusy = true;
   const btn = $('wheelBtn');
   const centerBtn = $('wheelCenterBtn');
   setBusy(btn, true, 'SPINNING...');
@@ -690,6 +694,7 @@ async function spinWheel() {
     setText('wheelResult', err.message);
     tg?.HapticFeedback?.notificationOccurred?.('error');
   } finally {
+    wheelActionBusy = false;
     setBusy(btn, false);
     if (centerBtn) { centerBtn.disabled = false; centerBtn.classList.remove('is-busy'); centerBtn.removeAttribute('aria-busy'); }
   }
