@@ -111,7 +111,7 @@ body.bika-v41{background:radial-gradient(900px 480px at 12% -10%,rgba(52,102,255
 #slot .reel-window{border-color:rgba(255,211,120,.3);background:linear-gradient(180deg,#090f1f,#1a1830);box-shadow:inset 0 0 24px rgba(0,0,0,.45)}
 #plinko .plinko-board{border:1px solid rgba(103,233,255,.16);border-radius:16px;background:radial-gradient(ellipse at 50% 0,rgba(103,233,255,.09),transparent 58%),rgba(3,9,21,.75)}
 #wheel .wheel-premium-card{border:1px solid rgba(255,210,117,.2);background:radial-gradient(ellipse at 50% 25%,rgba(255,190,73,.11),transparent 55%),linear-gradient(155deg,#1d1730,#091225)}
-#wheel .wheel-wrap{filter:drop-shadow(0 12px 25px rgba(0,0,0,.42))}
+#wheel .wheel-wrap{filter:drop-shadow(0 12px 25px rgba(0,0,0,.42));width:min(86vw,390px);height:auto;aspect-ratio:1;max-width:100%;margin-inline:auto;position:relative;isolation:isolate}#wheel .wheel-disk{width:100%;height:100%;max-width:100%;aspect-ratio:1;box-sizing:border-box;transform-origin:50% 50%;will-change:transform}#wheel .wheel-pointer{z-index:5}#wheel .wheel-2d-fallback .wheel-mark{pointer-events:none}
 #mines .mines-board{gap:8px}
 #mines .mine-tile{min-width:0;aspect-ratio:1;border:1px solid rgba(115,166,231,.17);border-radius:12px;background:linear-gradient(145deg,#192b4b,#0a1429);box-shadow:inset 0 1px rgba(255,255,255,.05),0 5px 12px rgba(0,0,0,.18);font-size:clamp(18px,5vw,26px);transition:transform .13s,border-color .13s,background .13s}
 #mines .mine-tile:not(:disabled):active{transform:scale(.94);border-color:rgba(103,233,255,.5)}
