@@ -616,7 +616,7 @@ function wheelFallbackBuild(segments) {
   disk.classList.remove('wheel-3d-host');
   disk.classList.add('wheel-2d-fallback');
   disk.style.setProperty('--fallback-count', String(count));
-  disk.style.background = `conic-gradient(from -90deg,${colors.map((color, i) => `${color} ${i * step}deg ${(i + 1) * step}deg`).join(',')})`;
+  disk.style.setProperty('background', `conic-gradient(from -90deg,${colors.map((color, i) => `${color} ${i * step}deg ${(i + 1) * step}deg`).join(',')})`, 'important');
   disk.innerHTML = list.map((segment, i) => {
     const angle = i * step + step / 2;
     return `<span class="wheel-mark" style="--a:${angle}deg"><i>${escapeHtml(segment.label || '')}</i></span>`;
