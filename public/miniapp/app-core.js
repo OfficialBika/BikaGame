@@ -21,20 +21,12 @@ function parseStartTarget() {
   const start = getStartParam();
   const queryGame = urlParams.get('game') || '';
   const queryRoom = urlParams.get('room') || '';
-  if (/^wbj_/i.test(start)) return { game: 'blackjack', room: start.replace(/^wbj_/i, '') };
-  if (/^(blackjack|webbj|bj)$/i.test(start)) return { game: 'blackjack', room: queryRoom };
-  if (/^wshan_/i.test(start)) return { game: 'shan', room: start.replace(/^wshan_/i, '') };
-  if (/^(shan|wshan|skm)$/i.test(start)) return { game: 'shan', room: queryRoom };
   return { game: queryGame, room: queryRoom };
 }
 const startTarget = parseStartTarget();
-let currentBjRoomId = startTarget.game === 'blackjack' ? (startTarget.room || '') : '';
-let currentShanRoomId = startTarget.game === 'shan' ? (startTarget.room || '') : '';
-let bjPollTimer = null;
-let shanPollTimer = null;
 
 const SLOT_SYMBOLS = ['🍒', '🍋', '🍉', '🔔', '⭐', 'BAR', '7️⃣'];
-const PANEL_TO_GAME = { crash: 'rocket', slot: 'slot', blackjack: 'blackjack', shan: 'shan', plinko: 'plinko', wheel: 'wheel', mines: 'mines' };
+const PANEL_TO_GAME = { crash: 'rocket', slot: 'slot', plinko: 'plinko', wheel: 'wheel', mines: 'mines' };
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Number(n || 0).toLocaleString('en-US');
 const coin = () => config?.coin || '$';
@@ -45,9 +37,9 @@ const AudioFX = (() => {
   const KEY_ON = 'bika_audio_enabled_v13';
   const KEY_MUSIC = 'bika_audio_music_v13';
   const KEY_SFX = 'bika_audio_sfx_v13';
-  const sceneNames = { home:'Lobby Ambience', crash:'Rocket Engine', slot:'Slot Neon', blackjack:'Blackjack Table', shan:'Shan Cards', plinko:'Plinko Bounce', wheel:'Lucky Wheel', mines:'Mines Tension' };
+  const sceneNames = { home:'Lobby Ambience', crash:'Rocket Engine', slot:'Slot Neon', plinko:'Plinko Bounce', wheel:'Lucky Wheel', mines:'Mines Tension' };
   const scales = {
-    home:[196,246.94,293.66,392], crash:[110,146.83,220,293.66], slot:[261.63,329.63,392,523.25], blackjack:[174.61,220,261.63,329.63], shan:[196,233.08,293.66,349.23], plinko:[293.66,369.99,440,587.33], wheel:[261.63,329.63,392,493.88], mines:[82.41,110,164.81,220]
+    home:[196,246.94,293.66,392], crash:[110,146.83,220,293.66], slot:[261.63,329.63,392,523.25], plinko:[293.66,369.99,440,587.33], wheel:[261.63,329.63,392,493.88], mines:[82.41,110,164.81,220]
   };
   let ctx = null, master = null, musicGain = null, sfxGain = null, musicTimer = null, enabled = localStorage.getItem(KEY_ON) === '1', scene = 'home', step = 0;
   let musicVolume = Number(localStorage.getItem(KEY_MUSIC) || 32) / 100;
@@ -218,8 +210,6 @@ function openPanel(id) {
   const game = PANEL_TO_GAME[id];
   if (game) loadHistory(game).catch(() => null);
   if (id === 'wheel') loadWheelDailyStatus().catch(() => null);
-  if (id === 'blackjack') startBjPolling();
-  if (id === 'shan') { if (currentShanRoomId) { loadShanStatus().catch(() => null); startShanPolling(); } }
 }
 
 
@@ -707,277 +697,13 @@ async function spinDailyWheel() {
 }
 
 
-function bjCardHtml(card) {
-  if (!card || card.hidden) return '<span class="bj-card back"><i>BIKA</i></span>';
-  const red = card.red ? ' red' : '';
-  return `<span class="bj-card${red}"><b>${escapeHtml(card.rank)}</b><em>${escapeHtml(card.suit)}</em></span>`;
-}
-function bjStatusText(status, result) {
-  if (result) return result === 'BLACKJACK' ? 'BLACKJACK' : result;
-  const map = { waiting: 'WAITING', playing: 'YOUR TURN', stand: 'STAND', bust: 'BUST', blackjack: 'BLACKJACK', settled: 'DONE' };
-  return map[status] || String(status || '—').toUpperCase();
-}
-function renderBjRoom(data = {}) {
-  const room = data.room;
-  if (data.balance != null) setBalance(data.balance);
-  if (!room) return;
-  currentBjRoomId = room.id || currentBjRoomId;
-  setText('bjTableTitle', room.title || 'Blackjack Table');
-  setText('bjRoomState', String(room.state || 'NO ROOM').toUpperCase());
-  setText('bjRoomCount', `${room.playerCount || 0}/${room.maxPlayers || 5}`);
-  const hint = room.state === 'lobby'
-    ? `Join time: ${room.joinSecondsLeft || 0}s • ${room.maxPlayers || 5} players max`
-    : room.state === 'playing'
-      ? `Action time: ${room.actionSecondsLeft || 0}s • Hit or Stand`
-      : room.state === 'finished'
-        ? 'Dealer compared all hands. Send .wbj for a new table.'
-        : 'Blackjack table status';
-  setText('bjRoomHint', hint);
-
-  const dealer = room.dealer || {};
-  setText('bjDealerTotal', dealer.reveal ? `Total ${dealer.total}` : 'Hidden');
-  const dealerCards = Array.isArray(dealer.cards) && dealer.cards.length ? dealer.cards : [{ hidden:true }, { hidden:true }];
-  setHTML('bjDealerCards', dealerCards.map(bjCardHtml).join(''));
-
-  const me = room.me;
-  setText('bjMyTotal', me ? `Total ${me.total ?? '—'} • ${bjStatusText(me.status, me.result)}` : 'Not joined');
-  setHTML('bjMyCards', me?.cards?.length ? me.cards.map(bjCardHtml).join('') : '<span class="bj-empty">Join table to receive private cards</span>');
-
-  const seats = $('bjSeats');
-  if (seats) {
-    const items = room.players || [];
-    seats.innerHTML = Array.from({ length: room.maxPlayers || 5 }, (_, i) => {
-      const p = items[i];
-      if (!p) return `<div class="bj-seat empty"><span>Seat ${i + 1}</span><b>OPEN</b></div>`;
-      const money = p.result ? `${Number(p.net || 0) >= 0 ? '+' : ''}${fmt(p.net)} ${coin()}` : `${fmt(p.bet)} ${coin()}`;
-      return `<div class="bj-seat ${p.me ? 'me' : ''}"><div class="seat-avatar">${escapeHtml(p.avatar || 'BJ')}</div><div><b>${escapeHtml(p.me ? p.name + ' • You' : p.name)}</b><span>${bjStatusText(p.status, p.result)} • ${money}</span></div><div class="seat-cards">${(p.cards || []).map(bjCardHtml).join('')}</div></div>`;
-    }).join('');
-  }
-
-  const joinBtn = $('bjJoinBtn');
-  if (joinBtn) joinBtn.disabled = !currentBjRoomId || room.state !== 'lobby' || !!me || Number(room.playerCount || 0) >= Number(room.maxPlayers || 5);
-  const canAct = room.state === 'playing' && me && me.status === 'playing';
-  const hitBtn = $('bjHitBtn'); const standBtn = $('bjStandBtn');
-  if (hitBtn) hitBtn.disabled = !canAct;
-  if (standBtn) standBtn.disabled = !canAct;
-
-  if (room.state === 'lobby') setHTML('bjResult', `🃏 Table opened. Up to <b>${room.maxPlayers || 5}</b> players can join. Cards are private.`);
-  else if (room.state === 'playing') setHTML('bjResult', me?.status === 'playing' ? '🔥 Your turn — choose HIT or STAND.' : '⏳ Waiting for players to finish their hands.');
-  else if (room.state === 'finished' && me) setHTML('bjResult', `Dealer Total: <b>${dealer.total}</b> • Result: <b>${bjStatusText(me.status, me.result)}</b> • Payout: <b>${fmt(me.payout)} ${coin()}</b> • Net: <b>${fmt(me.net)} ${coin()}</b>`);
-}
-async function loadBjStatus() {
-  if (!initData || !currentBjRoomId) {
-    setText('bjRoomState', 'NO ROOM');
-    setText('bjRoomHint', 'Send .wbj in group and open the Join Web Blackjack button.');
-    return;
-  }
-  try { renderBjRoom(await api('/api/mini/blackjack/status', { roomId: currentBjRoomId })); }
-  catch (err) { setClass('bjResult', 'result lose'); setText('bjResult', err.message); }
-}
-function startBjPolling() {
-  if (bjPollTimer) clearInterval(bjPollTimer);
-  loadBjStatus().catch(() => null);
-  bjPollTimer = setInterval(() => {
-    if (document.querySelector('.panel.active')?.id === 'blackjack') loadBjStatus().catch(() => null);
-  }, 1350);
-}
-async function joinBlackjack() {
-  const btn = $('bjJoinBtn');
-  if (!currentBjRoomId) { setClass('bjResult','result lose'); setText('bjResult','Group ထဲမှာ .wbj ပို့ပြီး join link ကနေဝင်ပါ။'); return; }
-  setBusy(btn, true, 'JOINING...');
-  try {
-    const data = await api('/api/mini/blackjack/join', { roomId: currentBjRoomId, bet: $('bjBet')?.value });
-    renderBjRoom(data); AudioFX.sfx('cardDeal'); loadHistory('blackjack').catch(() => null);
-    tg?.HapticFeedback?.notificationOccurred?.('success');
-  } catch (err) { setClass('bjResult','result lose'); setText('bjResult', err.message); AudioFX.sfx('error'); tg?.HapticFeedback?.notificationOccurred?.('error'); }
-  finally { if (btn) { btn.textContent = btn.dataset.oldText || btn.textContent; delete btn.dataset.oldText; } loadBjStatus().catch(() => null); }
-}
-async function hitBlackjack() {
-  const btn = $('bjHitBtn'); setBusy(btn, true, 'HIT...');
-  try { const data = await api('/api/mini/blackjack/hit', { roomId: currentBjRoomId }); renderBjRoom(data); AudioFX.sfx('cardDeal'); if (data.room?.state === 'finished') { AudioFX.sfx('win'); loadHistory('blackjack').catch(() => null); } tg?.HapticFeedback?.impactOccurred?.('medium'); }
-  catch (err) { setClass('bjResult','result lose'); setText('bjResult', err.message); tg?.HapticFeedback?.notificationOccurred?.('error'); }
-  finally { if (btn) { btn.textContent = btn.dataset.oldText || btn.textContent; delete btn.dataset.oldText; } loadBjStatus().catch(() => null); }
-}
-async function standBlackjack() {
-  const btn = $('bjStandBtn'); setBusy(btn, true, 'STAND...');
-  try { const data = await api('/api/mini/blackjack/stand', { roomId: currentBjRoomId }); renderBjRoom(data); AudioFX.sfx('cardDeal'); if (data.room?.state === 'finished') { AudioFX.sfx('win'); loadHistory('blackjack').catch(() => null); } tg?.HapticFeedback?.impactOccurred?.('light'); }
-  catch (err) { setClass('bjResult','result lose'); setText('bjResult', err.message); tg?.HapticFeedback?.notificationOccurred?.('error'); }
-  finally { if (btn) { btn.textContent = btn.dataset.oldText || btn.textContent; delete btn.dataset.oldText; } loadBjStatus().catch(() => null); }
-}
-
-
-
-let lastShanState = '';
-let lastShanTinStep = 0;
-let lastShanActiveId = null;
-
-function shanCardHtml(card, delay = 0) {
-  if (!card || card.hidden) return `<span class="shan-card-face back" style="--deal-delay:${delay}ms">BIKA</span>`;
-  const red = card.red ? ' red' : '';
-  return `<span class="shan-card-face${red}" style="--deal-delay:${delay}ms"><b>${escapeHtml(card.rank)}</b><em>${escapeHtml(card.suit)}</em></span>`;
-}
-function shanInfoText(info) {
-  if (!info) return 'Hidden';
-  return `${escapeHtml(info.short || info.name || '?')} • ${Number(info.points || 0)} pts`;
-}
-function shanStateText(state) {
-  const map = { lobby:'BETTING', tin:'TIN CALL', playing:'PLAYER TURN', banker:'BANKER', finished:'SETTLED', expired:'EXPIRED', refunded:'REFUNDED' };
-  return map[state] || 'TABLE';
-}
-function shanStageMessage(room) {
-  if (!room) return 'No Table';
-  if (room.state === 'lobby') return `Waiting bets • ${room.joinSecondsLeft || 0}s`;
-  if (room.state === 'tin') return `TIN ${room.tinStep || 1} / 3`;
-  if (room.state === 'playing') {
-    const active = (room.players || []).find((p) => Number(p.userId) === Number(room.activeUserId));
-    return active ? `${active.me ? 'Your' : active.name + "'s"} turn • ${room.actionSecondsLeft || 0}s` : 'Player turns';
-  }
-  if (room.state === 'banker') return 'Banker reveal';
-  if (room.state === 'finished') return 'Round settled';
-  return shanStateText(room.state);
-}
-function resetShanCards() {
-  setHTML('shanBankerCards', '<span class="shan-card-face back">BIKA</span><span class="shan-card-face back">BIKA</span>');
-  setText('shanBankerInfo', 'Hidden');
-  setHTML('shanSeats', '<div class="shan-empty-seat">Create or join a table.</div>');
-}
-function renderShanRoom(data = {}) {
-  if (data.balance != null) setBalance(data.balance);
-  const room = data.room || null;
-  if (!room) { resetShanCards(); return; }
-  currentShanRoomId = room.id || currentShanRoomId;
-
-  if (room.state !== lastShanState) {
-    if (room.state === 'tin') AudioFX.sfx('tin');
-    else if (room.state === 'playing') AudioFX.sfx('cardDeal');
-    else if (room.state === 'finished') AudioFX.sfx('reveal');
-    lastShanState = room.state;
-  }
-  if (room.state === 'tin' && room.tinStep && room.tinStep !== lastShanTinStep) { AudioFX.sfx('tin'); lastShanTinStep = room.tinStep; }
-  if (room.activeUserId && Number(room.activeUserId) !== Number(lastShanActiveId)) { AudioFX.sfx('turn'); lastShanActiveId = room.activeUserId; }
-
-  setText('shanTableTitle', room.title || 'Bika Shan Pro Table');
-  setText('shanRoomState', shanStateText(room.state));
-  setText('shanRoomCount', `${room.playerCount || 0}/${room.maxPlayers || config?.shan?.maxPlayers || 6}`);
-  setText('shanBankerStake', `${fmt(room.banker?.stake || 0)} ${coin()}`);
-  setText('shanTotalBet', `${fmt(room.totalBet || 0)} ${coin()}`);
-  setText('shanBetLimit', `${fmt(room.betLimit || room.banker?.betLimit || 0)} ${coin()}`);
-  setText('shanJoinTimer', room.state === 'lobby' ? `${room.joinSecondsLeft || 0}s` : room.state === 'tin' ? `TIN ${room.tinStep || 1}/3` : shanStageMessage(room));
-  setText('shanActionTimer', room.state === 'playing' ? `${room.actionSecondsLeft || 0}s` : '—');
-  setText('shanStageText', shanStageMessage(room));
-  const tin = $('shanTinBanner');
-  if (tin) { tin.textContent = room.state === 'tin' ? `TIN ${room.tinStep || 1} / 3` : 'TIN 3x AUTO'; tin.classList.toggle('active', room.state === 'tin'); }
-
-  const banker = room.banker || {};
-  setText('shanBankerAvatar', banker.avatar || 'BK');
-  setText('shanBankerName', banker.me ? `${banker.name || 'Banker'} • You` : (banker.name || 'Banker'));
-  setText('shanBankerInfo', banker.info ? shanInfoText(banker.info) : `Reserve ${fmt(banker.reserveLocked || 0)} ${coin()}`);
-  const bankerCards = banker.cards || [];
-  setHTML('shanBankerCards', bankerCards.length ? bankerCards.map((c, i) => shanCardHtml(c, i * 90)).join('') : '<span class="shan-card-face back">BIKA</span><span class="shan-card-face back">BIKA</span>');
-
-  const seats = $('shanSeats');
-  if (seats) {
-    const players = room.players || [];
-    seats.innerHTML = players.length ? players.map((p, index) => {
-      const cls = [p.me ? 'me' : '', p.active ? 'active-turn' : '', p.result ? String(p.result).toLowerCase() : ''].filter(Boolean).join(' ');
-      const cards = (p.cards || [{hidden:true},{hidden:true}]).map((c, i) => shanCardHtml(c, i * 70)).join('');
-      const status = p.active ? 'YOUR TURN' : (p.result || p.status || 'waiting');
-      const net = p.result ? `<strong class="${Number(p.net || 0) >= 0 ? 'pos' : 'neg'}">${Number(p.net || 0) >= 0 ? '+' : ''}${fmt(p.net)} ${coin()}</strong>` : `<strong>${escapeHtml(status)}</strong>`;
-      return `<div class="shan-player-seat seat-${index + 1} ${cls}">
-        <div class="seat-avatar">${escapeHtml(p.avatar || 'SK')}</div>
-        <div class="seat-info"><b>${escapeHtml(p.me ? `${p.name} • You` : p.name)}</b><span>Bet ${fmt(p.bet)} ${coin()} • ${escapeHtml(status)}</span></div>
-        <div class="seat-hand">${cards}</div>${net}</div>`;
-    }).join('') : '<div class="shan-empty-seat">No players yet. Players join and bet against the banker.</div>';
-  }
-
-  const me = room.me || null;
-  const isBanker = !!room.banker?.me;
-  const canJoin = room.state === 'lobby' && !me && !isBanker;
-  const canCreate = !currentShanRoomId || ['finished','expired','refunded'].includes(room.state);
-  const canAct = room.state === 'playing' && me && me.status === 'playing' && Number(room.activeUserId) === Number(me.userId);
-  if ($('shanJoinBtn')) $('shanJoinBtn').disabled = !canJoin;
-  if ($('shanCreateBtn')) $('shanCreateBtn').disabled = false;
-  if ($('shanDrawBtn')) $('shanDrawBtn').disabled = !canAct || (me?.cards?.length || 0) >= 3;
-  if ($('shanStayBtn')) $('shanStayBtn').disabled = !canAct;
-
-  setClass('shanResult', 'result muted');
-  if (room.state === 'lobby') setHTML('shanResult', `🎴 Banker table is open. Total bets: <b>${fmt(room.totalBet)} / ${fmt(room.betLimit)} ${coin()}</b>. 3x ပြည့်ရင် TIN x3 auto ခေါ်ပြီးစပါမယ်။`);
-  else if (room.state === 'tin') setHTML('shanResult', `🔔 <b>TIN ${room.tinStep || 1} / 3</b> — dealing will start soon.`);
-  else if (room.state === 'playing') setHTML('shanResult', canAct ? '🃏 <b>Your turn.</b> Draw one card or Stay.' : `⏳ ${escapeHtml(shanStageMessage(room))}`);
-  else if (room.state === 'finished') {
-    if (isBanker) {
-      const win = Number(room.banker.net || 0) >= 0; setClass('shanResult', `result ${win ? 'win' : 'lose'}`); setHTML('shanResult', `${win ? '🏆' : '💨'} Banker result • Net: <b>${Number(room.banker.net || 0) >= 0 ? '+' : ''}${fmt(room.banker.net)} ${coin()}</b>`);
-    } else if (me) {
-      const win = me.result === 'WIN'; const push = me.result === 'PUSH'; setClass('shanResult', `result ${win ? 'win' : push ? '' : 'lose'}`); setHTML('shanResult', `${win ? '🏆' : push ? '🤝' : '💨'} <b>${escapeHtml(me.result)}</b> • You: <b>${shanInfoText(me.info)}</b> • Banker: <b>${shanInfoText(room.banker?.info)}</b><br>Payout: <b>${fmt(me.payout)} ${coin()}</b> • Net: <b>${fmt(me.net)} ${coin()}</b>`);
-    }
-  }
-}
-async function createShanTable() {
-  const btn = $('shanCreateBtn'); setBusy(btn, true, 'CREATING...');
-  try {
-    const data = await api('/api/mini/shan/create', { title: 'Bika Shan Koe Mee Pro Table', bankerStake: $('shanBankerStakeInput')?.value });
-    renderShanRoom(data); AudioFX.sfx('tableOpen'); startShanPolling();
-    setClass('shanResult','result muted'); setHTML('shanResult', '✅ Banker table created. Share from group with <b>.wshan stake</b> or let players join from this room.');
-  } catch (err) { setClass('shanResult','result lose'); setText('shanResult', err.message); AudioFX.sfx('error'); }
-  finally { setBusy(btn, false); }
-}
-async function loadShanStatus() {
-  if (!currentShanRoomId) return;
-  const data = await api('/api/mini/shan/status', { roomId: currentShanRoomId });
-  renderShanRoom(data);
-  if (data.room?.state === 'finished') loadHistory('shan').catch(() => null);
-}
-function startShanPolling() {
-  clearInterval(shanPollTimer);
-  if (!currentShanRoomId) return;
-  shanPollTimer = setInterval(() => {
-    if (!document.getElementById('shan')?.classList.contains('active')) return;
-    loadShanStatus().catch(() => null);
-  }, 900);
-}
-async function joinShan() {
-  const btn = $('shanJoinBtn');
-  if (!currentShanRoomId) { setClass('shanResult','result lose'); setText('shanResult', 'Table မရှိသေးပါ။ Banker က CREATE BANKER TABLE နှိပ်ပါ။'); return; }
-  setBusy(btn, true, 'JOINING...');
-  try {
-    const data = await api('/api/mini/shan/join', { roomId: currentShanRoomId, bet: $('shanBet')?.value });
-    renderShanRoom(data); AudioFX.sfx('bet'); startShanPolling();
-    tg?.HapticFeedback?.notificationOccurred?.('success');
-  } catch (err) { setClass('shanResult','result lose'); setText('shanResult', err.message); AudioFX.sfx('error'); tg?.HapticFeedback?.notificationOccurred?.('error'); }
-  finally { if (btn) { btn.textContent = btn.dataset.oldText || btn.textContent; delete btn.dataset.oldText; } loadShanStatus().catch(() => null); }
-}
-async function drawShan() {
-  const btn = $('shanDrawBtn'); setBusy(btn, true, 'DRAW...');
-  try {
-    const data = await api('/api/mini/shan/draw', { roomId: currentShanRoomId });
-    renderShanRoom(data); AudioFX.sfx('cardSlide'); if (data.room?.state === 'finished') { AudioFX.sfx('reveal'); loadHistory('shan').catch(() => null); }
-  } catch (err) { setClass('shanResult','result lose'); setText('shanResult', err.message); AudioFX.sfx('error'); }
-  finally { if (btn) { btn.textContent = btn.dataset.oldText || btn.textContent; delete btn.dataset.oldText; } loadShanStatus().catch(() => null); }
-}
-async function stayShan() {
-  const btn = $('shanStayBtn'); setBusy(btn, true, 'STAY...');
-  try {
-    const data = await api('/api/mini/shan/stay', { roomId: currentShanRoomId });
-    renderShanRoom(data); AudioFX.sfx('turn'); if (data.room?.state === 'finished') { AudioFX.sfx('reveal'); loadHistory('shan').catch(() => null); }
-  } catch (err) { setClass('shanResult','result lose'); setText('shanResult', err.message); AudioFX.sfx('error'); }
-  finally { if (btn) { btn.textContent = btn.dataset.oldText || btn.textContent; delete btn.dataset.oldText; } loadShanStatus().catch(() => null); }
-}
-
-function renderMinesBoard(game) { const board = $('minesBoard'); if (!board) return; const tiles = game?.tiles || Array.from({length:25}, (_, i) => ({ index:i, label:'hidden' })); board.innerHTML = tiles.map((t) => { const cls = t.exploded ? 'boom' : t.label === 'mine' ? 'mine' : t.opened ? 'safe' : ''; const icon = t.exploded ? '💥' : t.label === 'mine' ? '💣' : t.opened ? '💎' : '?'; return `<button class="mine-tile ${cls}" data-mine-index="${t.index}" ${game?.state !== 'playing' || t.opened ? 'disabled' : ''}>${icon}</button>`; }).join(''); }
-function renderMines(game, balance) { if (balance != null) setBalance(balance); renderMinesBoard(game); setText('minesSafe', game ? `${game.safeOpened}/${25 - game.mineCount}` : '0'); setText('minesMulti', `x${Number(game?.multiplier || 1).toFixed(2)}`); setText('minesCash', game?.cashoutLocked ? 'Locked' : `${fmt(game?.cashoutEstimate || 0)} ${coin()}`); const cashBtn = $('minesCashoutBtn'); if (cashBtn) cashBtn.disabled = !game || game.cashoutLocked || game.state !== 'playing'; }
-async function startMines() { const btn = $('minesStartBtn'); setBusy(btn, true, 'STARTING...'); try { const data = await api('/api/mini/mines/start', { bet: $('minesBet')?.value }); renderMines(data.game, data.balance); AudioFX.sfx('bet'); setClass('minesResult','result muted'); setText('minesResult', `Safe ${data.game.minCashoutSafe} ခုဖွင့်ပြီးမှ Cash Out လုပ်နိုင်ပါတယ်။`); } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } finally { setBusy(btn, false); } }
-async function openMine(index) { try { const data = await api('/api/mini/mines/open', { index }); renderMines(data.game, data.balance); if (data.result === 'lost') { setClass('minesResult','result lose'); setText('minesResult', '💥 BOOM! Mine ထိသွားပါပြီ။'); AudioFX.sfx('mineBoom'); refreshAllVisibleHistory(); } else { setClass('minesResult','result win'); setText('minesResult', '💎 Safe! ဆက်ဖွင့်မလား Cash Out လုပ်မလား ရွေးပါ။'); AudioFX.sfx('mineGem'); } } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } }
-async function cashoutMines() { const btn = $('minesCashoutBtn'); setBusy(btn, true, 'CASHING...'); try { const data = await api('/api/mini/mines/cashout'); renderMines(data.game, data.balance); setClass('minesResult','result win'); setHTML('minesResult', `✅ Cash Out Success: <b>${fmt(data.payout)} ${coin()}</b>`); AudioFX.sfx('cashout'); refreshAllVisibleHistory(); } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } finally { setBusy(btn, false); } }
-
 function bindEvents() {
   document.querySelectorAll('[data-open]').forEach((btn) => btn.addEventListener('click', () => openPanel(btn.dataset.open)));
   document.querySelectorAll('[data-refresh-history]').forEach((btn) => btn.addEventListener('click', () => loadHistory(btn.dataset.refreshHistory).catch(() => null)));
   $('crashStartBtn')?.addEventListener('click', placeCrashBet); $('cashoutBtn')?.addEventListener('click', cashoutCrash);
-  $('spinBtn')?.addEventListener('click', spinSlot); $('shanCreateBtn')?.addEventListener('click', createShanTable); $('shanJoinBtn')?.addEventListener('click', joinShan); $('shanDrawBtn')?.addEventListener('click', drawShan); $('shanStayBtn')?.addEventListener('click', stayShan); $('bjJoinBtn')?.addEventListener('click', joinBlackjack); $('bjHitBtn')?.addEventListener('click', hitBlackjack); $('bjStandBtn')?.addEventListener('click', standBlackjack); $('plinkoBtn')?.addEventListener('click', dropPlinko); $('wheelBtn')?.addEventListener('click', spinWheel); $('wheelCenterBtn')?.addEventListener('click', spinWheel); $('dailyWheelBtn')?.addEventListener('click', spinDailyWheel); $('minesStartBtn')?.addEventListener('click', startMines); $('minesCashoutBtn')?.addEventListener('click', cashoutMines);
+  $('spinBtn')?.addEventListener('click', spinSlot); $('plinkoBtn')?.addEventListener('click', dropPlinko); $('wheelBtn')?.addEventListener('click', spinWheel); $('wheelCenterBtn')?.addEventListener('click', spinWheel); $('dailyWheelBtn')?.addEventListener('click', spinDailyWheel); $('minesStartBtn')?.addEventListener('click', startMines); $('minesCashoutBtn')?.addEventListener('click', cashoutMines);
   document.querySelectorAll('[data-crash-bet]').forEach((b) => b.addEventListener('click', () => $('crashBet').value = b.dataset.crashBet));
   document.querySelectorAll('[data-slot-bet]').forEach((b) => b.addEventListener('click', () => $('slotBet').value = b.dataset.slotBet));
-  document.querySelectorAll('[data-bj-bet]').forEach((b) => b.addEventListener('click', () => $('bjBet').value = b.dataset.bjBet));
-  document.querySelectorAll('[data-shan-bet]').forEach((b) => b.addEventListener('click', () => $('shanBet').value = b.dataset.shanBet));
   document.querySelectorAll('[data-plinko-bet]').forEach((b) => b.addEventListener('click', () => $('plinkoBet').value = b.dataset.plinkoBet));
   document.querySelectorAll('[data-wheel-bet]').forEach((b) => b.addEventListener('click', () => $('wheelBet').value = b.datasetWheelBet || b.dataset.wheelBet));
   document.querySelectorAll('[data-mines-bet]').forEach((b) => b.addEventListener('click', () => $('minesBet').value = b.dataset.minesBet));
@@ -1005,8 +731,6 @@ async function init() {
   try { const status = await api('/api/mini/mines/status'); renderMines(status.game, status.balance); } catch (_) {}
   startPolling();
   const startGame = startTarget.game;
-  if (startGame === 'blackjack') openPanel('blackjack');
-  if (startGame === 'shan') { openPanel('shan'); if (currentShanRoomId) { loadShanStatus().catch(() => null); startShanPolling(); } }
 }
 
 
