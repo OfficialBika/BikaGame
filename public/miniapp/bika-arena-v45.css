@@ -93,3 +93,52 @@ body.bika-v41{background:radial-gradient(900px 480px at 12% -10%,rgba(52,102,255
 .game-card-mines{background:radial-gradient(ellipse at 80% 0,rgba(101,153,255,.15),transparent 52%),linear-gradient(150deg,rgba(17,40,70,.96),rgba(8,15,31,.98))}
 @media(max-width:390px){.games-page-grid{gap:8px}.games-page-card{padding:11px;border-radius:14px}.games-page-card strong{font-size:12px}.games-page-card span{font-size:10px;min-height:28px}.games-page-card button{min-height:39px;font-size:9px}}
 @media(min-width:900px){.games-page-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.games-page-card{padding:18px}}
+
+/* Individual game panel framing and mobile ergonomics */
+.game-panel{min-width:0}
+.game-panel .game-page-head{align-items:center;margin-bottom:13px}
+.game-panel .back-home{min-height:38px;padding:7px 12px;border:1px solid rgba(128,166,230,.17);border-radius:11px;background:rgba(14,26,48,.78);color:#e2f1ff;font-weight:750}
+.game-panel .game-page-head h2{letter-spacing:-.035em}
+.single-game-card{min-width:0;overflow:hidden;border:1px solid var(--a-line);background:linear-gradient(160deg,rgba(13,23,44,.97),rgba(6,12,25,.99));box-shadow:inset 0 1px rgba(255,255,255,.04),0 18px 44px rgba(0,0,0,.22)}
+.single-game-card .bet-panel{align-items:end}
+.single-game-card .bet-input{min-width:0}
+.single-game-card .bet-input input{width:100%;min-width:0;height:46px;border:1px solid rgba(121,161,226,.2);border-radius:12px;background:rgba(3,9,21,.72);color:#f3f8ff}
+.single-game-card .primary-btn,.single-game-card .secondary-btn,.single-game-card .cashout-btn{min-height:46px;border-radius:12px;font-weight:850;letter-spacing:.035em}
+.single-game-card .result{margin-top:12px;padding:12px;border:1px solid rgba(128,162,226,.13);background:rgba(4,10,22,.58);line-height:1.5}
+.single-game-card .history-card{margin-top:14px;padding:12px;border:1px solid rgba(128,162,226,.12);border-radius:14px;background:rgba(4,9,19,.44)}
+.single-game-card .history-list{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
+#slot .slot-machine{border:1px solid rgba(255,201,106,.22);border-radius:18px;background:radial-gradient(ellipse at 50% 0,rgba(255,205,110,.12),transparent 58%),linear-gradient(150deg,#27182a,#0c1228)}
+#slot .reel-window{border-color:rgba(255,211,120,.3);background:linear-gradient(180deg,#090f1f,#1a1830);box-shadow:inset 0 0 24px rgba(0,0,0,.45)}
+#blackjack .blackjack-table,#shan .shan-table{border:1px solid rgba(93,220,190,.2);box-shadow:inset 0 0 55px rgba(0,0,0,.28),0 18px 42px rgba(0,0,0,.2)}
+#blackjack .blackjack-table{background:radial-gradient(ellipse at center,rgba(31,123,105,.35),transparent 68%),linear-gradient(145deg,#0d4c43,#092a30)}
+#shan .shan-table{background:radial-gradient(ellipse at 50% 45%,rgba(91,66,161,.28),transparent 65%),linear-gradient(145deg,#102f42,#17132c)}
+#plinko .plinko-board{border:1px solid rgba(103,233,255,.16);border-radius:16px;background:radial-gradient(ellipse at 50% 0,rgba(103,233,255,.09),transparent 58%),rgba(3,9,21,.75)}
+#wheel .wheel-premium-card{border:1px solid rgba(255,210,117,.2);background:radial-gradient(ellipse at 50% 25%,rgba(255,190,73,.11),transparent 55%),linear-gradient(155deg,#1d1730,#091225)}
+#wheel .wheel-wrap{filter:drop-shadow(0 12px 25px rgba(0,0,0,.42))}
+#mines .mines-board{gap:8px}
+#mines .mine-tile{min-width:0;aspect-ratio:1;border:1px solid rgba(115,166,231,.17);border-radius:12px;background:linear-gradient(145deg,#192b4b,#0a1429);box-shadow:inset 0 1px rgba(255,255,255,.05),0 5px 12px rgba(0,0,0,.18);font-size:clamp(18px,5vw,26px);transition:transform .13s,border-color .13s,background .13s}
+#mines .mine-tile:not(:disabled):active{transform:scale(.94);border-color:rgba(103,233,255,.5)}
+#mines .mine-tile.safe{background:linear-gradient(145deg,rgba(20,112,118,.65),rgba(9,39,65,.96));border-color:rgba(103,233,255,.34)}
+#mines .mine-tile.boom{background:linear-gradient(145deg,rgba(151,40,79,.8),rgba(57,14,37,.96));border-color:rgba(255,93,125,.45)}
+@media(max-width:680px){
+ .game-panel .game-page-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px}
+ .game-panel .game-page-head>div{min-width:0}
+ .game-panel .game-page-head h2{font-size:clamp(20px,6vw,27px)}
+ .single-game-card{padding:11px;border-radius:17px}
+ .single-game-card .bet-panel{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+ .single-game-card .bet-input{grid-column:1/-1;width:100%}
+ .single-game-card .bet-panel .primary-btn,.single-game-card .bet-panel .secondary-btn,.single-game-card .bet-panel .cashout-btn{width:100%;min-width:0}
+ #shan .bet-panel.dual{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #shan .bet-panel.dual .bet-input{grid-column:1/-1}
+ #plinko .plinko-board{min-height:260px}
+ #wheel .wheel-stage-grid{grid-template-columns:minmax(0,1fr)}
+ #wheel .wheel-info{width:100%}
+ #mines .mines-board{max-width:100%;gap:6px}
+ #mines .mine-tile{border-radius:9px}
+ .single-game-card .history-card{padding:10px}
+}
+@media(max-width:380px){
+ .single-game-card{padding:9px}
+ .single-game-card .quick-bets button{padding-inline:4px;font-size:10px}
+ #mines .mines-board{gap:5px}
+}
