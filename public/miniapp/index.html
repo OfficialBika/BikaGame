@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/miniapp/bika-entry-v42.css?v=20261007-v42">
   <link rel="stylesheet" href="/miniapp/bika-premium-v43.css?v=20261021-v43">
   <link rel="stylesheet" href="/miniapp/bika-mobile-game-v44.css?v=20261021-mobile-fix1">
+  <link rel="stylesheet" href="/miniapp/bika-arena-v45.css?v=20261119-v45">
 </head>
 <body class="bika-v41">
   <div id="bikaSplash" class="splash" role="status" aria-label="Loading BIKA Game Arena">
@@ -300,7 +301,11 @@
       </section>
 
       <nav class="nav-tabs" aria-label="Mobile navigation">
-        <button class="tab active" data-open="home">⌂ Home</button><button class="tab" data-open="crash">🎮 Games</button><button class="tab" data-open="home">◷ History</button><button class="tab" data-open="home">▱ Wallet</button><button class="tab" data-open="home">♙ Profile</button>
+        <button class="tab active" data-b="home" aria-label="Home">⌂ <span>Home</span></button>
+        <button class="tab" data-b="games" aria-label="Games">🎮 <span>Games</span></button>
+        <button class="tab" data-b="history" aria-label="History">◷ <span>History</span></button>
+        <button class="tab" data-b="wallet" aria-label="Wallet">◈ <span>Wallet</span></button>
+        <button class="tab" data-b="profile" aria-label="Profile">♙ <span>Profile</span></button>
       </nav>
 
       <div id="soundDock" class="sound-dock"><button id="soundToggleBtn" class="sound-toggle">🔇 Sound Off</button><div id="soundControls" class="sound-controls"><label>BGM <input id="musicVolume" type="range" min="0" max="100" value="32"></label><label>SFX <input id="sfxVolume" type="range" min="0" max="100" value="68"></label><span id="soundSceneText">Tap Sound On</span></div></div>
