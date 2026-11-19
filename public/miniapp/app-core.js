@@ -8,6 +8,8 @@ let rocketVisual = null;
 let rocketVisualReady = null;
 let slotSpinTimer = null;
 let wheelRotation = 0;
+let minesGameState = null;
+let minesActionBusy = false;
 const urlParams = new URLSearchParams(window.location.search);
 function getStartParam() {
   return String(
@@ -357,6 +359,7 @@ function renderRocket(status) {
   if (!round) return;
   liveRound = { ...round, serverNowMs: status.serverNowMs, receivedAtMs: Date.now() };
   setText('onlineCountText', status.onlineCount ?? '—');
+  setText('rocketOnlineCount', status.onlineCount ?? '—');
   setBalance(status.balance);
   setText('roundTitle', `#${round.no || '—'} / 100`);
   setText('phaseChip', String(round.state || 'idle').toUpperCase());
@@ -442,8 +445,8 @@ function startPolling() {
   }).catch(() => null);
 }
 
-async function placeCrashBet() { const btn = $('crashStartBtn'); setBusy(btn, true, 'Joining...'); try { renderRocket(await api('/api/mini/crash/bet', { bet: $('crashBet')?.value })); AudioFX.sfx('bet'); refreshAllVisibleHistory(); tg?.HapticFeedback?.notificationOccurred?.('success'); } catch (err) { setHTML('crashResult', `<span class="lose">${escapeHtml(err.message)}</span>`); AudioFX.sfx('error'); tg?.HapticFeedback?.notificationOccurred?.('error'); } finally { setBusy(btn, false); } }
-async function cashoutCrash() { const btn = $('cashoutBtn'); setBusy(btn, true, 'Cash Out...'); try { const data = await api('/api/mini/crash/cashout'); setBalance(data.balance); renderRocket(data); setHTML('crashResult', `🎉 Cash Out: <b>${fmt(data.payout)} ${coin()}</b> at <b>x${Number(data.effectiveMultiplier || 0).toFixed(2)}</b>`); AudioFX.sfx('cashout'); refreshAllVisibleHistory(); tg?.HapticFeedback?.notificationOccurred?.('success'); } catch (err) { setHTML('crashResult', `<span class="lose">${escapeHtml(err.message)}</span>`); tg?.HapticFeedback?.notificationOccurred?.('error'); } finally { setBusy(btn, false); } }
+async function placeCrashBet() { const btn = $('crashStartBtn'); setBusy(btn, true, 'Joining...'); try { renderRocket(await api('/api/mini/crash/bet', { bet: $('crashBet')?.value })); AudioFX.sfx('bet'); refreshAllVisibleHistory(); tg?.HapticFeedback?.notificationOccurred?.('success'); } catch (err) { setHTML('crashResult', `<span class="lose">${escapeHtml(err.message)}</span>`); AudioFX.sfx('error'); tg?.HapticFeedback?.notificationOccurred?.('error'); } finally { setBusy(btn, false); if (btn) btn.disabled = !(liveRound?.state === 'betting') || !!liveRound?.me?.inRound; } }
+async function cashoutCrash() { const btn = $('cashoutBtn'); setBusy(btn, true, 'Cash Out...'); try { const data = await api('/api/mini/crash/cashout'); setBalance(data.balance); renderRocket(data); setHTML('crashResult', `🎉 Cash Out: <b>${fmt(data.payout)} ${coin()}</b> at <b>x${Number(data.effectiveMultiplier || 0).toFixed(2)}</b>`); AudioFX.sfx('cashout'); refreshAllVisibleHistory(); tg?.HapticFeedback?.notificationOccurred?.('success'); } catch (err) { setHTML('crashResult', `<span class="lose">${escapeHtml(err.message)}</span>`); tg?.HapticFeedback?.notificationOccurred?.('error'); } finally { setBusy(btn, false); if (btn) btn.disabled = !(liveRound?.state === 'running' && liveRound?.me?.canCashout); } }
 
 function setSlotReels(reels = ['?', '?', '?']) { ['slotReelA','slotReelB','slotReelC'].forEach((id, i) => setText(id, String(reels[i] || '?') === '7' ? '7️⃣' : String(reels[i] || '?'))); }
 function startSlotAnimation() {
@@ -541,13 +544,13 @@ async function dropPlinko() { const btn = $('plinkoBtn'); setBusy(btn, true, 'DR
 
 function renderMinesBoard(game) { const board = $('minesBoard'); if (!board) return; const tiles = game?.tiles || Array.from({length:25}, (_, i) => ({ index:i, label:'hidden' })); board.innerHTML = tiles.map((t) => { const cls = t.exploded ? 'boom' : t.label === 'mine' ? 'mine' : t.opened ? 'safe' : ''; const icon = t.exploded ? '💥' : t.label === 'mine' ? '💣' : t.opened ? '💎' : '?'; return `<button class="mine-tile ${cls}" data-mine-index="${t.index}" ${game?.state !== 'playing' || t.opened ? 'disabled' : ''}>${icon}</button>`; }).join(''); }
 
-function renderMines(game, balance) { if (balance != null) setBalance(balance); renderMinesBoard(game); setText('minesSafe', game ? `${game.safeOpened}/${25 - game.mineCount}` : '0'); setText('minesMulti', `x${Number(game?.multiplier || 1).toFixed(2)}`); setText('minesCash', game?.cashoutLocked ? 'Locked' : `${fmt(game?.cashoutEstimate || 0)} ${coin()}`); const cashBtn = $('minesCashoutBtn'); if (cashBtn) cashBtn.disabled = !game || game.cashoutLocked || game.state !== 'playing'; }
+function renderMines(game, balance) { minesGameState = game || null; if (balance != null) setBalance(balance); renderMinesBoard(game); setText('minesSafe', game ? `${game.safeOpened}/${25 - game.mineCount}` : '0'); setText('minesMulti', `x${Number(game?.multiplier || 1).toFixed(2)}`); setText('minesCash', game?.cashoutLocked ? 'Locked' : `${fmt(game?.cashoutEstimate || 0)} ${coin()}`); const cashBtn = $('minesCashoutBtn'); if (cashBtn) cashBtn.disabled = !game || game.cashoutLocked || game.state !== 'playing'; const startBtn = $('minesStartBtn'); if (startBtn) startBtn.disabled = !!game && game.state === 'playing'; }
 
-async function startMines() { const btn = $('minesStartBtn'); setBusy(btn, true, 'STARTING...'); try { const data = await api('/api/mini/mines/start', { bet: $('minesBet')?.value }); renderMines(data.game, data.balance); AudioFX.sfx('bet'); setClass('minesResult','result muted'); setText('minesResult', `Safe ${data.game.minCashoutSafe} ခုဖွင့်ပြီးမှ Cash Out လုပ်နိုင်ပါတယ်။`); } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } finally { setBusy(btn, false); } }
+async function startMines() { const btn = $('minesStartBtn'); setBusy(btn, true, 'STARTING...'); try { const data = await api('/api/mini/mines/start', { bet: $('minesBet')?.value }); renderMines(data.game, data.balance); AudioFX.sfx('bet'); setClass('minesResult','result muted'); setText('minesResult', `Safe ${data.game.minCashoutSafe} ခုဖွင့်ပြီးမှ Cash Out လုပ်နိုင်ပါတယ်။`); } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } finally { setBusy(btn, false); if (btn) btn.disabled = !!minesGameState && minesGameState.state === 'playing'; } }
 
-async function openMine(index) { try { const data = await api('/api/mini/mines/open', { index }); renderMines(data.game, data.balance); if (data.result === 'lost') { setClass('minesResult','result lose'); setText('minesResult', '💥 BOOM! Mine ထိသွားပါပြီ။'); AudioFX.sfx('mineBoom'); refreshAllVisibleHistory(); } else { setClass('minesResult','result win'); setText('minesResult', '💎 Safe! ဆက်ဖွင့်မလား Cash Out လုပ်မလား ရွေးပါ။'); AudioFX.sfx('mineGem'); } } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } }
+async function openMine(index) { if (minesActionBusy) return; minesActionBusy = true; try { const data = await api('/api/mini/mines/open', { index }); renderMines(data.game, data.balance); if (data.result === 'lost') { setClass('minesResult','result lose'); setText('minesResult', '💥 BOOM! Mine ထိသွားပါပြီ။'); AudioFX.sfx('mineBoom'); refreshAllVisibleHistory(); } else { setClass('minesResult','result win'); setText('minesResult', '💎 Safe! ဆက်ဖွင့်မလား Cash Out လုပ်မလား ရွေးပါ။'); AudioFX.sfx('mineGem'); } } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } finally { minesActionBusy = false; } }
 
-async function cashoutMines() { const btn = $('minesCashoutBtn'); setBusy(btn, true, 'CASHING...'); try { const data = await api('/api/mini/mines/cashout'); renderMines(data.game, data.balance); setClass('minesResult','result win'); setHTML('minesResult', `✅ Cash Out Success: <b>${fmt(data.payout)} ${coin()}</b>`); AudioFX.sfx('cashout'); refreshAllVisibleHistory(); } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } finally { setBusy(btn, false); } }
+async function cashoutMines() { const btn = $('minesCashoutBtn'); setBusy(btn, true, 'CASHING...'); try { const data = await api('/api/mini/mines/cashout'); renderMines(data.game, data.balance); setClass('minesResult','result win'); setHTML('minesResult', `✅ Cash Out Success: <b>${fmt(data.payout)} ${coin()}</b>`); AudioFX.sfx('cashout'); refreshAllVisibleHistory(); } catch (err) { setClass('minesResult','result lose'); setText('minesResult', err.message); } finally { setBusy(btn, false); if (btn) btn.disabled = !minesGameState || minesGameState.cashoutLocked || minesGameState.state !== 'playing'; } }
 
 function normalizeDeg(value) { return ((Number(value || 0) % 360) + 360) % 360; }
 function wheelSegmentStopAngle(segmentIndex, jitter = 0) {
@@ -590,7 +593,7 @@ async function loadWheelDailyStatus() {
     const data = await api('/api/mini/wheel/daily-status');
     const btn = $('dailyWheelBtn');
     const info = $('dailyWheelInfo');
-    if (btn) btn.disabled = !data.available;
+    if (btn) { btn.dataset.available = data.available ? '1' : '0'; btn.disabled = !data.available; }
     if (btn) btn.textContent = data.available ? 'FREE DAILY SPIN' : 'CLAIMED TODAY';
     if (info) {
       if (data.available) info.innerHTML = `1 free spin today • base reward <b>${fmt(data.baseReward)} ${coin()}</b>`;
@@ -717,7 +720,7 @@ async function spinDailyWheel() {
     setText('wheelResult', err.message);
     await loadWheelDailyStatus();
     tg?.HapticFeedback?.notificationOccurred?.('error');
-  } finally { setBusy(btn, false); }
+  } finally { setBusy(btn, false); if (btn) btn.disabled = btn.dataset.available !== '1'; }
 }
 
 
@@ -753,7 +756,7 @@ async function init() {
   }
   try { await loadWheelDailyStatus(); } catch (_) {}
   try { const status = await api('/api/mini/mines/status'); renderMines(status.game, status.balance); } catch (_) {}
-  startPolling();
+  if (initData) startPolling();
   const startGame = startTarget.game;
 }
 
