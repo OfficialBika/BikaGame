@@ -22,3 +22,30 @@ body.bika-v41{background:radial-gradient(900px 480px at 12% -10%,rgba(52,102,255
 @media(max-width:390px){.content-shell{padding-inline:6px}.top-actions{gap:5px}.player-pill{gap:5px;padding:3px}.player-pill .avatar{width:28px;height:28px;flex-basis:28px!important}.wallet-pill{min-width:72px;padding-inline:6px}.wallet-pill b{font-size:10px}.deposit-btn{padding-inline:8px;font-size:10px}.hero-card{min-height:160px!important}.hero-copy{padding:13px 11px!important}.hero-copy h1{font-size:24px!important}.hero-copy>p:not(.kicker){max-width:78%;font-size:9px}.game-art{height:70px!important}.nav-tabs .tab{font-size:9px}#crash .rocket-stage-status{font-size:7px}}
 @media(orientation:landscape) and (max-height:520px) and (max-width:900px){.hero-card{min-height:132px!important}.hero-orb{opacity:.34}.nav-tabs .tab{min-height:40px}#crash .rocket-scene{height:245px!important;min-height:245px!important}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+
+/* v45.1 — home hierarchy, quick controls and responsive dashboard */
+.home-grid>.hero-card{grid-area:hero}.home-grid>.side-stack{grid-area:side}.home-grid>.games-section{grid-area:games}.home-grid>.ranking-widget{grid-area:rank}.home-grid>.lower-grid{grid-area:lower}
+.section-head>button,.widget-head>button,.wallet-actions button{min-height:36px;padding:7px 11px;border:1px solid rgba(103,233,255,.17);border-radius:10px;background:rgba(20,38,68,.78);color:#dff7ff;font-weight:750}
+.wallet-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.wallet-actions button{font-size:10px;min-width:0}
+.activity-row{min-width:0;display:grid;grid-template-columns:30px minmax(0,1fr) auto;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid rgba(131,158,215,.1)}
+.activity-row:last-child{border-bottom:0}.activity-row>span{min-width:0}
+.activity-row>span b,.activity-row>span small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.activity-row>strong{font-variant-numeric:tabular-nums;white-space:nowrap;font-size:11px}
+.rank-list>div{display:grid;grid-template-columns:24px 22px minmax(0,1fr) auto;align-items:center;gap:7px;min-width:0}
+.rank-list>div>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rank-list>div>strong{font-variant-numeric:tabular-nums;white-space:nowrap}
+.live-widget .win-list>div{min-width:0}.live-widget .win-list>div span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.event-widget .event-art{border-radius:13px;overflow:hidden}.event-widget .timer-row{gap:7px}
+.daily-status-cell{min-width:0;overflow:hidden}.daily-status-cell b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}.daily-status-cell small{display:block}
+#bikaNavPage .bnp-content{overscroll-behavior:contain}
+@media(max-width:680px){
+ .home-grid{grid-template-areas:"hero" "side" "games" "rank" "lower"}
+ .event-widget .event-art{min-height:88px}.wallet-actions{gap:5px}.wallet-actions button{min-height:38px;padding:5px 3px;font-size:9px}
+ .activity-row{grid-template-columns:27px minmax(0,1fr) auto;gap:7px;padding:8px 0}.activity-row>strong{font-size:10px}
+ .rank-list>div{grid-template-columns:20px 18px minmax(0,1fr) auto;gap:5px}.rank-list>div>strong{font-size:10px}
+ .section-head>button,.widget-head>button{min-height:34px;padding:6px 8px;font-size:10px}
+}
+@media(max-width:360px){
+ .top-actions{grid-template-columns:minmax(0,1fr) auto}.deposit-btn{grid-column:1/-1;width:100%}
+ .player-pill .avatar{display:none!important}.hero-actions button{padding-inline:8px;font-size:9px}.nav-tabs .tab span{font-size:8px}
+}
