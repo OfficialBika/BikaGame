@@ -49,3 +49,20 @@ body.bika-v41{background:radial-gradient(900px 480px at 12% -10%,rgba(52,102,255
  .top-actions{grid-template-columns:minmax(0,1fr) auto}.deposit-btn{grid-column:1/-1;width:100%}
  .player-pill .avatar{display:none!important}.hero-actions button{padding-inline:8px;font-size:9px}.nav-tabs .tab span{font-size:8px}
 }
+
+/* v45.2 game identity art — pure CSS illustration, no external image payloads */
+.art-emoji{position:relative;display:grid;place-items:center;align-content:center;gap:6px;height:100%;min-height:70px;isolation:isolate}
+.art-emoji:before{content:"";position:absolute;width:clamp(66px,12vw,106px);aspect-ratio:1;border-radius:50%;z-index:-1;background:radial-gradient(circle,rgba(110,230,255,.22),rgba(112,102,255,.12) 48%,transparent 72%);filter:blur(2px)}
+.art-symbol{display:block;font-size:clamp(34px,5vw,56px);line-height:1;filter:drop-shadow(0 8px 14px rgba(0,0,0,.55));transform:translateY(-1px)}
+.art-caption{display:block;padding:3px 7px;border:1px solid rgba(170,213,255,.16);border-radius:999px;background:rgba(4,10,23,.48);color:rgba(224,243,255,.8);font-size:7px;font-weight:850;letter-spacing:.16em;text-align:center}
+.rocket-art{background:radial-gradient(ellipse at 50% 10%,rgba(57,194,255,.22),transparent 54%),linear-gradient(145deg,#0a2343,#0c102a 70%,#140e2c)}
+.slot-art{background:radial-gradient(ellipse at 50% 20%,rgba(255,207,99,.22),transparent 55%),linear-gradient(145deg,#332014,#1b1230 70%,#130b21)}
+.blackjack-art{background:radial-gradient(ellipse at 50% 18%,rgba(255,93,159,.2),transparent 58%),linear-gradient(145deg,#2b1028,#15122c 72%,#0b1124)}
+.shan-art{background:radial-gradient(ellipse at 52% 16%,rgba(169,133,255,.23),transparent 55%),linear-gradient(145deg,#22154c,#11172d 70%,#081a2b)}
+.plinko-art{background:radial-gradient(ellipse at 50% 12%,rgba(79,229,196,.2),transparent 55%),linear-gradient(145deg,#092b32,#111a33 70%,#0c1021)}
+.wheel-art{background:radial-gradient(ellipse at 50% 16%,rgba(255,203,91,.2),transparent 55%),linear-gradient(145deg,#3a2510,#21142e 72%,#111026)}
+.mines-art{background:radial-gradient(ellipse at 50% 16%,rgba(101,153,255,.22),transparent 55%),linear-gradient(145deg,#102849,#15132e 70%,#090d1c)}
+.game-tile{position:relative;isolation:isolate}
+.game-tile:focus-visible{outline:2px solid var(--a-cyan);outline-offset:3px}
+.game-tile .tile-badge{z-index:2}
+@media(max-width:680px){.art-symbol{font-size:clamp(35px,11vw,48px)}.art-caption{font-size:6px;letter-spacing:.12em}}
