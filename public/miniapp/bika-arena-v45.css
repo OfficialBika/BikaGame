@@ -142,3 +142,9 @@ body.bika-v41{background:radial-gradient(900px 480px at 12% -10%,rgba(52,102,255
  .single-game-card .quick-bets button{padding-inline:4px;font-size:10px}
  #mines .mines-board{gap:5px}
 }
+
+/* Game library search */
+.games-search-label{display:block;margin:12px 0 6px;color:#92a8c9;font-size:9px;font-weight:850;letter-spacing:.16em}
+.games-search-input{width:100%;min-height:46px;padding:10px 13px;border:1px solid rgba(103,233,255,.2);border-radius:12px;background:rgba(4,11,24,.78);color:#f3f8ff}
+.games-search-meta{margin:8px 2px 12px;color:rgba(180,200,229,.62);font-size:10px}
+.games-search-empty{padding:24px 12px;border:1px dashed rgba(124,155,209,.22);border-radius:14px;color:#a5b7d4;text-align:center;font-size:12px}
