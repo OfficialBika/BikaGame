@@ -66,11 +66,11 @@ test('owner is not excluded from the normal 2D bet path', () => {
   const commentStart = source.indexOf('async function handleComment');
   const commentEnd = source.indexOf('async function myBet', commentStart);
   const commentHandler = source.slice(commentStart, commentEnd);
-  assert.doesNotMatch(commentHandler, /if\\s*\\(owner\\(ctx\\)\\)\\s*return\\s+false/);
+  assert.equal(commentHandler.includes('if (owner(ctx)) return false;'), false);
 
   const registerStart = source.indexOf('function register(bot)');
   const initStart = source.indexOf('async function init(bot)', registerStart);
   const registerHandler = source.slice(registerStart, initStart);
-  assert.doesNotMatch(registerHandler, /if\\s*\\(owner\\(ctx\\)\\)\\s*return\\s+next\\(\\)/);
-  assert.match(registerHandler, /await handleBet\\(ctx, e, p\\)/);
+  assert.equal(registerHandler.includes('if (owner(ctx)) return next();'), false);
+  assert.equal(registerHandler.includes('await handleBet(ctx, e, p)'), true);
 });
