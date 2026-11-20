@@ -25,6 +25,9 @@ jobs:
       - name: Run project syntax check
         run: npm run check
 
+      - name: Run 2D payout configuration tests
+        run: npm run test:2d
+
       - name: Run sports auto-stop scheduler tests
         run: node --test src/services/sportsEventAutoStopService.test.js
 
