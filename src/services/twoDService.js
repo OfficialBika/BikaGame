@@ -10,7 +10,9 @@ const { fmt, escHtml } = require('../utils/format');
 const logger = require('../utils/logger');
 
 const TZ = 'Asia/Yangon';
-const PAYOUT = 40;
+// Read the dedicated 2D payout from environment. The default preserves an
+// explicit, predictable production value while allowing Render/PM2 overrides.
+const PAYOUT = env.TWO_D_PAYOUT;
 const MIN_BET = 200;
 const MAX_PER_NUMBER = 200000;
 const SCHEDULE = [

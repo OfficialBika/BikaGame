@@ -10,7 +10,8 @@
     "migrate:transaction-history": "node scripts/migrate-transaction-history.js",
     "cleanup:game-history": "node scripts/cleanup-game-history.js",
     "clear:db1-transactions": "node scripts/clear-db1-transactions.js",
-    "db:storage": "node scripts/db-storage-report.js"
+    "db:storage": "node scripts/db-storage-report.js",
+    "test:2d": "node --test src/services/twoDService.test.js"
   },
   "dependencies": {
     "dotenv": "^16.4.5",

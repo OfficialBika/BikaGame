@@ -23,6 +23,9 @@ const env = {
   START_BONUS: num('START_BONUS', 300),
   DAILY_MIN: num('DAILY_MIN', 500),
   DAILY_MAX: num('DAILY_MAX', 2000),
+  // 2D payout multiplier (gross return, including the original stake).
+  // Primary key is 2D_PAYOUT; TWO_D_PAYOUT remains a compatibility alias.
+  TWO_D_PAYOUT: num('2D_PAYOUT', num('TWO_D_PAYOUT', 85)),
   TWO_D_CHANNEL_ID: process.env.TWO_D_CHANNEL_ID || '',
   TWO_D_DISCUSSION_CHAT_ID: process.env.TWO_D_DISCUSSION_CHAT_ID || '',
   AUCTION_CHANNEL_ID: process.env.AUCTION_CHANNEL_ID || '',
@@ -32,5 +35,8 @@ const env = {
 if (!env.BOT_TOKEN) throw new Error('Missing BOT_TOKEN');
 if (!env.MONGO_URI) throw new Error('Missing MONGO_URI');
 if (!env.OWNER_ID) throw new Error('Missing/Invalid OWNER_ID');
+if (!Number.isFinite(env.TWO_D_PAYOUT) || env.TWO_D_PAYOUT <= 0 || env.TWO_D_PAYOUT > 1000000) {
+  throw new Error('Invalid 2D_PAYOUT: must be greater than 0 and at most 1000000');
+}
 const USE_WEBHOOK = Boolean(env.PUBLIC_URL && env.WEBHOOK_SECRET);
 module.exports = { env, USE_WEBHOOK };
