@@ -60,3 +60,17 @@ test('2D settlement calculations use the configured payout constant consistently
   assert.match(source, /Number\(x\.totalAmount\) \* PAYOUT/);
   assert.match(source, /Number\(x\.totalAmount\) \* PAYOUT/);
 });
+
+test('owner is not excluded from the normal 2D bet path', () => {
+  const source = require('node:fs').readFileSync(servicePath, 'utf8');
+  const commentStart = source.indexOf('async function handleComment');
+  const commentEnd = source.indexOf('async function myBet', commentStart);
+  const commentHandler = source.slice(commentStart, commentEnd);
+  assert.doesNotMatch(commentHandler, /if\\s*\\(owner\\(ctx\\)\\)\\s*return\\s+false/);
+
+  const registerStart = source.indexOf('function register(bot)');
+  const initStart = source.indexOf('async function init(bot)', registerStart);
+  const registerHandler = source.slice(registerStart, initStart);
+  assert.doesNotMatch(registerHandler, /if\\s*\\(owner\\(ctx\\)\\)\\s*return\\s+next\\(\\)/);
+  assert.match(registerHandler, /await handleBet\\(ctx, e, p\\)/);
+});

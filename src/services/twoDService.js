@@ -603,7 +603,8 @@ async function handleComment(ctx, bot) {
   try { await captureDiscussionRoot(ctx.message); } catch (err) { logger.warn('2D discussion root capture failed: ' + (err && err.message ? err.message : err)); }
   const e = await openEvent();
   if (!e || !(await isEventMessage(ctx.message, e))) return false;
-  if (owner(ctx)) return false;
+  // The owner may place a normal bet from the linked discussion just like any player.
+  // Owner-only checks remain on moderation and result-management commands.
   const text = String(ctx.message.text || '').trim();
   if (!/^\.2d(?:\s|$)/i.test(text)) { await safeTelegram(function () { return bot.telegram.deleteMessage(ctx.chat.id, ctx.message.message_id); }).catch(function () {}); return true; }
   const parsed = parse2dCommand(text);
@@ -950,7 +951,6 @@ function register(bot) {
   });
   bot.hears(/^\.2d(?:\s|$)/i, async function (ctx, next) {
     const e = await openEvent(); if (!e || !(await isEventMessage(ctx.message, e))) return next();
-    if (owner(ctx)) return next();
     const p = parse2dCommand(ctx.message.text); if (p.error) { await handleComment(ctx, bot); return; }
     try { await handleBet(ctx, e, p); } catch (err) { await handleComment(ctx, bot); }
   });
